@@ -1,0 +1,2 @@
+rootProject.name = 'WOG-APP'
+include ':app'
