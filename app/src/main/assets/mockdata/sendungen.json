@@ -1,0 +1,16 @@
+[
+    {
+        "sscc": "123456789012345678",
+        "zustelldatum": "2023-10-01",
+        "transportart": "LKW",
+        "empfaenger": "Musterfirma GmbH",
+        "tourenplatz": "A1"
+    },
+    {
+        "sscc": "987654321098765432",
+        "zustelldatum": "2023-10-02",
+        "transportart": "Schiff",
+        "empfaenger": "Beispiel AG",
+        "tourenplatz": "B2"
+    }
+]

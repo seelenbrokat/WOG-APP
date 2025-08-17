@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">WOG-APP</string>
+    <string-array name="scan_types">
+        <item>Hallenscan</item>
+        <item>Entladescan</item>
+        <item>Retourscan</item>
+    </string-array>
+</resources>
