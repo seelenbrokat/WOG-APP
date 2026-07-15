@@ -95,11 +95,12 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization       @relation(fields: [organizationId], references: [id])
   users        User[]
   shipments    Shipment[]
   addresses    Address[]
   contacts     Contact[]
+  templates    ShipmentTemplate[]
 
   @@unique([organizationId, customerNumber])
 }
@@ -125,10 +126,48 @@ model Address {
   zip        String
   city       String
   country    String  @default("AT")
+  /// PICKUP | DELIVERY | BOTH
+  usage      String  @default("BOTH")
   isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   mandant  Mandant?  @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model ShipmentTemplate {
+  id               String   @id @default(cuid())
+  customerId       String
+  name             String
+  mandantId        String?
+  reference        String?
+  transportMode    String?
+  goodsDescription String?
+  packageCount     Int      @default(1)
+  weightKg         Float?
+  volumeM3         Float?
+  pickupAddressId  String?
+  deliveryAddressId String?
+  pickupCompany    String?
+  pickupStreet     String?
+  pickupZip        String?
+  pickupCity       String?
+  pickupCountry    String?  @default("AT")
+  deliveryCompany  String?
+  deliveryStreet   String?
+  deliveryZip      String?
+  deliveryCity     String?
+  deliveryCountry  String?  @default("AT")
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model User {

@@ -135,6 +135,26 @@ class CreateShipmentDto {
   submit?: boolean;
 
   @IsOptional()
+  @IsString()
+  pickupAddressId?: string;
+
+  @IsOptional()
+  @IsString()
+  deliveryAddressId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  savePickupAddress?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  saveDeliveryAddress?: boolean;
+
+  @IsOptional()
+  @IsString()
+  saveAsTemplateName?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PositionDto)

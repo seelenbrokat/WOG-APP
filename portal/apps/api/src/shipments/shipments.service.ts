@@ -84,6 +84,8 @@ export class ShipmentsService {
       packageCount?: number;
       weightKg?: number;
       volumeM3?: number;
+      pickupAddressId?: string;
+      deliveryAddressId?: string;
       pickupCompany?: string;
       pickupStreet?: string;
       pickupZip?: string;
@@ -98,6 +100,9 @@ export class ShipmentsService {
       deliveryDate?: string;
       notes?: string;
       submit?: boolean;
+      savePickupAddress?: boolean;
+      saveDeliveryAddress?: boolean;
+      saveAsTemplateName?: string;
       positions?: {
         description: string;
         quantity?: number;
@@ -121,6 +126,40 @@ export class ShipmentsService {
     }
     if (!customerId) throw new ForbiddenException('customerId erforderlich');
 
+    let pickupCompany = data.pickupCompany;
+    let pickupStreet = data.pickupStreet;
+    let pickupZip = data.pickupZip;
+    let pickupCity = data.pickupCity;
+    let pickupCountry = data.pickupCountry || 'AT';
+    let deliveryCompany = data.deliveryCompany;
+    let deliveryStreet = data.deliveryStreet;
+    let deliveryZip = data.deliveryZip;
+    let deliveryCity = data.deliveryCity;
+    let deliveryCountry = data.deliveryCountry || 'AT';
+
+    if (data.pickupAddressId) {
+      const addr = await this.prisma.address.findFirst({
+        where: { id: data.pickupAddressId, customerId },
+      });
+      if (!addr) throw new NotFoundException('Abholadresse nicht gefunden');
+      pickupCompany = addr.company || pickupCompany;
+      pickupStreet = addr.street;
+      pickupZip = addr.zip;
+      pickupCity = addr.city;
+      pickupCountry = addr.country;
+    }
+    if (data.deliveryAddressId) {
+      const addr = await this.prisma.address.findFirst({
+        where: { id: data.deliveryAddressId, customerId },
+      });
+      if (!addr) throw new NotFoundException('Zustelladresse nicht gefunden');
+      deliveryCompany = addr.company || deliveryCompany;
+      deliveryStreet = addr.street;
+      deliveryZip = addr.zip;
+      deliveryCity = addr.city;
+      deliveryCountry = addr.country;
+    }
+
     const status = data.submit ? ShipmentStatus.SUBMITTED : ShipmentStatus.DRAFT;
     const shipment = await this.prisma.shipment.create({
       data: {
@@ -136,17 +175,17 @@ export class ShipmentsService {
         packageCount: data.packageCount ?? 1,
         weightKg: data.weightKg,
         volumeM3: data.volumeM3,
-        pickupCompany: data.pickupCompany,
-        pickupStreet: data.pickupStreet,
-        pickupZip: data.pickupZip,
-        pickupCity: data.pickupCity,
-        pickupCountry: data.pickupCountry || 'AT',
+        pickupCompany,
+        pickupStreet,
+        pickupZip,
+        pickupCity,
+        pickupCountry,
         pickupDate: data.pickupDate ? new Date(data.pickupDate) : undefined,
-        deliveryCompany: data.deliveryCompany,
-        deliveryStreet: data.deliveryStreet,
-        deliveryZip: data.deliveryZip,
-        deliveryCity: data.deliveryCity,
-        deliveryCountry: data.deliveryCountry || 'AT',
+        deliveryCompany,
+        deliveryStreet,
+        deliveryZip,
+        deliveryCity,
+        deliveryCountry,
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : undefined,
         notes: data.notes,
         createdById: user.id,
@@ -173,6 +212,62 @@ export class ShipmentsService {
       },
       include: { mandant: true, customer: true, positions: true, events: true },
     });
+
+    if (data.savePickupAddress && pickupStreet && pickupZip && pickupCity) {
+      await this.prisma.address.create({
+        data: {
+          customerId,
+          label: pickupCompany || 'Abholung',
+          company: pickupCompany,
+          street: pickupStreet,
+          zip: pickupZip,
+          city: pickupCity,
+          country: pickupCountry,
+          usage: 'PICKUP',
+        },
+      });
+    }
+    if (data.saveDeliveryAddress && deliveryStreet && deliveryZip && deliveryCity) {
+      await this.prisma.address.create({
+        data: {
+          customerId,
+          label: deliveryCompany || 'Zustellung',
+          company: deliveryCompany,
+          street: deliveryStreet,
+          zip: deliveryZip,
+          city: deliveryCity,
+          country: deliveryCountry,
+          usage: 'DELIVERY',
+        },
+      });
+    }
+    if (data.saveAsTemplateName) {
+      await this.prisma.shipmentTemplate.create({
+        data: {
+          customerId,
+          name: data.saveAsTemplateName,
+          mandantId: data.mandantId,
+          reference: data.reference,
+          transportMode: data.transportMode,
+          goodsDescription: data.goodsDescription,
+          packageCount: data.packageCount ?? 1,
+          weightKg: data.weightKg,
+          pickupAddressId: data.pickupAddressId,
+          deliveryAddressId: data.deliveryAddressId,
+          pickupCompany,
+          pickupStreet,
+          pickupZip,
+          pickupCity,
+          pickupCountry,
+          deliveryCompany,
+          deliveryStreet,
+          deliveryZip,
+          deliveryCity,
+          deliveryCountry,
+          notes: data.notes,
+        },
+      });
+    }
 
     await this.audit.log(user.id, 'shipment.create', 'Shipment', shipment.id, {
       trackingNumber: shipment.trackingNumber,
