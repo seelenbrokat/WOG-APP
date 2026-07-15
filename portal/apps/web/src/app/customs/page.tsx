@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api, getUser } from '@/lib/api';
+import { api, getToken, getUser } from '@/lib/api';
 
 const BORDER_PRESETS = [
   'Nickelsdorf / Hegyeshalom',
@@ -13,6 +13,14 @@ const BORDER_PRESETS = [
   'Sonstiger',
 ];
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function CustomsPage() {
   const user = getUser();
   const [orders, setOrders] = useState<any[]>([]);
@@ -20,6 +28,8 @@ export default function CustomsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [papers, setPapers] = useState<FileList | null>(null);
+  const [extraPapers, setExtraPapers] = useState<Record<string, FileList | null>>({});
   const [form, setForm] = useState({
     kennzeichen: '',
     grenzuebergang: BORDER_PRESETS[0],
@@ -49,6 +59,20 @@ export default function CustomsPage() {
     load().catch((err) => setError(err.message));
   }, []);
 
+  async function downloadDoc(docId: string, fileName: string) {
+    const res = await fetch(`${API_URL}/customs/documents/${docId}/download`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Download fehlgeschlagen');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -58,19 +82,26 @@ export default function CustomsPage() {
         form.grenzuebergang === 'Sonstiger'
           ? form.grenzuebergangCustom
           : form.grenzuebergang;
-      await api('/customs', {
-        method: 'POST',
-        body: JSON.stringify({
-          kennzeichen: form.kennzeichen,
-          grenzuebergang,
-          zeit: new Date(form.zeit).toISOString(),
-          importeur: form.importeur,
-          mandantId: form.mandantId || undefined,
-          customerId: form.customerId || undefined,
-          notes: form.notes || undefined,
-        }),
-      });
-      setMessage('Verzollungsauftrag übermittelt.');
+
+      const fd = new FormData();
+      fd.append('kennzeichen', form.kennzeichen);
+      fd.append('grenzuebergang', grenzuebergang);
+      fd.append('zeit', new Date(form.zeit).toISOString());
+      fd.append('importeur', form.importeur);
+      if (form.mandantId) fd.append('mandantId', form.mandantId);
+      if (form.customerId) fd.append('customerId', form.customerId);
+      if (form.notes) fd.append('notes', form.notes);
+      if (papers) {
+        Array.from(papers).forEach((file) => fd.append('papers', file));
+      }
+
+      await api('/customs', { method: 'POST', body: fd });
+      setMessage(
+        papers?.length
+          ? `Verzollungsauftrag mit ${papers.length} Zollpapier(en) übermittelt.`
+          : 'Verzollungsauftrag übermittelt.',
+      );
+      setPapers(null);
       setForm((f) => ({
         ...f,
         kennzeichen: '',
@@ -84,13 +115,23 @@ export default function CustomsPage() {
     }
   }
 
+  async function uploadExtra(orderId: string) {
+    const files = extraPapers[orderId];
+    if (!files?.length) return;
+    const fd = new FormData();
+    Array.from(files).forEach((file) => fd.append('papers', file));
+    await api(`/customs/${orderId}/papers`, { method: 'POST', body: fd });
+    setExtraPapers((prev) => ({ ...prev, [orderId]: null }));
+    await load();
+  }
+
   return (
     <AppShell title="Verzollung">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Verzollungsauftrag einfach übermitteln: Kennzeichen, Grenzübergang, Zeit und Importeur.
+        Verzollungsauftrag mit Kennzeichen, Grenzübergang, Zeit, Importeur und Zollpapieren übermitteln.
       </p>
 
-      <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 640 }} onSubmit={onSubmit}>
+      <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 720 }} onSubmit={onSubmit}>
         <strong>Neuer Verzollungsauftrag</strong>
         <div className="grid-2">
           <div className="field">
@@ -168,6 +209,25 @@ export default function CustomsPage() {
           )}
         </div>
         <div className="field">
+          <label>Zollpapiere</label>
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
+            onChange={(e) => setPapers(e.target.files)}
+          />
+          <span className="muted" style={{ fontSize: '0.85rem' }}>
+            Mehrere Dateien möglich (PDF, Bilder, XML, ZIP) – max. 25 MB je Datei.
+          </span>
+          {papers && papers.length > 0 && (
+            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+              {Array.from(papers).map((f) => (
+                <li key={f.name}>{f.name} ({formatBytes(f.size)})</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="field">
           <label>Hinweis (optional)</label>
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </div>
@@ -185,8 +245,9 @@ export default function CustomsPage() {
               <th>Grenze</th>
               <th>Zeit</th>
               <th>Importeur</th>
+              <th>Zollpapiere</th>
               <th>Status</th>
-              {(user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER') && <th></th>}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -196,9 +257,42 @@ export default function CustomsPage() {
                 <td>{o.grenzuebergang}</td>
                 <td>{new Date(o.zeit).toLocaleString('de-AT')}</td>
                 <td>{o.importeur}</td>
+                <td>
+                  <div className="stack" style={{ gap: '0.35rem' }}>
+                    {(o.documents || []).map((d: any) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ padding: '0.2rem 0.45rem', justifyContent: 'flex-start' }}
+                        onClick={() => downloadDoc(d.id, d.fileName)}
+                      >
+                        {d.fileName}
+                      </button>
+                    ))}
+                    {!o.documents?.length && <span className="muted">keine</span>}
+                    <div className="row">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) =>
+                          setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={!extraPapers[o.id]?.length}
+                        onClick={() => uploadExtra(o.id)}
+                      >
+                        Hochladen
+                      </button>
+                    </div>
+                  </div>
+                </td>
                 <td><span className="badge">{o.status}</span></td>
-                {(user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER') && (
-                  <td>
+                <td>
+                  {(user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER') && (
                     <select
                       value={o.status}
                       onChange={async (e) => {
@@ -214,12 +308,12 @@ export default function CustomsPage() {
                       <option value="DONE">Erledigt</option>
                       <option value="CANCELLED">Storniert</option>
                     </select>
-                  </td>
-                )}
+                  )}
+                </td>
               </tr>
             ))}
             {!orders.length && (
-              <tr><td colSpan={6} className="muted">Noch keine Verzollungsaufträge.</td></tr>
+              <tr><td colSpan={7} className="muted">Noch keine Verzollungsaufträge.</td></tr>
             )}
           </tbody>
         </table>

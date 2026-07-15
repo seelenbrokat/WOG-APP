@@ -33,6 +33,7 @@ enum DocumentType {
   INVOICE
   CUSTOMER_UPLOAD
   PARTNER_FILE
+  CUSTOMS_PAPER
   OTHER
 }
 
@@ -294,21 +295,24 @@ model StatusEvent {
 }
 
 model Document {
-  id           String       @id @default(cuid())
-  shipmentId   String?
+  id             String       @id @default(cuid())
+  shipmentId     String?
+  customsOrderId String?
   organizationId String
-  customerId   String?
-  type         DocumentType
-  fileName     String
-  mimeType     String
-  storagePath  String
-  sizeBytes    Int
-  uploadedById String?
-  createdAt    DateTime     @default(now())
+  customerId     String?
+  type           DocumentType
+  fileName       String
+  mimeType       String
+  storagePath    String
+  sizeBytes      Int
+  uploadedById   String?
+  createdAt      DateTime     @default(now())
 
-  shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  shipment     Shipment?     @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  customsOrder CustomsOrder? @relation(fields: [customsOrderId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([customsOrderId])
   @@index([customerId])
 }
 
@@ -412,6 +416,7 @@ model CustomsOrder {
   organization Organization @relation(fields: [organizationId], references: [id])
   customer     Customer     @relation(fields: [customerId], references: [id])
   mandant      Mandant?     @relation(fields: [mandantId], references: [id])
+  documents    Document[]
 
   @@index([customerId, createdAt])
   @@index([organizationId, status])
