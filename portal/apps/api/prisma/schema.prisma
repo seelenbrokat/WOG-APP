@@ -59,10 +59,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  mandanten Mandant[]
-  customers Customer[]
-  users     User[]
-  partners  Partner[]
+  mandanten     Mandant[]
+  customers     Customer[]
+  users         User[]
+  partners      Partner[]
+  customsOrders CustomsOrder[]
 }
 
 model Mandant {
@@ -79,6 +80,7 @@ model Mandant {
   shipments    Shipment[]
   userAccess   UserMandantAccess[]
   addresses    Address[]
+  customsOrders CustomsOrder[]
 
   @@unique([organizationId, code])
 }
@@ -101,6 +103,7 @@ model Customer {
   addresses    Address[]
   contacts     Contact[]
   templates    ShipmentTemplate[]
+  customsOrders CustomsOrder[]
 
   @@unique([organizationId, customerNumber])
 }
@@ -351,6 +354,30 @@ model PartnerJob {
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+}
+
+/// Einfacher Verzollungsauftrag
+model CustomsOrder {
+  id             String   @id @default(cuid())
+  organizationId String
+  customerId     String
+  mandantId      String?
+  kennzeichen    String
+  grenzuebergang String
+  zeit           DateTime
+  importeur      String
+  status         String   @default("SUBMITTED")
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  mandant      Mandant?     @relation(fields: [mandantId], references: [id])
+
+  @@index([customerId, createdAt])
+  @@index([organizationId, status])
 }
 
 model AuditLog {
