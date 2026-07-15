@@ -67,3 +67,6 @@ export {
   isVorarlbergChGoodsBorder,
 } from './borders';
 export type { VorarlbergChGoodsBorder } from './borders';
+
+export { FRANKATUREN, isFrankatur } from './frankatur';
+export type { Frankatur } from './frankatur';

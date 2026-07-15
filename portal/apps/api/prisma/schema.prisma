@@ -397,7 +397,7 @@ model IntegrationTransfer {
   @@index([fromSystem, toSystem])
 }
 
-/// Einfacher Verzollungsauftrag
+/// Verzollungsauftrag Vorarlberg–Schweiz
 model CustomsOrder {
   id             String   @id @default(cuid())
   organizationId String
@@ -407,6 +407,24 @@ model CustomsOrder {
   grenzuebergang String
   zeit           DateTime
   importeur      String
+  frankatur      String
+  /// true = abweichender Frachtzahler (nicht der angemeldete Kunde)
+  abweichenderFrachtzahler Boolean @default(false)
+  frachtzahlerFirma        String?
+  frachtzahlerStreet       String?
+  frachtzahlerZip          String?
+  frachtzahlerCity         String?
+  frachtzahlerCountry      String? @default("AT")
+  absenderFirma            String
+  absenderStreet           String
+  absenderZip              String
+  absenderCity             String
+  absenderCountry          String  @default("AT")
+  empfaengerFirma          String
+  empfaengerStreet         String
+  empfaengerZip            String
+  empfaengerCity           String
+  empfaengerCountry        String  @default("CH")
   status         String   @default("SUBMITTED")
   notes          String?
   createdById    String?

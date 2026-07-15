@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
-import { isVorarlbergChGoodsBorder } from '@wog/shared';
+import { isVorarlbergChGoodsBorder, isFrankatur } from '@wog/shared';
 import { createWriteStream, createReadStream, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -10,6 +10,40 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+
+export type PartyAddress = {
+  firma: string;
+  street: string;
+  zip: string;
+  city: string;
+  country?: string;
+};
+
+export type CreateCustomsInput = {
+  kennzeichen: string;
+  grenzuebergang: string;
+  zeit: string;
+  importeur: string;
+  frankatur: string;
+  mandantId?: string;
+  notes?: string;
+  abweichenderFrachtzahler?: boolean | string;
+  frachtzahlerFirma?: string;
+  frachtzahlerStreet?: string;
+  frachtzahlerZip?: string;
+  frachtzahlerCity?: string;
+  frachtzahlerCountry?: string;
+  absenderFirma: string;
+  absenderStreet: string;
+  absenderZip: string;
+  absenderCity: string;
+  absenderCountry?: string;
+  empfaengerFirma: string;
+  empfaengerStreet: string;
+  empfaengerZip: string;
+  empfaengerCity: string;
+  empfaengerCountry?: string;
+};
 
 @Injectable()
 export class CustomsService {
@@ -68,25 +102,13 @@ export class CustomsService {
     return order;
   }
 
-  async create(
-    user: AuthUser,
-    data: {
-      kennzeichen: string;
-      grenzuebergang: string;
-      zeit: string;
-      importeur: string;
-      mandantId?: string;
-      customerId?: string;
-      notes?: string;
-    },
-    files: Express.Multer.File[] = [],
-  ) {
-    let customerId = data.customerId;
-    if (user.role === UserRole.CUSTOMER_USER) {
-      if (!user.customerId) throw new ForbiddenException('Kein Kundenkonto verknüpft');
-      customerId = user.customerId;
+  async create(user: AuthUser, data: CreateCustomsInput, files: Express.Multer.File[] = []) {
+    if (!user.customerId) {
+      throw new ForbiddenException(
+        'Verzollungsaufträge nur mit Kundenkonto – bitte als Kunde anmelden',
+      );
     }
-    if (!customerId) throw new ForbiddenException('customerId erforderlich');
+    const customerId = user.customerId;
 
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, organizationId: user.organizationId },
@@ -107,6 +129,38 @@ export class CustomsService {
       );
     }
 
+    const frankatur = data.frankatur.trim();
+    if (!isFrankatur(frankatur)) {
+      throw new BadRequestException('Ungültige Frankatur');
+    }
+
+    this.assertParty('Absender', {
+      firma: data.absenderFirma,
+      street: data.absenderStreet,
+      zip: data.absenderZip,
+      city: data.absenderCity,
+    });
+    this.assertParty('Empfänger', {
+      firma: data.empfaengerFirma,
+      street: data.empfaengerStreet,
+      zip: data.empfaengerZip,
+      city: data.empfaengerCity,
+    });
+
+    const abweichend =
+      data.abweichenderFrachtzahler === true ||
+      data.abweichenderFrachtzahler === 'true' ||
+      data.abweichenderFrachtzahler === '1';
+
+    if (abweichend) {
+      this.assertParty('Frachtzahler', {
+        firma: data.frachtzahlerFirma || '',
+        street: data.frachtzahlerStreet || '',
+        zip: data.frachtzahlerZip || '',
+        city: data.frachtzahlerCity || '',
+      });
+    }
+
     const order = await this.prisma.customsOrder.create({
       data: {
         organizationId: user.organizationId,
@@ -116,6 +170,23 @@ export class CustomsService {
         grenzuebergang,
         zeit: new Date(data.zeit),
         importeur: data.importeur.trim(),
+        frankatur,
+        abweichenderFrachtzahler: abweichend,
+        frachtzahlerFirma: abweichend ? data.frachtzahlerFirma?.trim() : null,
+        frachtzahlerStreet: abweichend ? data.frachtzahlerStreet?.trim() : null,
+        frachtzahlerZip: abweichend ? data.frachtzahlerZip?.trim() : null,
+        frachtzahlerCity: abweichend ? data.frachtzahlerCity?.trim() : null,
+        frachtzahlerCountry: abweichend ? data.frachtzahlerCountry?.trim() || 'AT' : null,
+        absenderFirma: data.absenderFirma.trim(),
+        absenderStreet: data.absenderStreet.trim(),
+        absenderZip: data.absenderZip.trim(),
+        absenderCity: data.absenderCity.trim(),
+        absenderCountry: data.absenderCountry?.trim() || 'AT',
+        empfaengerFirma: data.empfaengerFirma.trim(),
+        empfaengerStreet: data.empfaengerStreet.trim(),
+        empfaengerZip: data.empfaengerZip.trim(),
+        empfaengerCity: data.empfaengerCity.trim(),
+        empfaengerCountry: data.empfaengerCountry?.trim() || 'CH',
         notes: data.notes,
         status: 'SUBMITTED',
         createdById: user.id,
@@ -131,6 +202,7 @@ export class CustomsService {
     await this.audit.log(user.id, 'customs.create', 'CustomsOrder', order.id, {
       kennzeichen: order.kennzeichen,
       grenzuebergang: order.grenzuebergang,
+      frankatur: order.frankatur,
       documents: files?.length || 0,
     });
 
@@ -145,7 +217,13 @@ export class CustomsService {
         `Kennzeichen: ${order.kennzeichen}`,
         `Grenzübergang: ${order.grenzuebergang}`,
         `Zeit: ${when}`,
+        `Frankatur: ${order.frankatur}`,
         `Importeur: ${order.importeur}`,
+        `Absender: ${order.absenderFirma}, ${order.absenderStreet}, ${order.absenderZip} ${order.absenderCity}`,
+        `Empfänger: ${order.empfaengerFirma}, ${order.empfaengerStreet}, ${order.empfaengerZip} ${order.empfaengerCity}`,
+        abweichend
+          ? `Frachtzahler: ${order.frachtzahlerFirma}, ${order.frachtzahlerStreet}, ${order.frachtzahlerZip} ${order.frachtzahlerCity}`
+          : `Frachtzahler: ${full.customer.name} (Auftraggeber)`,
         full.mandant ? `Mandant: ${full.mandant.name}` : '',
         `Zollpapiere: ${full.documents.length} Datei(en)`,
         ...full.documents.map((d) => `- ${d.fileName}`),
@@ -190,6 +268,12 @@ export class CustomsService {
     }
     await this.get(user, doc.customsOrderId);
     return { doc, stream: createReadStream(doc.storagePath) };
+  }
+
+  private assertParty(label: string, party: PartyAddress) {
+    if (!party.firma?.trim() || !party.street?.trim() || !party.zip?.trim() || !party.city?.trim()) {
+      throw new BadRequestException(`${label}: Firma, Straße, PLZ und Ort sind erforderlich`);
+    }
   }
 
   private async savePapers(user: AuthUser, customsOrderId: string, files: Express.Multer.File[]) {
