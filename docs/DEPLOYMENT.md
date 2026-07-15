@@ -1,13 +1,24 @@
 # Deployment – wog.logistikberater.at
 
-## Voraussetzungen
+## Status der Infrastruktur
 
-- Docker + Docker Compose auf dem Server `logistikberater.at`
-- DNS A-Record: `wog.logistikberater.at` → Server-IP
-- Nginx (oder Caddy) als Reverse Proxy
-- SMTP-Zugangsdaten für E-Mail-Benachrichtigungen
+- DNS `wog.logistikberater.at` zeigt auf `85.215.41.99` (SSH Port 22 offen).
+- Derzeit läuft dort ein API-Gateway (`api.logistikberater.at`); Produkt `wog` ist noch `planned`.
+- Für den Deploy braucht der Agent **SSH-Zugang** (Deploy-Key oder User/Passwort).
 
-## Schnellstart
+## One-Shot Deploy (auf dem Server als root)
+
+```bash
+# Variante A: Repo ist bereits da
+cd /opt/wog-portal/portal && bash scripts/deploy-server.sh
+
+# Variante B: frisch vom GitHub-Branch
+curl -fsSL https://raw.githubusercontent.com/seelenbrokat/WOG-APP/cursor/wog-kundenportal-203f/portal/scripts/deploy-server.sh | bash
+```
+
+Das Skript installiert bei Bedarf Docker, baut den Stack, migriert/seedet die DB und richtet Nginx (+ optional Certbot) für `wog.logistikberater.at` ein.
+
+## Manuell
 
 ```bash
 cd portal
@@ -15,19 +26,20 @@ cp .env.example .env
 # JWT_SECRET, SMTP_*, SEED_ADMIN_PASSWORD setzen
 
 docker compose up -d postgres redis
-# Migration + Seed einmalig:
-docker compose run --rm api sh -c "npx prisma migrate deploy && npx prisma db seed"
-
-docker compose up -d api worker web sftpgo
+docker compose run --rm api sh -c "npx prisma migrate deploy && npm run prisma:seed"
+docker compose up -d --build api worker web sftpgo
 ```
 
 Nginx-Beispiel: [portal/nginx/wog.conf.example](../portal/nginx/wog.conf.example)
 
-TLS mit Let’s Encrypt:
+## Benötigte Angaben für Remote-Deploy durch den Cloud-Agenten
 
-```bash
-certbot --nginx -d wog.logistikberater.at
-```
+1. SSH-Host (falls nicht `wog.logistikberater.at` / `85.215.41.99`)
+2. SSH-User (z. B. `root` oder `deploy`)
+3. Entweder:
+   - privater SSH-Key (Deploy-Key mit Schreibrechten auf dem Server), **oder**
+   - einmaliges Passwort / sudo
+4. Bestätigung: Soll das bestehende Gateway unter `/` durch das Kundenportal ersetzt werden, oder Portal unter Pfad/Subdomain (z. B. `/portal`)?
 
 ## Ports (intern)
 
@@ -52,27 +64,3 @@ certbot --nginx -d wog.logistikberater.at
 | Kunde | `kunde@example.com` | `Kunde123!` |
 
 Demo-Tracking: `WOGDEMO0001` / PIN `1234`
-
-## Partner-FTP
-
-1. In SFTPGo Benutzer anlegen (Ordner auf `/srv/sftpgo/data` mappen)
-2. Inbound-Dateien als `{PARTNERCODE}_*.json` nach `data/sftp/inbound` legen
-3. Worker verarbeitet alle 30 Sekunden und schreibt nach `inbound/processed`
-
-## Soloplan
-
-Siehe [SOLOPLAN.md](./SOLOPLAN.md).
-
-## Lokale Entwicklung ohne Docker-Build
-
-```bash
-cd portal
-cp .env.example .env
-# DATABASE_URL auf lokalen Postgres zeigen
-npm install
-npm run build -w @wog/shared
-cd apps/api && npx prisma generate && npx prisma migrate dev && npm run prisma:seed
-cd ../..
-npm run dev:api   # Terminal 1
-npm run dev:web   # Terminal 2
-```
