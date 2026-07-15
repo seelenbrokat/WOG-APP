@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
+import { isVorarlbergChGoodsBorder } from '@wog/shared';
 import { createWriteStream, createReadStream, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -104,13 +100,20 @@ export class CustomsService {
       if (!mandant) throw new NotFoundException('Mandant nicht gefunden');
     }
 
+    const grenzuebergang = data.grenzuebergang.trim();
+    if (!isVorarlbergChGoodsBorder(grenzuebergang)) {
+      throw new BadRequestException(
+        'Grenzübergang ist für den Warenverkehr Vorarlberg–Schweiz nicht freigegeben',
+      );
+    }
+
     const order = await this.prisma.customsOrder.create({
       data: {
         organizationId: user.organizationId,
         customerId,
         mandantId: data.mandantId,
         kennzeichen: data.kennzeichen.trim().toUpperCase(),
-        grenzuebergang: data.grenzuebergang.trim(),
+        grenzuebergang,
         zeit: new Date(data.zeit),
         importeur: data.importeur.trim(),
         notes: data.notes,

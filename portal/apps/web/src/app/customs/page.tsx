@@ -1,17 +1,11 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { VORARLBERG_CH_GOODS_BORDERS } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getToken, getUser } from '@/lib/api';
 
-const BORDER_PRESETS = [
-  'Nickelsdorf / Hegyeshalom',
-  'Spielfeld / Šentilj',
-  'Suben / Suben',
-  'Brenner',
-  'Karawankentunnel',
-  'Sonstiger',
-];
+const BORDER_PRESETS = [...VORARLBERG_CH_GOODS_BORDERS];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -33,7 +27,6 @@ export default function CustomsPage() {
   const [form, setForm] = useState({
     kennzeichen: '',
     grenzuebergang: BORDER_PRESETS[0],
-    grenzuebergangCustom: '',
     zeit: '',
     importeur: '',
     mandantId: '',
@@ -78,14 +71,9 @@ export default function CustomsPage() {
     setError('');
     setMessage('');
     try {
-      const grenzuebergang =
-        form.grenzuebergang === 'Sonstiger'
-          ? form.grenzuebergangCustom
-          : form.grenzuebergang;
-
       const fd = new FormData();
       fd.append('kennzeichen', form.kennzeichen);
-      fd.append('grenzuebergang', grenzuebergang);
+      fd.append('grenzuebergang', form.grenzuebergang);
       fd.append('zeit', new Date(form.zeit).toISOString());
       fd.append('importeur', form.importeur);
       if (form.mandantId) fd.append('mandantId', form.mandantId);
@@ -107,7 +95,6 @@ export default function CustomsPage() {
         kennzeichen: '',
         importeur: '',
         notes: '',
-        grenzuebergangCustom: '',
       }));
       await load();
     } catch (err: any) {
@@ -128,7 +115,7 @@ export default function CustomsPage() {
   return (
     <AppShell title="Verzollung">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Verzollungsauftrag mit Kennzeichen, Grenzübergang, Zeit, Importeur und Zollpapieren übermitteln.
+        Verzollungsauftrag Vorarlberg–Schweiz: Kennzeichen, Grenzübergang (Warenverkehr), Zeit, Importeur und Zollpapiere.
       </p>
 
       <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 720 }} onSubmit={onSubmit}>
@@ -154,8 +141,9 @@ export default function CustomsPage() {
           </div>
         </div>
         <div className="field">
-          <label>Grenzübergang</label>
+          <label>Grenzübergang (Warenverkehr V / CH)</label>
           <select
+            required
             value={form.grenzuebergang}
             onChange={(e) => setForm({ ...form, grenzuebergang: e.target.value })}
           >
@@ -163,17 +151,10 @@ export default function CustomsPage() {
               <option key={b} value={b}>{b}</option>
             ))}
           </select>
+          <span className="muted" style={{ fontSize: '0.85rem' }}>
+            Nur für den Warenverkehr freigegebene Übergänge Vorarlberg–Schweiz (Korridor u. a. über Zollamt Wolfurt).
+          </span>
         </div>
-        {form.grenzuebergang === 'Sonstiger' && (
-          <div className="field">
-            <label>Grenzübergang (Freitext)</label>
-            <input
-              required
-              value={form.grenzuebergangCustom}
-              onChange={(e) => setForm({ ...form, grenzuebergangCustom: e.target.value })}
-            />
-          </div>
-        )}
         <div className="field">
           <label>Importeur</label>
           <input

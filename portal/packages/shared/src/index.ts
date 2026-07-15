@@ -61,3 +61,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.CUSTOMER_USER]: 'Kunde',
   [UserRole.PARTNER]: 'Partner',
 };
+
+export {
+  VORARLBERG_CH_GOODS_BORDERS,
+  isVorarlbergChGoodsBorder,
+} from './borders';
+export type { VorarlbergChGoodsBorder } from './borders';
