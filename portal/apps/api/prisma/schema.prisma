@@ -51,6 +51,19 @@ enum PartnerJobStatus {
   FAILED
 }
 
+enum IntegrationSystem {
+  SOLOPLAN
+  LDV
+  MERCURIO
+}
+
+enum IntegrationTransferStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -354,6 +367,30 @@ model PartnerJob {
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+}
+
+/// Interne Datenübermittlung Soloplan <-> LDV / Mercurio (EZOLL)
+model IntegrationTransfer {
+  id             String                     @id @default(cuid())
+  organizationId String
+  fromSystem     IntegrationSystem
+  toSystem       IntegrationSystem
+  status         IntegrationTransferStatus  @default(PENDING)
+  reference      String?
+  customsOrderId String?
+  shipmentId     String?
+  payload        Json
+  responsePayload Json?
+  fileName       String?
+  message        String?
+  createdById    String?
+  processedAt    DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@index([fromSystem, toSystem])
 }
 
 /// Einfacher Verzollungsauftrag

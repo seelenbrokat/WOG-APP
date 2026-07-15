@@ -31,3 +31,6 @@ app/build/
 # Misc
 *.log
 .DS_Store
+
+portal/data/integrations/**/*
+!portal/data/integrations/**/.gitkeep
