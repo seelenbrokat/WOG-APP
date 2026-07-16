@@ -6,6 +6,17 @@
 - Derzeit läuft dort ein API-Gateway (`api.logistikberater.at`); Produkt `wog` ist noch `planned`.
 - Für den Deploy braucht der Agent **SSH-Zugang** (Deploy-Key oder User/Passwort).
 
+## Bestandsschutz (wichtig)
+
+Der Deploy ist **side-by-side** und darf bestehende Anwendungen nicht stören:
+
+- Keine anderen Docker-Container stoppen oder entfernen
+- Keine bestehenden Nginx-Sites deaktivieren oder überschreiben
+- Nur ein eigener vHost für `wog.logistikberater.at`
+- Portal-Ports nur auf `127.0.0.1` (bei Belegung automatische Ausweichports)
+- SFTPGo standardmäßig aus (`ENABLE_SFTP=1` zum Aktivieren)
+- Certbot nur für diese eine Domain (`ENABLE_CERTBOT=0` zum Überspringen)
+
 ## One-Shot Deploy (auf dem Server als root)
 
 ```bash
@@ -16,7 +27,7 @@ cd /opt/wog-portal/portal && bash scripts/deploy-server.sh
 curl -fsSL https://raw.githubusercontent.com/seelenbrokat/WOG-APP/cursor/wog-kundenportal-203f/portal/scripts/deploy-server.sh | bash
 ```
 
-Das Skript installiert bei Bedarf Docker, baut den Stack, migriert/seedet die DB und richtet Nginx (+ optional Certbot) für `wog.logistikberater.at` ein.
+Das Skript installiert bei Bedarf Docker/Nginx, baut **nur** das Compose-Projekt `wogportal`, migriert/seedet die DB und legt den isolierten Nginx-vHost an.
 
 ## Manuell
 
