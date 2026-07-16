@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+.env
+.env.local
+*.log
+data/uploads/*
+!data/uploads/.gitkeep
+data/sftp/*
+!data/sftp/.gitkeep
+coverage/
+.turbo/
+*.tsbuildinfo
