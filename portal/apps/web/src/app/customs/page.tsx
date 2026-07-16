@@ -1,12 +1,17 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { VORARLBERG_CH_GOODS_BORDERS, FRANKATUREN } from '@wog/shared';
+import {
+  VORARLBERG_CH_GOODS_BORDERS,
+  FRANKATUREN,
+  type VorarlbergChGoodsBorder,
+  type Frankatur,
+} from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getToken, getUser } from '@/lib/api';
 
-const BORDER_PRESETS = [...VORARLBERG_CH_GOODS_BORDERS];
-const FRANKATUR_PRESETS = [...FRANKATUREN];
+const BORDER_PRESETS: VorarlbergChGoodsBorder[] = [...VORARLBERG_CH_GOODS_BORDERS];
+const FRANKATUR_PRESETS: Frankatur[] = [...FRANKATUREN];
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 type Address = {
@@ -291,7 +296,12 @@ export default function CustomsPage() {
               <select
                 required
                 value={form.grenzuebergang}
-                onChange={(e) => setForm({ ...form, grenzuebergang: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    grenzuebergang: e.target.value as VorarlbergChGoodsBorder,
+                  })
+                }
               >
                 {BORDER_PRESETS.map((b) => (
                   <option key={b} value={b}>{b}</option>
@@ -303,7 +313,12 @@ export default function CustomsPage() {
               <select
                 required
                 value={form.frankatur}
-                onChange={(e) => setForm({ ...form, frankatur: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    frankatur: e.target.value as Frankatur,
+                  })
+                }
               >
                 {FRANKATUR_PRESETS.map((f) => (
                   <option key={f} value={f}>{f}</option>
