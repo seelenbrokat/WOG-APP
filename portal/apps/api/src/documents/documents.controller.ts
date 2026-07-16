@@ -24,7 +24,13 @@ export class DocumentsController {
   constructor(private service: DocumentsService) {}
 
   @Post('upload')
-  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER, UserRole.PARTNER)
+  @Roles(
+    UserRole.ORG_ADMIN,
+    UserRole.MANDANT_DISPATCHER,
+    UserRole.WAREHOUSE_STAFF,
+    UserRole.CUSTOMER_USER,
+    UserRole.PARTNER,
+  )
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))
   upload(
     @CurrentUser() user: AuthUser,

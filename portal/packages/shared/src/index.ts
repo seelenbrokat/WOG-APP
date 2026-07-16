@@ -1,6 +1,7 @@
 export enum UserRole {
   ORG_ADMIN = 'ORG_ADMIN',
   MANDANT_DISPATCHER = 'MANDANT_DISPATCHER',
+  WAREHOUSE_STAFF = 'WAREHOUSE_STAFF',
   CUSTOMER_USER = 'CUSTOMER_USER',
   PARTNER = 'PARTNER',
 }
@@ -25,7 +26,16 @@ export enum DocumentType {
   CUSTOMER_UPLOAD = 'CUSTOMER_UPLOAD',
   PARTNER_FILE = 'PARTNER_FILE',
   CUSTOMS_PAPER = 'CUSTOMS_PAPER',
+  WAREHOUSE_PHOTO = 'WAREHOUSE_PHOTO',
+  DAMAGE_PHOTO = 'DAMAGE_PHOTO',
   OTHER = 'OTHER',
+}
+
+export enum DamageStatus {
+  OPEN = 'OPEN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+  CLOSED = 'CLOSED',
 }
 
 export enum NotificationEvent {
@@ -58,8 +68,16 @@ export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.ORG_ADMIN]: 'Organisations-Admin',
   [UserRole.MANDANT_DISPATCHER]: 'Disponent',
+  [UserRole.WAREHOUSE_STAFF]: 'Lagermitarbeiter',
   [UserRole.CUSTOMER_USER]: 'Kunde',
   [UserRole.PARTNER]: 'Partner',
+};
+
+export const DAMAGE_STATUS_LABELS: Record<DamageStatus, string> = {
+  [DamageStatus.OPEN]: 'Offen',
+  [DamageStatus.IN_PROGRESS]: 'In Bearbeitung',
+  [DamageStatus.RESOLVED]: 'Behoben',
+  [DamageStatus.CLOSED]: 'Geschlossen',
 };
 
 export {
@@ -70,3 +88,5 @@ export type { VorarlbergChGoodsBorder } from './borders';
 
 export { FRANKATUREN, isFrankatur } from './frankatur';
 export type { Frankatur } from './frankatur';
+
+export { workdayWindow, formatDateOnly, todayDateOnly } from './workdays';

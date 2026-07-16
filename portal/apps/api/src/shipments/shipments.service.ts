@@ -36,7 +36,11 @@ export class ShipmentsService {
   list(user: AuthUser, mandantId?: string) {
     const where = this.scope(user);
     if (mandantId) {
-      if (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) {
+      if (
+        user.role === UserRole.MANDANT_DISPATCHER ||
+        user.role === UserRole.WAREHOUSE_STAFF ||
+        user.role === UserRole.PARTNER
+      ) {
         assertMandantAccess(user, mandantId);
       }
       Object.assign(where, { mandantId });
@@ -65,7 +69,9 @@ export class ShipmentsService {
     });
     if (!shipment) throw new NotFoundException();
     if (
-      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+      (user.role === UserRole.MANDANT_DISPATCHER ||
+        user.role === UserRole.WAREHOUSE_STAFF ||
+        user.role === UserRole.PARTNER) &&
       !user.mandantIds.includes(shipment.mandantId)
     ) {
       throw new ForbiddenException();

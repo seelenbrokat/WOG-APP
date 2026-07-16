@@ -17,6 +17,8 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { UsersModule } from './users/users.module';
 import { AuditModule } from './audit/audit.module';
 import { CustomsModule } from './customs/customs.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
+import { DamagesModule } from './damages/damages.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
@@ -39,6 +41,8 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
     IntegrationsModule,
     AuditModule,
     CustomsModule,
+    WarehouseModule,
+    DamagesModule,
   ],
   controllers: [HealthController],
   providers: [

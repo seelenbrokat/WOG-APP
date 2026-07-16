@@ -46,7 +46,9 @@ export class DocumentsService {
       });
       if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
       if (
-        (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+        (user.role === UserRole.MANDANT_DISPATCHER ||
+          user.role === UserRole.WAREHOUSE_STAFF ||
+          user.role === UserRole.PARTNER) &&
         !user.mandantIds.includes(shipment.mandantId)
       ) {
         throw new ForbiddenException();
@@ -92,7 +94,12 @@ export class DocumentsService {
     if (user.role === UserRole.CUSTOMER_USER && doc.customerId && doc.customerId !== user.customerId) {
       throw new ForbiddenException();
     }
-    if (doc.shipmentId && (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER)) {
+    if (
+      doc.shipmentId &&
+      (user.role === UserRole.MANDANT_DISPATCHER ||
+        user.role === UserRole.WAREHOUSE_STAFF ||
+        user.role === UserRole.PARTNER)
+    ) {
       const shipment = await this.prisma.shipment.findUnique({ where: { id: doc.shipmentId } });
       if (shipment && !user.mandantIds.includes(shipment.mandantId)) throw new ForbiddenException();
     }

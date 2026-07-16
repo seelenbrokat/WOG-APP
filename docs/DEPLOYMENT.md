@@ -72,6 +72,7 @@ Nginx-Beispiel: [portal/nginx/wog.conf.example](../portal/nginx/wog.conf.example
 | Admin | `admin@wog.logistikberater.at` | laut `SEED_ADMIN_PASSWORD` |
 | Dispo AG | `dispatch.ag@wog.logistikberater.at` | `DispatchAg123!` |
 | Dispo GmbH | `dispatch.gmbh@wog.logistikberater.at` | `DispatchGmbh123!` |
+| Lager | `lager@wog.logistikberater.at` | `Lager123!` |
 | Kunde | `kunde@example.com` | `Kunde123!` |
 
 Demo-Tracking: `WOGDEMO0001` / PIN `1234`

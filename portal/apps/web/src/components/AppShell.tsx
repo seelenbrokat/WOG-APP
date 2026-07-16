@@ -5,11 +5,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 import { clearSession, getToken, getUser, SessionUser } from '@/lib/api';
 
+const STAFF = ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'WAREHOUSE_STAFF'];
+
 const NAV = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/customs', label: 'Verzollung', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/lager', label: 'Lager', roles: STAFF },
+  { href: '/schaeden', label: 'Schäden', roles: STAFF },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
@@ -45,7 +49,11 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         <div className="logo">WOG</div>
         <nav>
           {links.map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
+            <Link
+              key={l.href}
+              href={l.href}
+              className={pathname === l.href || pathname.startsWith(`${l.href}/`) ? 'active' : ''}
+            >
               {l.label}
             </Link>
           ))}

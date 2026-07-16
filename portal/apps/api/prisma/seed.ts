@@ -129,6 +129,29 @@ async function main() {
     },
   });
 
+  const lager = await prisma.user.upsert({
+    where: { email: 'lager@wog.logistikberater.at' },
+    update: {
+      role: UserRole.WAREHOUSE_STAFF,
+      passwordHash: await bcrypt.hash('Lager123!', 10),
+      emailVerifiedAt: new Date(),
+      active: true,
+    },
+    create: {
+      organizationId: org.id,
+      email: 'lager@wog.logistikberater.at',
+      passwordHash: await bcrypt.hash('Lager123!', 10),
+      firstName: 'Lara',
+      lastName: 'Lager',
+      role: UserRole.WAREHOUSE_STAFF,
+      emailVerifiedAt: new Date(),
+      mandantAccess: { create: [{ mandantId: ag.id }, { mandantId: gmbh.id }] },
+      notificationPrefs: {
+        create: Object.values(NotificationEvent).map((event) => ({ event, email: true })),
+      },
+    },
+  });
+
   await prisma.user.upsert({
     where: { email: 'kunde@example.com' },
     update: { customerId: customer.id },
@@ -158,6 +181,9 @@ async function main() {
     },
   });
 
+  const today = new Date();
+  const pickupDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+
   const existingShipment = await prisma.shipment.findFirst({
     where: { trackingNumber: 'WOGDEMO0001' },
   });
@@ -180,6 +206,7 @@ async function main() {
         pickupZip: '4020',
         pickupCity: 'Linz',
         pickupCountry: 'AT',
+        pickupDate,
         deliveryCompany: 'Empfänger AG',
         deliveryStreet: 'Handelsweg 5',
         deliveryZip: '1010',
@@ -205,6 +232,11 @@ async function main() {
         },
       },
     });
+  } else if (!existingShipment.pickupDate) {
+    await prisma.shipment.update({
+      where: { id: existingShipment.id },
+      data: { pickupDate },
+    });
   }
 
   console.log('Seed OK');
@@ -214,6 +246,7 @@ async function main() {
     admin: adminEmail,
     dispatcherAg: dispatcherAg.email,
     dispatcherGmbh: dispatcherGmbh.email,
+    lager: lager.email,
     customer: 'kunde@example.com',
   });
 }

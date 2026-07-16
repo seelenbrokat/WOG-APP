@@ -40,6 +40,7 @@ export default function UsersPage() {
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="ORG_ADMIN">Organisations-Admin</option>
             <option value="MANDANT_DISPATCHER">Disponent</option>
+            <option value="WAREHOUSE_STAFF">Lagermitarbeiter</option>
             <option value="CUSTOMER_USER">Kunde</option>
             <option value="PARTNER">Partner</option>
           </select>
