@@ -117,21 +117,23 @@ fi
 cd "$APP_DIR/portal"
 export COMPOSE_PROJECT_NAME
 
-# Override für Host-Ports (localhost only), ohne docker-compose.yml zu zerstören
+# Override für Host-Ports (localhost only), ohne docker-compose.yml zu zerstören.
+# !override ist nötig: Compose merged ports sonst und behält z.B. 3001 aus der Basisdatei
+# (auf diesem VPS von Forgejo belegt).
 cat > docker-compose.override.yml <<EOF
 # generiert von deploy-server.sh – nicht manuell pflegen
 services:
   postgres:
-    ports:
+    ports: !override
       - "127.0.0.1:${WOG_PG_PORT}:5432"
   redis:
-    ports:
+    ports: !override
       - "127.0.0.1:${WOG_REDIS_PORT}:6379"
   api:
-    ports:
+    ports: !override
       - "127.0.0.1:${WOG_API_PORT}:3001"
   web:
-    ports:
+    ports: !override
       - "127.0.0.1:${WOG_WEB_PORT}:3000"
 EOF
 
