@@ -6,6 +6,13 @@ import { ReactNode, useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { clearSession, getToken, getUser, SessionUser } from '@/lib/api';
 
+const ROLE_LABEL: Record<string, string> = {
+  ORG_ADMIN: 'Administrator',
+  MANDANT_DISPATCHER: 'Disposition',
+  CUSTOMER_USER: 'Kunde',
+  PARTNER_USER: 'Partner',
+};
+
 const NAV = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
@@ -21,7 +28,15 @@ const NAV = [
   { href: '/track', label: 'Track & Trace', roles: ['*'] },
 ];
 
-export function AppShell({ title, children }: { title: string; children: ReactNode }) {
+export function AppShell({
+  title,
+  eyebrow = 'WOG Portal',
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  children: ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -39,7 +54,13 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
     setUser(session);
   }, [router, pathname]);
 
-  if (!user) return <div className="main">Laden…</div>;
+  if (!user) {
+    return (
+      <div className="main">
+        <p className="muted">Portal wird geladen…</p>
+      </div>
+    );
+  }
 
   const links = NAV.filter(
     (n) => n.roles.includes('*') || n.roles.includes(user.role),
@@ -51,19 +72,29 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         <div className="logo">
           <BrandLogo variant="mark" />
         </div>
-        <nav>
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
+        <div>
+          <p className="sidebar-label">Navigation</p>
+          <nav>
+            {links.map((l) => {
+              const active =
+                pathname === l.href ||
+                (l.href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname));
+              return (
+                <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
+                  {l.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
         <div className="sidebar-user">
-          <div>{user.firstName} {user.lastName}</div>
-          <div className="muted" style={{ color: 'rgba(255,255,255,0.7)' }}>{user.role}</div>
+          <div className="name">
+            {user.firstName} {user.lastName}
+          </div>
+          <div className="role">{ROLE_LABEL[user.role] || user.role}</div>
           <button
             className="btn btn-ghost"
-            style={{ marginTop: '0.75rem', width: '100%' }}
+            type="button"
             onClick={() => {
               clearSession();
               router.push('/');
@@ -75,7 +106,10 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
       </aside>
       <main className="main">
         <div className="topbar">
-          <h1>{title}</h1>
+          <div>
+            <p className="eyebrow">{eyebrow}</p>
+            <h1>{title}</h1>
+          </div>
         </div>
         {children}
       </main>

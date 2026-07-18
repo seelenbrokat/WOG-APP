@@ -38,8 +38,11 @@ export default function DashboardPage() {
         </div>
       </div>
       <div className="panel">
-        <div className="row" style={{ justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-          <strong>Letzte Sendungen</strong>
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div>
+            <strong className="panel-title">Letzte Sendungen</strong>
+            <p className="muted" style={{ margin: 0, fontSize: '0.92rem' }}>Aktuelle Aufträge im Überblick</p>
+          </div>
           <Link className="btn btn-primary" href="/shipments/new">Neuer Auftrag</Link>
         </div>
         <table className="table">

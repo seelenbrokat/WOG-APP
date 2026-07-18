@@ -13,11 +13,8 @@ export function AuthLayout({ headline, sub, children, showTrackCta = false }: Au
   return (
     <div className="hero">
       <div className="hero-atmosphere" aria-hidden="true">
-        <div className="globe-ring" />
-        <div className="swoosh" />
-        <div className="leaf leaf-a" />
-        <div className="leaf leaf-b" />
-        <div className="leaf leaf-c" />
+        <div className="orbit" />
+        <div className="beam" />
       </div>
       <section className="hero-brand">
         <div className="brand-plate">

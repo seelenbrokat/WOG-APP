@@ -33,8 +33,11 @@ export default function TrackPage() {
           <div className="track-logo-wrap">
             <BrandLogo variant="full" />
           </div>
-          <p className="brand-sub" style={{ marginTop: '0.75rem' }}>
-            Öffentliches Track & Trace für Ihre WOG-Sendung.
+          <h1 className="brand-headline" style={{ marginTop: '0.85rem' }}>
+            Track & Trace
+          </h1>
+          <p className="brand-sub">
+            Sendungsstatus öffentlich abrufen – mit Sendungsnummer und optionaler PIN.
           </p>
         </div>
       </div>

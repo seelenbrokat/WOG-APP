@@ -44,11 +44,11 @@ export default function HomePage() {
     <AuthLayout
       showTrackCta
       headline="Grün. Global. Verbunden."
-      sub="Sendungserfassung, Track & Trace und Dokumentenaustausch für Kunden und Partner von World of Green Logistics."
+      sub="Sendungen erfassen, verfolgen und Dokumente austauschen – für Kunden und Partner von World of Green Logistics."
     >
       <form className="auth-card" onSubmit={onSubmit}>
         <h1>Anmelden</h1>
-        <p>Zugang für Kunden, Disposition und Partner.</p>
+        <p>Zugang für Kunden, Disposition und Partner</p>
         <div className="field">
           <label>E-Mail</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
