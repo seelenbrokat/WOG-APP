@@ -277,20 +277,31 @@ export class BusinessPartnerService {
     bp: ParsedBusinessPartner,
   ) {
     const saved = [];
+    const keepIds = new Set<string>();
     for (const c of bp.contacts) {
       if (!c.email && !c.name) continue;
-      const existing = c.email
-        ? await this.prisma.contact.findFirst({
-            where: {
-              ...link,
-              email: c.email.toLowerCase(),
-            },
-          })
-        : c.number !== undefined
+      let existing =
+        (c.email
+          ? await this.prisma.contact.findFirst({
+              where: { ...link, email: c.email.toLowerCase() },
+            })
+          : null) ||
+        (c.number !== undefined
           ? await this.prisma.contact.findFirst({
               where: { ...link, soloplanContactNumber: c.number },
             })
-          : null;
+          : null);
+
+      // Alte Imports ohne E-Mail: gleicher Name am Kunden/Partner
+      if (!existing && c.email) {
+        existing = await this.prisma.contact.findFirst({
+          where: {
+            ...link,
+            OR: [{ email: null }, { email: '' }],
+            name: c.name,
+          },
+        });
+      }
 
       const data = {
         name: c.name,
@@ -308,7 +319,19 @@ export class BusinessPartnerService {
       const row = existing
         ? await this.prisma.contact.update({ where: { id: existing.id }, data })
         : await this.prisma.contact.create({ data });
+      keepIds.add(row.id);
       saved.push(row);
+    }
+
+    // Verwaiste Kontakte ohne E-Mail vom vorherigen Fehl-Import entfernen
+    if (keepIds.size && (link.customerId || link.partnerId)) {
+      await this.prisma.contact.deleteMany({
+        where: {
+          ...link,
+          id: { notIn: [...keepIds] },
+          OR: [{ email: null }, { email: '' }],
+        },
+      });
     }
     return saved;
   }
