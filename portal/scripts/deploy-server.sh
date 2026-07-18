@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# Sicheres Side-by-Side-Deploy für wog.logistikberater.at
+# - berührt keine anderen Nginx-Sites / Container / Systemdienste
+# - bindet Portal-Ports nur auf 127.0.0.1
+# - legt nur einen eigenen vHost für die genannte Domain an
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-/opt/wog-portal}"
+REPO_URL="${REPO_URL:-https://github.com/seelenbrokat/WOG-APP.git}"
+BRANCH="${BRANCH:-cursor/wog-kundenportal-203f}"
+DOMAIN="${DOMAIN:-wog.logistikberater.at}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-wogportal}"
+# Host-Ports (nur localhost). Bei Konflikt per Env überschreiben.
+WOG_WEB_PORT="${WOG_WEB_PORT:-3000}"
+WOG_API_PORT="${WOG_API_PORT:-3001}"
+WOG_PG_PORT="${WOG_PG_PORT:-5432}"
+WOG_REDIS_PORT="${WOG_REDIS_PORT:-6379}"
+ENABLE_SFTP="${ENABLE_SFTP:-0}"
+ENABLE_CERTBOT="${ENABLE_CERTBOT:-1}"
+
+log() { echo "==> $*"; }
+die() { echo "FEHLER: $*" >&2; exit 1; }
+
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn "( sport = :$port )" 2>/dev/null | grep -q ":$port"
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    return 1
+  fi
+}
+
+pick_free_port() {
+  local preferred="$1"
+  local alt="$2"
+  if ! port_in_use "$preferred"; then
+    echo "$preferred"
+    return
+  fi
+  # Wenn schon unser Compose darauf lauscht, Port behalten
+  if docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -q "wogportal.*:${preferred}->"; then
+    echo "$preferred"
+    return
+  fi
+  if ! port_in_use "$alt"; then
+    echo "$alt"
+    return
+  fi
+  die "Port $preferred und Ausweichport $alt sind belegt – bitte WOG_*_PORT setzen"
+}
+
+log "WOG Portal – sicheres Side-by-Side-Deploy"
+echo "    Dir:     $APP_DIR"
+echo "    Branch:  $BRANCH"
+echo "    Domain:  $DOMAIN"
+echo "    Project: $COMPOSE_PROJECT_NAME"
+
+if [[ $EUID -ne 0 ]]; then
+  die "Bitte als root ausführen (sudo)."
+fi
+
+# --- Bestandschutz: nichts stoppen / löschen ---
+log "Bestandsaufnahme (nur lesen)"
+echo "--- nginx sites-enabled ---"
+ls -la /etc/nginx/sites-enabled 2>/dev/null || echo "(kein nginx sites-enabled)"
+echo "--- laufende container (Namen) ---"
+docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null || echo "(docker nicht aktiv oder keine Container)"
+echo "--- listener :80 / :443 ---"
+ss -ltnp 2>/dev/null | grep -E ':80 |:443 ' || netstat -ltnp 2>/dev/null | grep -E ':80 |:443 ' || true
+
+export DEBIAN_FRONTEND=noninteractive
+
+# Docker nur installieren wenn fehlend – bestehende Installation unangetastet
+if ! command -v docker >/dev/null 2>&1; then
+  log "Docker fehlt – Installation"
+  apt-get update -qq
+  apt-get install -y -qq ca-certificates curl git
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable --now docker
+else
+  log "Docker vorhanden – belasse bestehende Container unangetastet"
+fi
+
+# Compose Plugin sicherstellen
+if ! docker compose version >/dev/null 2>&1; then
+  apt-get update -qq
+  apt-get install -y -qq docker-compose-plugin || true
+fi
+
+# Nginx nur installieren wenn fehlend – bestehende Config nicht überschreiben
+if ! command -v nginx >/dev/null 2>&1; then
+  log "Nginx fehlt – Installation"
+  apt-get update -qq
+  apt-get install -y -qq nginx
+else
+  log "Nginx vorhanden – bestehende Sites bleiben aktiv"
+fi
+
+# Freie localhost-Ports wählen (bestehende Dienste nicht verdrängen)
+WOG_WEB_PORT="$(pick_free_port "$WOG_WEB_PORT" 13000)"
+WOG_API_PORT="$(pick_free_port "$WOG_API_PORT" 13001)"
+WOG_PG_PORT="$(pick_free_port "$WOG_PG_PORT" 15432)"
+WOG_REDIS_PORT="$(pick_free_port "$WOG_REDIS_PORT" 16379)"
+echo "    Ports: web=$WOG_WEB_PORT api=$WOG_API_PORT pg=$WOG_PG_PORT redis=$WOG_REDIS_PORT (alle 127.0.0.1)"
+
+mkdir -p "$APP_DIR"
+if [[ -d "$APP_DIR/.git" ]]; then
+  git -C "$APP_DIR" fetch origin
+  git -C "$APP_DIR" checkout "$BRANCH"
+  git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
+else
+  git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
+fi
+
+cd "$APP_DIR/portal"
+export COMPOSE_PROJECT_NAME
+
+# Override für Host-Ports (localhost only), ohne docker-compose.yml zu zerstören.
+# !override ist nötig: Compose merged ports sonst und behält z.B. 3001 aus der Basisdatei
+# (auf diesem VPS von Forgejo belegt).
+cat > docker-compose.override.yml <<EOF
+# generiert von deploy-server.sh – nicht manuell pflegen
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:${WOG_PG_PORT}:5432"
+  redis:
+    ports: !override
+      - "127.0.0.1:${WOG_REDIS_PORT}:6379"
+  api:
+    ports: !override
+      - "127.0.0.1:${WOG_API_PORT}:3001"
+  web:
+    ports: !override
+      - "127.0.0.1:${WOG_WEB_PORT}:3000"
+EOF
+
+if [[ ! -f .env ]]; then
+  cp .env.example .env
+  JWT=$(openssl rand -hex 32)
+  ADMIN_PW=$(openssl rand -base64 12)
+  sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
+  sed -i "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$ADMIN_PW|" .env
+  sed -i "s|^APP_URL=.*|APP_URL=https://$DOMAIN|" .env
+  sed -i "s|^API_URL=.*|API_URL=https://$DOMAIN/api|" .env
+  sed -i "s|^NODE_ENV=.*|NODE_ENV=production|" .env
+  echo "$ADMIN_PW" > /root/wog-portal-admin-password.txt
+  chmod 600 /root/wog-portal-admin-password.txt
+  log "Admin-Passwort in /root/wog-portal-admin-password.txt"
+fi
+
+mkdir -p data/uploads data/sftp/inbound data/sftp/outbound \
+  data/integrations/ldv/{in,out} \
+  data/integrations/mercurio/{in,out} \
+  data/integrations/soloplan/{in,out}
+
+log "Docker Compose: nur Projekt $COMPOSE_PROJECT_NAME starten"
+docker compose up -d --build postgres redis
+sleep 5
+docker compose run --rm api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
+  docker compose run --rm api sh -c "npx prisma migrate deploy && npm run prisma:seed"
+docker compose up -d --build api worker web
+
+if [[ "$ENABLE_SFTP" == "1" ]]; then
+  log "SFTPGo-Profil aktiviert"
+  docker compose --profile sftp up -d sftpgo
+fi
+
+# Nginx: NUR eigener vHost für $DOMAIN – keine anderen Sites anfassen
+NGINX_SITE="/etc/nginx/sites-available/wog-portal"
+log "Nginx-vHost nur für $DOMAIN schreiben ($NGINX_SITE)"
+cat > "$NGINX_SITE" <<EOF
+# WOG Kundenportal – isolierter vHost
+# Andere Sites in sites-enabled bleiben unverändert.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+
+    client_max_body_size 50M;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${WOG_API_PORT}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${WOG_WEB_PORT}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
+
+ln -sfn "$NGINX_SITE" /etc/nginx/sites-enabled/wog-portal
+# default-Site NICHT deaktivieren – Bestand bleibt
+nginx -t
+systemctl reload nginx
+
+if [[ "$ENABLE_CERTBOT" == "1" ]]; then
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq certbot python3-certbot-nginx || true
+  fi
+  # Nur Zertifikat für diese eine Domain – andere Domains unberührt
+  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" --redirect || \
+    log "Certbot übersprungen/fehlgeschlagen – HTTP bleibt aktiv"
+fi
+
+echo
+log "Deploy fertig (bestehende Dienste nicht gestoppt)"
+docker compose ps
+echo "Portal: https://$DOMAIN"
+echo "Health: https://$DOMAIN/api/health"
+if [[ -f /root/wog-portal-admin-password.txt ]]; then
+  echo "Admin: admin@wog.logistikberater.at / (siehe /root/wog-portal-admin-password.txt)"
+fi
