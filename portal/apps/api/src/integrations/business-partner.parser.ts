@@ -45,9 +45,17 @@ function str(...vals: unknown[]): string {
 }
 
 function pickContact(raw: Record<string, unknown>): ParsedContact | null {
-  const email = str(raw.EmailAddress, raw.email, raw.Email, raw.EMail).toLowerCase();
-  const firstName = str(raw.FirstName, raw.firstName, raw.Vorname);
-  const lastName = str(raw.LastName, raw.lastName, raw.Nachname, raw.Name);
+  // Soloplan PORTALGP nutzt camelCase (emailAddress), Tour-JSON oft PascalCase (EmailAddress).
+  const email = str(
+    raw.emailAddress,
+    raw.EmailAddress,
+    raw.email,
+    raw.Email,
+    raw.EMail,
+    raw.eMail,
+  ).toLowerCase();
+  const firstName = str(raw.firstName, raw.FirstName, raw.Vorname);
+  const lastName = str(raw.lastName, raw.LastName, raw.Nachname, raw.Name, raw.name);
   const name = str(
     [firstName, lastName].filter(Boolean).join(' '),
     raw.Name,
@@ -62,12 +70,12 @@ function pickContact(raw: Record<string, unknown>): ParsedContact | null {
       : undefined;
   return {
     number: Number.isFinite(number as number) ? (number as number) : undefined,
-    firstName: firstName || name.split(/\s+/)[0] || 'Portal',
-    lastName: lastName || name.split(/\s+/).slice(1).join(' ') || 'User',
+    firstName: firstName || 'Portal',
+    lastName: lastName || name.split(/\s+/).slice(1).join(' ') || (email ? email.split('@')[0] : 'User'),
     name: name || email,
     email: email || undefined,
-    phone: str(raw.Telephone, raw.Phone, raw.phone, raw.Mobile) || undefined,
-    role: str(raw.Role, raw.role, raw.Address, raw.Salutation) || undefined,
+    phone: str(raw.Telephone, raw.telephone, raw.Phone, raw.phone, raw.Mobile, raw.mobile) || undefined,
+    role: str(raw.Role, raw.role, raw.position, raw.Position, raw.Address, raw.title, raw.Title, raw.Salutation) || undefined,
     department: str(raw.Department, raw.department) || undefined,
   };
 }
@@ -87,17 +95,42 @@ function collectContacts(bp: Record<string, unknown>): ParsedContact[] {
   push(pickContact(asRecord(bp.MainContactPerson) || {}));
 
   const lists = [
+    bp.contactPersons,
     bp.ContactPersons,
     bp.Contacts,
-    bp.Ansprechpartner,
-    bp.contactPersons,
     bp.contacts,
+    bp.Ansprechpartner,
+    bp.mainContactPerson,
+    bp.MainContactPerson,
   ];
   for (const list of lists) {
-    if (!Array.isArray(list)) continue;
-    for (const item of list) {
-      const rec = asRecord(item);
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        const rec = asRecord(item);
+        if (rec) push(pickContact(rec));
+      }
+    } else {
+      const rec = asRecord(list);
       if (rec) push(pickContact(rec));
+    }
+  }
+
+  // PORTALGP: Firmen-E-Mail als Kontakt, falls keine Ansprechpartner-Mails
+  if (!out.some((c) => c.email)) {
+    const companyEmail = str(
+      bp.email,
+      bp.Email,
+      bp.emailForInvoiceDispatch,
+      bp.EmailForInvoiceDispatch,
+    ).toLowerCase();
+    if (companyEmail) {
+      push(
+        pickContact({
+          emailAddress: companyEmail,
+          firstName: 'Portal',
+          lastName: str(bp.name1, bp.Name1, bp.name, 'Kontakt'),
+        }),
+      );
     }
   }
   return out;
@@ -135,8 +168,16 @@ export function looksLikeBusinessPartner(node: unknown): boolean {
     bp.matchcode !== undefined ||
     bp.MainAddress !== undefined ||
     bp.MainContactPerson !== undefined ||
+    bp.mainContactPerson !== undefined ||
+    bp.contactPersons !== undefined ||
+    bp.ContactPersons !== undefined ||
     bp.VATNumber !== undefined ||
-    bp.PhoneNumberHeadOffice !== undefined;
+    bp.vatNumber !== undefined ||
+    bp.PhoneNumberHeadOffice !== undefined ||
+    bp.email !== undefined ||
+    bp.emailForInvoiceDispatch !== undefined ||
+    bp.name1 !== undefined ||
+    bp.Name1 !== undefined;
   if (!hasBpSignal) return false;
   if (id && (matchcode || name)) return true;
   if (matchcode && name) return true;
@@ -150,11 +191,12 @@ export function parseBusinessPartnerNode(
   const bp = asRecord(node);
   if (!bp) return null;
 
-  // Sometimes wrapped
+  // Einzelnen BP aus Wrapper holen (nicht businessPartner[] – das ist die PORTALGP-Liste)
   const inner =
-    asRecord(bp.BusinessPartner) ||
     asRecord(bp.OriginalBusinessPartner) ||
-    asRecord(bp.businessPartner) ||
+    (Array.isArray(bp.businessPartner) || Array.isArray(bp.BusinessPartner)
+      ? null
+      : asRecord(bp.BusinessPartner) || asRecord(bp.businessPartner)) ||
     bp;
 
   if (!looksLikeBusinessPartner(inner) && !looksLikeBusinessPartner(bp)) {
@@ -170,12 +212,20 @@ export function parseBusinessPartnerNode(
     source.Id,
     source.id,
   );
-  const matchcode = str(source.Matchcode, source.matchcode, source.Code, source.code);
+  const matchcode = str(
+    source.Matchcode,
+    source.matchcode,
+    source.externalNumber,
+    source.ExternalNumber,
+    source.Code,
+    source.code,
+  );
   const name = str(source.Name1, source.name1, source.Name, source.name, matchcode);
   if (!businessPartnerId && !matchcode) return null;
   if (!name) return null;
 
-  const addr = asRecord(source.MainAddress) || asRecord(source.Address) || {};
+  // Adresse: Tour-JSON verschachtelt (MainAddress) oder PORTALGP flach am BP
+  const addr = asRecord(source.MainAddress) || asRecord(source.Address) || source;
   const country = asRecord(addr.Country) || asRecord(source.VATCountry) || {};
 
   return {
@@ -183,21 +233,37 @@ export function parseBusinessPartnerNode(
     matchcode: matchcode || businessPartnerId,
     name,
     name2: str(source.Name2, source.name2) || undefined,
-    email: str(source.Email, source.EmailAddress, source.email).toLowerCase() || undefined,
-    phone: str(source.PhoneNumberHeadOffice, source.Phone, source.phone) || undefined,
-    vatId: str(source.VATNumber, source.VatNumber, source.vatId) || undefined,
+    email:
+      str(
+        source.email,
+        source.Email,
+        source.emailAddress,
+        source.EmailAddress,
+        source.emailForInvoiceDispatch,
+        source.EmailForInvoiceDispatch,
+      ).toLowerCase() || undefined,
+    phone: str(source.PhoneNumberHeadOffice, source.Phone, source.phone, source.telephone) || undefined,
+    vatId: str(source.VATNumber, source.VatNumber, source.vatNumber, source.vatId) || undefined,
     street:
       str(
-        [str(addr.Street, addr.street), str(addr.HouseNumber, addr.houseNumber)].filter(Boolean).join(' '),
+        [
+          str(addr.Street, addr.street),
+          str(addr.HouseNumber, addr.houseNumber),
+        ]
+          .filter(Boolean)
+          .join(' '),
       ) || undefined,
-    zip: str(addr.ZipCode, addr.zip, addr.Zip) || undefined,
-    city: str(addr.Location1, addr.City, addr.city, addr.Location2) || undefined,
+    zip: str(addr.ZipCode, addr.zipCode, addr.zip, addr.Zip) || undefined,
+    city: str(addr.Location1, addr.location1, addr.City, addr.city, addr.Location2) || undefined,
     country:
       str(
+        addr.isoTwoCharacterCountryCode,
+        addr.IsoTwoCharacterCountryCode,
         country.IsoTwoCharacterCountryCode,
         country.CountryId,
         addr.CountryCode,
         addr.country,
+        source.isoTwoCharacterCountryCode,
       ) || undefined,
     kind: detectKind(source, forcedKind),
     contacts: collectContacts(source),

@@ -1,36 +1,59 @@
 {
-  "ActionAttribute": "PORTALGP.v1-BusinessPartner",
-  "BusinessPartnerId": 1818,
-  "Matchcode": "LOGETFRAST",
-  "Name1": "Logett GmbH",
-  "MainAddress": {
-    "Street": "Sonnenberger Straße",
-    "HouseNumber": "27a",
-    "ZipCode": "6820",
-    "Location1": "Frastanz",
-    "Country": {
-      "IsoTwoCharacterCountryCode": "AT"
-    }
+  "header": {
+    "sendDate": "2026-07-18T19:40:45",
+    "exportItemReference": "2570c898-829c-4457-9bcc-d2a1b1d0020f"
   },
-  "PhoneNumberHeadOffice": "+43552252518",
-  "VATNumber": "U43776703",
-  "MainContactPerson": {
-    "Number": 1,
-    "Address": "Frau",
-    "FirstName": "Margit",
-    "LastName": "Dobler",
-    "Department": "Logistik",
-    "Telephone": "+43552252518",
-    "EmailAddress": "margit.dobler@logett.at"
-  },
-  "ContactPersons": [
+  "businessPartner": [
     {
-      "Number": 2,
-      "FirstName": "Max",
-      "LastName": "Muster",
-      "Department": "Einkauf",
-      "EmailAddress": "max.muster@logett.at",
-      "Telephone": "+43552252519"
+      "wOGPORTALVLB": true,
+      "email": "info@worldofgreen.ch",
+      "emailForInvoiceDispatch": "rechnung@worldofgreen.ch",
+      "externalNumber": "",
+      "location1": "Diepoldsau",
+      "houseNumber": "22",
+      "street": "Wildenaustraße",
+      "zipCode": "9444",
+      "isoTwoCharacterCountryCode": "CH",
+      "information1": "",
+      "name1": "WOG Logistics AG",
+      "name2": "",
+      "businessPartnerId": 2,
+      "website": "www.worldofgreen.ch",
+      "contactPersons": [
+        {
+          "emailAddress": "info@worldofgreen.ch",
+          "firstName": "",
+          "title": "",
+          "position": "",
+          "lastName": "Info",
+          "number": 2,
+          "allowTrackAndTrace": false,
+          "allowWebAccess": false,
+          "externalNumber": ""
+        },
+        {
+          "emailAddress": "marcel.burtscher@worldofgreen.ch",
+          "firstName": "",
+          "title": "",
+          "position": "",
+          "lastName": "Marcel",
+          "number": 3,
+          "allowTrackAndTrace": false,
+          "allowWebAccess": false,
+          "externalNumber": ""
+        },
+        {
+          "emailAddress": "admin@worldofgreen.ch",
+          "firstName": "",
+          "title": "",
+          "position": "",
+          "lastName": "Admin",
+          "number": 4,
+          "allowTrackAndTrace": false,
+          "allowWebAccess": false,
+          "externalNumber": ""
+        }
+      ]
     }
   ]
 }

@@ -6,8 +6,8 @@ Die **BusinessPartnerId** wird für spätere Auftragsanlage und Integrationen be
 ## Import
 
 1. Soloplan-Export hochladen, unterstützt:
-   - `PORTALGP.v1-BusinessPartner_….json` (einzelner BP oder Array)
-   - Soloplan-**Tour-JSON** (`ActionAttribute: create`) – extrahiert alle `OriginalBusinessPartner` / `BusinessPartner`
+   - PORTALGP-Export mit `{ header, businessPartner: [...] }` (camelCase, `contactPersons[].emailAddress`)
+   - PascalCase-Tour-JSON mit `OriginalBusinessPartner` / `BusinessPartner`
    - NDJSON (ein JSON-Objekt pro Zeile)
 2. Im Portal unter **Kunden** als Admin hochladen  
    oder Datei nach `portal/data/integrations/soloplan/business-partners/in/` legen (Worker importiert automatisch)
