@@ -10,6 +10,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* muss zur Build-Zeit gesetzt sein (Client-Bundle).
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build -w @wog/shared
 WORKDIR /app/apps/api
 RUN npx prisma generate

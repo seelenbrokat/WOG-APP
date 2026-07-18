@@ -12,7 +12,7 @@ import { api, getToken, getUser } from '@/lib/api';
 
 const BORDER_PRESETS: VorarlbergChGoodsBorder[] = [...VORARLBERG_CH_GOODS_BORDERS];
 const FRANKATUR_PRESETS: Frankatur[] = [...FRANKATUREN];
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 type Address = {
   id: string;

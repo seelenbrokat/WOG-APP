@@ -104,10 +104,10 @@ export default function ShipmentDetailPage() {
               <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
                 <span>{d.fileName} <span className="badge">{d.type}</span></span>
                 <a
-                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/documents/${d.id}/download`}
+                  href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`}
                   onClick={(e) => {
                     e.preventDefault();
-                    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/documents/${d.id}/download`, {
+                    fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`, {
                       headers: { Authorization: `Bearer ${getToken()}` },
                     })
                       .then((r) => r.blob())

@@ -70,6 +70,8 @@ services:
     build:
       context: .
       target: web
+      args:
+        NEXT_PUBLIC_API_URL: /api
     environment:
       PORT: 3000
       HOSTNAME: 0.0.0.0
