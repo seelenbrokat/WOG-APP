@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ORG_ADMIN
+  MANDANT_DISPATCHER
+  CUSTOMER_USER
+  PARTNER
+}
+
+enum ShipmentStatus {
+  DRAFT
+  SUBMITTED
+  ACCEPTED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  CANCELLED
+}
+
+enum DocumentType {
+  POD
+  ABLIEFERBELEG
+  CMR
+  INVOICE
+  CUSTOMER_UPLOAD
+  PARTNER_FILE
+  CUSTOMS_PAPER
+  OTHER
+}
+
+enum NotificationEvent {
+  SHIPMENT_CREATED
+  STATUS_CHANGED
+  POD_AVAILABLE
+  DOCUMENT_RECEIVED
+  PARTNER_FILE_IMPORTED
+}
+
+enum PartnerJobStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum IntegrationSystem {
+  SOLOPLAN
+  LDV
+  MERCURIO
+}
+
+enum IntegrationTransferStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mandanten     Mandant[]
+  customers     Customer[]
+  users         User[]
+  partners      Partner[]
+  customsOrders CustomsOrder[]
+}
+
+model Mandant {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  legalName      String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  shipments    Shipment[]
+  userAccess   UserMandantAccess[]
+  addresses    Address[]
+  customsOrders CustomsOrder[]
+
+  @@unique([organizationId, code])
+}
+
+model Customer {
+  id                       String   @id @default(cuid())
+  organizationId           String
+  customerNumber           String
+  name                     String
+  email                    String?
+  phone                    String?
+  vatId                    String?
+  /// Soloplan BusinessPartnerId – Pflicht für externe Kunden aus Soloplan
+  soloplanBusinessPartnerId String?
+  matchcode                String?
+  active                   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  users        User[]
+  shipments    Shipment[]
+  addresses    Address[]
+  contacts     Contact[]
+  templates    ShipmentTemplate[]
+  customsOrders CustomsOrder[]
+
+  @@unique([organizationId, customerNumber])
+  @@unique([organizationId, soloplanBusinessPartnerId])
+  @@index([matchcode])
+}
+
+model Contact {
+  id                    String  @id @default(cuid())
+  customerId            String?
+  partnerId             String?
+  name                  String
+  firstName             String?
+  lastName              String?
+  email                 String?
+  phone                 String?
+  role                  String?
+  department            String?
+  /// Soloplan ContactPerson.Number
+  soloplanContactNumber Int?
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  partner  Partner?  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([customerId])
+  @@index([partnerId])
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  customerId String?
+  mandantId  String?
+  label      String?
+  company    String?
+  street     String
+  zip        String
+  city       String
+  country    String  @default("AT")
+  /// PICKUP | DELIVERY | BOTH
+  usage      String  @default("BOTH")
+  isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  mandant  Mandant?  @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model ShipmentTemplate {
+  id               String   @id @default(cuid())
+  customerId       String
+  name             String
+  mandantId        String?
+  reference        String?
+  transportMode    String?
+  goodsDescription String?
+  packageCount     Int      @default(1)
+  weightKg         Float?
+  volumeM3         Float?
+  pickupAddressId  String?
+  deliveryAddressId String?
+  pickupCompany    String?
+  pickupStreet     String?
+  pickupZip        String?
+  pickupCity       String?
+  pickupCountry    String?  @default("AT")
+  deliveryCompany  String?
+  deliveryStreet   String?
+  deliveryZip      String?
+  deliveryCity     String?
+  deliveryCountry  String?  @default("AT")
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  customerId         String?
+  email              String    @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  role               UserRole
+  emailVerifiedAt    DateTime?
+  verifyToken        String?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  /// Nach Admin-Anlage / Reset muss User das Passwort ändern
+  mustChangePassword Boolean   @default(false)
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization         Organization           @relation(fields: [organizationId], references: [id])
+  customer             Customer?              @relation(fields: [customerId], references: [id])
+  mandantAccess        UserMandantAccess[]
+  notificationPrefs    NotificationPreference[]
+  auditLogs            AuditLog[]             @relation("AuditActor")
+  partner              Partner?
+}
+
+model UserMandantAccess {
+  id        String @id @default(cuid())
+  userId    String
+  mandantId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mandant Mandant @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mandantId])
+}
+
+model Shipment {
+  id               String         @id @default(cuid())
+  organizationId   String
+  mandantId        String
+  customerId       String
+  trackingNumber   String         @unique
+  trackingPin      String?
+  reference        String?
+  status           ShipmentStatus @default(DRAFT)
+  transportMode    String?
+  goodsDescription String?
+  packageCount     Int            @default(1)
+  weightKg         Float?
+  volumeM3         Float?
+  pickupCompany    String?
+  pickupStreet     String?
+  pickupZip        String?
+  pickupCity       String?
+  pickupCountry    String?        @default("AT")
+  pickupDate       DateTime?
+  deliveryCompany  String?
+  deliveryStreet   String?
+  deliveryZip      String?
+  deliveryCity     String?
+  deliveryCountry  String?        @default("AT")
+  deliveryDate     DateTime?
+  notes            String?
+  soloplanRef      String?
+  createdById      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  mandant   Mandant        @relation(fields: [mandantId], references: [id])
+  customer  Customer       @relation(fields: [customerId], references: [id])
+  positions ShipmentItem[]
+  events    StatusEvent[]
+  documents Document[]
+
+  @@index([mandantId, status])
+  @@index([customerId])
+  @@index([organizationId])
+}
+
+model ShipmentItem {
+  id          String  @id @default(cuid())
+  shipmentId  String
+  description String
+  quantity    Int     @default(1)
+  weightKg    Float?
+  lengthCm    Float?
+  widthCm     Float?
+  heightCm    Float?
+  sscc        String?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model StatusEvent {
+  id         String         @id @default(cuid())
+  shipmentId String
+  status     ShipmentStatus
+  message    String?
+  location   String?
+  createdBy  String?
+  createdAt  DateTime       @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+}
+
+model Document {
+  id             String       @id @default(cuid())
+  shipmentId     String?
+  customsOrderId String?
+  organizationId String
+  customerId     String?
+  type           DocumentType
+  fileName       String
+  mimeType       String
+  storagePath    String
+  sizeBytes      Int
+  uploadedById   String?
+  createdAt      DateTime     @default(now())
+
+  shipment     Shipment?     @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  customsOrder CustomsOrder? @relation(fields: [customsOrderId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([customsOrderId])
+  @@index([customerId])
+}
+
+model NotificationPreference {
+  id      String            @id @default(cuid())
+  userId  String
+  event   NotificationEvent
+  email   Boolean           @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, event])
+}
+
+model EmailOutbox {
+  id        String   @id @default(cuid())
+  toEmail   String
+  subject   String
+  body      String
+  event     NotificationEvent?
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model Partner {
+  id                        String   @id @default(cuid())
+  organizationId            String
+  userId                    String?  @unique
+  name                      String
+  code                      String
+  apiKeyHash                String?
+  apiKeyPrefix              String?
+  sftpUsername              String?
+  soloplanBusinessPartnerId String?
+  matchcode                 String?
+  email                     String?
+  phone                     String?
+  active                    Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  jobs         PartnerJob[]
+  contacts     Contact[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, soloplanBusinessPartnerId])
+  @@index([matchcode])
+}
+
+model PartnerJob {
+  id          String           @id @default(cuid())
+  partnerId   String
+  direction   String
+  fileName    String
+  status      PartnerJobStatus @default(PENDING)
+  message     String?
+  processedAt DateTime?
+  createdAt   DateTime         @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+/// Interne Datenübermittlung Soloplan <-> LDV / Mercurio (EZOLL)
+model IntegrationTransfer {
+  id             String                     @id @default(cuid())
+  organizationId String
+  fromSystem     IntegrationSystem
+  toSystem       IntegrationSystem
+  status         IntegrationTransferStatus  @default(PENDING)
+  reference      String?
+  customsOrderId String?
+  shipmentId     String?
+  payload        Json
+  responsePayload Json?
+  fileName       String?
+  message        String?
+  createdById    String?
+  processedAt    DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@index([fromSystem, toSystem])
+}
+
+/// Verzollungsauftrag Vorarlberg–Schweiz
+model CustomsOrder {
+  id             String   @id @default(cuid())
+  organizationId String
+  customerId     String
+  mandantId      String?
+  kennzeichen    String
+  grenzuebergang String
+  zeit           DateTime
+  importeur      String
+  frankatur      String
+  /// true = abweichender Frachtzahler (nicht der angemeldete Kunde)
+  abweichenderFrachtzahler Boolean @default(false)
+  frachtzahlerFirma        String?
+  frachtzahlerStreet       String?
+  frachtzahlerZip          String?
+  frachtzahlerCity         String?
+  frachtzahlerCountry      String? @default("AT")
+  absenderFirma            String
+  absenderStreet           String
+  absenderZip              String
+  absenderCity             String
+  absenderCountry          String  @default("AT")
+  empfaengerFirma          String
+  empfaengerStreet         String
+  empfaengerZip            String
+  empfaengerCity           String
+  empfaengerCountry        String  @default("CH")
+  status         String   @default("SUBMITTED")
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  mandant      Mandant?     @relation(fields: [mandantId], references: [id])
+  documents    Document[]
+
+  @@index([customerId, createdAt])
+  @@index([organizationId, status])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+}
