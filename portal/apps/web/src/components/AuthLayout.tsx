@@ -21,7 +21,7 @@ export function AuthLayout({ headline, sub, children, showTrackCta = false }: Au
       </div>
       <section className="hero-brand">
         <div className="brand-plate">
-          <BrandLogo variant="full" onLight />
+          <BrandLogo variant="full" />
         </div>
         <h1 className="brand-headline">{headline}</h1>
         <p className="brand-sub">{sub}</p>

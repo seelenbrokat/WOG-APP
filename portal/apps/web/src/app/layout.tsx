@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Outfit:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="icon" href="/wog-mark.svg" type="image/svg+xml" />
+        <link rel="icon" href="/wog-logo.jpg" type="image/jpeg" />
       </head>
       <body>{children}</body>
     </html>

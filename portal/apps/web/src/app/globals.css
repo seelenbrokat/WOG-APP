@@ -126,93 +126,35 @@ button, input, select, textarea { font: inherit; }
   gap: 1.25rem;
 }
 
-/* Logo: Originalfarben auf hellem Untergrund */
+/* Original-Logo auf weißem Plate (Logo braucht hellen Hintergrund) */
 .brand-plate {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem 1.5rem 1.1rem;
+  padding: 1.1rem 1.4rem;
   background: #ffffff;
   border-radius: 18px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
   animation: brand-rise 700ms ease-out both;
-  max-width: 100%;
+  max-width: min(100%, 420px);
 }
 
-.brand-lockup {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--wog-green);
-}
-
-.brand-lockup-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.1rem;
-  line-height: 1;
-}
-
-.brand-letter {
-  font-family: var(--font-display);
-  font-weight: 800;
-  color: var(--wog-green);
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.brand-letter--lg {
-  font-size: clamp(3.6rem, 9vw, 5.4rem);
-}
-
-.brand-globe {
+.brand-logo {
   display: block;
-  flex-shrink: 0;
-  margin: 0 0.05rem;
-}
-
-.brand-tagline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  margin-top: 0.15rem;
-}
-
-.brand-tagline-green {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(0.85rem, 2vw, 1.05rem);
-  letter-spacing: 0.22em;
-  color: var(--wog-green);
-}
-
-.brand-tagline-blue {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(0.8rem, 1.8vw, 0.98rem);
-  letter-spacing: 0.35em;
-  color: var(--wog-blue);
+  width: min(100%, 360px);
+  height: auto;
 }
 
 .brand-logo-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.05rem;
-  line-height: 1;
-}
-
-.brand-logo-mark .brand-letter {
-  font-size: 2.6rem;
+  display: block;
+  width: 168px;
+  height: auto;
 }
 
 .auth-brand-mini {
   display: flex;
   justify-content: center;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
 }
 
 .brand-headline {
@@ -357,13 +299,8 @@ button, input, select, textarea { font: inherit; }
   justify-content: center;
 }
 
-.sidebar .logo .brand-logo-mark .brand-letter {
-  font-size: 2.2rem;
-}
-
-.sidebar .logo .brand-globe {
-  width: 48px;
-  height: 48px;
+.sidebar .logo .brand-logo-mark {
+  width: 148px;
 }
 
 .sidebar nav { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -573,19 +510,14 @@ button, input, select, textarea { font: inherit; }
 .track-logo-wrap {
   display: inline-flex;
   margin: 0.75rem 0 0.25rem;
-  padding: 0.9rem 1.1rem;
+  padding: 0.85rem 1.1rem;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
 }
 
-.track-logo-wrap .brand-letter--lg {
-  font-size: clamp(2.8rem, 8vw, 3.8rem);
-}
-
-.track-logo-wrap .brand-globe {
-  width: 64px;
-  height: 64px;
+.track-logo-wrap .brand-logo {
+  width: min(100%, 280px);
 }
 
 .track-body {
@@ -603,9 +535,8 @@ button, input, select, textarea { font: inherit; }
     padding: 2.5rem 1.5rem 2rem;
     justify-content: flex-end;
   }
-  .brand-plate { padding: 1rem 1.15rem; }
-  .brand-letter--lg { font-size: clamp(3rem, 14vw, 4.2rem); }
-  .brand-globe { width: 70px; height: 70px; }
+  .brand-plate { padding: 0.85rem 1rem; max-width: 100%; }
+  .brand-logo { width: min(100%, 280px); }
   .hero-atmosphere .globe-ring {
     right: -30%;
     top: -10%;

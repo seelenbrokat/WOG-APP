@@ -31,7 +31,7 @@ export default function TrackPage() {
         <div className="track-hero-inner">
           <Link href="/" className="track-back">← Portal</Link>
           <div className="track-logo-wrap">
-            <BrandLogo variant="full" onLight />
+            <BrandLogo variant="full" />
           </div>
           <p className="brand-sub" style={{ marginTop: '0.75rem' }}>
             Öffentliches Track & Trace für Ihre WOG-Sendung.
