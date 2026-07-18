@@ -5,7 +5,11 @@ import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
-import { extractBusinessPartners, ParsedBusinessPartner } from './business-partner.parser';
+import {
+  describeImportPayload,
+  extractBusinessPartners,
+  ParsedBusinessPartner,
+} from './business-partner.parser';
 
 @Injectable()
 export class BusinessPartnerService {
@@ -59,7 +63,7 @@ export class BusinessPartnerService {
     const parsed = extractBusinessPartners(payload, opts.kind);
     if (!parsed.length) {
       throw new BadRequestException(
-        'Keine BusinessPartner in der Datei gefunden (PORTALGP.v1-BusinessPartner erwartet).',
+        `Keine BusinessPartner in der Datei gefunden (PORTALGP.v1-BusinessPartner, Soloplan-Tour-JSON mit OriginalBusinessPartner oder BP-Array erwartet). Erkannt: ${describeImportPayload(payload)}`,
       );
     }
 
@@ -87,11 +91,53 @@ export class BusinessPartnerService {
   async importFileBuffer(actor: AuthUser, fileName: string, content: Buffer, kind?: 'CUSTOMER' | 'PARTNER') {
     let data: unknown;
     try {
-      data = JSON.parse(content.toString('utf8').replace(/^\uFEFF/, ''));
-    } catch {
-      throw new BadRequestException('Ungültiges JSON');
+      data = this.parseJsonBuffer(content);
+    } catch (err: any) {
+      throw new BadRequestException(err?.message || 'Ungültiges JSON');
     }
     return this.importJson(actor, data, { kind, fileName });
+  }
+
+  /** UTF-8/UTF-16 + optional NDJSON (eine BP-Zeile pro Zeile). */
+  private parseJsonBuffer(content: Buffer): unknown {
+    let text = '';
+    if (content.length >= 2 && content[0] === 0xff && content[1] === 0xfe) {
+      text = content.toString('utf16le');
+    } else if (content.length >= 2 && content[0] === 0xfe && content[1] === 0xff) {
+      // UTF-16 BE → über swap grob nach LE
+      const swapped = Buffer.alloc(content.length - 2);
+      for (let i = 2; i + 1 < content.length; i += 2) {
+        swapped[i - 2] = content[i + 1];
+        swapped[i - 1] = content[i];
+      }
+      text = swapped.toString('utf16le');
+    } else {
+      text = content.toString('utf8');
+    }
+    text = text.replace(/^\uFEFF/, '').trim();
+    if (!text) throw new Error('Leere Datei');
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      // NDJSON: mehrere JSON-Objekte zeilenweise
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length > 1) {
+        const items = [];
+        for (const line of lines) {
+          try {
+            items.push(JSON.parse(line));
+          } catch {
+            throw new Error('Ungültiges JSON');
+          }
+        }
+        return items;
+      }
+      throw new Error('Ungültiges JSON');
+    }
   }
 
   /** Worker: Dateien aus integrations/soloplan/business-partners/in */
@@ -116,7 +162,7 @@ export class BusinessPartnerService {
     for (const fileName of files) {
       const full = join(this.inboundDir, fileName);
       try {
-        const data = JSON.parse(readFileSync(full, 'utf8').replace(/^\uFEFF/, ''));
+        const data = this.parseJsonBuffer(readFileSync(full));
         const parsed = extractBusinessPartners(data);
         for (const bp of parsed) {
           await this.upsertParsed(org.id, bp);

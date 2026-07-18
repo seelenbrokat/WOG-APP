@@ -1,6 +1,6 @@
 /**
- * Parser für Soloplan PORTALGP.v1-BusinessPartner Exporte
- * und eingebettete OriginalBusinessPartner-Objekte aus Tour-JSON.
+ * Parser für Soloplan PORTALGP.v1-BusinessPartner Exporte,
+ * eingebettete OriginalBusinessPartner-Objekte und Tour-JSON.
  */
 
 export type ParsedContact = {
@@ -56,9 +56,10 @@ function pickContact(raw: Record<string, unknown>): ParsedContact | null {
   );
   if (!email && !name) return null;
   const numberRaw = raw.Number ?? raw.number ?? raw.ContactNumber;
-  const number = numberRaw !== undefined && numberRaw !== null && `${numberRaw}` !== ''
-    ? Number(numberRaw)
-    : undefined;
+  const number =
+    numberRaw !== undefined && numberRaw !== null && `${numberRaw}` !== ''
+      ? Number(numberRaw)
+      : undefined;
   return {
     number: Number.isFinite(number as number) ? (number as number) : undefined,
     firstName: firstName || name.split(/\s+/)[0] || 'Portal',
@@ -112,6 +113,36 @@ function detectKind(bp: Record<string, unknown>, forced?: 'CUSTOMER' | 'PARTNER'
   return 'CUSTOMER';
 }
 
+/** Erkennt Soloplan-BusinessPartner-Objekte auch tief verschachtelt. */
+export function looksLikeBusinessPartner(node: unknown): boolean {
+  const bp = asRecord(node);
+  if (!bp) return false;
+  const id = str(
+    bp.BusinessPartnerId,
+    bp.businessPartnerId,
+    bp.BusinessPartnerID,
+    bp.Id,
+    bp.id,
+  );
+  const matchcode = str(bp.Matchcode, bp.matchcode, bp.Code, bp.code);
+  const name = str(bp.Name1, bp.name1, bp.Name, bp.name);
+  // Tour-Root etc. haben Id/Name, aber keine BP-Felder
+  const hasBpSignal =
+    bp.BusinessPartnerId !== undefined ||
+    bp.businessPartnerId !== undefined ||
+    bp.BusinessPartnerID !== undefined ||
+    bp.Matchcode !== undefined ||
+    bp.matchcode !== undefined ||
+    bp.MainAddress !== undefined ||
+    bp.MainContactPerson !== undefined ||
+    bp.VATNumber !== undefined ||
+    bp.PhoneNumberHeadOffice !== undefined;
+  if (!hasBpSignal) return false;
+  if (id && (matchcode || name)) return true;
+  if (matchcode && name) return true;
+  return false;
+}
+
 export function parseBusinessPartnerNode(
   node: unknown,
   forcedKind?: 'CUSTOMER' | 'PARTNER',
@@ -126,46 +157,77 @@ export function parseBusinessPartnerNode(
     asRecord(bp.businessPartner) ||
     bp;
 
+  if (!looksLikeBusinessPartner(inner) && !looksLikeBusinessPartner(bp)) {
+    return null;
+  }
+
+  const source = looksLikeBusinessPartner(inner) ? inner : bp;
+
   const businessPartnerId = str(
-    inner.BusinessPartnerId,
-    inner.businessPartnerId,
-    inner.Id,
-    inner.id,
+    source.BusinessPartnerId,
+    source.businessPartnerId,
+    source.BusinessPartnerID,
+    source.Id,
+    source.id,
   );
-  const matchcode = str(inner.Matchcode, inner.matchcode, inner.Code, inner.code);
-  const name = str(inner.Name1, inner.name1, inner.Name, inner.name, matchcode);
+  const matchcode = str(source.Matchcode, source.matchcode, source.Code, source.code);
+  const name = str(source.Name1, source.name1, source.Name, source.name, matchcode);
   if (!businessPartnerId && !matchcode) return null;
   if (!name) return null;
 
-  const addr = asRecord(inner.MainAddress) || asRecord(inner.Address) || {};
-  const country = asRecord(addr.Country) || {};
+  const addr = asRecord(source.MainAddress) || asRecord(source.Address) || {};
+  const country = asRecord(addr.Country) || asRecord(source.VATCountry) || {};
 
   return {
     businessPartnerId: businessPartnerId || matchcode,
     matchcode: matchcode || businessPartnerId,
     name,
-    name2: str(inner.Name2, inner.name2) || undefined,
-    email: str(inner.Email, inner.EmailAddress, inner.email).toLowerCase() || undefined,
-    phone: str(inner.PhoneNumberHeadOffice, inner.Phone, inner.phone) || undefined,
-    vatId: str(inner.VATNumber, inner.VatNumber, inner.vatId) || undefined,
-    street: str(
-      [str(addr.Street, addr.street), str(addr.HouseNumber, addr.houseNumber)].filter(Boolean).join(' '),
-    ) || undefined,
+    name2: str(source.Name2, source.name2) || undefined,
+    email: str(source.Email, source.EmailAddress, source.email).toLowerCase() || undefined,
+    phone: str(source.PhoneNumberHeadOffice, source.Phone, source.phone) || undefined,
+    vatId: str(source.VATNumber, source.VatNumber, source.vatId) || undefined,
+    street:
+      str(
+        [str(addr.Street, addr.street), str(addr.HouseNumber, addr.houseNumber)].filter(Boolean).join(' '),
+      ) || undefined,
     zip: str(addr.ZipCode, addr.zip, addr.Zip) || undefined,
     city: str(addr.Location1, addr.City, addr.city, addr.Location2) || undefined,
-    country: str(
-      country.IsoTwoCharacterCountryCode,
-      country.CountryId,
-      addr.CountryCode,
-      addr.country,
-    ) || undefined,
-    kind: detectKind(inner, forcedKind),
-    contacts: collectContacts(inner),
-    raw: inner,
+    country:
+      str(
+        country.IsoTwoCharacterCountryCode,
+        country.CountryId,
+        addr.CountryCode,
+        addr.country,
+      ) || undefined,
+    kind: detectKind(source, forcedKind),
+    contacts: collectContacts(source),
+    raw: source,
   };
 }
 
-/** Extrahiert BusinessPartner aus PORTALGP-Datei oder Array/Wrapper. */
+function unwrapJson(data: unknown): unknown {
+  if (typeof data !== 'string') return data;
+  const trimmed = data.replace(/^\uFEFF/, '').trim();
+  if (!trimmed) return data;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return data;
+  }
+}
+
+/** Kurze Diagnose für Fehlermeldungen. */
+export function describeImportPayload(data: unknown): string {
+  const root = unwrapJson(data);
+  if (Array.isArray(root)) return `Array mit ${root.length} Einträgen`;
+  const rec = asRecord(root);
+  if (!rec) return `Typ ${typeof root}`;
+  const keys = Object.keys(rec).slice(0, 12).join(', ');
+  const action = str(rec.ActionAttribute, rec.actionAttribute);
+  return action ? `ActionAttribute=${action}; Keys: ${keys}` : `Keys: ${keys}`;
+}
+
+/** Extrahiert BusinessPartner aus PORTALGP-, Tour- oder Array/Wrapper-JSON. */
 export function extractBusinessPartners(
   data: unknown,
   forcedKind?: 'CUSTOMER' | 'PARTNER',
@@ -182,37 +244,66 @@ export function extractBusinessPartners(
     out.push(parsed);
   };
 
-  if (Array.isArray(data)) {
-    data.forEach(push);
-    return out;
-  }
+  const walk = (node: unknown, depth = 0) => {
+    if (node === null || node === undefined || depth > 30) return;
+    node = unwrapJson(node);
 
-  const root = asRecord(data);
-  if (!root) return out;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
 
-  // Direct BP
-  if (root.BusinessPartnerId || root.Matchcode || root.businessPartnerId) {
-    push(root);
-  }
+    const rec = asRecord(node);
+    if (!rec) return;
 
-  const candidates = [
-    root.BusinessPartners,
-    root.businessPartners,
-    root.Items,
-    root.items,
-    root.Data,
-    root.data,
-    root.Partners,
-    root.Customers,
-  ];
-  for (const c of candidates) {
-    if (Array.isArray(c)) c.forEach(push);
-    else if (asRecord(c)) push(c);
-  }
+    // .NET / Newtonsoft $values
+    if (Array.isArray(rec.$values)) {
+      walk(rec.$values, depth + 1);
+    }
 
-  // Nested single
-  if (root.BusinessPartner) push(root.BusinessPartner);
-  if (root.OriginalBusinessPartner) push(root.OriginalBusinessPartner);
+    // Explizite BP-Container zuerst
+    for (const key of [
+      'OriginalBusinessPartner',
+      'BusinessPartner',
+      'businessPartner',
+      'BusinessPartners',
+      'businessPartners',
+      'Items',
+      'items',
+      'Data',
+      'data',
+      'Partners',
+      'Customers',
+      'Content',
+      'Payload',
+      'Body',
+      'Entity',
+      'Value',
+      'value',
+    ]) {
+      if (rec[key] !== undefined) walk(rec[key], depth + 1);
+    }
 
+    if (looksLikeBusinessPartner(rec)) {
+      push(rec);
+    }
+
+    // Tiefe Suche in Touren (TransportOrders, TourStops, Organisation, …)
+    for (const [key, value] of Object.entries(rec)) {
+      if (
+        key === 'OriginalBusinessPartner' ||
+        key === 'BusinessPartner' ||
+        key === 'businessPartner' ||
+        key === '$values'
+      ) {
+        continue; // bereits oben
+      }
+      if (value && typeof value === 'object') {
+        walk(value, depth + 1);
+      }
+    }
+  };
+
+  walk(data);
   return out;
 }

@@ -73,7 +73,8 @@ export default function CustomersPage() {
         <form className="panel stack" style={{ marginBottom: '1rem' }} onSubmit={onImportFile}>
           <strong>Soloplan BusinessPartner importieren</strong>
           <p className="muted" style={{ margin: 0 }}>
-            Datei z. B. <code>PORTALGP.v1-BusinessPartner_….json</code>
+            Soloplan-JSON: <code>PORTALGP.v1-BusinessPartner_….json</code> oder Tour-Export
+            (darin enthaltene BusinessPartner werden automatisch erkannt).
           </p>
           <div className="row">
             <select value={kind} onChange={(e) => setKind(e.target.value as 'CUSTOMER' | 'PARTNER')}>
