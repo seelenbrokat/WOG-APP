@@ -169,10 +169,63 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
   docker compose --profile sftp up -d sftpgo
 fi
 
-# Nginx: NUR eigener vHost für $DOMAIN – keine anderen Sites anfassen
+# Nginx: NUR eigener vHost für $DOMAIN – keine anderen Sites anfassen.
+# Bestehende Let's-Encrypt-SSL-Blöcke nicht zerstören.
 NGINX_SITE="/etc/nginx/sites-available/wog-portal"
+CERT_LIVE="/etc/letsencrypt/live/$DOMAIN"
+HAS_CERT=0
+if [[ -f "$CERT_LIVE/fullchain.pem" && -f "$CERT_LIVE/privkey.pem" ]]; then
+  HAS_CERT=1
+fi
+
 log "Nginx-vHost nur für $DOMAIN schreiben ($NGINX_SITE)"
-cat > "$NGINX_SITE" <<EOF
+if [[ "$HAS_CERT" == "1" ]]; then
+  cat > "$NGINX_SITE" <<EOF
+# WOG Kundenportal – isolierter vHost
+server {
+    server_name $DOMAIN;
+    client_max_body_size 50M;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${WOG_API_PORT}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${WOG_WEB_PORT}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate $CERT_LIVE/fullchain.pem;
+    ssl_certificate_key $CERT_LIVE/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if (\$host = $DOMAIN) {
+        return 301 https://\$host\$request_uri;
+    }
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+    return 404;
+}
+EOF
+else
+  cat > "$NGINX_SITE" <<EOF
 # WOG Kundenportal – isolierter vHost
 # Andere Sites in sites-enabled bleiben unverändert.
 server {
@@ -203,13 +256,14 @@ server {
     }
 }
 EOF
+fi
 
 ln -sfn "$NGINX_SITE" /etc/nginx/sites-enabled/wog-portal
 # default-Site NICHT deaktivieren – Bestand bleibt
 nginx -t
 systemctl reload nginx
 
-if [[ "$ENABLE_CERTBOT" == "1" ]]; then
+if [[ "$ENABLE_CERTBOT" == "1" && "$HAS_CERT" != "1" ]]; then
   if ! command -v certbot >/dev/null 2>&1; then
     apt-get update -qq
     apt-get install -y -qq certbot python3-certbot-nginx || true
@@ -217,6 +271,8 @@ if [[ "$ENABLE_CERTBOT" == "1" ]]; then
   # Nur Zertifikat für diese eine Domain – andere Domains unberührt
   certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" --redirect || \
     log "Certbot übersprungen/fehlgeschlagen – HTTP bleibt aktiv"
+elif [[ "$HAS_CERT" == "1" ]]; then
+  log "Bestehendes TLS-Zertifikat für $DOMAIN beibehalten"
 fi
 
 echo
