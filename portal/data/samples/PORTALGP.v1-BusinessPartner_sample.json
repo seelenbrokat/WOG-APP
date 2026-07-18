@@ -1,0 +1,36 @@
+{
+  "ActionAttribute": "PORTALGP.v1-BusinessPartner",
+  "BusinessPartnerId": 1818,
+  "Matchcode": "LOGETFRAST",
+  "Name1": "Logett GmbH",
+  "MainAddress": {
+    "Street": "Sonnenberger Straße",
+    "HouseNumber": "27a",
+    "ZipCode": "6820",
+    "Location1": "Frastanz",
+    "Country": {
+      "IsoTwoCharacterCountryCode": "AT"
+    }
+  },
+  "PhoneNumberHeadOffice": "+43552252518",
+  "VATNumber": "U43776703",
+  "MainContactPerson": {
+    "Number": 1,
+    "Address": "Frau",
+    "FirstName": "Margit",
+    "LastName": "Dobler",
+    "Department": "Logistik",
+    "Telephone": "+43552252518",
+    "EmailAddress": "margit.dobler@logett.at"
+  },
+  "ContactPersons": [
+    {
+      "Number": 2,
+      "FirstName": "Max",
+      "LastName": "Muster",
+      "Department": "Einkauf",
+      "EmailAddress": "max.muster@logett.at",
+      "Telephone": "+43552252519"
+    }
+  ]
+}
