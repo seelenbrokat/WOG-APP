@@ -2,18 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PartnerImportService, SoloplanService } from './integrations/soloplan.service';
 import { ExchangeHubService } from './integrations/exchange-hub.service';
+import { BusinessPartnerService } from './integrations/business-partner.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const partnerImport = app.get(PartnerImportService);
   const soloplan = app.get(SoloplanService);
   const hub = app.get(ExchangeHubService);
+  const businessPartners = app.get(BusinessPartnerService);
 
-  console.log('WOG Integration Worker started (Partner + Soloplan + EZOLL Hub)');
+  console.log('WOG Integration Worker started (Partner + Soloplan BP + EZOLL Hub)');
 
   const tick = async () => {
     try {
       await partnerImport.processInbound();
+      await businessPartners.processInboundDir();
       await soloplan.syncPending();
       await hub.processInboundQueues();
     } catch (err) {

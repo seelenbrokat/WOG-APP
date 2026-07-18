@@ -10,6 +10,7 @@ export type SessionUser = {
   customerId?: string | null;
   customerName?: string;
   mandantIds: string[];
+  mustChangePassword?: boolean;
 };
 
 export function getToken(): string | null {

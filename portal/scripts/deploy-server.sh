@@ -154,7 +154,8 @@ fi
 mkdir -p data/uploads data/sftp/inbound data/sftp/outbound \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
-  data/integrations/soloplan/{in,out}
+  data/integrations/soloplan/{in,out} \
+  data/integrations/soloplan/business-partners/{in,out}
 
 log "Docker Compose: nur Projekt $COMPOSE_PROJECT_NAME starten"
 docker compose up -d --build postgres redis

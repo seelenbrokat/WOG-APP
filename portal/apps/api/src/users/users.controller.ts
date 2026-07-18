@@ -29,6 +29,20 @@ class InviteUserDto {
   mandantIds?: string[];
 }
 
+class InviteFromContactDto {
+  @IsString()
+  contactId!: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  mandantIds?: string[];
+}
+
 class MandantAccessDto {
   @IsArray()
   @IsString({ each: true })
@@ -65,6 +79,18 @@ export class UsersController {
   @Roles(UserRole.ORG_ADMIN)
   invite(@CurrentUser() user: AuthUser, @Body() dto: InviteUserDto) {
     return this.service.invite(user, dto);
+  }
+
+  @Post('invite-from-contact')
+  @Roles(UserRole.ORG_ADMIN)
+  inviteFromContact(@CurrentUser() user: AuthUser, @Body() dto: InviteFromContactDto) {
+    return this.service.inviteFromContact(user, dto);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(UserRole.ORG_ADMIN)
+  resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.adminResetPassword(user, id);
   }
 
   @Patch('me/notification-prefs')

@@ -100,16 +100,19 @@ model Mandant {
 }
 
 model Customer {
-  id             String   @id @default(cuid())
-  organizationId String
-  customerNumber String
-  name           String
-  email          String?
-  phone          String?
-  vatId          String?
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  organizationId           String
+  customerNumber           String
+  name                     String
+  email                    String?
+  phone                    String?
+  vatId                    String?
+  /// Soloplan BusinessPartnerId – Pflicht für externe Kunden aus Soloplan
+  soloplanBusinessPartnerId String?
+  matchcode                String?
+  active                   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   organization Organization       @relation(fields: [organizationId], references: [id])
   users        User[]
@@ -120,17 +123,30 @@ model Customer {
   customsOrders CustomsOrder[]
 
   @@unique([organizationId, customerNumber])
+  @@unique([organizationId, soloplanBusinessPartnerId])
+  @@index([matchcode])
 }
 
 model Contact {
-  id         String  @id @default(cuid())
-  customerId String
-  name       String
-  email      String?
-  phone      String?
-  role       String?
+  id                    String  @id @default(cuid())
+  customerId            String?
+  partnerId             String?
+  name                  String
+  firstName             String?
+  lastName              String?
+  email                 String?
+  phone                 String?
+  role                  String?
+  department            String?
+  /// Soloplan ContactPerson.Number
+  soloplanContactNumber Int?
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  partner  Partner?  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([customerId])
+  @@index([partnerId])
 }
 
 model Address {
@@ -188,21 +204,23 @@ model ShipmentTemplate {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  organizationId   String
-  customerId       String?
-  email            String    @unique
-  passwordHash     String
-  firstName        String
-  lastName         String
-  role             UserRole
-  emailVerifiedAt  DateTime?
-  verifyToken      String?
-  resetToken       String?
-  resetTokenExpiry DateTime?
-  active           Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  organizationId     String
+  customerId         String?
+  email              String    @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  role               UserRole
+  emailVerifiedAt    DateTime?
+  verifyToken        String?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  /// Nach Admin-Anlage / Reset muss User das Passwort ändern
+  mustChangePassword Boolean   @default(false)
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization         Organization           @relation(fields: [organizationId], references: [id])
   customer             Customer?              @relation(fields: [customerId], references: [id])
@@ -339,23 +357,30 @@ model EmailOutbox {
 }
 
 model Partner {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String?  @unique
-  name           String
-  code           String
-  apiKeyHash     String?
-  apiKeyPrefix   String?
-  sftpUsername   String?
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  organizationId            String
+  userId                    String?  @unique
+  name                      String
+  code                      String
+  apiKeyHash                String?
+  apiKeyPrefix              String?
+  sftpUsername              String?
+  soloplanBusinessPartnerId String?
+  matchcode                 String?
+  email                     String?
+  phone                     String?
+  active                    Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
   jobs         PartnerJob[]
+  contacts     Contact[]
 
   @@unique([organizationId, code])
+  @@unique([organizationId, soloplanBusinessPartnerId])
+  @@index([matchcode])
 }
 
 model PartnerJob {

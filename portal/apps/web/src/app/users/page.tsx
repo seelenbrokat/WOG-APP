@@ -6,18 +6,23 @@ import { api } from '@/lib/api';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const [form, setForm] = useState({
     email: '',
     firstName: '',
     lastName: '',
-    role: 'MANDANT_DISPATCHER',
+    role: 'CUSTOMER_USER',
+    customerId: '',
     mandantIds: [] as string[],
   });
 
   async function load() {
     setUsers(await api('/users'));
     setMandanten(await api('/mandanten'));
+    setCustomers(await api('/customers'));
   }
 
   useEffect(() => {
@@ -26,17 +31,54 @@ export default function UsersPage() {
 
   async function onInvite(e: FormEvent) {
     e.preventDefault();
-    await api('/users/invite', { method: 'POST', body: JSON.stringify(form) });
-    setForm({ email: '', firstName: '', lastName: '', role: 'MANDANT_DISPATCHER', mandantIds: [] });
-    await load();
+    setError('');
+    setMessage('');
+    try {
+      const res = await api<any>('/users/invite', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          customerId: form.customerId || undefined,
+        }),
+      });
+      setMessage(`User ${res.email} angelegt. Standardpasswort wurde per E-Mail gesendet.`);
+      setForm({
+        email: '',
+        firstName: '',
+        lastName: '',
+        role: 'CUSTOMER_USER',
+        customerId: '',
+        mandantIds: [],
+      });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  async function resetPassword(userId: string) {
+    setError('');
+    setMessage('');
+    try {
+      const res = await api<any>(`/users/${userId}/reset-password`, { method: 'POST' });
+      setMessage(`Passwort für ${res.email} zurückgesetzt (Standardpasswort per E-Mail).`);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
   }
 
   return (
     <AppShell title="Benutzerverwaltung">
+      <p className="muted" style={{ marginBottom: '1rem' }}>
+        Kunden-/Partner-User benötigen eine Soloplan-BusinessPartnerId am Kundenstamm.
+        Standardpasswort gilt nur erstmalig – der User muss es danach ändern. Admins können jederzeit zurücksetzen.
+      </p>
+
       <form className="panel stack" style={{ marginBottom: '1rem' }} onSubmit={onInvite}>
-        <strong>Benutzer einladen</strong>
+        <strong>Benutzer anlegen</strong>
         <div className="grid-2">
-          <input required placeholder="E-Mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input required placeholder="E-Mail (aus Soloplan-Ansprechpartner)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="ORG_ADMIN">Organisations-Admin</option>
             <option value="MANDANT_DISPATCHER">Disponent</option>
@@ -45,6 +87,22 @@ export default function UsersPage() {
           </select>
           <input required placeholder="Vorname" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
           <input required placeholder="Nachname" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+          {(form.role === 'CUSTOMER_USER' || form.role === 'PARTNER') && (
+            <select
+              required={form.role === 'CUSTOMER_USER'}
+              value={form.customerId}
+              onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+            >
+              <option value="">– Soloplan-Kunde wählen –</option>
+              {customers
+                .filter((c) => c.soloplanBusinessPartnerId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (BP {c.soloplanBusinessPartnerId})
+                  </option>
+                ))}
+            </select>
+          )}
         </div>
         <div className="row">
           {mandanten.map((m) => (
@@ -65,8 +123,12 @@ export default function UsersPage() {
             </label>
           ))}
         </div>
-        <button className="btn btn-primary" type="submit">Einladen</button>
+        <button className="btn btn-primary" type="submit">Anlegen</button>
       </form>
+
+      {message && <div className="success" style={{ marginBottom: '1rem' }}>{message}</div>}
+      {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
+
       <div className="panel">
         <table className="table">
           <thead>
@@ -74,7 +136,9 @@ export default function UsersPage() {
               <th>Name</th>
               <th>E-Mail</th>
               <th>Rolle</th>
-              <th>Mandanten</th>
+              <th>Kunde / BP</th>
+              <th>Passwort</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -83,7 +147,21 @@ export default function UsersPage() {
                 <td>{u.firstName} {u.lastName}</td>
                 <td>{u.email}</td>
                 <td>{u.role}</td>
-                <td>{u.mandantAccess?.map((a: any) => a.mandant?.code).join(', ') || '–'}</td>
+                <td>
+                  {u.customer
+                    ? `${u.customer.name}${u.customer.soloplanBusinessPartnerId ? ` (BP ${u.customer.soloplanBusinessPartnerId})` : ''}`
+                    : '–'}
+                </td>
+                <td>
+                  {u.mustChangePassword
+                    ? <span className="badge warn">Änderung nötig</span>
+                    : <span className="badge ok">ok</span>}
+                </td>
+                <td>
+                  <button className="btn btn-ghost" type="button" style={{ color: 'var(--ink)', borderColor: 'var(--line)' }} onClick={() => resetPassword(u.id)}>
+                    Passwort zurücksetzen
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

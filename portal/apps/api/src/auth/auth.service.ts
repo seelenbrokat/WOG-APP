@@ -29,18 +29,35 @@ export class AuthService {
     const org = await this.prisma.organization.findFirst({ where: { slug: 'wog' } });
     if (!org) throw new BadRequestException('Organisation nicht initialisiert');
 
-    let customerId: string | undefined;
-    if (dto.customerNumber) {
-      const customer = await this.prisma.customer.findUnique({
-        where: {
-          organizationId_customerNumber: {
-            organizationId: org.id,
-            customerNumber: dto.customerNumber,
-          },
-        },
-      });
-      if (!customer) throw new BadRequestException('Kundennummer nicht gefunden');
-      customerId = customer.id;
+    if (!dto.customerNumber) {
+      throw new BadRequestException(
+        'Zugang nur für Soloplan-BusinessPartner. Bitte Administrator kontaktieren oder Kundennummer/Matchcode angeben.',
+      );
+    }
+
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        organizationId: org.id,
+        OR: [
+          { customerNumber: dto.customerNumber },
+          { matchcode: dto.customerNumber },
+          { soloplanBusinessPartnerId: dto.customerNumber },
+        ],
+      },
+    });
+    if (!customer) throw new BadRequestException('Kundennummer nicht gefunden');
+    if (!customer.soloplanBusinessPartnerId) {
+      throw new BadRequestException(
+        'Kunde ist nicht aus Soloplan importiert (BusinessPartnerId fehlt).',
+      );
+    }
+    const contact = await this.prisma.contact.findFirst({
+      where: { customerId: customer.id, email: dto.email.toLowerCase() },
+    });
+    if (!contact) {
+      throw new BadRequestException(
+        'E-Mail ist bei diesem BusinessPartner in Soloplan nicht als Ansprechpartner hinterlegt.',
+      );
     }
 
     const verifyToken = randomBytes(32).toString('hex');
@@ -48,13 +65,14 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         organizationId: org.id,
-        customerId,
+        customerId: customer.id,
         email: dto.email.toLowerCase(),
         passwordHash,
         firstName: dto.firstName,
         lastName: dto.lastName,
         role: UserRole.CUSTOMER_USER,
         verifyToken,
+        mustChangePassword: false,
         notificationPrefs: {
           create: Object.values(NotificationEvent).map((event) => ({
             event,
@@ -99,6 +117,7 @@ export class AuthService {
     const token = await this.jwt.signAsync({ sub: user.id, role: user.role });
     return {
       accessToken: token,
+      mustChangePassword: user.mustChangePassword,
       user: {
         id: user.id,
         email: user.email,
@@ -109,8 +128,27 @@ export class AuthService {
         customerId: user.customerId,
         customerName: user.customer?.name,
         mandantIds: user.mandantAccess.map((a) => a.mandantId),
+        mustChangePassword: user.mustChangePassword,
       },
     };
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException();
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) throw new UnauthorizedException('Aktuelles Passwort ungültig');
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('Neues Passwort muss sich vom aktuellen unterscheiden');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: await bcrypt.hash(newPassword, 10),
+        mustChangePassword: false,
+      },
+    });
+    return { message: 'Passwort geändert.' };
   }
 
   async forgotPassword(email: string) {
@@ -144,6 +182,7 @@ export class AuthService {
         passwordHash: await bcrypt.hash(password, 10),
         resetToken: null,
         resetTokenExpiry: null,
+        mustChangePassword: false,
       },
     });
     return { message: 'Passwort aktualisiert.' };

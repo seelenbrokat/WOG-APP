@@ -22,13 +22,17 @@ export default function HomePage() {
     setLoading(true);
     setError('');
     try {
-      const res = await api<{ accessToken: string; user: SessionUser }>('/auth/login', {
+      const res = await api<{ accessToken: string; user: SessionUser; mustChangePassword?: boolean }>('/auth/login', {
         method: 'POST',
         auth: false,
         body: JSON.stringify({ email, password }),
       });
-      setSession(res.accessToken, res.user);
-      router.push('/dashboard');
+      const user = {
+        ...res.user,
+        mustChangePassword: res.mustChangePassword ?? res.user.mustChangePassword,
+      };
+      setSession(res.accessToken, user);
+      router.push(user.mustChangePassword ? '/change-password' : '/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login fehlgeschlagen');
     } finally {

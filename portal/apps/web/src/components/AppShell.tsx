@@ -31,8 +31,13 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
       router.replace('/');
       return;
     }
-    setUser(getUser());
-  }, [router]);
+    const session = getUser();
+    if (session?.mustChangePassword && pathname !== '/change-password') {
+      router.replace('/change-password');
+      return;
+    }
+    setUser(session);
+  }, [router, pathname]);
 
   if (!user) return <div className="main">Laden…</div>;
 
