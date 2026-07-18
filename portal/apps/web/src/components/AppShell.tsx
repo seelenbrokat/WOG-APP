@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { clearSession, getToken, getUser, SessionUser } from '@/lib/api';
 
 const NAV = [
@@ -42,7 +43,9 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="logo">WOG</div>
+        <div className="logo">
+          <BrandLogo variant="mark" />
+        </div>
         <nav>
           {links.map((l) => (
             <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
@@ -50,12 +53,12 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
             </Link>
           ))}
         </nav>
-        <div style={{ marginTop: 'auto', padding: '0.5rem', fontSize: '0.85rem', opacity: 0.8 }}>
+        <div className="sidebar-user">
           <div>{user.firstName} {user.lastName}</div>
-          <div>{user.role}</div>
+          <div className="muted" style={{ color: 'rgba(255,255,255,0.7)' }}>{user.role}</div>
           <button
             className="btn btn-ghost"
-            style={{ marginTop: '0.75rem', color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}
+            style={{ marginTop: '0.75rem', width: '100%' }}
             onClick={() => {
               clearSession();
               router.push('/');

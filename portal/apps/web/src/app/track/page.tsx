@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/BrandLogo';
 import { api, statusLabel } from '@/lib/api';
 
 export default function TrackPage() {
@@ -25,13 +26,17 @@ export default function TrackPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0b1c24 0%, #123041 35%, #f4f7f5 35%)' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '3rem 1.25rem' }}>
-        <div style={{ color: 'white', marginBottom: '2rem' }}>
-          <Link href="/" style={{ opacity: 0.75 }}>← Portal</Link>
-          <h1 className="brand-mark" style={{ fontSize: '4rem', margin: '0.5rem 0' }}>WOG</h1>
-          <p style={{ opacity: 0.85 }}>Öffentliches Track & Trace</p>
+    <div className="track-page">
+      <div className="track-hero">
+        <div className="track-hero-inner">
+          <Link href="/" className="track-back">← Portal</Link>
+          <BrandLogo variant="full" className="brand-logo track-logo" />
+          <p className="brand-sub" style={{ marginTop: '0.5rem' }}>
+            Öffentliches Track & Trace für Ihre WOG-Sendung.
+          </p>
         </div>
+      </div>
+      <div className="track-body">
         <form className="panel stack" onSubmit={onSubmit}>
           <div className="grid-2">
             <div className="field">
