@@ -20,7 +20,9 @@ export function AuthLayout({ headline, sub, children, showTrackCta = false }: Au
         <div className="leaf leaf-c" />
       </div>
       <section className="hero-brand">
-        <BrandLogo variant="full" />
+        <div className="brand-plate">
+          <BrandLogo variant="full" onLight />
+        </div>
         <h1 className="brand-headline">{headline}</h1>
         <p className="brand-sub">{sub}</p>
         {showTrackCta && (
@@ -31,7 +33,12 @@ export function AuthLayout({ headline, sub, children, showTrackCta = false }: Au
           </div>
         )}
       </section>
-      <section className="hero-panel">{children}</section>
+      <section className="hero-panel">
+        <div className="auth-brand-mini">
+          <BrandLogo variant="mark" />
+        </div>
+        {children}
+      </section>
     </div>
   );
 }
