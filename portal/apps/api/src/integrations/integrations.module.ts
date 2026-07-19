@@ -6,6 +6,7 @@ import { AuditModule } from '../audit/audit.module';
 import { ExchangeHubService } from './exchange-hub.service';
 import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-adapters';
 import { BusinessPartnerService } from './business-partner.service';
+import { ShippingNetService } from './shippingnet.service';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule), AuditModule],
@@ -15,10 +16,17 @@ import { BusinessPartnerService } from './business-partner.service';
     PartnerImportService,
     ExchangeHubService,
     BusinessPartnerService,
+    ShippingNetService,
     LdvAdapter,
     MercurioAdapter,
     SoloplanCustomsAdapter,
   ],
-  exports: [SoloplanService, PartnerImportService, ExchangeHubService, BusinessPartnerService],
+  exports: [
+    SoloplanService,
+    PartnerImportService,
+    ExchangeHubService,
+    BusinessPartnerService,
+    ShippingNetService,
+  ],
 })
 export class IntegrationsModule {}

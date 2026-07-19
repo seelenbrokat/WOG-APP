@@ -18,6 +18,7 @@ import { Roles, CurrentUser, AuthUser } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { ExchangeHubService } from './exchange-hub.service';
 import { BusinessPartnerService } from './business-partner.service';
+import { ShippingNetService } from './shippingnet.service';
 
 class CreateTransferDto {
   @IsEnum(IntegrationSystem)
@@ -53,6 +54,29 @@ class ImportBusinessPartnersDto {
   payload!: unknown;
 }
 
+class ShippingNetDeliveredDto {
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  statusDate?: string;
+}
+
+class ShippingNetStatusDto {
+  @IsString()
+  statusId!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  statusDate?: string;
+}
+
 @Controller('integrations')
 @UseGuards(RolesGuard)
 export class IntegrationsController {
@@ -60,6 +84,7 @@ export class IntegrationsController {
     private config: ConfigService,
     private hub: ExchangeHubService,
     private businessPartners: BusinessPartnerService,
+    private shippingNet: ShippingNetService,
   ) {}
 
   @Get('soloplan/status')
@@ -108,6 +133,49 @@ export class IntegrationsController {
   @Roles(UserRole.ORG_ADMIN)
   pollBusinessPartners(@CurrentUser() user: AuthUser) {
     return this.businessPartners.processInboundDir(user.organizationId);
+  }
+
+  @Get('shippingnet/status')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  shippingNetStatus(@CurrentUser() _user: AuthUser) {
+    return this.shippingNet.status();
+  }
+
+  /**
+   * Setzt in shipping.NET / OnDot den Status DVD (Zugestellt) für eine Sendungsnummer.
+   * Beispiel: POST /api/integrations/shippingnet/shipments/435958.1/delivered
+   */
+  @Post('shippingnet/shipments/:number/delivered')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  markShipmentDelivered(
+    @CurrentUser() user: AuthUser,
+    @Param('number') number: string,
+    @Body() dto: ShippingNetDeliveredDto,
+  ) {
+    return this.shippingNet.markDelivered(user, decodeURIComponent(number), {
+      description: dto.description,
+      statusDate: dto.statusDate,
+    });
+  }
+
+  /** Beliebigen shipping.NET-Status setzen (StatusID z. B. DVD, RUN, SAT). */
+  @Post('shippingnet/shipments/:number/status')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  setShipmentStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('number') number: string,
+    @Body() dto: ShippingNetStatusDto,
+  ) {
+    return this.shippingNet.importStatus(user, decodeURIComponent(number), dto.statusId, {
+      description: dto.description,
+      statusDate: dto.statusDate,
+    });
+  }
+
+  @Get('shippingnet/shipments/:number/status')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  getShipmentStatus(@Param('number') number: string) {
+    return this.shippingNet.retrieveStatus(decodeURIComponent(number));
   }
 
   @Get('hub/status')
