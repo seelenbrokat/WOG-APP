@@ -77,6 +77,29 @@ class ShippingNetStatusDto {
   statusDate?: string;
 }
 
+class ShippingNetAblieferbelegFieldsDto {
+  @IsOptional()
+  @IsString()
+  documentType?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
+
+  @IsOptional()
+  @IsString()
+  number?: string;
+
+  @IsOptional()
+  @IsString()
+  statusDate?: string;
+
+  /** "true" / "1" wenn gleichzeitig Status DVD gesetzt werden soll */
+  @IsOptional()
+  @IsString()
+  markDelivered?: string;
+}
+
 @Controller('integrations')
 @UseGuards(RolesGuard)
 export class IntegrationsController {
@@ -176,6 +199,59 @@ export class IntegrationsController {
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   getShipmentStatus(@Param('number') number: string) {
     return this.shippingNet.retrieveStatus(decodeURIComponent(number));
+  }
+
+  /**
+   * Ablieferbeleg (PDF/PNG/JPG) zu einer Sendungsnummer nach shipping.NET hochladen.
+   * multipart/form-data Feld: file
+   * Optional: documentType, comment, number, markDelivered=true
+   */
+  @Post('shippingnet/shipments/:number/ablieferbeleg')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
+  uploadAblieferbeleg(
+    @CurrentUser() user: AuthUser,
+    @Param('number') number: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: ShippingNetAblieferbelegFieldsDto,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Datei fehlt (multipart-Feld "file")');
+    }
+    const markDelivered =
+      dto.markDelivered === 'true' || dto.markDelivered === '1' || dto.markDelivered === 'yes';
+    return this.shippingNet.uploadAblieferbeleg(user, decodeURIComponent(number), file, {
+      documentType: dto.documentType,
+      comment: dto.comment,
+      number: dto.number,
+      markDelivered,
+      statusDate: dto.statusDate,
+    });
+  }
+
+  /** Generischer Dokument-Upload nach shipping.NET (Typ über documentType). */
+  @Post('shippingnet/shipments/:number/document')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
+  uploadDocument(
+    @CurrentUser() user: AuthUser,
+    @Param('number') number: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('documentType') documentType: string,
+    @Body('comment') comment?: string,
+    @Body('number') docNumber?: string,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Datei fehlt (multipart-Feld "file")');
+    }
+    if (!documentType?.trim()) {
+      throw new BadRequestException('documentType fehlt (z. B. OtherDocument, DeliveryNote)');
+    }
+    return this.shippingNet.addDocument(user, decodeURIComponent(number), file, {
+      documentType: documentType.trim(),
+      comment,
+      number: docNumber,
+    });
   }
 
   @Get('hub/status')
