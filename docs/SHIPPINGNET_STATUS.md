@@ -104,7 +104,7 @@ Content-Type: multipart/form-data
 | Feld | Pflicht | Beschreibung |
 |------|---------|--------------|
 | `file` | ja | PDF, PNG oder JPG (max. 20 MB) |
-| `documentType` | nein | shipping.NET-Typ (Default: `SHIPPINGNET_POD_DOCUMENT_TYPE` bzw. `OtherDocument`) |
+| `documentType` | nein | shipping.NET-Typ (Default: `SHIPPINGNET_POD_DOCUMENT_TYPE` bzw. `DeliveryNote` / Lieferschein) |
 | `comment` | nein | Default: `Ablieferbeleg` |
 | `number` | nein | Dokumentnummer (Default: `POD`) |
 | `markDelivered` | nein | `true` = zusätzlich Status DVD setzen |
@@ -134,19 +134,17 @@ Gleiche Auth/Multipart-Felder; `documentType` ist hier **pflicht**.
 shipping.NET akzeptiert den Upload nur, wenn der **Dokumenttyp in der Systemkonfiguration aktiviert** ist. Sonst:
 
 ```text
-shipmentDocumentGetList: "Other Document" is not enabled
+shipmentDocumentGetList: "DeliveryNote" is not enabled
 ```
 
 Vorgehen:
 
-1. In shipping.NET → **Systemkonfiguration** → Dokumenttypen / Geschäftsdokumente den gewünschten Typ aktivieren (z. B. **Other Document** oder **Delivery Note**).
+1. In shipping.NET → **Systemkonfiguration** den Typ **Lieferschein / Delivery Note** aktivieren.
 2. Im Portal `.env` setzen:
 
 ```env
-SHIPPINGNET_POD_DOCUMENT_TYPE=OtherDocument
+SHIPPINGNET_POD_DOCUMENT_TYPE=DeliveryNote
 ```
-
-(oder `DeliveryNote`, je nachdem was aktiviert wurde)
 
 3. API-Container neu starten, damit die Env greift.
 
@@ -160,7 +158,7 @@ POST {SHIPPINGNET_PUBLIC_API_BASE}/Shipment/addDocument
 {
   "ShipmentMatching": { "Number": "435958.1" },
   "Document": {
-    "Type": "OtherDocument",
+    "Type": "DeliveryNote",
     "Comment": "Ablieferbeleg",
     "Number": "POD",
     "File": { "ContentBase64": "…", "FileType": "PDF" }
@@ -232,7 +230,7 @@ SHIPPINGNET_CLIENT_ID=…
 SHIPPINGNET_ORG_UNIT_ID=…
 SHIPPINGNET_ORG_UNIT_GUID=…
 SHIPPINGNET_API_KEY=ClientID:OrgUnitID:OrgUnitGUID
-SHIPPINGNET_POD_DOCUMENT_TYPE=OtherDocument
+SHIPPINGNET_POD_DOCUMENT_TYPE=DeliveryNote
 ```
 
 Konfiguration prüfen:

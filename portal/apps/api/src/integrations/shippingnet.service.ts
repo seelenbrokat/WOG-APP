@@ -217,7 +217,7 @@ export class ShippingNetService {
     const documentType =
       opts.documentType?.trim() ||
       this.config.get('SHIPPINGNET_POD_DOCUMENT_TYPE') ||
-      'OtherDocument';
+      'DeliveryNote';
     if (!SHIPPINGNET_DOCUMENT_TYPES.has(documentType)) {
       throw new BadRequestException(
         `Ungültiger Dokumenttyp "${documentType}". Erlaubt: ${[...SHIPPINGNET_DOCUMENT_TYPES].join(', ')}`,
