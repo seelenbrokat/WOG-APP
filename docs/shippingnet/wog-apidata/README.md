@@ -49,3 +49,24 @@ OpenAPI-Downloads (ohne Login öffentlich unter `DataService/PublicApi/v1/{Api}/
 ## Zugangsdaten (Login nötig)
 ClientID / OrgUnitID / OrgUnitGUID bzw. `api-key` stehen in der ApiData-Maske nach Login.
 Endpoint: `GET DataService/apiv2/SystemConfiguration/orgUnitGetAPIInfo`
+
+
+## Authentifizierung (verifiziert)
+
+Funktioniert mit Headern:
+
+```
+client-id: <ClientID>
+orgunit-id: <OrgUnitID>
+auth-token: <OrgUnitGUID>
+```
+
+oder
+
+```
+api-key: <ClientID>:<OrgUnitID>:<OrgUnitGUID>
+```
+
+Die echten Werte liegen in `credentials/apidata.env` (gitignored) und auf dem Server unter `/root/wog-shippingnet-apidata.env`.
+
+Siehe auch `API_SPEC.md` für alle Endpunkte/Schemas.
