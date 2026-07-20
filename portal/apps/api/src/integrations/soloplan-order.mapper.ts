@@ -69,7 +69,7 @@ export type PortalShipmentForSoloplan = {
   deliveryDate?: Date | string | null;
   notes?: string | null;
   deliveryAvisPhone?: string | null;
-  extras?: Record<string, unknown> | null;
+  extras?: unknown;
   customer: CustomerLike;
   /** Portal-Auftrag inkl. Frachtzahler (order.customer in Soloplan) */
   order?: {
@@ -442,7 +442,12 @@ function buildConsignment(
       : { dimensions: { meter: 0, cubicMeter: 0 } }),
     flatRateCarrier: {},
     maximumSize: {},
-    containsDangerousGoods: Boolean(shipment.extras?.gefahrgut),
+    containsDangerousGoods: Boolean(
+      shipment.extras &&
+        typeof shipment.extras === 'object' &&
+        !Array.isArray(shipment.extras) &&
+        (shipment.extras as Record<string, unknown>).gefahrgut,
+    ),
     customFields: {
       consignmentReference2: shipment.deliveryCompany || undefined,
       customBool10: true,

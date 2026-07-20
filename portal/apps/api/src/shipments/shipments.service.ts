@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { NotificationEvent, ShipmentStatus, UserRole } from '@prisma/client';
+import { NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { mandantFilter, customerFilter, assertMandantAccess } from '../common/access';
@@ -276,7 +276,10 @@ export class ShipmentsService {
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : undefined,
         deliveryAvisPhone: data.deliveryAvisPhone?.trim() || undefined,
         notes: data.notes,
-        extras: data.extras && Object.keys(data.extras).length ? data.extras : undefined,
+        extras:
+          data.extras && Object.keys(data.extras).length
+            ? (data.extras as Prisma.InputJsonValue)
+            : undefined,
         createdById: user.id,
         positions: expandedPositions.length
           ? {
