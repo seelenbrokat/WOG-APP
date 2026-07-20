@@ -9,14 +9,17 @@
   "scripts": {
     "dev:api": "npm run start:dev -w @wog/api",
     "dev:web": "npm run dev -w @wog/web",
-    "build": "npm run build -w @wog/shared && npm run build -w @wog/api && npm run build -w @wog/web",
+    "dev:mcp": "npm run dev -w @wog/mcp",
+    "build": "npm run build -w @wog/shared && npm run build -w @wog/api && npm run build -w @wog/web && npm run build -w @wog/mcp",
     "build:api": "npm run build -w @wog/shared && npm run build -w @wog/api",
     "build:web": "npm run build -w @wog/web",
+    "build:mcp": "npm run build -w @wog/shared && npm run build -w @wog/mcp",
     "db:generate": "npm run prisma:generate -w @wog/api",
     "db:migrate": "npm run prisma:migrate -w @wog/api",
     "db:seed": "npm run prisma:seed -w @wog/api",
     "start:api": "npm run start:prod -w @wog/api",
-    "start:worker": "npm run start:worker -w @wog/api"
+    "start:worker": "npm run start:worker -w @wog/api",
+    "start:mcp": "npm run start -w @wog/mcp"
   },
   "engines": {
     "node": ">=20"
