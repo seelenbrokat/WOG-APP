@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "wog-portal": {
+      "command": "node",
+      "args": ["REPLACE_WITH_ABS_PATH/portal/apps/mcp/dist/index.js"],
+      "env": {
+        "WOG_API_URL": "https://wog.logistikberater.at/api",
+        "WOG_EMAIL": "kunde@example.com",
+        "WOG_PASSWORD": "CHANGE_ME"
+      }
+    }
+  }
+}
