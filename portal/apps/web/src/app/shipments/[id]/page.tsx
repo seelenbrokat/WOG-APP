@@ -248,7 +248,12 @@ function ShipmentDetailInner() {
             </div>
             <div className="panel stack">
               <strong>Dokumente</strong>
-              {shipment.documents?.map((d: any) => (
+              {[
+                ...(shipment.documents || []),
+                ...((orderDetail?.documents || []).filter(
+                  (d: any) => !(shipment.documents || []).some((s: any) => s.id === d.id),
+                )),
+              ].map((d: any) => (
                 <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
                   <span>{d.fileName} <span className="badge">{d.type}</span></span>
                   <a
