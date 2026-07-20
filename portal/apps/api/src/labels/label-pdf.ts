@@ -4,9 +4,9 @@ import PDFDocument from 'pdfkit';
 import { ssccAiData } from './sscc';
 
 // bwip-js package exports (`bwip-js/node`) need moduleResolution node16+;
-// Nest stays on classic node resolution, so load the CJS entry via require.
-const require = createRequire(__filename);
-const bwipjs = require('bwip-js') as {
+// Nest stays on classic node resolution, so load the CJS entry via createRequire.
+const nodeRequire = createRequire(__filename);
+const bwipjs = nodeRequire('bwip-js') as {
   toBuffer: (opts: {
     bcid: string;
     text: string;
