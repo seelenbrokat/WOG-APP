@@ -75,3 +75,6 @@ export type { Frankatur } from './frankatur';
 
 export { PACKAGING_TYPES, packagingLabel } from './packaging';
 export type { PackagingCode } from './packaging';
+
+export { SHIPMENT_EXTRA_OPTIONS, shipmentExtrasLabels } from './shipment-extras';
+export type { ShipmentExtraCode, ShipmentExtras } from './shipment-extras';

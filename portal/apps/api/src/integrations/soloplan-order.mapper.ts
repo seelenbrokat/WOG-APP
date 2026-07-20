@@ -68,6 +68,8 @@ export type PortalShipmentForSoloplan = {
   deliveryCountry?: string | null;
   deliveryDate?: Date | string | null;
   notes?: string | null;
+  deliveryAvisPhone?: string | null;
+  extras?: Record<string, unknown> | null;
   customer: CustomerLike;
   /** Portal-Auftrag inkl. Frachtzahler (order.customer in Soloplan) */
   order?: {
@@ -440,7 +442,7 @@ function buildConsignment(
       : { dimensions: { meter: 0, cubicMeter: 0 } }),
     flatRateCarrier: {},
     maximumSize: {},
-    containsDangerousGoods: false,
+    containsDangerousGoods: Boolean(shipment.extras?.gefahrgut),
     customFields: {
       consignmentReference2: shipment.deliveryCompany || undefined,
       customBool10: true,
@@ -456,6 +458,9 @@ function buildConsignment(
       ]
         .filter(Boolean)
         .join('-'),
+      ...(shipment.deliveryAvisPhone
+        ? { receiverInfo1: `Avis-Tel: ${shipment.deliveryAvisPhone}` }
+        : {}),
       ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
     },
     airAndSea: {

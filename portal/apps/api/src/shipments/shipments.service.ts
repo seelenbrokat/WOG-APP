@@ -146,7 +146,9 @@ export class ShipmentsService {
       deliveryCity?: string;
       deliveryCountry?: string;
       deliveryDate?: string;
+      deliveryAvisPhone?: string;
       notes?: string;
+      extras?: Record<string, unknown>;
       submit?: boolean;
       savePickupAddress?: boolean;
       saveDeliveryAddress?: boolean;
@@ -272,7 +274,9 @@ export class ShipmentsService {
         deliveryCity,
         deliveryCountry,
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : undefined,
+        deliveryAvisPhone: data.deliveryAvisPhone?.trim() || undefined,
         notes: data.notes,
+        extras: data.extras && Object.keys(data.extras).length ? data.extras : undefined,
         createdById: user.id,
         positions: expandedPositions.length
           ? {

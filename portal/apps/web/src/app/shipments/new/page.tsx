@@ -3,9 +3,19 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { PACKAGING_TYPES } from '@wog/shared';
+import { PACKAGING_TYPES, SHIPMENT_EXTRA_OPTIONS, type ShipmentExtras } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
+
+type TabId = 'allgemein' | 'colli' | 'zusatz';
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'allgemein', label: 'Allgemein' },
+  { id: 'colli', label: 'Colli' },
+  { id: 'zusatz', label: 'Zusatzinformationen' },
+];
+
+const EXTRA_GROUPS = Array.from(new Set(SHIPMENT_EXTRA_OPTIONS.map((o) => o.group)));
 
 type Address = {
   id: string;
@@ -102,6 +112,7 @@ function NewShipmentInner() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState<TabId>('allgemein');
   const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
   const [quick, setQuick] = useState({
     count: '1',
@@ -111,6 +122,7 @@ function NewShipmentInner() {
     widthCm: '',
     heightCm: '',
   });
+  const [extras, setExtras] = useState<ShipmentExtras>({});
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
@@ -130,12 +142,23 @@ function NewShipmentInner() {
     deliveryStreet: '',
     deliveryZip: '',
     deliveryCity: '',
+    deliveryAvisPhone: '',
     notes: '',
     submit: true,
     savePickupAddress: false,
     saveDeliveryAddress: false,
     saveAsTemplateName: '',
   });
+
+  function toggleExtra(code: keyof ShipmentExtras, checked: boolean) {
+    setExtras((prev) => {
+      const next = { ...prev, [code]: checked };
+      if (!checked && code === 'warenwertVersicherung') {
+        delete next.goodsValueEur;
+      }
+      return next;
+    });
+  }
 
   const customerQuery =
     user?.role === 'CUSTOMER_USER'
@@ -367,6 +390,21 @@ function NewShipmentInner() {
         positions.map((p) => p.description).filter(Boolean).join('; ') ||
         undefined;
 
+      const extrasPayload: ShipmentExtras = { ...extras };
+      if (extrasPayload.warenwertVersicherung && extras.goodsValueEur != null) {
+        extrasPayload.goodsValueEur = Number(extras.goodsValueEur) || undefined;
+      }
+      if (form.notes.trim()) {
+        extrasPayload.extrasNote = form.notes.trim();
+      }
+      // leere Flags entfernen
+      Object.keys(extrasPayload).forEach((k) => {
+        const key = k as keyof ShipmentExtras;
+        if (extrasPayload[key] === false || extrasPayload[key] === '' || extrasPayload[key] == null) {
+          delete extrasPayload[key];
+        }
+      });
+
       const created = await api<any>('/shipments', {
         method: 'POST',
         body: JSON.stringify({
@@ -375,10 +413,13 @@ function NewShipmentInner() {
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
+          deliveryAvisPhone: form.deliveryAvisPhone.trim() || undefined,
           packageCount: positions.length,
           weightKg: totalWeight || Number(form.weightKg) || undefined,
           volumeM3: volumeM3 > 0 ? Math.round(volumeM3 * 1000) / 1000 : undefined,
           goodsDescription,
+          notes: form.notes.trim() || undefined,
+          extras: Object.keys(extrasPayload).length ? extrasPayload : undefined,
           saveAsTemplateName: form.saveAsTemplateName || undefined,
           positions,
         }),
@@ -386,6 +427,7 @@ function NewShipmentInner() {
       router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);
+      setTab('allgemein');
     }
   }
 
@@ -404,7 +446,22 @@ function NewShipmentInner() {
           <Link href="/addresses">Adressbuch verwalten</Link>
         </div>
 
-        {(user?.role === 'CUSTOMER_USER' || form.customerId) && templates.length > 0 && (
+        <div className="tabs" role="tablist" aria-label="Auftragserfassung">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={tab === t.id ? 'active' : ''}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'allgemein' && (user?.role === 'CUSTOMER_USER' || form.customerId) && templates.length > 0 && (
           <div className="field">
             <label>Vorlage laden</label>
             <select defaultValue="" onChange={(e) => applyTemplate(e.target.value)}>
@@ -416,6 +473,8 @@ function NewShipmentInner() {
           </div>
         )}
 
+        {tab === 'allgemein' && (
+          <>
         <div className="grid-2">
           <div className="field">
             <label>Mandant</label>
@@ -527,13 +586,28 @@ function NewShipmentInner() {
               <input placeholder="PLZ" value={form.deliveryZip} onChange={(e) => setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' })} />
               <input placeholder="Ort" value={form.deliveryCity} onChange={(e) => setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' })} />
             </div>
+            <div className="field">
+              <label>Avis-Telefon Zustellung</label>
+              <input
+                type="tel"
+                placeholder="+43 … / +41 …"
+                value={form.deliveryAvisPhone}
+                onChange={(e) => setForm({ ...form, deliveryAvisPhone: e.target.value })}
+              />
+              <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
+                Nummer, unter der die Zustellung avisiert werden kann.
+              </p>
+            </div>
             <label className="row">
               <input type="checkbox" checked={form.saveDeliveryAddress} onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })} />
               Zustellung im Adressbuch speichern
             </label>
           </div>
         </div>
+          </>
+        )}
 
+        {tab === 'colli' && (
         <div className="stack">
           <strong>Colli</strong>
           <div className="field">
@@ -719,22 +793,95 @@ function NewShipmentInner() {
             Verpackung, Maße und Gewicht je Collo fließen in Etiketten und Soloplan-Export ein.
           </p>
         </div>
-        <div className="field">
-          <label>Hinweise</label>
-          <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        </div>
-        <div className="field">
-          <label>Als Vorlage speichern (optional)</label>
-          <input
-            placeholder="Name der Vorlage"
-            value={form.saveAsTemplateName}
-            onChange={(e) => setForm({ ...form, saveAsTemplateName: e.target.value })}
-          />
-        </div>
+        )}
+
+        {tab === 'zusatz' && (
+          <div className="stack">
+            <strong>Zusatzinformationen</strong>
+            <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+              Zusatzleistungen und Hinweise für Disposition, Fahrer und Aviso.
+            </p>
+            {EXTRA_GROUPS.map((group) => (
+              <div key={group} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
+                <strong style={{ fontSize: '0.95rem' }}>{group}</strong>
+                <div className="extras-grid">
+                  {SHIPMENT_EXTRA_OPTIONS.filter((o) => o.group === group).map((opt) => (
+                    <label key={opt.code} className="row">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(extras[opt.code])}
+                        onChange={(e) => toggleExtra(opt.code, e.target.checked)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {extras.warenwertVersicherung && (
+              <div className="field">
+                <label>Warenwert (EUR)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={extras.goodsValueEur ?? ''}
+                  onChange={(e) =>
+                    setExtras((prev) => ({
+                      ...prev,
+                      goodsValueEur: e.target.value === '' ? undefined : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="z. B. 15000"
+                />
+              </div>
+            )}
+            <div className="field">
+              <label>Hinweise / Bemerkungen</label>
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="z. B. Anfahrtshinweise, Öffnungszeiten, Ansprechpartner"
+              />
+            </div>
+          </div>
+        )}
+
+        {tab === 'allgemein' && (
+          <div className="field">
+            <label>Als Vorlage speichern (optional)</label>
+            <input
+              placeholder="Name der Vorlage"
+              value={form.saveAsTemplateName}
+              onChange={(e) => setForm({ ...form, saveAsTemplateName: e.target.value })}
+            />
+          </div>
+        )}
+
         {error && <div className="error">{error}</div>}
-        <div className="row">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div className="row">
+            {tab !== 'allgemein' && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setTab(tab === 'zusatz' ? 'colli' : 'allgemein')}
+              >
+                Zurück
+              </button>
+            )}
+            {tab !== 'zusatz' && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setTab(tab === 'allgemein' ? 'colli' : 'zusatz')}
+              >
+                Weiter
+              </button>
+            )}
+          </div>
           <button className="btn btn-primary" type="submit">Auftrag übermitteln</button>
-          <span className="muted">{customerQuery ? '' : ''}</span>
         </div>
       </form>
     </AppShell>

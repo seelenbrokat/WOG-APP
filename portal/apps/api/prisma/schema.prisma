@@ -300,7 +300,11 @@ model Shipment {
   deliveryCity     String?
   deliveryCountry  String?        @default("AT")
   deliveryDate     DateTime?
+  /// Telefonnummer für Zustell-Aviso
+  deliveryAvisPhone String?
   notes            String?
+  /// Zusatzoptionen (Hebebühne, Aviso, Gefahrgut, …) als JSON
+  extras           Json?
   soloplanRef      String?
   createdById      String?
   createdAt        DateTime       @default(now())

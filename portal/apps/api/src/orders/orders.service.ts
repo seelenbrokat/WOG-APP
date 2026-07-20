@@ -182,7 +182,15 @@ export class OrdersService {
         doc.text(
           `Nach: ${[shipment.deliveryCompany, shipment.deliveryStreet, `${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''}`, shipment.deliveryCountry].filter(Boolean).join(', ')}`,
         );
+        if (shipment.deliveryAvisPhone) doc.text(`Avis-Tel: ${shipment.deliveryAvisPhone}`);
         if (shipment.goodsDescription) doc.text(`Ware: ${shipment.goodsDescription}`);
+        if (shipment.extras && typeof shipment.extras === 'object') {
+          const flags = Object.entries(shipment.extras as Record<string, unknown>)
+            .filter(([, v]) => v === true)
+            .map(([k]) => k)
+            .join(', ');
+          if (flags) doc.text(`Zusatz: ${flags}`);
+        }
         doc.moveDown(0.3);
 
         const rows =

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
+import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
 import { api, getToken, getUser, statusLabel } from '@/lib/api';
 
 const STATUSES = [
@@ -180,8 +181,22 @@ function ShipmentDetailInner() {
                 <div className="muted">{shipment.deliveryCompany}</div>
                 <div className="muted">{shipment.deliveryStreet}</div>
                 <div className="muted">{shipment.deliveryZip} {shipment.deliveryCity}</div>
+                {shipment.deliveryAvisPhone && (
+                  <div className="muted">Avis-Tel: {shipment.deliveryAvisPhone}</div>
+                )}
               </div>
             </div>
+            {shipment.extras && shipmentExtrasLabels(shipment.extras as ShipmentExtras).length > 0 && (
+              <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
+                <strong>Zusatzinformationen</strong>
+                <div className="muted" style={{ fontSize: '0.9rem' }}>
+                  {shipmentExtrasLabels(shipment.extras as ShipmentExtras).join(' · ')}
+                  {(shipment.extras as ShipmentExtras).goodsValueEur != null
+                    ? ` · Warenwert ${(shipment.extras as ShipmentExtras).goodsValueEur} EUR`
+                    : ''}
+                </div>
+              </div>
+            )}
 
             {siblings.length > 0 && (
               <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>

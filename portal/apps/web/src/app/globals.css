@@ -568,6 +568,41 @@ code {
 .stack { display: flex; flex-direction: column; gap: 0.75rem; }
 .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
 
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.25rem;
+}
+.tabs button {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.active {
+  color: var(--wog-green-dark, var(--wog-green));
+  border-bottom-color: var(--wog-green);
+}
+.extras-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem 1rem;
+}
+.extras-grid label.row {
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }

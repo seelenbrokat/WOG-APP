@@ -4,11 +4,13 @@ import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { ShipmentStatus, UserRole } from '@prisma/client';
 import {
+  Allow,
   IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Min,
@@ -140,9 +142,20 @@ class CreateShipmentDto {
   @IsDateString()
   deliveryDate?: string;
 
+  /** Telefon für Zustell-Aviso */
+  @IsOptional()
+  @IsString()
+  deliveryAvisPhone?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Zusatzoptionen (Hebebühne, Aviso, Gefahrgut, …) */
+  @IsOptional()
+  @IsObject()
+  @Allow()
+  extras?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()
