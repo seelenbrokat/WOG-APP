@@ -4,7 +4,8 @@ Das Portal erzeugt Colli mit **GS1 SSCC-18** und PDF-Transportetiketten selbst �
 
 ## Modell
 
-- `ShipmentCollo` – physisches Packstück (`itemNumber`, `sscc`, Maße/Gewicht)
+- `ShipmentCollo` – physisches Packstück (`itemNumber`, `sscc`, Inhalt, Gewicht, **L×B×H in cm**)
+- Bei Auftragserfassung: Colli inkl. Abmessungen pro Packstück; werden beim Anlegen sofort mit SSCC erzeugt
 - `SsccSequence` – laufende Seriennummer pro Organisation
 - `DocumentType.LABEL` – erzeugte PDF-Etiketten
 
