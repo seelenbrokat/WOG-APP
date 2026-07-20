@@ -30,6 +30,23 @@ type BusinessPartnerLike = {
   }>;
 };
 
+type CustomerLike = {
+  customerNumber: string;
+  name: string;
+  phone?: string | null;
+  vatId?: string | null;
+  soloplanBusinessPartnerId?: string | null;
+  matchcode?: string | null;
+  contacts?: Array<{
+    soloplanContactNumber?: number | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }>;
+};
+
 export type PortalShipmentForSoloplan = {
   id: string;
   trackingNumber: string;
@@ -51,22 +68,12 @@ export type PortalShipmentForSoloplan = {
   deliveryCountry?: string | null;
   deliveryDate?: Date | string | null;
   notes?: string | null;
-  customer: {
-    customerNumber: string;
-    name: string;
-    phone?: string | null;
-    vatId?: string | null;
-    soloplanBusinessPartnerId?: string | null;
-    matchcode?: string | null;
-    contacts?: Array<{
-      soloplanContactNumber?: number | null;
-      firstName?: string | null;
-      lastName?: string | null;
-      name?: string | null;
-      email?: string | null;
-      phone?: string | null;
-    }>;
-  };
+  customer: CustomerLike;
+  /** Portal-Auftrag inkl. Frachtzahler (order.customer in Soloplan) */
+  order?: {
+    externalNumber: string;
+    freightPayer?: CustomerLike | null;
+  } | null;
   positions: Array<{
     description: string;
     quantity: number;
@@ -77,6 +84,28 @@ export type PortalShipmentForSoloplan = {
     sscc?: string | null;
   }>;
 };
+
+function customerToBp(customer: CustomerLike): BusinessPartnerLike {
+  // Soloplan BP-Nummer: bevorzugt soloplanBusinessPartnerId, sonst numerische customerNumber
+  const bpNumber =
+    customer.soloplanBusinessPartnerId ||
+    (/^\d+$/.test(String(customer.customerNumber || '')) ? customer.customerNumber : undefined);
+  return {
+    number: bpNumber,
+    matchcode: customer.matchcode || undefined,
+    name: customer.name,
+    phone: customer.phone,
+    vatId: customer.vatId,
+    contacts: (customer.contacts || []).map((c) => ({
+      itemNumber: c.soloplanContactNumber,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+    })),
+  };
+}
 
 function formatSoloplanDateTime(value?: Date | string | null): string | undefined {
   if (!value) return undefined;
@@ -394,7 +423,8 @@ export function buildSoloplanFilePayload(
     objectOwnerId?: number;
   } = {},
 ) {
-  const format: SoloplanFileFormat = opts.format || 'consignment';
+  // Soloplan braucht mindestens einen Auftrag mit Sendung – Default: order
+  const format: SoloplanFileFormat = opts.format || 'order';
   const header = {
     sendDate: formatSoloplanDateTime(new Date())!,
     exportItemReference: randomUUID(),
@@ -409,33 +439,20 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    const customer = shipment.customer;
-    const orderNumber = Number(String(shipment.trackingNumber).replace(/\D/g, '').slice(0, 9)) || undefined;
+    const freightPayer = shipment.order?.freightPayer || shipment.customer;
+    const externalNumber =
+      shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
     return {
       header,
       order: [
         {
           date: formatSoloplanDate(shipment.pickupDate) || formatSoloplanDate(new Date()),
           ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
-          ...(orderNumber ? { number: orderNumber } : {}),
-          externalNumber: shipment.reference || shipment.trackingNumber,
+          externalNumber,
           orderContext: 0,
           orderDate: formatSoloplanDate(new Date()),
-          customer: toMasterDataBp({
-            number: customer.soloplanBusinessPartnerId,
-            matchcode: customer.matchcode,
-            name: customer.name,
-            phone: customer.phone,
-            vatId: customer.vatId,
-            contacts: (customer.contacts || []).map((c) => ({
-              itemNumber: c.soloplanContactNumber,
-              firstName: c.firstName,
-              lastName: c.lastName,
-              name: c.name,
-              email: c.email,
-              phone: c.phone,
-            })),
-          }),
+          // Frachtzahler = eingeloggter Kunde / order.freightPayer
+          customer: toMasterDataBp(customerToBp(freightPayer)),
           consignments: [consignment],
         },
       ],
@@ -449,6 +466,11 @@ export function buildSoloplanFilePayload(
 }
 
 export function soloplanOutboundFileName(shipment: PortalShipmentForSoloplan, format: SoloplanFileFormat) {
-  const base = (shipment.reference || shipment.trackingNumber || shipment.id).replace(/[^\w.\-]+/g, '_');
+  const base = (
+    (format === 'order' ? shipment.order?.externalNumber : null) ||
+    shipment.reference ||
+    shipment.trackingNumber ||
+    shipment.id
+  ).replace(/[^\w.\-]+/g, '_');
   return format === 'order' ? `order-${base}.json` : `${base}.json`;
 }

@@ -128,9 +128,16 @@ export class SoloplanService implements TransportIntegration {
         positions: true,
         mandant: true,
         customer: { include: { contacts: true } },
+        order: { include: { freightPayer: { include: { contacts: true } } } },
       },
     });
     if (!shipment) return;
+
+    // Ohne Portal-Auftrag keinen Soloplan-Export (Auftrag + mind. 1 Sendung erforderlich)
+    if (!shipment.order) {
+      this.logger.warn(`Soloplan export übersprungen – Sendung ${shipment.trackingNumber} hat keinen Auftrag`);
+      return;
+    }
 
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
@@ -143,9 +150,13 @@ export class SoloplanService implements TransportIntegration {
     });
 
     if (!enabled || mode === 'stub') {
-      const ref = `SP-STUB-${shipment.trackingNumber}`;
+      const ref = `SP-STUB-${shipment.order.externalNumber}`;
       await this.prisma.shipment.update({
         where: { id: shipmentId },
+        data: { soloplanRef: ref },
+      });
+      await this.prisma.transportOrder.update({
+        where: { id: shipment.order.id },
         data: { soloplanRef: ref },
       });
       this.logger.log(`Soloplan stub createOrder ${ref}`);
@@ -159,11 +170,16 @@ export class SoloplanService implements TransportIntegration {
       const mirror = join(this.integrationOrdersOutDir, fileName);
       writeFileSync(primary, json);
       writeFileSync(mirror, json);
+      const fileRef = `FILE:soloplan/orders/${fileName}`;
       await this.prisma.shipment.update({
         where: { id: shipmentId },
-        data: { soloplanRef: `FILE:soloplan/orders/${fileName}` },
+        data: { soloplanRef: fileRef },
       });
-      this.logger.log(`Soloplan PORTAL-v6 file export ${primary}`);
+      await this.prisma.transportOrder.update({
+        where: { id: shipment.order.id },
+        data: { soloplanRef: fileRef },
+      });
+      this.logger.log(`Soloplan PORTAL-v6 order export ${primary}`);
       return;
     }
 
@@ -265,8 +281,8 @@ export class SoloplanService implements TransportIntegration {
   }
 
   private getFileFormat(): SoloplanFileFormat {
-    const raw = String(this.config.get('SOLOPLAN_FILE_FORMAT') || 'consignment').toLowerCase();
-    return raw === 'order' ? 'order' : 'consignment';
+    const raw = String(this.config.get('SOLOPLAN_FILE_FORMAT') || 'order').toLowerCase();
+    return raw === 'consignment' ? 'consignment' : 'order';
   }
 
   private getDefaultSender() {

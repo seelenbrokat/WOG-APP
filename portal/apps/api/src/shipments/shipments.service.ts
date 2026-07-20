@@ -7,6 +7,7 @@ import { mandantFilter, customerFilter, assertMandantAccess } from '../common/ac
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
   const d = new Date();
@@ -46,6 +47,7 @@ export class ShipmentsService {
       include: {
         mandant: true,
         customer: true,
+        order: { include: { freightPayer: true } },
         events: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
@@ -58,6 +60,7 @@ export class ShipmentsService {
       include: {
         mandant: true,
         customer: true,
+        order: { include: { freightPayer: { include: { contacts: true } } } },
         positions: true,
         events: { orderBy: { createdAt: 'asc' } },
         documents: { orderBy: { createdAt: 'desc' } },
@@ -161,14 +164,24 @@ export class ShipmentsService {
     }
 
     const status = data.submit ? ShipmentStatus.SUBMITTED : ShipmentStatus.DRAFT;
+
+    // Frachtzahler = eingeloggter Kunde; Fallback für Admin ohne Kundenkonto = Sendungskunde
+    const freightPayerCustomerId = user.customerId || customerId;
+    const transportOrder = await this.createTransportOrder(user, {
+      mandantId: data.mandantId,
+      freightPayerCustomerId,
+    });
+
     const shipment = await this.prisma.shipment.create({
       data: {
         organizationId: user.organizationId,
         mandantId: data.mandantId,
         customerId,
+        orderId: transportOrder.id,
         trackingNumber: trackingNumber(),
         trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
-        reference: data.reference,
+        // Sendungsreferenz bleibt frei; Auftragsnummer steckt am TransportOrder
+        reference: data.reference || transportOrder.externalNumber,
         status,
         transportMode: data.transportMode,
         goodsDescription: data.goodsDescription,
@@ -210,7 +223,13 @@ export class ShipmentsService {
           },
         },
       },
-      include: { mandant: true, customer: true, positions: true, events: true },
+      include: {
+        mandant: true,
+        customer: true,
+        order: { include: { freightPayer: true } },
+        positions: true,
+        events: true,
+      },
     });
 
     if (data.savePickupAddress && pickupStreet && pickupZip && pickupCity) {
@@ -272,6 +291,8 @@ export class ShipmentsService {
     await this.audit.log(user.id, 'shipment.create', 'Shipment', shipment.id, {
       trackingNumber: shipment.trackingNumber,
       mandantId: shipment.mandantId,
+      orderId: transportOrder.id,
+      orderExternalNumber: transportOrder.externalNumber,
     });
 
     if (status === ShipmentStatus.SUBMITTED) {
@@ -283,6 +304,46 @@ export class ShipmentsService {
     }
 
     return shipment;
+  }
+
+  /** Neuer Portal-Auftrag mit externer Nummer VLB{TT}{MM}{#####}. */
+  private async createTransportOrder(
+    user: AuthUser,
+    data: { mandantId: string; freightPayerCustomerId: string },
+  ) {
+    const now = new Date();
+    const prefix = vlbOrderPrefix(now);
+    const existing = await this.prisma.transportOrder.findMany({
+      where: {
+        organizationId: user.organizationId,
+        externalNumber: { startsWith: prefix },
+      },
+      select: { externalNumber: true },
+      orderBy: { externalNumber: 'desc' },
+      take: 50,
+    });
+    const seq = nextSeqFromExisting(
+      existing.map((e) => e.externalNumber),
+      now,
+    );
+    const externalNumber = formatVlbOrderNumber(seq, now);
+
+    const order = await this.prisma.transportOrder.create({
+      data: {
+        organizationId: user.organizationId,
+        mandantId: data.mandantId,
+        freightPayerCustomerId: data.freightPayerCustomerId,
+        externalNumber,
+        createdById: user.id,
+      },
+    });
+
+    await this.audit.log(user.id, 'order.create', 'TransportOrder', order.id, {
+      externalNumber: order.externalNumber,
+      freightPayerCustomerId: data.freightPayerCustomerId,
+    });
+
+    return order;
   }
 
   async updateStatus(user: AuthUser, id: string, status: ShipmentStatus, message?: string, location?: string) {

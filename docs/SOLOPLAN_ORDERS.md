@@ -1,29 +1,31 @@
 # Soloplan OrderImportPORTAL v6 – Auftrags-Export (File/FTP)
 
-Das Portal erzeugt für freigegebene Sendungen JSON-Dateien im Format **SoloplanOrderImportPORTAL v6** (File-API). Soloplan (oder du) holt die Dateien per **SFTP** oder per Portal-API ab.
+Das Portal legt bei jeder Sendungserfassung einen **Auftrag** (`TransportOrder`) an und exportiert JSON im Format **SoloplanOrderImportPORTAL v6** (File-API). Soloplan braucht **mindestens einen Auftrag mit einer Sendung**.
 
-## Dateiformat
+## Auftrag im Portal
 
-Wrapper wie in der Spec:
+- Bei `POST /shipments` wird automatisch ein Auftrag erzeugt.
+- **Externe Nummer:** `VLB` + Tag(TT) + Monat(MM) + 5-stellige Sequenz  
+  Beispiel: `VLB200700001` (20.07., erste Nummer des Tages).
+- **Frachtzahler** (`order.customer`): immer der **eingeloggte Kunde** (`user.customerId`).  
+  Admin ohne Kundenkonto: Fallback auf den Sendungskunden.
 
-```json
-{
-  "header": {
-    "sendDate": "2026-07-20T19:36:01",
-    "exportItemReference": "<uuid>"
-  },
-  "consignment": [ { "...": "..." } ]
-}
-```
-
-Alternativ (`SOLOPLAN_FILE_FORMAT=order`):
+## Dateiformat (Standard: Order)
 
 ```json
 {
   "header": { "sendDate": "...", "exportItemReference": "..." },
-  "order": [ { "externalNumber": "...", "customer": {}, "consignments": [ ... ] } ]
+  "order": [
+    {
+      "externalNumber": "VLB200700001",
+      "customer": { "number": 2, "name1": "…" },
+      "consignments": [ { "externalNumber": "…", "sender": {}, "receiver": {} } ]
+    }
+  ]
 }
 ```
+
+Optional nur Sendung (`SOLOPLAN_FILE_FORMAT=consignment`) – für Soloplan nicht empfohlen.
 
 Referenz-Schemas und Samples:
 
@@ -91,14 +93,15 @@ SOLOPLAN_DEFAULT_SENDER_COUNTRY=CH
 
 Mapping (Kurz):
 
-| Portal | Soloplan Consignment |
-|--------|----------------------|
-| Kunde / Default-Sender BP 2 | `sender` (+ MasterData) |
-| Abholadresse | `differentLoadingPoint` |
-| Zustelladresse | `receiver` |
-| Referenz / Tracking | `externalNumber` |
+| Portal | Soloplan |
+|--------|----------|
+| `TransportOrder.externalNumber` (VLB…) | `order[].externalNumber` |
+| Eingeloggter Kunde (Frachtzahler) | `order[].customer` |
+| Default-Sender BP 2 / WOG | `consignments[].sender` |
+| Abholadresse | `consignments[].differentLoadingPoint` |
+| Zustelladresse | `consignments[].receiver` |
+| Sendungsreferenz / Tracking | `consignments[].externalNumber` |
 | Positionen / Gewicht | `consignmentItems` / `weights` |
-| Abhol-/Zustelldatum | `times.*` |
 
 ## REST (optional)
 

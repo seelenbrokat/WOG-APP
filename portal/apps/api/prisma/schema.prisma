@@ -78,6 +78,7 @@ model Organization {
   users         User[]
   partners      Partner[]
   customsOrders CustomsOrder[]
+  transportOrders TransportOrder[]
 }
 
 model Mandant {
@@ -95,6 +96,7 @@ model Mandant {
   userAccess   UserMandantAccess[]
   addresses    Address[]
   customsOrders CustomsOrder[]
+  transportOrders TransportOrder[]
 
   @@unique([organizationId, code])
 }
@@ -121,6 +123,7 @@ model Customer {
   contacts     Contact[]
   templates    ShipmentTemplate[]
   customsOrders CustomsOrder[]
+  freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -241,11 +244,38 @@ model UserMandantAccess {
   @@unique([userId, mandantId])
 }
 
+/// Soloplan-/Portal-Auftrag (NormalOrder). Enthält eine oder mehrere Sendungen (Consignments).
+model TransportOrder {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  mandantId              String
+  /// Frachtzahler = eingeloggter Kunde (Soloplan order.customer)
+  freightPayerCustomerId String
+  /// Externe Auftragsnummer: VLB + TT + MM + 5-stellig (z. B. VLB200700001)
+  externalNumber         String
+  status                 String   @default("OPEN")
+  soloplanRef            String?
+  createdById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  mandant      Mandant      @relation(fields: [mandantId], references: [id])
+  freightPayer Customer     @relation("FreightPayerCustomer", fields: [freightPayerCustomerId], references: [id])
+  shipments    Shipment[]
+
+  @@unique([organizationId, externalNumber])
+  @@index([freightPayerCustomerId])
+  @@index([mandantId])
+}
+
 model Shipment {
   id               String         @id @default(cuid())
   organizationId   String
   mandantId        String
   customerId       String
+  /// Zugehöriger Portal-/Soloplan-Auftrag (Pflicht für Soloplan-Export)
+  orderId          String?
   trackingNumber   String         @unique
   trackingPin      String?
   reference        String?
@@ -273,8 +303,9 @@ model Shipment {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  mandant   Mandant        @relation(fields: [mandantId], references: [id])
-  customer  Customer       @relation(fields: [customerId], references: [id])
+  mandant   Mandant         @relation(fields: [mandantId], references: [id])
+  customer  Customer        @relation(fields: [customerId], references: [id])
+  order     TransportOrder? @relation(fields: [orderId], references: [id])
   positions ShipmentItem[]
   events    StatusEvent[]
   documents Document[]
@@ -282,6 +313,7 @@ model Shipment {
   @@index([mandantId, status])
   @@index([customerId])
   @@index([organizationId])
+  @@index([orderId])
 }
 
 model ShipmentItem {
