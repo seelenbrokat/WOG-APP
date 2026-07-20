@@ -41,6 +41,9 @@ export type LabelCollo = {
   sscc: string;
   content?: string | null;
   weightKg?: number | null;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
   totalColli: number;
 };
 
@@ -90,6 +93,11 @@ export async function writeTransportLabelPdf(
     if (shipment.reference) doc.text(`Referenz: ${shipment.reference}`);
     doc.text(`Collo: ${collo.itemNumber} / ${collo.totalColli}`);
     if (collo.weightKg != null) doc.text(`Gewicht: ${collo.weightKg} kg`);
+    if (collo.lengthCm != null || collo.widthCm != null || collo.heightCm != null) {
+      doc.text(
+        `Maße: ${collo.lengthCm ?? '–'} × ${collo.widthCm ?? '–'} × ${collo.heightCm ?? '–'} cm`,
+      );
+    }
     if (collo.content || shipment.goodsDescription) {
       doc.text(`Inhalt: ${collo.content || shipment.goodsDescription}`);
     }

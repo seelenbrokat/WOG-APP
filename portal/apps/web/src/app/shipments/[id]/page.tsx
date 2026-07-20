@@ -95,15 +95,25 @@ export default function ShipmentDetailPage() {
               </button>
             </div>
           )}
-          {shipment.colli?.length > 0 && (
+          {(shipment.colli?.length > 0 || shipment.positions?.length > 0) && (
             <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
-              <strong>Colli / SSCC</strong>
-              {shipment.colli.map((c: any) => (
-                <div key={c.id} className="muted" style={{ fontSize: '0.9rem' }}>
-                  #{c.itemNumber}: {c.sscc}
-                  {c.weightKg != null ? ` · ${c.weightKg} kg` : ''}
-                </div>
-              ))}
+              <strong>Colli</strong>
+              {(shipment.colli?.length > 0 ? shipment.colli : shipment.positions).map((c: any, idx: number) => {
+                const n = c.itemNumber ?? idx + 1;
+                const dims =
+                  c.lengthCm != null || c.widthCm != null || c.heightCm != null
+                    ? `${c.lengthCm ?? '–'} × ${c.widthCm ?? '–'} × ${c.heightCm ?? '–'} cm`
+                    : null;
+                return (
+                  <div key={c.id || idx} className="muted" style={{ fontSize: '0.9rem' }}>
+                    #{n}
+                    {c.sscc ? `: ${c.sscc}` : ''}
+                    {c.content || c.description ? ` · ${c.content || c.description}` : ''}
+                    {c.weightKg != null ? ` · ${c.weightKg} kg` : ''}
+                    {dims ? ` · ${dims}` : ''}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

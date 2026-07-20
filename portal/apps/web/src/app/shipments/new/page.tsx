@@ -41,6 +41,31 @@ type Template = {
   deliveryAddressId?: string | null;
 };
 
+type ColloDraft = {
+  description: string;
+  weightKg: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
+};
+
+function emptyCollo(description = ''): ColloDraft {
+  return { description, weightKg: '', lengthCm: '', widthCm: '', heightCm: '' };
+}
+
+function resizeColli(colli: ColloDraft[], count: number, fallbackDescription: string): ColloDraft[] {
+  const n = Math.max(1, count);
+  if (colli.length === n) return colli;
+  if (colli.length < n) {
+    const next = [...colli];
+    while (next.length < n) {
+      next.push(emptyCollo(fallbackDescription));
+    }
+    return next;
+  }
+  return colli.slice(0, n);
+}
+
 export default function NewShipmentPage() {
   const router = useRouter();
   const user = getUser();
@@ -49,6 +74,7 @@ export default function NewShipmentPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState('');
+  const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
@@ -150,13 +176,14 @@ export default function NewShipmentPage() {
   function applyTemplate(templateId: string) {
     const t = templates.find((x) => x.id === templateId);
     if (!t) return;
+    const count = Math.max(1, t.packageCount || 1);
     setForm((f) => ({
       ...f,
       mandantId: t.mandantId || f.mandantId,
       reference: t.reference || '',
       transportMode: t.transportMode || 'LKW',
       goodsDescription: t.goodsDescription || '',
-      packageCount: t.packageCount || 1,
+      packageCount: count,
       weightKg: t.weightKg || 0,
       pickupAddressId: t.pickupAddressId || '',
       deliveryAddressId: t.deliveryAddressId || '',
@@ -170,12 +197,47 @@ export default function NewShipmentPage() {
       deliveryCity: t.deliveryCity || '',
       notes: t.notes || '',
     }));
+    setColli(resizeColli([], count, t.goodsDescription || ''));
+  }
+
+  function updateCollo(index: number, patch: Partial<ColloDraft>) {
+    setColli((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  function setPackageCount(count: number) {
+    const n = Math.max(1, count || 1);
+    setForm((f) => ({ ...f, packageCount: n }));
+    setColli((rows) => resizeColli(rows, n, form.goodsDescription));
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     try {
+      const positions = colli.map((c) => {
+        const weightKg = Number(c.weightKg);
+        const lengthCm = Number(c.lengthCm);
+        const widthCm = Number(c.widthCm);
+        const heightCm = Number(c.heightCm);
+        return {
+          description: c.description.trim() || form.goodsDescription || `Collo`,
+          quantity: 1,
+          weightKg: Number.isFinite(weightKg) && weightKg > 0 ? weightKg : undefined,
+          lengthCm: Number.isFinite(lengthCm) && lengthCm > 0 ? lengthCm : undefined,
+          widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : undefined,
+          heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : undefined,
+        };
+      });
+      const totalWeight = positions.reduce((sum, p) => sum + (p.weightKg || 0), 0);
+      const volumeM3 = positions.reduce((sum, p) => {
+        if (!p.lengthCm || !p.widthCm || !p.heightCm) return sum;
+        return sum + (p.lengthCm * p.widthCm * p.heightCm) / 1_000_000;
+      }, 0);
+      const goodsDescription =
+        form.goodsDescription.trim() ||
+        positions.map((p) => p.description).filter(Boolean).join('; ') ||
+        undefined;
+
       const created = await api<any>('/shipments', {
         method: 'POST',
         body: JSON.stringify({
@@ -183,12 +245,12 @@ export default function NewShipmentPage() {
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
-          packageCount: Number(form.packageCount),
-          weightKg: Number(form.weightKg) || undefined,
+          packageCount: positions.length,
+          weightKg: totalWeight || Number(form.weightKg) || undefined,
+          volumeM3: volumeM3 > 0 ? Math.round(volumeM3 * 1000) / 1000 : undefined,
+          goodsDescription,
           saveAsTemplateName: form.saveAsTemplateName || undefined,
-          positions: form.goodsDescription
-            ? [{ description: form.goodsDescription, quantity: Number(form.packageCount) || 1, weightKg: Number(form.weightKg) || undefined }]
-            : [],
+          positions,
         }),
       });
       router.push(`/shipments/${created.id}`);
@@ -299,19 +361,87 @@ export default function NewShipmentPage() {
           </div>
         </div>
 
-        <div className="grid-3">
-          <div className="field">
-            <label>Kolli</label>
-            <input type="number" min={1} value={form.packageCount} onChange={(e) => setForm({ ...form, packageCount: Number(e.target.value) })} />
+        <div className="stack">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
+            <strong>Colli</strong>
+            <div className="field" style={{ margin: 0, maxWidth: 120 }}>
+              <label>Anzahl</label>
+              <input
+                type="number"
+                min={1}
+                value={form.packageCount}
+                onChange={(e) => setPackageCount(Number(e.target.value))}
+              />
+            </div>
           </div>
           <div className="field">
-            <label>Gewicht (kg)</label>
-            <input type="number" value={form.weightKg} onChange={(e) => setForm({ ...form, weightKg: Number(e.target.value) })} />
+            <label>Warenbeschreibung (gesamt, optional)</label>
+            <input
+              value={form.goodsDescription}
+              onChange={(e) => setForm({ ...form, goodsDescription: e.target.value })}
+              placeholder="z. B. Heiztechnik / Mischsendung"
+            />
           </div>
-          <div className="field">
-            <label>Warenbeschreibung</label>
-            <input value={form.goodsDescription} onChange={(e) => setForm({ ...form, goodsDescription: e.target.value })} />
-          </div>
+          {colli.map((c, index) => (
+            <div key={index} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
+              <strong style={{ fontSize: '0.95rem' }}>Collo {index + 1}</strong>
+              <div className="field">
+                <label>Inhalt</label>
+                <input
+                  value={c.description}
+                  onChange={(e) => updateCollo(index, { description: e.target.value })}
+                  placeholder={form.goodsDescription || 'Inhalt / Packstück'}
+                />
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Gewicht (kg)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={c.weightKg}
+                    onChange={(e) => updateCollo(index, { weightKg: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>Abmessungen L × B × H (cm)</label>
+                  <div className="row">
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      placeholder="L"
+                      value={c.lengthCm}
+                      onChange={(e) => updateCollo(index, { lengthCm: e.target.value })}
+                      aria-label={`Collo ${index + 1} Länge cm`}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      placeholder="B"
+                      value={c.widthCm}
+                      onChange={(e) => updateCollo(index, { widthCm: e.target.value })}
+                      aria-label={`Collo ${index + 1} Breite cm`}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      placeholder="H"
+                      value={c.heightCm}
+                      onChange={(e) => updateCollo(index, { heightCm: e.target.value })}
+                      aria-label={`Collo ${index + 1} Höhe cm`}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            Abmessungen und Gewicht je Collo fließen in Etiketten und Soloplan-Export ein.
+          </p>
         </div>
         <div className="field">
           <label>Hinweise</label>

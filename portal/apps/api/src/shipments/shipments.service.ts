@@ -7,6 +7,7 @@ import { mandantFilter, customerFilter, assertMandantAccess } from '../common/ac
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import { LabelsService } from '../labels/labels.service';
 import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
@@ -24,6 +25,7 @@ export class ShipmentsService {
     private audit: AuditService,
     private notifications: NotificationsService,
     private soloplan: SoloplanService,
+    private labels: LabelsService,
   ) {}
 
   private scope(user: AuthUser) {
@@ -296,6 +298,16 @@ export class ShipmentsService {
       orderExternalNumber: transportOrder.externalNumber,
     });
 
+    // Colli inkl. Abmessungen/SSCC sofort anlegen (nicht erst bei Etikettenerzeugung)
+    await this.labels.ensureColli({
+      id: shipment.id,
+      organizationId: shipment.organizationId,
+      packageCount: shipment.packageCount,
+      weightKg: shipment.weightKg,
+      goodsDescription: shipment.goodsDescription,
+      positions: shipment.positions,
+    });
+
     if (status === ShipmentStatus.SUBMITTED) {
       await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.SHIPMENT_CREATED, {
         trackingNumber: shipment.trackingNumber,
@@ -304,7 +316,7 @@ export class ShipmentsService {
       await this.soloplan.enqueueCreateOrder(shipment.id);
     }
 
-    return shipment;
+    return this.get(user, shipment.id);
   }
 
   /** Neuer Portal-Auftrag mit externer Nummer VLB{TT}{MM}{#####}. */

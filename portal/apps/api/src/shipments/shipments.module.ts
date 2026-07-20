@@ -4,9 +4,15 @@ import { ShipmentsController } from './shipments.controller';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { LabelsModule } from '../labels/labels.module';
 
 @Module({
-  imports: [AuditModule, forwardRef(() => NotificationsModule), forwardRef(() => IntegrationsModule)],
+  imports: [
+    AuditModule,
+    LabelsModule,
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => IntegrationsModule),
+  ],
   controllers: [ShipmentsController],
   providers: [ShipmentsService],
   exports: [ShipmentsService],
