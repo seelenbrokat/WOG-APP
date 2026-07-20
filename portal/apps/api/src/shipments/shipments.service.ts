@@ -180,8 +180,8 @@ export class ShipmentsService {
         orderId: transportOrder.id,
         trackingNumber: trackingNumber(),
         trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
-        // Sendungsreferenz bleibt frei; Auftragsnummer steckt am TransportOrder
-        reference: data.reference || transportOrder.externalNumber,
+        // Sendungsreferenz optional; Auftragsnummer nur am TransportOrder (VLB…)
+        reference: data.reference,
         status,
         transportMode: data.transportMode,
         goodsDescription: data.goodsDescription,
