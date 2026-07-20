@@ -1,7 +1,21 @@
 import { createWriteStream } from 'fs';
+import { createRequire } from 'module';
 import PDFDocument from 'pdfkit';
-import bwipjs from 'bwip-js/node';
 import { ssccAiData } from './sscc';
+
+// bwip-js package exports (`bwip-js/node`) need moduleResolution node16+;
+// Nest stays on classic node resolution, so load the CJS entry via require.
+const require = createRequire(__filename);
+const bwipjs = require('bwip-js') as {
+  toBuffer: (opts: {
+    bcid: string;
+    text: string;
+    scale?: number;
+    height?: number;
+    includetext?: boolean;
+    textxalign?: 'offleft' | 'left' | 'center' | 'right' | 'offright' | 'justify';
+  }) => Promise<Buffer>;
+};
 
 export type LabelShipment = {
   trackingNumber: string;
