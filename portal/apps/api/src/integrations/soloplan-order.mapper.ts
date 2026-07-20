@@ -475,6 +475,8 @@ export function buildSoloplanFilePayload(
     defaultSender?: (BusinessPartnerLike & AddressLike) | null;
     trackingBaseUrl?: string;
     objectOwnerId?: number;
+    /** Alle Sendungen desselben Auftrags (1:n) → kumulierte consignments */
+    orderShipments?: PortalShipmentForSoloplan[];
   } = {},
 ) {
   // Soloplan braucht mindestens einen Auftrag mit Sendung – Default: order
@@ -483,13 +485,19 @@ export function buildSoloplanFilePayload(
     sendDate: formatSoloplanDateTime(new Date())!,
     exportItemReference: randomUUID(),
   };
-  const trackingUrl = opts.trackingBaseUrl
-    ? `${opts.trackingBaseUrl.replace(/\/$/, '')}/track?tn=${encodeURIComponent(shipment.trackingNumber)}`
-    : undefined;
 
-  const consignment = buildConsignment(shipment, {
-    defaultSender: opts.defaultSender,
-    trackingUrl,
+  const siblings =
+    opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
+
+  const consignments = siblings.map((s, idx) => {
+    const trackingUrl = opts.trackingBaseUrl
+      ? `${opts.trackingBaseUrl.replace(/\/$/, '')}/track?tn=${encodeURIComponent(s.trackingNumber)}`
+      : undefined;
+    const consignment = buildConsignment(s, {
+      defaultSender: opts.defaultSender,
+      trackingUrl,
+    });
+    return { ...consignment, itemNumber: idx + 1 };
   });
 
   if (format === 'order') {
@@ -507,7 +515,7 @@ export function buildSoloplanFilePayload(
           orderDate: formatSoloplanDate(new Date()),
           // Frachtzahler = eingeloggter Kunde / order.freightPayer
           customer: toMasterDataBp(customerToBp(freightPayer)),
-          consignments: [consignment],
+          consignments,
         },
       ],
     };
@@ -515,7 +523,7 @@ export function buildSoloplanFilePayload(
 
   return {
     header,
-    consignment: [consignment],
+    consignment: consignments,
   };
 }
 

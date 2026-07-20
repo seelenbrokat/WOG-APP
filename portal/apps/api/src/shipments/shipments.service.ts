@@ -83,6 +83,7 @@ export class ShipmentsService {
     user: AuthUser,
     data: {
       mandantId: string;
+      orderId?: string;
       customerId?: string;
       reference?: string;
       transportMode?: string;
@@ -170,10 +171,37 @@ export class ShipmentsService {
 
     // Frachtzahler = eingeloggter Kunde; Fallback für Admin ohne Kundenkonto = Sendungskunde
     const freightPayerCustomerId = user.customerId || customerId;
-    const transportOrder = await this.createTransportOrder(user, {
-      mandantId: data.mandantId,
-      freightPayerCustomerId,
-    });
+
+    let transportOrder;
+    if (data.orderId) {
+      transportOrder = await this.prisma.transportOrder.findFirst({
+        where: {
+          id: data.orderId,
+          organizationId: user.organizationId,
+          mandantId: data.mandantId,
+        },
+        include: { freightPayer: true },
+      });
+      if (!transportOrder) throw new NotFoundException('Auftrag nicht gefunden');
+      if (
+        user.role === UserRole.CUSTOMER_USER &&
+        user.customerId &&
+        transportOrder.freightPayerCustomerId !== user.customerId
+      ) {
+        throw new ForbiddenException('Auftrag gehört nicht zu Ihrem Kundenkonto');
+      }
+      if (
+        (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+        !user.mandantIds.includes(transportOrder.mandantId)
+      ) {
+        throw new ForbiddenException();
+      }
+    } else {
+      transportOrder = await this.createTransportOrder(user, {
+        mandantId: data.mandantId,
+        freightPayerCustomerId,
+      });
+    }
 
     const shipment = await this.prisma.shipment.create({
       data: {

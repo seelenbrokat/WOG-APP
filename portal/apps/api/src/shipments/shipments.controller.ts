@@ -50,6 +50,11 @@ class CreateShipmentDto {
   @IsString()
   mandantId!: string;
 
+  /** Bestehenden Auftrag nutzen (1:n Sendungen); sonst neuer VLB-Auftrag */
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
   @IsOptional()
   @IsString()
   customerId?: string;

@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
@@ -66,18 +66,33 @@ function resizeColli(colli: ColloDraft[], count: number, fallbackDescription: st
   return colli.slice(0, n);
 }
 
-export default function NewShipmentPage() {
+type OpenOrder = {
+  id: string;
+  externalNumber: string;
+  mandantId: string;
+  freightPayerCustomerId: string;
+  status: string;
+  mandant?: { name: string };
+  freightPayer?: { name: string };
+  _count?: { shipments: number };
+  shipments?: Array<{ trackingNumber: string }>;
+};
+
+function NewShipmentInner() {
   const router = useRouter();
+  const search = useSearchParams();
   const user = getUser();
   const [mandanten, setMandanten] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [error, setError] = useState('');
   const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
+    orderId: '',
     reference: '',
     transportMode: 'LKW',
     goodsDescription: '',
@@ -128,9 +143,17 @@ export default function NewShipmentPage() {
   }
 
   useEffect(() => {
+    const presetOrderId = search.get('orderId') || '';
+    const presetMandantId = search.get('mandantId') || '';
+    const presetCustomerId = search.get('customerId') || '';
     api<any[]>('/mandanten').then((m) => {
       setMandanten(m);
-      if (m[0]) setForm((f) => ({ ...f, mandantId: m[0].id }));
+      setForm((f) => ({
+        ...f,
+        mandantId: presetMandantId || f.mandantId || m[0]?.id || '',
+        customerId: presetCustomerId || f.customerId,
+        orderId: presetOrderId || f.orderId,
+      }));
     });
     if (user?.role !== 'CUSTOMER_USER') {
       api<any[]>('/customers').then(setCustomers);
@@ -144,6 +167,27 @@ export default function NewShipmentPage() {
       loadAddressBook(form.customerId);
     }
   }, [form.customerId]);
+
+  useEffect(() => {
+    const q =
+      user?.role === 'CUSTOMER_USER'
+        ? '?openOnly=1'
+        : form.customerId
+          ? `?openOnly=1&customerId=${form.customerId}`
+          : '?openOnly=1';
+    if (user?.role !== 'CUSTOMER_USER' && !form.customerId && !form.orderId) {
+      setOpenOrders([]);
+      return;
+    }
+    api<OpenOrder[]>(`/orders${q}`)
+      .then((orders) => {
+        const filtered = form.mandantId
+          ? orders.filter((o) => o.mandantId === form.mandantId)
+          : orders;
+        setOpenOrders(filtered);
+      })
+      .catch(() => setOpenOrders([]));
+  }, [form.customerId, form.mandantId, user?.role]);
 
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
@@ -242,6 +286,7 @@ export default function NewShipmentPage() {
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          orderId: form.orderId || undefined,
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
@@ -253,11 +298,13 @@ export default function NewShipmentPage() {
           positions,
         }),
       });
-      router.push(`/shipments/${created.id}`);
+      router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);
     }
   }
+
+  const selectedOrder = openOrders.find((o) => o.id === form.orderId);
 
   const pickupAddresses = addresses.filter((a) => a.usage !== 'DELIVERY');
   const deliveryAddresses = addresses.filter((a) => a.usage !== 'PICKUP');
@@ -287,14 +334,22 @@ export default function NewShipmentPage() {
         <div className="grid-2">
           <div className="field">
             <label>Mandant</label>
-            <select required value={form.mandantId} onChange={(e) => setForm({ ...form, mandantId: e.target.value })}>
+            <select
+              required
+              value={form.mandantId}
+              onChange={(e) => setForm({ ...form, mandantId: e.target.value, orderId: '' })}
+            >
               {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           {user?.role !== 'CUSTOMER_USER' && (
             <div className="field">
               <label>Kunde</label>
-              <select required value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
+              <select
+                required
+                value={form.customerId}
+                onChange={(e) => setForm({ ...form, customerId: e.target.value, orderId: '' })}
+              >
                 <option value="">Bitte wählen</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.customerNumber})</option>)}
               </select>
@@ -309,6 +364,39 @@ export default function NewShipmentPage() {
             <input value={form.transportMode} onChange={(e) => setForm({ ...form, transportMode: e.target.value })} />
           </div>
         </div>
+
+        {(openOrders.length > 0 || form.orderId) && (
+          <div className="field">
+            <label>Auftrag</label>
+            <select
+              value={form.orderId}
+              onChange={(e) => {
+                const orderId = e.target.value;
+                const o = openOrders.find((x) => x.id === orderId);
+                setForm((f) => ({
+                  ...f,
+                  orderId,
+                  mandantId: o?.mandantId || f.mandantId,
+                  customerId: o?.freightPayerCustomerId || f.customerId,
+                }));
+              }}
+            >
+              <option value="">Neuer Auftrag (neue VLB-Nummer)</option>
+              {openOrders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.externalNumber}
+                  {o._count?.shipments != null ? ` · ${o._count.shipments} Sendung(en)` : ''}
+                  {o.mandant?.name ? ` · ${o.mandant.name}` : ''}
+                </option>
+              ))}
+            </select>
+            {selectedOrder && (
+              <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                Weitere Sendung wird an {selectedOrder.externalNumber} angehängt (kumulierte Ladeliste).
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid-2">
           <div className="stack">
@@ -462,5 +550,14 @@ export default function NewShipmentPage() {
         </div>
       </form>
     </AppShell>
+  );
+}
+
+
+export default function NewShipmentPage() {
+  return (
+    <Suspense fallback={<AppShell title="Neuer Auftrag">Laden…</AppShell>}>
+      <NewShipmentInner />
+    </Suspense>
   );
 }

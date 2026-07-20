@@ -122,15 +122,17 @@ export class SoloplanService implements TransportIntegration {
   }
 
   async createOrder(shipmentId: string) {
+    const shipmentInclude = {
+      positions: true,
+      colli: { orderBy: { itemNumber: 'asc' as const } },
+      mandant: true,
+      customer: { include: { contacts: true } },
+      order: { include: { freightPayer: { include: { contacts: true } } } },
+    };
+
     const shipment = await this.prisma.shipment.findUnique({
       where: { id: shipmentId },
-      include: {
-        positions: true,
-        colli: { orderBy: { itemNumber: 'asc' as const } },
-        mandant: true,
-        customer: { include: { contacts: true } },
-        order: { include: { freightPayer: { include: { contacts: true } } } },
-      },
+      include: shipmentInclude,
     });
     if (!shipment) return;
 
@@ -140,6 +142,13 @@ export class SoloplanService implements TransportIntegration {
       return;
     }
 
+    // Alle Sendungen des Auftrags (1:n) für kumulierten Order-Export
+    const orderShipments = await this.prisma.shipment.findMany({
+      where: { orderId: shipment.order.id },
+      include: shipmentInclude,
+      orderBy: { createdAt: 'asc' },
+    });
+
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
     const format = this.getFileFormat();
@@ -148,12 +157,13 @@ export class SoloplanService implements TransportIntegration {
       defaultSender: this.getDefaultSender(),
       trackingBaseUrl: this.config.get('APP_URL') || undefined,
       objectOwnerId: Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
+      orderShipments,
     });
 
     if (!enabled || mode === 'stub') {
       const ref = `SP-STUB-${shipment.order.externalNumber}`;
-      await this.prisma.shipment.update({
-        where: { id: shipmentId },
+      await this.prisma.shipment.updateMany({
+        where: { orderId: shipment.order.id },
         data: { soloplanRef: ref },
       });
       await this.prisma.transportOrder.update({
@@ -172,15 +182,17 @@ export class SoloplanService implements TransportIntegration {
       writeFileSync(primary, json);
       writeFileSync(mirror, json);
       const fileRef = `FILE:soloplan/orders/${fileName}`;
-      await this.prisma.shipment.update({
-        where: { id: shipmentId },
+      await this.prisma.shipment.updateMany({
+        where: { orderId: shipment.order.id },
         data: { soloplanRef: fileRef },
       });
       await this.prisma.transportOrder.update({
         where: { id: shipment.order.id },
         data: { soloplanRef: fileRef },
       });
-      this.logger.log(`Soloplan PORTAL-v6 order export ${primary}`);
+      this.logger.log(
+        `Soloplan PORTAL-v6 order export ${primary} (${orderShipments.length} consignments)`,
+      );
       return;
     }
 
@@ -214,9 +226,14 @@ export class SoloplanService implements TransportIntegration {
       return;
     }
     const json = (await res.json().catch(() => ({}))) as { id?: string | number };
-    await this.prisma.shipment.update({
-      where: { id: shipmentId },
-      data: { soloplanRef: String(json.id || `REST-${shipment.trackingNumber}`) },
+    const ref = String(json.id || `REST-${shipment.order.externalNumber}`);
+    await this.prisma.shipment.updateMany({
+      where: { orderId: shipment.order.id },
+      data: { soloplanRef: ref },
+    });
+    await this.prisma.transportOrder.update({
+      where: { id: shipment.order.id },
+      data: { soloplanRef: ref },
     });
   }
 
