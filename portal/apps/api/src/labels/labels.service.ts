@@ -11,7 +11,7 @@ import { DocumentType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
-import { buildSscc } from './sscc';
+import { buildSscc, isValidSscc } from './sscc';
 import { writeTransportLabelPdf } from './label-pdf';
 
 @Injectable()
@@ -42,7 +42,10 @@ export class LabelsService {
    */
   async generateLabels(user: AuthUser, shipmentId: string) {
     const shipment = await this.getShipment(user, shipmentId);
-    const colli = await this.ensureColli(shipment);
+    const colli = await this.repairInvalidColliSscc(
+      shipment.organizationId,
+      await this.ensureColli(shipment),
+    );
     const docs = [];
 
     for (const collo of colli) {
@@ -143,10 +146,9 @@ export class LabelsService {
     const created = [];
     for (let i = 1; i <= count; i++) {
       const pos = shipment.positions?.[i - 1];
-      const sscc =
-        pos?.sscc && /^\d{18}$/.test(pos.sscc)
-          ? pos.sscc
-          : await this.nextSscc(shipment.organizationId);
+      const sscc = isValidSscc(pos?.sscc)
+        ? String(pos!.sscc).replace(/\D/g, '')
+        : await this.nextSscc(shipment.organizationId);
       const collo = await this.prisma.shipmentCollo.create({
         data: {
           shipmentId: shipment.id,
@@ -162,7 +164,7 @@ export class LabelsService {
       });
       created.push(collo);
 
-      if (pos && !pos.sscc) {
+      if (pos && (!pos.sscc || !isValidSscc(pos.sscc))) {
         const items = await this.prisma.shipmentItem.findMany({
           where: { shipmentId: shipment.id },
           orderBy: { id: 'asc' },
@@ -177,6 +179,54 @@ export class LabelsService {
       }
     }
     return created;
+  }
+
+  /** Ersetzt Colli-SSCCs ohne gültige GS1-Prüfziffer (z. B. Alt-Import). */
+  private async repairInvalidColliSscc(
+    organizationId: string,
+    colli: Array<{
+      id: string;
+      shipmentId: string;
+      itemNumber: number;
+      sscc: string;
+      content: string | null;
+      quantity: number;
+      weightKg: number | null;
+      lengthCm: number | null;
+      widthCm: number | null;
+      heightCm: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>,
+  ) {
+    const out = [];
+    for (const collo of colli) {
+      if (isValidSscc(collo.sscc)) {
+        out.push(collo);
+        continue;
+      }
+      const sscc = await this.nextSscc(organizationId);
+      const updated = await this.prisma.shipmentCollo.update({
+        where: { id: collo.id },
+        data: { sscc },
+      });
+      const items = await this.prisma.shipmentItem.findMany({
+        where: { shipmentId: collo.shipmentId },
+        orderBy: { id: 'asc' },
+      });
+      const item = items[collo.itemNumber - 1];
+      if (item) {
+        await this.prisma.shipmentItem.update({
+          where: { id: item.id },
+          data: { sscc },
+        });
+      }
+      this.logger.warn(
+        `Ungültige SSCC ${collo.sscc} → ${sscc} (Collo ${collo.itemNumber})`,
+      );
+      out.push(updated);
+    }
+    return out;
   }
 
   private async nextSscc(organizationId: string): Promise<string> {

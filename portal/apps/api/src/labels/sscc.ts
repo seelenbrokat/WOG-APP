@@ -1,7 +1,7 @@
 /**
  * GS1 SSCC-18 Generierung
  * Format: Extension(1) + CompanyPrefix + Serial + CheckDigit = 18 Ziffern
- * Beispiel WOG: 091201014196177301 → Ext 0, Prefix 9120101, Serial …
+ * Beispiel WOG: 091201014196177304 → Ext 0, Prefix 9120101, Serial …
  */
 
 export function gs1CheckDigit(body17: string): number {
@@ -42,4 +42,15 @@ export function ssccAiData(sscc: string): string {
   const digits = String(sscc).replace(/\D/g, '');
   if (digits.length !== 18) throw new Error('SSCC muss 18 Ziffern haben');
   return `(00)${digits}`;
+}
+
+/** True wenn 18 Ziffern und GS1-Prüfziffer korrekt. */
+export function isValidSscc(sscc: string | null | undefined): boolean {
+  const digits = String(sscc || '').replace(/\D/g, '');
+  if (digits.length !== 18) return false;
+  try {
+    return gs1CheckDigit(digits.slice(0, 17)) === Number(digits[17]);
+  } catch {
+    return false;
+  }
 }
