@@ -38,6 +38,8 @@ export default function ShipmentDetailPage() {
             <span className="muted">{shipment.mandant?.name}</span>
           </div>
           <div><strong>Kunde:</strong> {shipment.customer?.name}</div>
+          <div><strong>Auftrag:</strong> {shipment.order?.externalNumber || '–'}</div>
+          <div><strong>Frachtzahler:</strong> {shipment.order?.freightPayer?.name || shipment.customer?.name || '–'}</div>
           <div><strong>Referenz:</strong> {shipment.reference || '–'}</div>
           <div><strong>PIN:</strong> {shipment.trackingPin || '–'}</div>
           <div className="grid-2">
