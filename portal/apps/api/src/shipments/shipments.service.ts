@@ -62,6 +62,7 @@ export class ShipmentsService {
         customer: true,
         order: { include: { freightPayer: { include: { contacts: true } } } },
         positions: true,
+        colli: { orderBy: { itemNumber: 'asc' } },
         events: { orderBy: { createdAt: 'asc' } },
         documents: { orderBy: { createdAt: 'desc' } },
       },

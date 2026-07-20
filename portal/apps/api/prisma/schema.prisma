@@ -34,6 +34,7 @@ enum DocumentType {
   CUSTOMER_UPLOAD
   PARTNER_FILE
   CUSTOMS_PAPER
+  LABEL
   OTHER
 }
 
@@ -307,6 +308,7 @@ model Shipment {
   customer  Customer        @relation(fields: [customerId], references: [id])
   order     TransportOrder? @relation(fields: [orderId], references: [id])
   positions ShipmentItem[]
+  colli     ShipmentCollo[]
   events    StatusEvent[]
   documents Document[]
 
@@ -328,6 +330,36 @@ model ShipmentItem {
   sscc        String?
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+/// Physisches Collo / Packstück mit SSCC (Portal ersetzt shipping.NET Colli/Labels)
+model ShipmentCollo {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  itemNumber  Int
+  /// GS1 SSCC-18 (18 Ziffern)
+  sscc        String   @unique
+  content     String?
+  quantity    Int      @default(1)
+  weightKg    Float?
+  lengthCm    Float?
+  widthCm     Float?
+  heightCm    Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, itemNumber])
+  @@index([shipmentId])
+}
+
+/// Sequenz für SSCC-Seriennummern (pro Organisation / Tag optional global)
+model SsccSequence {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  nextSerial     Int    @default(1)
+  updatedAt      DateTime @updatedAt
 }
 
 model StatusEvent {

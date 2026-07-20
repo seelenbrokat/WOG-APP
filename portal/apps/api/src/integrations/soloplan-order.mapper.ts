@@ -83,6 +83,16 @@ export type PortalShipmentForSoloplan = {
     heightCm?: number | null;
     sscc?: string | null;
   }>;
+  colli?: Array<{
+    itemNumber: number;
+    sscc: string;
+    content?: string | null;
+    quantity: number;
+    weightKg?: number | null;
+    lengthCm?: number | null;
+    widthCm?: number | null;
+    heightCm?: number | null;
+  }>;
 };
 
 function customerToBp(customer: CustomerLike): BusinessPartnerLike {
@@ -198,6 +208,50 @@ function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
 
 function buildConsignmentItems(shipment: PortalShipmentForSoloplan) {
   const mark = shipment.reference || shipment.trackingNumber;
+
+  // Prefer Portal-Colli (SSCC) wenn vorhanden
+  if (shipment.colli?.length) {
+    return shipment.colli.map((c) => {
+      const lengthInMeters = c.lengthCm != null ? c.lengthCm / 100 : undefined;
+      const widthInMeters = c.widthCm != null ? c.widthCm / 100 : undefined;
+      const heightInMeters = c.heightCm != null ? c.heightCm / 100 : undefined;
+      const cubicMeter =
+        lengthInMeters != null && widthInMeters != null && heightInMeters != null
+          ? Number((lengthInMeters * widthInMeters * heightInMeters).toFixed(5))
+          : undefined;
+      return {
+        itemNumber: c.itemNumber,
+        quantity: Number(c.quantity || 1),
+        content1: c.content || shipment.goodsDescription || 'Ware',
+        ...(c.weightKg != null
+          ? {
+              weights: {
+                effectiveWeightInKilogram: c.weightKg,
+                carrierWeightInKilogram: c.weightKg,
+              },
+            }
+          : {}),
+        ...(lengthInMeters != null || widthInMeters != null || heightInMeters != null
+          ? {
+              size: {
+                ...(lengthInMeters != null ? { lengthInMeters } : {}),
+                ...(widthInMeters != null ? { widthInMeters } : {}),
+                ...(heightInMeters != null ? { heightInMeters } : {}),
+              },
+            }
+          : {}),
+        mark,
+        packaging: 'KRT',
+        articleQuantity: Number(c.quantity || 1),
+        ssccCurrents: [{ code: c.sscc }],
+        ...(cubicMeter != null ? { dimensions: { cubicMeter } } : {}),
+        dangerousGoods: { areDangerToEnvironment: false, limitedAmount: false },
+        hazardousMaterial: 0,
+        waterHazardClass: 0,
+      };
+    });
+  }
+
   if (shipment.positions?.length) {
     return shipment.positions.map((pos, idx) => {
       const lengthInMeters = pos.lengthCm != null ? pos.lengthCm / 100 : undefined;

@@ -17,6 +17,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { UsersModule } from './users/users.module';
 import { AuditModule } from './audit/audit.module';
 import { CustomsModule } from './customs/customs.module';
+import { LabelsModule } from './labels/labels.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
     CustomersModule,
     UsersModule,
     ShipmentsModule,
+    LabelsModule,
     DocumentsModule,
     NotificationsModule,
     TrackingModule,

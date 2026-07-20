@@ -84,6 +84,26 @@ export default function ShipmentDetailPage() {
               >
                 Ablieferbeleg erzeugen
               </button>
+              <button
+                className="btn btn-ghost"
+                onClick={async () => {
+                  await api(`/shipments/${shipment.id}/labels`, { method: 'POST' });
+                  await load();
+                }}
+              >
+                Etiketten erzeugen (SSCC)
+              </button>
+            </div>
+          )}
+          {shipment.colli?.length > 0 && (
+            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
+              <strong>Colli / SSCC</strong>
+              {shipment.colli.map((c: any) => (
+                <div key={c.id} className="muted" style={{ fontSize: '0.9rem' }}>
+                  #{c.itemNumber}: {c.sscc}
+                  {c.weightKg != null ? ` · ${c.weightKg} kg` : ''}
+                </div>
+              ))}
             </div>
           )}
         </div>

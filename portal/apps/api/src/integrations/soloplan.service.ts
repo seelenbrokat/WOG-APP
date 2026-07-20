@@ -126,6 +126,7 @@ export class SoloplanService implements TransportIntegration {
       where: { id: shipmentId },
       include: {
         positions: true,
+        colli: { orderBy: { itemNumber: 'asc' as const } },
         mandant: true,
         customer: { include: { contacts: true } },
         order: { include: { freightPayer: { include: { contacts: true } } } },
