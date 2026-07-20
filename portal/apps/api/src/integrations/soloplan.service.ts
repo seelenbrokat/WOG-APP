@@ -1,11 +1,30 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
 import { join } from 'path';
 import { PartnerJobStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationEvent } from '@prisma/client';
+import {
+  buildSoloplanFilePayload,
+  SoloplanFileFormat,
+  soloplanOutboundFileName,
+} from './soloplan-order.mapper';
 
 export interface TransportIntegration {
   createOrder(shipmentId: string): Promise<void>;
@@ -17,56 +36,111 @@ export interface TransportIntegration {
 export class SoloplanService implements TransportIntegration {
   private readonly logger = new Logger(SoloplanService.name);
   private pendingCreates = new Set<string>();
-  private outboundDir: string;
+  /** SFTP-Outbound-Root (z. B. /app/data/sftp/outbound) */
+  private sftpOutboundRoot: string;
+  /** Soloplan Order-Pickup: sftp/outbound/soloplan/orders */
+  private ordersOutDir: string;
+  /** Spiegel unter integrations/soloplan/orders/out */
+  private integrationOrdersOutDir: string;
 
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
   ) {
-    this.outboundDir =
+    this.sftpOutboundRoot =
       this.config.get('SFTP_OUTBOUND_DIR') || join(process.cwd(), '../../data/sftp/outbound');
-    if (!existsSync(this.outboundDir)) mkdirSync(this.outboundDir, { recursive: true });
+    this.ordersOutDir =
+      this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
+      join(this.sftpOutboundRoot, 'soloplan', 'orders');
+    const integrationBase =
+      this.config.get('INTEGRATION_DIR') || join(process.cwd(), '../../data/integrations');
+    this.integrationOrdersOutDir = join(integrationBase, 'soloplan', 'orders', 'out');
+    for (const dir of [this.sftpOutboundRoot, this.ordersOutDir, this.integrationOrdersOutDir]) {
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  status() {
+    const files = this.listOutboundFiles();
+    return {
+      enabled: this.config.get('SOLOPLAN_ENABLED') === 'true',
+      mode: this.config.get('SOLOPLAN_MODE') || 'stub',
+      fileFormat: this.getFileFormat(),
+      baseUrlConfigured: Boolean(this.config.get('SOLOPLAN_BASE_URL')),
+      ordersOutDir: this.ordersOutDir,
+      integrationOrdersOutDir: this.integrationOrdersOutDir,
+      pendingOutboundFiles: files.length,
+      businessPartnerImportDir: 'data/integrations/soloplan/business-partners/in',
+      apiVersion: 'SoloplanOrderImportPORTAL-v6',
+    };
+  }
+
+  listOutboundFiles() {
+    if (!existsSync(this.ordersOutDir)) return [];
+    return readdirSync(this.ordersOutDir)
+      .filter((f) => f.endsWith('.json'))
+      .map((fileName) => {
+        const full = join(this.ordersOutDir, fileName);
+        const st = statSync(full);
+        return {
+          fileName,
+          size: st.size,
+          modifiedAt: st.mtime.toISOString(),
+          path: `soloplan/orders/${fileName}`,
+        };
+      })
+      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  }
+
+  openOutboundFile(fileName: string) {
+    const safe = fileName.replace(/[/\\]/g, '');
+    if (!safe.endsWith('.json')) throw new BadRequestException('Nur .json Dateien');
+    const full = join(this.ordersOutDir, safe);
+    if (!existsSync(full)) throw new NotFoundException(`Datei ${safe} nicht gefunden`);
+    return { fileName: safe, stream: createReadStream(full), fullPath: full };
   }
 
   async enqueueCreateOrder(shipmentId: string) {
     this.pendingCreates.add(shipmentId);
   }
 
+  /** Exportiert eine Sendung sofort als Soloplan File-API JSON (auch wenn Worker noch nicht gelaufen ist). */
+  async exportShipment(shipmentId: string) {
+    await this.createOrder(shipmentId);
+    const shipment = await this.prisma.shipment.findUnique({ where: { id: shipmentId } });
+    if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
+    return {
+      ok: true,
+      shipmentId,
+      trackingNumber: shipment.trackingNumber,
+      soloplanRef: shipment.soloplanRef,
+      outbound: this.listOutboundFiles().filter((f) =>
+        f.fileName.includes(shipment.trackingNumber) ||
+        (shipment.reference ? f.fileName.includes(shipment.reference) : false),
+      ),
+    };
+  }
+
   async createOrder(shipmentId: string) {
     const shipment = await this.prisma.shipment.findUnique({
       where: { id: shipmentId },
-      include: { positions: true, mandant: true, customer: true },
+      include: {
+        positions: true,
+        mandant: true,
+        customer: { include: { contacts: true } },
+      },
     });
     if (!shipment) return;
 
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
-
-    const payload = {
-      trackingNumber: shipment.trackingNumber,
-      mandant: shipment.mandant.code,
-      customerNumber: shipment.customer.customerNumber,
-      reference: shipment.reference,
-      pickup: {
-        company: shipment.pickupCompany,
-        street: shipment.pickupStreet,
-        zip: shipment.pickupZip,
-        city: shipment.pickupCity,
-        country: shipment.pickupCountry,
-        date: shipment.pickupDate,
-      },
-      delivery: {
-        company: shipment.deliveryCompany,
-        street: shipment.deliveryStreet,
-        zip: shipment.deliveryZip,
-        city: shipment.deliveryCity,
-        country: shipment.deliveryCountry,
-        date: shipment.deliveryDate,
-      },
-      packages: shipment.packageCount,
-      weightKg: shipment.weightKg,
-      positions: shipment.positions,
-    };
+    const format = this.getFileFormat();
+    const payload = buildSoloplanFilePayload(shipment, {
+      format,
+      defaultSender: this.getDefaultSender(),
+      trackingBaseUrl: this.config.get('APP_URL') || undefined,
+      objectOwnerId: Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
+    });
 
     if (!enabled || mode === 'stub') {
       const ref = `SP-STUB-${shipment.trackingNumber}`;
@@ -79,78 +153,96 @@ export class SoloplanService implements TransportIntegration {
     }
 
     if (mode === 'file') {
-      const file = join(this.outboundDir, `soloplan-order-${shipment.trackingNumber}.json`);
-      writeFileSync(file, JSON.stringify(payload, null, 2));
+      const fileName = soloplanOutboundFileName(shipment, format);
+      const json = JSON.stringify(payload, null, 2);
+      const primary = join(this.ordersOutDir, fileName);
+      const mirror = join(this.integrationOrdersOutDir, fileName);
+      writeFileSync(primary, json);
+      writeFileSync(mirror, json);
       await this.prisma.shipment.update({
         where: { id: shipmentId },
-        data: { soloplanRef: `FILE:${file}` },
+        data: { soloplanRef: `FILE:soloplan/orders/${fileName}` },
       });
-      this.logger.log(`Soloplan file export ${file}`);
+      this.logger.log(`Soloplan PORTAL-v6 file export ${primary}`);
       return;
     }
 
-    // REST mode
-    const base = this.config.get('SOLOPLAN_BASE_URL');
+    // REST mode – SoloplanOrderImportPORTAL v6
+    const base = String(this.config.get('SOLOPLAN_BASE_URL') || '').replace(/\/$/, '');
     const key = this.config.get('SOLOPLAN_API_KEY');
     if (!base) {
       this.logger.warn('SOLOPLAN_BASE_URL fehlt');
       return;
     }
-    const res = await fetch(`${base}/orders`, {
+    const endpoint =
+      format === 'order'
+        ? `${base}/api/SoloplanOrderImportPORTAL/v6/Order`
+        : `${base}/api/SoloplanOrderImportPORTAL/v6/Consignment`;
+
+    // REST erwartet oft das Objekt ohne Wrapper – File-API nutzt header+array.
+    // Laut OpenAPI Create: Body = Consignment/Order Entity; File-Drop nutzt Wrapper.
+    // Wir senden den File-Wrapper (wie Spec-Samples), Fallback: erstes Array-Element.
+    const body = payload;
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${key || ''}`,
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
-      this.logger.error(`Soloplan REST error ${res.status}`);
+      const text = await res.text().catch(() => '');
+      this.logger.error(`Soloplan REST error ${res.status}: ${text.slice(0, 300)}`);
       return;
     }
-    const json = (await res.json().catch(() => ({}))) as { id?: string };
+    const json = (await res.json().catch(() => ({}))) as { id?: string | number };
     await this.prisma.shipment.update({
       where: { id: shipmentId },
-      data: { soloplanRef: json.id || `REST-${shipment.trackingNumber}` },
+      data: { soloplanRef: String(json.id || `REST-${shipment.trackingNumber}`) },
     });
   }
 
   async syncStatuses() {
-    // Hook for pulling status from Soloplan – file mode reads inbound status files
     const inbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
-    if (!existsSync(inbound)) return;
-    const files = readdirSync(inbound).filter((f) => f.startsWith('soloplan-status-') && f.endsWith('.json'));
-    for (const file of files) {
-      try {
-        const raw = JSON.parse(readFileSync(join(inbound, file), 'utf8')) as {
-          trackingNumber: string;
-          status: ShipmentStatus;
-          message?: string;
-        };
-        const shipment = await this.prisma.shipment.findUnique({
-          where: { trackingNumber: raw.trackingNumber },
-        });
-        if (shipment && raw.status) {
-          await this.prisma.shipment.update({
-            where: { id: shipment.id },
-            data: {
-              status: raw.status,
-              events: {
-                create: {
-                  status: raw.status,
-                  message: raw.message || 'Soloplan Statusupdate',
-                  createdBy: 'soloplan',
+    const dirs = [inbound, join(inbound, 'soloplan')];
+    for (const dir of dirs) {
+      if (!existsSync(dir)) continue;
+      const files = readdirSync(dir).filter(
+        (f) => f.startsWith('soloplan-status-') && f.endsWith('.json'),
+      );
+      for (const file of files) {
+        try {
+          const raw = JSON.parse(readFileSync(join(dir, file), 'utf8')) as {
+            trackingNumber: string;
+            status: ShipmentStatus;
+            message?: string;
+          };
+          const shipment = await this.prisma.shipment.findUnique({
+            where: { trackingNumber: raw.trackingNumber },
+          });
+          if (shipment && raw.status) {
+            await this.prisma.shipment.update({
+              where: { id: shipment.id },
+              data: {
+                status: raw.status,
+                events: {
+                  create: {
+                    status: raw.status,
+                    message: raw.message || 'Soloplan Statusupdate',
+                    createdBy: 'soloplan',
+                  },
                 },
               },
-            },
-          });
+            });
+          }
+          const processed = join(dir, 'processed');
+          if (!existsSync(processed)) mkdirSync(processed, { recursive: true });
+          renameSync(join(dir, file), join(processed, file));
+        } catch (err) {
+          this.logger.error(`Status file failed ${file}`, err as Error);
         }
-        const processed = join(inbound, 'processed');
-        if (!existsSync(processed)) mkdirSync(processed, { recursive: true });
-        renameSync(join(inbound, file), join(processed, file));
-      } catch (err) {
-        this.logger.error(`Status file failed ${file}`, err as Error);
       }
     }
   }
@@ -170,6 +262,26 @@ export class SoloplanService implements TransportIntegration {
     }
     await this.syncStatuses();
     await this.pullPods();
+  }
+
+  private getFileFormat(): SoloplanFileFormat {
+    const raw = String(this.config.get('SOLOPLAN_FILE_FORMAT') || 'consignment').toLowerCase();
+    return raw === 'order' ? 'order' : 'consignment';
+  }
+
+  private getDefaultSender() {
+    const number = this.config.get('SOLOPLAN_DEFAULT_SENDER_BP') || '2';
+    return {
+      number,
+      matchcode: this.config.get('SOLOPLAN_DEFAULT_SENDER_MATCHCODE') || 'WOGDIEPO',
+      name: this.config.get('SOLOPLAN_DEFAULT_SENDER_NAME') || 'WOG Logistics AG',
+      phone: this.config.get('SOLOPLAN_DEFAULT_SENDER_PHONE') || '+41 71 733 77 00',
+      vatId: this.config.get('SOLOPLAN_DEFAULT_SENDER_VAT') || undefined,
+      street: this.config.get('SOLOPLAN_DEFAULT_SENDER_STREET') || 'Wildenaustraße 22',
+      zip: this.config.get('SOLOPLAN_DEFAULT_SENDER_ZIP') || '9444',
+      city: this.config.get('SOLOPLAN_DEFAULT_SENDER_CITY') || 'Diepoldsau',
+      country: this.config.get('SOLOPLAN_DEFAULT_SENDER_COUNTRY') || 'CH',
+    };
   }
 }
 
@@ -202,7 +314,7 @@ export class PartnerImportService {
 
       const job = await this.prisma.partnerJob.create({
         data: {
-          partnerId: partner?.id || (await this.ensureUnknownPartner()) ,
+          partnerId: partner?.id || (await this.ensureUnknownPartner()),
           direction: 'INBOUND',
           fileName,
           status: PartnerJobStatus.PROCESSING,
@@ -211,7 +323,6 @@ export class PartnerImportService {
 
       try {
         const content = JSON.parse(readFileSync(full, 'utf8'));
-        // Minimal: log success; shipment mapping can be extended per partner
         await this.prisma.partnerJob.update({
           where: { id: job.id },
           data: {
@@ -226,7 +337,9 @@ export class PartnerImportService {
 
         if (partner) {
           await this.notifications.sendRaw(
-            partner.sftpUsername ? `${partner.sftpUsername}@partners.local` : 'admin@wog.logistikberater.at',
+            partner.sftpUsername
+              ? `${partner.sftpUsername}@partners.local`
+              : 'admin@wog.logistikberater.at',
             'Partnerdatei importiert',
             `Datei ${fileName} erfolgreich verarbeitet.`,
             NotificationEvent.PARTNER_FILE_IMPORTED,

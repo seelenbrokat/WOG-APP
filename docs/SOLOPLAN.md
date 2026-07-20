@@ -1,20 +1,28 @@
 # Soloplan / CarLo Anbindung
 
-Das Portal spricht Soloplan über das Interface `TransportIntegration` in `apps/api/src/integrations/soloplan.service.ts`.
+Das Portal spricht Soloplan über `apps/api/src/integrations/soloplan.service.ts` und den Mapper `soloplan-order.mapper.ts` (**OrderImportPORTAL v6**).
+
+## Auftrags-Export (File/FTP)
+
+Siehe **[SOLOPLAN_ORDERS.md](./SOLOPLAN_ORDERS.md)** – Consignment-/Order-JSON, SFTP-Abholverzeichnis, API.
 
 ## Modi (`SOLOPLAN_MODE`)
 
 | Modus | Verhalten |
 |-------|-----------|
-| `stub` | Speichert eine Stub-Referenz `SP-STUB-…` (Standard, ohne externes System) |
-| `file` | Schreibt Auftrags-JSON nach `SFTP_OUTBOUND_DIR` als `soloplan-order-{TN}.json` |
-| `rest` | `POST {SOLOPLAN_BASE_URL}/orders` mit Bearer-Token `SOLOPLAN_API_KEY` |
+| `stub` | Speichert Stub-Referenz `SP-STUB-…` (ohne externes System) |
+| `file` | Schreibt PORTAL-v6 JSON nach `sftp/outbound/soloplan/orders/` |
+| `rest` | `POST {SOLOPLAN_BASE_URL}/api/SoloplanOrderImportPORTAL/v6/Consignment` bzw. `/Order` |
 
 Aktivierung: `SOLOPLAN_ENABLED=true`
 
+## Business Partner
+
+Siehe [SOLOPLAN_BUSINESS_PARTNERS.md](./SOLOPLAN_BUSINESS_PARTNERS.md).
+
 ## Status-Rückmeldungen (Datei)
 
-Ablegen in `SFTP_INBOUND_DIR`:
+Ablegen in `SFTP_INBOUND_DIR` (oder `…/soloplan/`):
 
 ```json
 {
@@ -29,10 +37,9 @@ Dateiname: `soloplan-status-*.json`
 ## Konfiguration
 
 ```env
-SOLOPLAN_ENABLED=false
-SOLOPLAN_MODE=stub
-SOLOPLAN_BASE_URL=https://carlo-api.example.com
+SOLOPLAN_ENABLED=true
+SOLOPLAN_MODE=file
+SOLOPLAN_FILE_FORMAT=consignment
+SOLOPLAN_BASE_URL=
 SOLOPLAN_API_KEY=
 ```
-
-Die konkreten CarLo-Endpunkte und Felder von Soloplan werden kundenseitig hinterlegt; der Adapter ist bewusst austauschbar, ohne Domain-Logik zu ändern.

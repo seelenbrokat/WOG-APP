@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -14,11 +15,13 @@ import { memoryStorage } from 'multer';
 import { ConfigService } from '@nestjs/config';
 import { IntegrationSystem, UserRole } from '@prisma/client';
 import { Allow, IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { Response } from 'express';
 import { Roles, CurrentUser, AuthUser } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { ExchangeHubService } from './exchange-hub.service';
 import { BusinessPartnerService } from './business-partner.service';
 import { ShippingNetService } from './shippingnet.service';
+import { SoloplanService } from './soloplan.service';
 
 class CreateTransferDto {
   @IsEnum(IntegrationSystem)
@@ -108,17 +111,39 @@ export class IntegrationsController {
     private hub: ExchangeHubService,
     private businessPartners: BusinessPartnerService,
     private shippingNet: ShippingNetService,
+    private soloplan: SoloplanService,
   ) {}
 
   @Get('soloplan/status')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   soloplanStatus(@CurrentUser() _user: AuthUser) {
-    return {
-      enabled: this.config.get('SOLOPLAN_ENABLED') === 'true',
-      mode: this.config.get('SOLOPLAN_MODE') || 'stub',
-      baseUrlConfigured: Boolean(this.config.get('SOLOPLAN_BASE_URL')),
-      businessPartnerImportDir: 'data/integrations/soloplan/business-partners/in',
-    };
+    return this.soloplan.status();
+  }
+
+  /** Ausstehende Soloplan Order-/Consignment-JSONs im FTP-Outbound */
+  @Get('soloplan/orders')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  listSoloplanOrders(@CurrentUser() _user: AuthUser) {
+    return { files: this.soloplan.listOutboundFiles() };
+  }
+
+  @Get('soloplan/orders/:fileName/download')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  downloadSoloplanOrder(
+    @Param('fileName') fileName: string,
+    @Res() res: Response,
+  ) {
+    const { fileName: name, stream } = this.soloplan.openOutboundFile(decodeURIComponent(fileName));
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    stream.pipe(res);
+  }
+
+  /** Sendung als SoloplanOrderImportPORTAL-v6 JSON exportieren (File-Outbound) */
+  @Post('soloplan/shipments/:shipmentId/export')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  exportShipmentToSoloplan(@Param('shipmentId') shipmentId: string) {
+    return this.soloplan.exportShipment(shipmentId);
   }
 
   @Get('soloplan/business-partners')

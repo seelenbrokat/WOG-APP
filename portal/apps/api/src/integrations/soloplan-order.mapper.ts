@@ -1,0 +1,454 @@
+/**
+ * Mapper: Portal-Sendung → Soloplan OrderImportPORTAL v6 File-API JSON
+ * Format laut SoloplanOrderImportPORTAL-v6 (header + consignment | order).
+ */
+import { randomUUID } from 'crypto';
+
+export type SoloplanFileFormat = 'consignment' | 'order';
+
+type AddressLike = {
+  company?: string | null;
+  street?: string | null;
+  zip?: string | null;
+  city?: string | null;
+  country?: string | null;
+};
+
+type BusinessPartnerLike = {
+  number?: string | number | null;
+  matchcode?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  vatId?: string | null;
+  contacts?: Array<{
+    itemNumber?: number | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }>;
+};
+
+export type PortalShipmentForSoloplan = {
+  id: string;
+  trackingNumber: string;
+  reference?: string | null;
+  goodsDescription?: string | null;
+  packageCount: number;
+  weightKg?: number | null;
+  volumeM3?: number | null;
+  pickupCompany?: string | null;
+  pickupStreet?: string | null;
+  pickupZip?: string | null;
+  pickupCity?: string | null;
+  pickupCountry?: string | null;
+  pickupDate?: Date | string | null;
+  deliveryCompany?: string | null;
+  deliveryStreet?: string | null;
+  deliveryZip?: string | null;
+  deliveryCity?: string | null;
+  deliveryCountry?: string | null;
+  deliveryDate?: Date | string | null;
+  notes?: string | null;
+  customer: {
+    customerNumber: string;
+    name: string;
+    phone?: string | null;
+    vatId?: string | null;
+    soloplanBusinessPartnerId?: string | null;
+    matchcode?: string | null;
+    contacts?: Array<{
+      soloplanContactNumber?: number | null;
+      firstName?: string | null;
+      lastName?: string | null;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    }>;
+  };
+  positions: Array<{
+    description: string;
+    quantity: number;
+    weightKg?: number | null;
+    lengthCm?: number | null;
+    widthCm?: number | null;
+    heightCm?: number | null;
+    sscc?: string | null;
+  }>;
+};
+
+function formatSoloplanDateTime(value?: Date | string | null): string | undefined {
+  if (!value) return undefined;
+  const d = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return undefined;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatSoloplanDate(value?: Date | string | null): string | undefined {
+  const dt = formatSoloplanDateTime(value);
+  return dt ? dt.slice(0, 10) : undefined;
+}
+
+/** Trennt Straßenname und Hausnummer (z. B. "Chipf 5" → street/houseNumber). */
+export function splitStreet(street?: string | null): { street: string; houseNumber?: string } {
+  const raw = String(street || '').trim();
+  if (!raw) return { street: '' };
+  const m = raw.match(/^(.*?)[,\s]+(\d+[a-zA-Z\-\/]*)$/);
+  if (m && m[1].trim()) return { street: m[1].trim(), houseNumber: m[2] };
+  return { street: raw };
+}
+
+function countryCode(country?: string | null): string {
+  const c = String(country || 'AT').trim().toUpperCase();
+  if (c === 'A') return 'AT';
+  if (c === 'D') return 'DE';
+  return c.slice(0, 2) || 'AT';
+}
+
+function toMasterDataBp(bp: BusinessPartnerLike) {
+  const numberRaw = bp.number;
+  const number =
+    numberRaw === null || numberRaw === undefined || numberRaw === ''
+      ? undefined
+      : Number.isFinite(Number(numberRaw))
+        ? Number(numberRaw)
+        : undefined;
+
+  const contactPersons = (bp.contacts || [])
+    .map((c, idx) => {
+      const lastName = c.lastName || c.name || '';
+      if (!lastName && !c.email) return null;
+      return {
+        itemNumber: c.itemNumber || idx + 1,
+        ...(c.firstName ? { firstName: c.firstName } : {}),
+        lastName: lastName || 'Kontakt',
+        ...(c.email ? { emailAddress: c.email } : {}),
+        ...(c.phone ? { telephone: c.phone } : {}),
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    ...(number !== undefined ? { number } : {}),
+    ...(bp.matchcode ? { matchcode: bp.matchcode } : {}),
+    name1: bp.name || '',
+    ...(bp.phone ? { phoneNumberHeadOffice: bp.phone } : {}),
+    ...(contactPersons.length ? { contactPersons } : {}),
+    ...(bp.vatId
+      ? {
+          valueAddedTaxNumber: bp.vatId,
+          vATIsoTwoCharacterCountryCode: countryCode(
+            bp.vatId?.startsWith('E') ? 'CH' : undefined,
+          ),
+        }
+      : {}),
+    senderReceiver: true,
+  };
+}
+
+function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
+  const { street, houseNumber } = splitStreet(addr.street);
+  const party: Record<string, unknown> = {
+    name1: addr.company || '',
+    street: street || addr.street || '',
+    ...(houseNumber ? { houseNumber } : {}),
+    country: countryCode(addr.country),
+    zipCode: addr.zip || '',
+    city1: addr.city || '',
+  };
+  if (bp && (bp.number || bp.matchcode || bp.name)) {
+    party.masterDataBusinessPartner = toMasterDataBp({
+      ...bp,
+      name: bp.name || addr.company || '',
+    });
+  }
+  return party;
+}
+
+function buildConsignmentItems(shipment: PortalShipmentForSoloplan) {
+  const mark = shipment.reference || shipment.trackingNumber;
+  if (shipment.positions?.length) {
+    return shipment.positions.map((pos, idx) => {
+      const lengthInMeters = pos.lengthCm != null ? pos.lengthCm / 100 : undefined;
+      const widthInMeters = pos.widthCm != null ? pos.widthCm / 100 : undefined;
+      const heightInMeters = pos.heightCm != null ? pos.heightCm / 100 : undefined;
+      const cubicMeter =
+        lengthInMeters != null && widthInMeters != null && heightInMeters != null
+          ? Number((lengthInMeters * widthInMeters * heightInMeters).toFixed(5))
+          : undefined;
+      return {
+        itemNumber: idx + 1,
+        quantity: Number(pos.quantity || 1),
+        content1: pos.description || shipment.goodsDescription || 'Ware',
+        ...(pos.weightKg != null
+          ? {
+              weights: {
+                effectiveWeightInKilogram: pos.weightKg,
+                carrierWeightInKilogram: pos.weightKg,
+              },
+            }
+          : {}),
+        ...(lengthInMeters != null || widthInMeters != null || heightInMeters != null
+          ? {
+              size: {
+                ...(lengthInMeters != null ? { lengthInMeters } : {}),
+                ...(widthInMeters != null ? { widthInMeters } : {}),
+                ...(heightInMeters != null ? { heightInMeters } : {}),
+              },
+            }
+          : {}),
+        mark,
+        packaging: 'KRT',
+        articleQuantity: Number(pos.quantity || 1),
+        ...(pos.sscc ? { ssccCurrents: [{ code: pos.sscc }] } : {}),
+        ...(cubicMeter != null ? { dimensions: { cubicMeter } } : {}),
+        dangerousGoods: { areDangerToEnvironment: false, limitedAmount: false },
+        hazardousMaterial: 0,
+        waterHazardClass: 0,
+      };
+    });
+  }
+
+  return [
+    {
+      itemNumber: 1,
+      quantity: Number(shipment.packageCount || 1),
+      content1: shipment.goodsDescription || 'Ware',
+      ...(shipment.weightKg != null
+        ? {
+            weights: {
+              effectiveWeightInKilogram: shipment.weightKg,
+              carrierWeightInKilogram: shipment.weightKg,
+            },
+          }
+        : {}),
+      mark,
+      packaging: 'KRT',
+      articleQuantity: Number(shipment.packageCount || 1),
+      ...(shipment.volumeM3 != null ? { dimensions: { cubicMeter: shipment.volumeM3 } } : {}),
+      dangerousGoods: { areDangerToEnvironment: false, limitedAmount: false },
+      hazardousMaterial: 0,
+      waterHazardClass: 0,
+    },
+  ];
+}
+
+function buildConsignment(
+  shipment: PortalShipmentForSoloplan,
+  opts: {
+    defaultSender?: (BusinessPartnerLike & AddressLike) | null;
+    trackingUrl?: string;
+  } = {},
+) {
+  const customerBp: BusinessPartnerLike | null = shipment.customer.soloplanBusinessPartnerId
+    ? {
+        number: shipment.customer.soloplanBusinessPartnerId,
+        matchcode: shipment.customer.matchcode,
+        name: shipment.customer.name,
+        phone: shipment.customer.phone,
+        vatId: shipment.customer.vatId,
+        contacts: (shipment.customer.contacts || []).map((c) => ({
+          itemNumber: c.soloplanContactNumber,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+        })),
+      }
+    : null;
+
+  const senderBp = opts.defaultSender || customerBp;
+  const pickup: AddressLike = {
+    company: shipment.pickupCompany,
+    street: shipment.pickupStreet,
+    zip: shipment.pickupZip,
+    city: shipment.pickupCity,
+    country: shipment.pickupCountry,
+  };
+  const delivery: AddressLike = {
+    company: shipment.deliveryCompany,
+    street: shipment.deliveryStreet,
+    zip: shipment.deliveryZip,
+    city: shipment.deliveryCity,
+    country: shipment.deliveryCountry,
+  };
+
+  // Wenn Default-Sender gesetzt und Pickup vorhanden → Pickup als differentLoadingPoint
+  const useDifferentLoading =
+    Boolean(opts.defaultSender) && Boolean(pickup.company || pickup.street || pickup.city);
+
+  const senderAddress: AddressLike = opts.defaultSender
+    ? {
+        company: opts.defaultSender.name || opts.defaultSender.company || 'WOG Logistics AG',
+        street: opts.defaultSender.street || 'Wildenaustraße 22',
+        zip: opts.defaultSender.zip || '9444',
+        city: opts.defaultSender.city || 'Diepoldsau',
+        country: opts.defaultSender.country || 'CH',
+      }
+    : pickup.company || pickup.street
+      ? pickup
+      : {
+          company: shipment.customer.name,
+          street: shipment.pickupStreet,
+          zip: shipment.pickupZip,
+          city: shipment.pickupCity,
+          country: shipment.pickupCountry,
+        };
+
+  const loadingDate = formatSoloplanDateTime(shipment.pickupDate) || formatSoloplanDateTime(new Date());
+  const deliveryDate =
+    formatSoloplanDateTime(shipment.deliveryDate) ||
+    formatSoloplanDateTime(shipment.pickupDate) ||
+    loadingDate;
+
+  const consignmentItems = buildConsignmentItems(shipment);
+  const totalWeight =
+    shipment.weightKg ??
+    consignmentItems.reduce(
+      (sum, item: any) => sum + (item.weights?.effectiveWeightInKilogram || 0),
+      0,
+    );
+
+  return {
+    itemNumber: 1,
+    externalNumber: shipment.reference || shipment.trackingNumber,
+    sender: toAddressParty(senderAddress, senderBp),
+    senderContactPerson: {},
+    receiver: toAddressParty(delivery),
+    receiverContactPerson: {},
+    ...(useDifferentLoading
+      ? { differentLoadingPoint: toAddressParty(pickup) }
+      : { differentLoadingPoint: {} }),
+    differentDeliveryPoint: {},
+    consignmentItems,
+    times: {
+      loadingDateStart: loadingDate,
+      loadingDateEnd: loadingDate,
+      deliveryDateStart: deliveryDate,
+      deliveryDateEnd: deliveryDate,
+    },
+    flatRateCustomer: {},
+    flatRateReceiver: {},
+    incoterms: 0,
+    deliveryTerms: 0,
+    pickup: false,
+    consignmentRestriction: {},
+    loadingDateType: 0,
+    deliveryDateType: 0,
+    paymentType: 0,
+    paymentStatus: 0,
+    namedLocation: {},
+    quantity: Number(shipment.packageCount || 1),
+    ...(totalWeight
+      ? {
+          weights: {
+            effectiveWeightInKilogram: totalWeight,
+            carrierWeightInKilogram: totalWeight,
+          },
+        }
+      : {}),
+    ...(shipment.volumeM3 != null
+      ? { dimensions: { cubicMeter: shipment.volumeM3 } }
+      : { dimensions: { meter: 0, cubicMeter: 0 } }),
+    flatRateCarrier: {},
+    maximumSize: {},
+    containsDangerousGoods: false,
+    customFields: {
+      consignmentReference2: shipment.deliveryCompany || undefined,
+      customBool10: true,
+    },
+    isHeavyDutyTransport: false,
+    information: {
+      ...(shipment.notes ? { senderInfo1: shipment.notes } : {}),
+      senderInfo2: [
+        shipment.deliveryCompany,
+        shipment.deliveryCountry,
+        shipment.deliveryZip,
+        shipment.deliveryCity,
+      ]
+        .filter(Boolean)
+        .join('-'),
+      ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
+    },
+    airAndSea: {
+      isShipperSecure: false,
+      transportWay: 0,
+      freightType: 0,
+      regulatedEntityCategory: 0,
+    },
+    additionalTimes: {},
+    loadType: 0,
+    documentData: [],
+  };
+}
+
+export function buildSoloplanFilePayload(
+  shipment: PortalShipmentForSoloplan,
+  opts: {
+    format?: SoloplanFileFormat;
+    defaultSender?: (BusinessPartnerLike & AddressLike) | null;
+    trackingBaseUrl?: string;
+    objectOwnerId?: number;
+  } = {},
+) {
+  const format: SoloplanFileFormat = opts.format || 'consignment';
+  const header = {
+    sendDate: formatSoloplanDateTime(new Date())!,
+    exportItemReference: randomUUID(),
+  };
+  const trackingUrl = opts.trackingBaseUrl
+    ? `${opts.trackingBaseUrl.replace(/\/$/, '')}/track?tn=${encodeURIComponent(shipment.trackingNumber)}`
+    : undefined;
+
+  const consignment = buildConsignment(shipment, {
+    defaultSender: opts.defaultSender,
+    trackingUrl,
+  });
+
+  if (format === 'order') {
+    const customer = shipment.customer;
+    const orderNumber = Number(String(shipment.trackingNumber).replace(/\D/g, '').slice(0, 9)) || undefined;
+    return {
+      header,
+      order: [
+        {
+          date: formatSoloplanDate(shipment.pickupDate) || formatSoloplanDate(new Date()),
+          ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
+          ...(orderNumber ? { number: orderNumber } : {}),
+          externalNumber: shipment.reference || shipment.trackingNumber,
+          orderContext: 0,
+          orderDate: formatSoloplanDate(new Date()),
+          customer: toMasterDataBp({
+            number: customer.soloplanBusinessPartnerId,
+            matchcode: customer.matchcode,
+            name: customer.name,
+            phone: customer.phone,
+            vatId: customer.vatId,
+            contacts: (customer.contacts || []).map((c) => ({
+              itemNumber: c.soloplanContactNumber,
+              firstName: c.firstName,
+              lastName: c.lastName,
+              name: c.name,
+              email: c.email,
+              phone: c.phone,
+            })),
+          }),
+          consignments: [consignment],
+        },
+      ],
+    };
+  }
+
+  return {
+    header,
+    consignment: [consignment],
+  };
+}
+
+export function soloplanOutboundFileName(shipment: PortalShipmentForSoloplan, format: SoloplanFileFormat) {
+  const base = (shipment.reference || shipment.trackingNumber || shipment.id).replace(/[^\w.\-]+/g, '_');
+  return format === 'order' ? `order-${base}.json` : `${base}.json`;
+}

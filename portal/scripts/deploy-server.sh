@@ -151,11 +151,14 @@ if [[ ! -f .env ]]; then
   log "Admin-Passwort in /root/wog-portal-admin-password.txt"
 fi
 
-mkdir -p data/uploads data/sftp/inbound data/sftp/outbound \
+mkdir -p data/uploads \
+  data/sftp/inbound/soloplan \
+  data/sftp/outbound/soloplan/orders \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
   data/integrations/soloplan/{in,out} \
-  data/integrations/soloplan/business-partners/{in,out}
+  data/integrations/soloplan/business-partners/{in,out} \
+  data/integrations/soloplan/orders/{out,processed}
 
 log "Docker Compose: nur Projekt $COMPOSE_PROJECT_NAME starten"
 docker compose up -d --build postgres redis
@@ -165,8 +168,47 @@ docker compose run --rm api sh -c "npx prisma migrate deploy && npx ts-node --tr
 docker compose up -d --build api worker web
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
-  log "SFTPGo-Profil aktiviert"
+  log "SFTPGo-Profil aktiviert (Order-Pickup Port 12022)"
+  # Admin-Passwort für SFTPGo persistent halten
+  if [[ ! -f /root/wog-sftpgo-admin-password.txt ]]; then
+    openssl rand -base64 18 | tr -d '\n' > /root/wog-sftpgo-admin-password.txt
+    chmod 600 /root/wog-sftpgo-admin-password.txt
+  fi
+  SFTPGO_ADMIN_PASSWORD="$(cat /root/wog-sftpgo-admin-password.txt)"
+  export SFTPGO_ADMIN_PASSWORD
+  # In .env spiegeln, damit Compose es sieht
+  if grep -q '^SFTPGO_ADMIN_PASSWORD=' .env 2>/dev/null; then
+    sed -i "s|^SFTPGO_ADMIN_PASSWORD=.*|SFTPGO_ADMIN_PASSWORD=$SFTPGO_ADMIN_PASSWORD|" .env
+  else
+    echo "SFTPGO_ADMIN_PASSWORD=$SFTPGO_ADMIN_PASSWORD" >> .env
+  fi
   docker compose --profile sftp up -d sftpgo
+  sleep 5
+  # Soloplan-User anlegen (Home = gesamtes data/sftp → outbound/soloplan/orders)
+  if [[ ! -f /root/wog-soloplan-sftp.txt ]]; then
+    SOLOPLAN_SFTP_PW="$(openssl rand -base64 14 | tr -d '\n=/+')"
+    echo "user=soloplan" > /root/wog-soloplan-sftp.txt
+    echo "password=$SOLOPLAN_SFTP_PW" >> /root/wog-soloplan-sftp.txt
+    echo "host=$DOMAIN" >> /root/wog-soloplan-sftp.txt
+    echo "port=12022" >> /root/wog-soloplan-sftp.txt
+    echo "path=outbound/soloplan/orders" >> /root/wog-soloplan-sftp.txt
+    chmod 600 /root/wog-soloplan-sftp.txt
+  else
+    SOLOPLAN_SFTP_PW="$(grep '^password=' /root/wog-soloplan-sftp.txt | cut -d= -f2-)"
+  fi
+  # Token + User via SFTPGo Admin-API (localhost:18080)
+  TOKEN="$(curl -sS -u "admin:${SFTPGO_ADMIN_PASSWORD}" \
+    'http://127.0.0.1:18080/api/v2/token' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true)"
+  if [[ -n "$TOKEN" ]]; then
+    curl -sS -X POST 'http://127.0.0.1:18080/api/v2/users' \
+      -H "Authorization: Bearer $TOKEN" \
+      -H 'Content-Type: application/json' \
+      -d "{\"status\":1,\"username\":\"soloplan\",\"password\":\"${SOLOPLAN_SFTP_PW}\",\"home_dir\":\"/srv/sftpgo/data\",\"permissions\":{\"/\":[\"list\",\"download\"]}}" \
+      >/dev/null || true
+    log "SFTP-User soloplan bereit (Credentials: /root/wog-soloplan-sftp.txt)"
+  else
+    log "SFTPGo Token nicht erhalten – User ggf. manuell anlegen (Admin http://127.0.0.1:18080)"
+  fi
 fi
 
 # Nginx: NUR eigener vHost für $DOMAIN – keine anderen Sites anfassen.

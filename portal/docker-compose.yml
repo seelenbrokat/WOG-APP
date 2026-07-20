@@ -87,13 +87,16 @@ services:
     environment:
       SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
       SFTPGO_DEFAULT_ADMIN_USERNAME: admin
-      SFTPGO_DEFAULT_ADMIN_PASSWORD: admin_change_me
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-admin_change_me}
+      # Home der User liegt unter /srv/sftpgo/data (gemountetes ./data/sftp)
+      SFTPGO_COMMON__PROXY_PROTOCOL: 0
     volumes:
       - ./data/sftp:/srv/sftpgo/data
       - sftpgo_data:/var/lib/sftpgo
     ports:
-      - "127.0.0.1:2022:2022"
-      - "127.0.0.1:8080:8080"
+      # SFTP öffentlich auf 12022 (Soloplan Order-Pickup), Web-Admin nur localhost
+      - "0.0.0.0:12022:2022"
+      - "127.0.0.1:18080:8080"
 
 volumes:
   postgres_data:
