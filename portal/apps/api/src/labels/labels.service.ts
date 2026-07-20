@@ -12,7 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { buildSscc, isValidSscc } from './sscc';
-import { writeTransportLabelPdf } from './label-pdf';
+import { writeTransportLabelPdf, writeTransportLabelsPrintPdf } from './label-pdf';
 
 @Injectable()
 export class LabelsService {
@@ -37,8 +37,9 @@ export class LabelsService {
   }
 
   /**
-   * Stellt Colli inkl. SSCC sicher (aus packageCount bzw. Positionen)
-   * und erzeugt pro Collo ein Transportetikett-PDF (DocumentType.LABEL).
+   * Stellt Colli inkl. SSCC sicher und erzeugt Etiketten-PDFs:
+   * - je Collo ein Einzel-PDF
+   * - ein kombiniertes Druck-PDF (alle Etiketten, eine Seite pro Collo)
    */
   async generateLabels(user: AuthUser, shipmentId: string) {
     const shipment = await this.getShipment(user, shipmentId);
@@ -48,40 +49,40 @@ export class LabelsService {
     );
     const docs = [];
 
-    for (const collo of colli) {
+    const labelShipment = {
+      trackingNumber: shipment.trackingNumber,
+      reference: shipment.reference,
+      orderExternalNumber: shipment.order?.externalNumber,
+      goodsDescription: shipment.goodsDescription,
+      pickupCompany: shipment.pickupCompany,
+      pickupStreet: shipment.pickupStreet,
+      pickupZip: shipment.pickupZip,
+      pickupCity: shipment.pickupCity,
+      pickupCountry: shipment.pickupCountry,
+      deliveryCompany: shipment.deliveryCompany,
+      deliveryStreet: shipment.deliveryStreet,
+      deliveryZip: shipment.deliveryZip,
+      deliveryCity: shipment.deliveryCity,
+      deliveryCountry: shipment.deliveryCountry,
+      customerName: shipment.customer?.name,
+      mandantName: shipment.mandant?.name,
+    };
+
+    const labelColli = colli.map((collo) => ({
+      itemNumber: collo.itemNumber,
+      sscc: collo.sscc,
+      content: collo.content,
+      weightKg: collo.weightKg,
+      lengthCm: collo.lengthCm,
+      widthCm: collo.widthCm,
+      heightCm: collo.heightCm,
+      totalColli: colli.length,
+    }));
+
+    for (const collo of labelColli) {
       const fileName = `Label-${shipment.trackingNumber}-${collo.itemNumber}-${collo.sscc}.pdf`;
       const storagePath = join(this.uploadDir, fileName);
-      await writeTransportLabelPdf(
-        {
-          trackingNumber: shipment.trackingNumber,
-          reference: shipment.reference,
-          orderExternalNumber: shipment.order?.externalNumber,
-          goodsDescription: shipment.goodsDescription,
-          pickupCompany: shipment.pickupCompany,
-          pickupStreet: shipment.pickupStreet,
-          pickupZip: shipment.pickupZip,
-          pickupCity: shipment.pickupCity,
-          pickupCountry: shipment.pickupCountry,
-          deliveryCompany: shipment.deliveryCompany,
-          deliveryStreet: shipment.deliveryStreet,
-          deliveryZip: shipment.deliveryZip,
-          deliveryCity: shipment.deliveryCity,
-          deliveryCountry: shipment.deliveryCountry,
-          customerName: shipment.customer?.name,
-          mandantName: shipment.mandant?.name,
-        },
-        {
-          itemNumber: collo.itemNumber,
-          sscc: collo.sscc,
-          content: collo.content,
-          weightKg: collo.weightKg,
-          lengthCm: collo.lengthCm,
-          widthCm: collo.widthCm,
-          heightCm: collo.heightCm,
-          totalColli: colli.length,
-        },
-        storagePath,
-      );
+      await writeTransportLabelPdf(labelShipment, collo, storagePath);
 
       const doc = await this.prisma.document.create({
         data: {
@@ -99,14 +100,40 @@ export class LabelsService {
       docs.push(doc);
     }
 
+    // Kombiniertes Druck-PDF für den Etikettendruck (alle Colli)
+    const printFileName = `Etiketten-${shipment.trackingNumber}.pdf`;
+    const printPath = join(this.uploadDir, printFileName);
+    await writeTransportLabelsPrintPdf(labelShipment, labelColli, printPath);
+    const printDocument = await this.prisma.document.create({
+      data: {
+        organizationId: shipment.organizationId,
+        shipmentId: shipment.id,
+        customerId: shipment.customerId,
+        type: DocumentType.LABEL,
+        fileName: printFileName,
+        mimeType: 'application/pdf',
+        storagePath: printPath,
+        sizeBytes: statSync(printPath).size,
+        uploadedById: user.id,
+      },
+    });
+    docs.push(printDocument);
+
     await this.audit.log(user.id, 'label.generate', 'Shipment', shipment.id, {
       trackingNumber: shipment.trackingNumber,
       colloCount: colli.length,
       documentIds: docs.map((d) => d.id),
+      printDocumentId: printDocument.id,
     });
 
     this.logger.log(`Labels generated for ${shipment.trackingNumber}: ${colli.length} colli`);
-    return { shipmentId: shipment.id, trackingNumber: shipment.trackingNumber, colli, documents: docs };
+    return {
+      shipmentId: shipment.id,
+      trackingNumber: shipment.trackingNumber,
+      colli,
+      documents: docs,
+      printDocument,
+    };
   }
 
   async listLabels(user: AuthUser, shipmentId: string) {

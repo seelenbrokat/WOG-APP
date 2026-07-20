@@ -23,10 +23,11 @@ export class LabelsController {
 
   /**
    * Colli/SSCC sicherstellen und Transportetiketten (PDF) erzeugen.
-   * Portal-eigene Labelgenerierung – Ablöse von shipping.NET generateLabel.
+   * Liefert u. a. `printDocument` (kombiniertes Druck-PDF aller Colli).
+   * Auch für Kunden (Etikettendruck nach Auftragsübergabe).
    */
   @Post('labels')
-  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   generateLabels(@CurrentUser() user: AuthUser, @Param('shipmentId') shipmentId: string) {
     return this.labels.generateLabels(user, shipmentId);
   }

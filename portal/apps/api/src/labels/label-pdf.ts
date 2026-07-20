@@ -17,6 +17,8 @@ const bwipjs = nodeRequire('bwip-js') as {
   }) => Promise<Buffer>;
 };
 
+const LABEL_SIZE: [number, number] = [283.46, 425.2]; // 100×150 mm
+
 export type LabelShipment = {
   trackingNumber: string;
   reference?: string | null;
@@ -58,81 +60,108 @@ async function barcodePng(sscc: string): Promise<Buffer> {
   });
 }
 
+async function drawLabelPage(
+  doc: PDFKit.PDFDocument,
+  shipment: LabelShipment,
+  collo: LabelCollo,
+): Promise<void> {
+  const barcode = await barcodePng(collo.sscc);
+  const hr = ssccAiData(collo.sscc);
+
+  doc.fontSize(9).fillColor('#333').text('WOG Logistics', { continued: false });
+  doc.fontSize(8).fillColor('#666').text(shipment.mandantName || '');
+  doc.moveDown(0.3);
+  doc.moveTo(18, doc.y).lineTo(265, doc.y).strokeColor('#ccc').stroke();
+  doc.moveDown(0.4);
+
+  doc.fillColor('#000').fontSize(11).text('Transportetikett', { align: 'left' });
+  doc.fontSize(9);
+  doc.text(`Sendung: ${shipment.trackingNumber}`);
+  if (shipment.orderExternalNumber) doc.text(`Auftrag: ${shipment.orderExternalNumber}`);
+  if (shipment.reference) doc.text(`Referenz: ${shipment.reference}`);
+  doc.text(`Collo: ${collo.itemNumber} / ${collo.totalColli}`);
+  if (collo.weightKg != null) doc.text(`Gewicht: ${collo.weightKg} kg`);
+  if (collo.lengthCm != null || collo.widthCm != null || collo.heightCm != null) {
+    doc.text(
+      `Maße: ${collo.lengthCm ?? '–'} × ${collo.widthCm ?? '–'} × ${collo.heightCm ?? '–'} cm`,
+    );
+  }
+  if (collo.content || shipment.goodsDescription) {
+    doc.text(`Inhalt: ${collo.content || shipment.goodsDescription}`);
+  }
+
+  doc.moveDown(0.5);
+  doc.fontSize(8).fillColor('#444').text('Von');
+  doc.fillColor('#000').fontSize(9);
+  doc.text(shipment.pickupCompany || '–');
+  doc.text(
+    [shipment.pickupStreet, `${shipment.pickupZip || ''} ${shipment.pickupCity || ''}`, shipment.pickupCountry]
+      .filter((x) => String(x || '').trim())
+      .join(', '),
+  );
+
+  doc.moveDown(0.3);
+  doc.fontSize(8).fillColor('#444').text('Nach');
+  doc.fillColor('#000').fontSize(10);
+  doc.text(shipment.deliveryCompany || '–');
+  doc.text(shipment.deliveryStreet || '');
+  doc.fontSize(11).text(`${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''}`, {
+    continued: false,
+  });
+  doc.fontSize(9).text(shipment.deliveryCountry || '');
+
+  doc.moveDown(0.6);
+  const barcodeY = Math.min(doc.y, 280);
+  const barcodeW = 240;
+  const barcodeH = 70;
+  doc.image(barcode, 22, barcodeY, { width: barcodeW, height: barcodeH });
+  doc.y = barcodeY + barcodeH + 6;
+  doc.fontSize(9).fillColor('#000').text(hr, { align: 'center', width: 245 });
+  doc.fontSize(8).fillColor('#333').text(`SSCC ${collo.sscc}`, { align: 'center', width: 245 });
+}
+
 /** Ein Collo-Etikett (ca. 100×150 mm) als PDF-Seite. */
 export async function writeTransportLabelPdf(
   shipment: LabelShipment,
   collo: LabelCollo,
   storagePath: string,
 ): Promise<void> {
-  const barcode = await barcodePng(collo.sscc);
-  const hr = ssccAiData(collo.sscc);
-
-  return new Promise((resolve, reject) => {
-    // 100mm x 150mm ≈ 283.5 x 425.2 pt
-    const doc = new PDFDocument({
-      size: [283.46, 425.2],
-      margin: 18,
-    });
-    const stream = createWriteStream(storagePath);
-    doc.pipe(stream);
-
-    doc.fontSize(9).fillColor('#333').text('WOG Logistics', { continued: false });
-    doc.fontSize(8).fillColor('#666').text(shipment.mandantName || '');
-    doc.moveDown(0.3);
-    doc
-      .moveTo(18, doc.y)
-      .lineTo(265, doc.y)
-      .strokeColor('#ccc')
-      .stroke();
-    doc.moveDown(0.4);
-
-    doc.fillColor('#000').fontSize(11).text('Transportetikett', { align: 'left' });
-    doc.fontSize(9);
-    doc.text(`Sendung: ${shipment.trackingNumber}`);
-    if (shipment.orderExternalNumber) doc.text(`Auftrag: ${shipment.orderExternalNumber}`);
-    if (shipment.reference) doc.text(`Referenz: ${shipment.reference}`);
-    doc.text(`Collo: ${collo.itemNumber} / ${collo.totalColli}`);
-    if (collo.weightKg != null) doc.text(`Gewicht: ${collo.weightKg} kg`);
-    if (collo.lengthCm != null || collo.widthCm != null || collo.heightCm != null) {
-      doc.text(
-        `Maße: ${collo.lengthCm ?? '–'} × ${collo.widthCm ?? '–'} × ${collo.heightCm ?? '–'} cm`,
-      );
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: LABEL_SIZE, margin: 18 });
+      const stream = createWriteStream(storagePath);
+      doc.pipe(stream);
+      await drawLabelPage(doc, shipment, collo);
+      doc.end();
+      stream.on('finish', () => resolve());
+      stream.on('error', reject);
+    } catch (err) {
+      reject(err);
     }
-    if (collo.content || shipment.goodsDescription) {
-      doc.text(`Inhalt: ${collo.content || shipment.goodsDescription}`);
+  });
+}
+
+/** Alle Colli einer Sendung als mehrseitiges Druck-PDF (eine Seite pro Etikett). */
+export async function writeTransportLabelsPrintPdf(
+  shipment: LabelShipment,
+  colli: LabelCollo[],
+  storagePath: string,
+): Promise<void> {
+  if (!colli.length) throw new Error('Keine Colli für Etikettendruck');
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: LABEL_SIZE, margin: 18 });
+      const stream = createWriteStream(storagePath);
+      doc.pipe(stream);
+      for (let i = 0; i < colli.length; i++) {
+        if (i > 0) doc.addPage({ size: LABEL_SIZE, margin: 18 });
+        await drawLabelPage(doc, shipment, colli[i]);
+      }
+      doc.end();
+      stream.on('finish', () => resolve());
+      stream.on('error', reject);
+    } catch (err) {
+      reject(err);
     }
-
-    doc.moveDown(0.5);
-    doc.fontSize(8).fillColor('#444').text('Von');
-    doc.fillColor('#000').fontSize(9);
-    doc.text(shipment.pickupCompany || '–');
-    doc.text(
-      [shipment.pickupStreet, `${shipment.pickupZip || ''} ${shipment.pickupCity || ''}`, shipment.pickupCountry]
-        .filter((x) => String(x || '').trim())
-        .join(', '),
-    );
-
-    doc.moveDown(0.3);
-    doc.fontSize(8).fillColor('#444').text('Nach');
-    doc.fillColor('#000').fontSize(10);
-    doc.text(shipment.deliveryCompany || '–');
-    doc.text(shipment.deliveryStreet || '');
-    doc
-      .fontSize(11)
-      .text(`${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''}`, { continued: false });
-    doc.fontSize(9).text(shipment.deliveryCountry || '');
-
-    doc.moveDown(0.6);
-    const barcodeY = Math.min(doc.y, 280);
-    const barcodeW = 240;
-    const barcodeH = 70;
-    doc.image(barcode, 22, barcodeY, { width: barcodeW, height: barcodeH });
-    doc.y = barcodeY + barcodeH + 6;
-    doc.fontSize(9).fillColor('#000').text(hr, { align: 'center', width: 245 });
-    doc.fontSize(8).fillColor('#333').text(`SSCC ${collo.sscc}`, { align: 'center', width: 245 });
-
-    doc.end();
-    stream.on('finish', () => resolve());
-    stream.on('error', reject);
   });
 }
