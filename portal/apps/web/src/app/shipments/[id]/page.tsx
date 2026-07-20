@@ -91,10 +91,33 @@ function ShipmentDetailInner() {
               WOG und Sie können die Übergabe an dieser Auftragsnummer und am Status „Übermittelt“ erkennen.
               {tms.tone === 'ok' ? ` ${tms.label}.` : ''}
             </div>
-            {shipment.orderId && (
-              <div className="row" style={{ marginTop: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="row" style={{ marginTop: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-primary"
+                disabled={busy === 'labels'}
+                onClick={async () => {
+                  setError('');
+                  setBusy('labels');
+                  try {
+                    const res = await api<any>(`/shipments/${shipment.id}/labels`, {
+                      method: 'POST',
+                    });
+                    const printDoc = res.printDocument || res.documents?.[res.documents.length - 1];
+                    if (!printDoc?.id) throw new Error('Etiketten-PDF fehlt');
+                    await downloadDocument(printDoc.id, printDoc.fileName);
+                    await load();
+                  } catch (e: any) {
+                    setError(e.message);
+                  } finally {
+                    setBusy('');
+                  }
+                }}
+              >
+                Etiketten drucken
+              </button>
+              {shipment.orderId && (
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-secondary"
                   disabled={busy === 'loading-list'}
                   onClick={async () => {
                     setError('');
@@ -114,14 +137,16 @@ function ShipmentDetailInner() {
                 >
                   Ladeliste / Auftragsbestätigung drucken
                 </button>
+              )}
+              {shipment.orderId && (
                 <Link
-                  className="btn btn-secondary"
+                  className="btn btn-ghost"
                   href={`/shipments/new?orderId=${shipment.orderId}&mandantId=${shipment.mandantId}&customerId=${shipment.customerId}`}
                 >
                   Weitere Sendung zum Auftrag
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
         {error && <div className="error">{error}</div>}
@@ -199,15 +224,6 @@ function ShipmentDetailInner() {
                   }}
                 >
                   Ablieferbeleg erzeugen
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={async () => {
-                    await api(`/shipments/${shipment.id}/labels`, { method: 'POST' });
-                    await load();
-                  }}
-                >
-                  Etiketten erzeugen (SSCC)
                 </button>
               </div>
             )}

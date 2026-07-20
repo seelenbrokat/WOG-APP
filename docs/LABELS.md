@@ -28,7 +28,12 @@ GET  /api/shipments/:id/labels
 POST /api/shipments/:id/labels
 ```
 
-`POST …/labels` stellt Colli sicher (aus `packageCount`), vergibt SSCCs und speichert PDF-Dokumente. Download über `/api/documents/:id/download`.
+`POST …/labels` (auch für Kunden) stellt Colli sicher, vergibt SSCCs und speichert:
+
+- Einzel-PDFs je Collo (`Label-…pdf`)
+- kombiniertes Druck-PDF aller Etiketten (`Etiketten-{tracking}.pdf`) als `printDocument`
+
+UI: Button **Etiketten drucken** im Sendungsdetail (nach Übergabe). Download über `/api/documents/:id/download`.
 
 ## Soloplan
 
