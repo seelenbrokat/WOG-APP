@@ -4,9 +4,11 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
 import PDFDocument from 'pdfkit';
 import { DocumentType, UserRole } from '@prisma/client';
+import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
+import { drawA4BrandHeader, drawA4Footer, WOG_PDF } from '../common/pdf-brand';
 
 @Injectable()
 export class OrdersService {
@@ -130,32 +132,74 @@ export class OrdersService {
 
   private writeLoadingListPdf(order: any, storagePath: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 48, size: 'A4' });
+      const doc = new PDFDocument({
+        margin: 48,
+        size: 'A4',
+        bufferPages: true,
+        info: {
+          Title: `Ladeliste ${order.externalNumber}`,
+          Author: 'WOG Logistics',
+          Subject: 'Auftragsbestätigung / Ladeliste',
+        },
+      });
       const stream = createWriteStream(storagePath);
       doc.pipe(stream);
 
-      doc.fontSize(18).fillColor('#111').text('WOG Logistics', { continued: false });
-      doc.fontSize(14).text('Auftragsbestätigung / Ladeliste');
-      doc.moveDown(0.4);
-      doc
-        .moveTo(48, doc.y)
-        .lineTo(547, doc.y)
-        .strokeColor('#cccccc')
-        .stroke();
-      doc.moveDown(0.6);
+      const left = 48;
+      const right = 547;
+      const contentW = right - left;
+      let pageNumber = 1;
 
-      doc.fontSize(11).fillColor('#000');
-      doc.text(`Auftrag: ${order.externalNumber}`);
-      doc.text(`Mandant: ${order.mandant?.name || '–'}`);
-      doc.text(`Frachtzahler: ${order.freightPayer?.name || '–'}`);
-      doc.text(`Datum: ${new Date().toLocaleString('de-AT')}`);
-      doc.text(`Status Auftrag: ${order.status}`);
+      const ensureSpace = (need: number) => {
+        // Platz für Footer im unteren Rand lassen
+        if (doc.y + need > doc.page.height - 56) {
+          doc.addPage();
+          pageNumber += 1;
+          drawA4BrandHeader(doc, {
+            title: 'Auftragsbestätigung / Ladeliste',
+            subtitle: `${order.externalNumber}  ·  Fortsetzung`,
+          });
+        }
+      };
+
+      drawA4BrandHeader(doc, {
+        title: 'Auftragsbestätigung / Ladeliste',
+        subtitle: 'Kundenportal  ·  verbindliche Abholunterlage',
+      });
+
+      // Meta-Box
+      const metaTop = doc.y;
+      doc.rect(left, metaTop, contentW, 78).fill(WOG_PDF.soft);
+      doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(11);
+      doc.text(`Auftrag ${order.externalNumber}`, left + 12, metaTop + 10, { width: contentW / 2 - 16 });
+      doc.font('Helvetica').fontSize(9).fillColor(WOG_PDF.muted);
+      doc.text(`erstellt ${new Date().toLocaleString('de-AT')}`, left + contentW / 2, metaTop + 12, {
+        width: contentW / 2 - 12,
+        align: 'right',
+      });
+
+      doc.fillColor(WOG_PDF.ink).fontSize(9);
+      const col1 = left + 12;
+      const col2 = left + contentW / 2 + 4;
+      let my = metaTop + 30;
+      const metaLine = (x: number, y: number, label: string, value: string, labelW = 78) => {
+        doc.font('Helvetica-Bold').fillColor(WOG_PDF.muted).text(label, x, y, {
+          width: labelW,
+          lineBreak: false,
+        });
+        doc.font('Helvetica').fillColor(WOG_PDF.ink).text(value, x + labelW, y, {
+          width: contentW / 2 - labelW - 20,
+          lineBreak: false,
+        });
+      };
+      metaLine(col1, my, 'Mandant', order.mandant?.name || '–');
+      metaLine(col2, my, 'Status', order.status, 55);
+      my += 14;
+      metaLine(col1, my, 'Frachtzahler', order.freightPayer?.name || '–');
       if (order.soloplanRef) {
-        doc.fontSize(9).fillColor('#555').text(`TMS-Referenz: ${order.soloplanRef}`);
-        doc.fontSize(11).fillColor('#000');
+        metaLine(col2, my, 'TMS', String(order.soloplanRef), 55);
       }
-      doc.moveDown();
-
+      my += 14;
       const totalColli = order.shipments.reduce(
         (sum: number, s: any) => sum + (s.packageCount || s.colli?.length || 0),
         0,
@@ -164,34 +208,70 @@ export class OrdersService {
         (sum: number, s: any) => sum + (Number(s.weightKg) || 0),
         0,
       );
-      doc.text(`Sendungen: ${order.shipments.length}  ·  Colli gesamt: ${totalColli}  ·  Gewicht: ${totalWeight || '–'} kg`);
-      doc.moveDown(0.8);
+      metaLine(col1, my, 'Sendungen', String(order.shipments.length));
+      metaLine(col2, my, 'Colli / kg', `${totalColli}  ·  ${totalWeight || '–'} kg`, 55);
+      doc.x = left;
+      doc.y = metaTop + 88;
 
       let colloRunning = 0;
       order.shipments.forEach((shipment: any, idx: number) => {
-        if (doc.y > 700) doc.addPage();
-        doc.fontSize(12).fillColor('#000').text(`Sendung ${idx + 1}: ${shipment.trackingNumber}`, {
-          underline: false,
-        });
-        doc.fontSize(9).fillColor('#444');
-        if (shipment.reference) doc.text(`Referenz: ${shipment.reference}`);
-        doc.text(`Status: ${shipment.status}`);
+        ensureSpace(120);
+        const headY = doc.y;
+        doc.rect(left, headY, contentW, 18).fill(WOG_PDF.green);
+        doc
+          .fillColor(WOG_PDF.white)
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(
+            `Sendung ${idx + 1}  ·  ${shipment.trackingNumber}${shipment.reference ? `  ·  Ref. ${shipment.reference}` : ''}`,
+            left + 8,
+            headY + 4,
+            { width: contentW - 16 },
+          );
+        doc.y = headY + 24;
+
+        doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(9);
+        const addrW = contentW / 2 - 8;
+        const addrY = doc.y;
+        doc.font('Helvetica-Bold').fillColor(WOG_PDF.greenDeep).text('Abholung', left, addrY);
+        doc.font('Helvetica').fillColor(WOG_PDF.ink);
+        doc.text(shipment.pickupCompany || '–', left, doc.y, { width: addrW });
+        doc.text(shipment.pickupStreet || '', { width: addrW });
         doc.text(
-          `Von: ${[shipment.pickupCompany, shipment.pickupStreet, `${shipment.pickupZip || ''} ${shipment.pickupCity || ''}`, shipment.pickupCountry].filter(Boolean).join(', ')}`,
+          `${shipment.pickupZip || ''} ${shipment.pickupCity || ''}  ${shipment.pickupCountry || ''}`.trim(),
+          { width: addrW },
         );
+        const leftBottom = doc.y;
+
+        doc.y = addrY;
+        doc.font('Helvetica-Bold').fillColor(WOG_PDF.greenDeep).text('Zustellung', col2, addrY);
+        doc.font('Helvetica').fillColor(WOG_PDF.ink);
+        doc.text(shipment.deliveryCompany || '–', col2, doc.y, { width: addrW });
+        doc.text(shipment.deliveryStreet || '', col2, doc.y, { width: addrW });
         doc.text(
-          `Nach: ${[shipment.deliveryCompany, shipment.deliveryStreet, `${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''}`, shipment.deliveryCountry].filter(Boolean).join(', ')}`,
+          `${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''}  ${shipment.deliveryCountry || ''}`.trim(),
+          col2,
+          doc.y,
+          { width: addrW },
         );
-        if (shipment.deliveryAvisPhone) doc.text(`Avis-Tel: ${shipment.deliveryAvisPhone}`);
-        if (shipment.goodsDescription) doc.text(`Ware: ${shipment.goodsDescription}`);
-        if (shipment.extras && typeof shipment.extras === 'object') {
-          const flags = Object.entries(shipment.extras as Record<string, unknown>)
-            .filter(([, v]) => v === true)
-            .map(([k]) => k)
-            .join(', ');
-          if (flags) doc.text(`Zusatz: ${flags}`);
+        if (shipment.deliveryAvisPhone) {
+          doc.fillColor(WOG_PDF.muted).text(`Avis: ${shipment.deliveryAvisPhone}`, col2, doc.y, {
+            width: addrW,
+          });
         }
-        doc.moveDown(0.3);
+        doc.y = Math.max(leftBottom, doc.y) + 6;
+        doc.x = left;
+
+        if (shipment.goodsDescription) {
+          doc.fillColor(WOG_PDF.ink).font('Helvetica').text(`Ware: ${shipment.goodsDescription}`, {
+            width: contentW,
+          });
+        }
+        const extraLabels = shipmentExtrasLabels(shipment.extras as ShipmentExtras);
+        if (extraLabels.length) {
+          doc.fillColor(WOG_PDF.muted).text(`Zusatz: ${extraLabels.join(' · ')}`, { width: contentW });
+        }
+        doc.moveDown(0.25);
 
         const rows =
           shipment.colli?.length > 0
@@ -199,6 +279,7 @@ export class OrdersService {
             : (shipment.positions || []).map((p: any, i: number) => ({
                 itemNumber: i + 1,
                 sscc: p.sscc,
+                packaging: p.packaging,
                 content: p.description,
                 weightKg: p.weightKg,
                 lengthCm: p.lengthCm,
@@ -207,36 +288,96 @@ export class OrdersService {
               }));
 
         if (!rows.length) {
-          doc.text(`  Colli: ${shipment.packageCount || 1}  Gewicht: ${shipment.weightKg ?? '–'} kg`);
+          doc
+            .fillColor(WOG_PDF.ink)
+            .text(`Colli: ${shipment.packageCount || 1}   Gewicht: ${shipment.weightKg ?? '–'} kg`);
         } else {
-          doc.fontSize(9).fillColor('#000');
+          ensureSpace(28 + rows.length * 14);
+          const cols = [
+            { key: 'nr', label: '#', w: 22 },
+            { key: 'pkg', label: 'Verp.', w: 40 },
+            { key: 'content', label: 'Inhalt', w: 150 },
+            { key: 'kg', label: 'kg', w: 40 },
+            { key: 'dims', label: 'L×B×H cm', w: 78 },
+            { key: 'sscc', label: 'SSCC', w: 119 },
+          ] as const;
+          const tableX = left;
+          let tx = tableX;
+          const thY = doc.y;
+          doc.rect(tableX, thY, contentW, 14).fill(WOG_PDF.line);
+          doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(8);
+          for (const c of cols) {
+            doc.text(c.label, tx + 2, thY + 3, { width: c.w - 4, lineBreak: false });
+            tx += c.w;
+          }
+          doc.y = thY + 16;
+          doc.font('Helvetica').fontSize(8);
           for (const c of rows) {
+            ensureSpace(16);
             colloRunning += 1;
             const dims =
               c.lengthCm != null || c.widthCm != null || c.heightCm != null
-                ? `${c.lengthCm ?? '–'}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'} cm`
+                ? `${c.lengthCm ?? '–'}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'}`
                 : '–';
-            doc.text(
-              `  ${colloRunning}. Collo ${c.itemNumber ?? ''}  ${c.packaging || ''}  ${c.content || '–'}  ·  ${c.weightKg ?? '–'} kg  ·  ${dims}${c.sscc ? `  ·  SSCC ${c.sscc}` : ''}`,
-            );
+            const values = [
+              String(colloRunning),
+              c.packaging || '–',
+              String(c.content || '–').slice(0, 42),
+              c.weightKg != null ? String(c.weightKg) : '–',
+              dims,
+              c.sscc || '–',
+            ];
+            const rowY = doc.y;
+            if (colloRunning % 2 === 0) {
+              doc.rect(tableX, rowY - 1, contentW, 13).fill('#f7faf8');
+            }
+            doc.fillColor(WOG_PDF.ink);
+            let cx = tableX;
+            values.forEach((v, i) => {
+              doc.text(v, cx + 2, rowY, { width: cols[i].w - 4, lineBreak: false });
+              cx += cols[i].w;
+            });
+            doc.y = rowY + 13;
           }
+          doc
+            .moveTo(tableX, doc.y)
+            .lineTo(tableX + contentW, doc.y)
+            .strokeColor(WOG_PDF.line)
+            .lineWidth(0.5)
+            .stroke();
         }
         doc.moveDown(0.7);
+        doc.x = left;
       });
 
-      if (doc.y > 680) doc.addPage();
-      doc.moveDown();
-      doc.fontSize(10).fillColor('#000');
-      doc.text('Übergabe an Fahrer / Empfangsbestätigung');
-      doc.moveDown(0.5);
-      doc.text('Name: ____________________________  Unterschrift: ____________________________');
-      doc.moveDown(0.4);
-      doc.text('Datum/Uhrzeit: ____________________  Kennzeichen: ____________________');
-      doc.moveDown(1);
-      doc.fontSize(8).fillColor('#666').text(
-        'Dieses Dokument bestätigt die Übermittlung des Auftrags an WOG und dient als Ladeliste für die Abholung.',
-      );
+      ensureSpace(110);
+      const boxY = doc.y;
+      doc.rect(left, boxY, contentW, 88).strokeColor(WOG_PDF.green).lineWidth(1).stroke();
+      doc
+        .fillColor(WOG_PDF.greenDeep)
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .text('Übergabe an Fahrer / Empfangsbestätigung', left + 10, boxY + 8);
+      doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(9);
+      doc.text('Name: ________________________________', left + 10, boxY + 28);
+      doc.text('Unterschrift: _________________________', left + contentW / 2, boxY + 28);
+      doc.text('Datum / Uhrzeit: ______________________', left + 10, boxY + 50);
+      doc.text('Kennzeichen: _________________________', left + contentW / 2, boxY + 50);
+      doc
+        .fontSize(7)
+        .fillColor(WOG_PDF.muted)
+        .text(
+          'Dieses Dokument bestätigt die Übermittlung des Auftrags an WOG und dient als Ladeliste für die Abholung.',
+          left + 10,
+          boxY + 70,
+          { width: contentW - 20 },
+        );
 
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        drawA4Footer(doc, i + 1, range.count);
+      }
       doc.end();
       stream.on('finish', () => resolve());
       stream.on('error', reject);

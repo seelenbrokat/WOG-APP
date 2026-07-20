@@ -35,6 +35,8 @@ POST /api/shipments/:id/labels
 
 UI: Button **Etiketten drucken** im Sendungsdetail (nach Übergabe). Download über `/api/documents/:id/download`.
 
+Etiketten und Ladelisten tragen das **WOG-Logo** (`apps/api/assets/wog-logo.jpg`) und Markenfarben.
+
 ## Soloplan
 
 Beim Order-Export werden vorhandene Colli inkl. `ssccCurrents` in `consignmentItems` gemappt.
