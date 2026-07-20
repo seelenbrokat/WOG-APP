@@ -7,11 +7,10 @@ import { PACKAGING_TYPES, SHIPMENT_EXTRA_OPTIONS, type ShipmentExtras } from '@w
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
 
-type TabId = 'allgemein' | 'colli' | 'zusatz';
+type TabId = 'allgemein' | 'zusatz';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'allgemein', label: 'Allgemein' },
-  { id: 'colli', label: 'Colli' },
   { id: 'zusatz', label: 'Zusatzinformationen' },
 ];
 
@@ -604,10 +603,7 @@ function NewShipmentInner() {
             </label>
           </div>
         </div>
-          </>
-        )}
 
-        {tab === 'colli' && (
         <div className="stack">
           <strong>Colli</strong>
           <div className="field">
@@ -793,6 +789,7 @@ function NewShipmentInner() {
             Verpackung, Maße und Gewicht je Collo fließen in Etiketten und Soloplan-Export ein.
           </p>
         </div>
+          </>
         )}
 
         {tab === 'zusatz' && (
@@ -862,20 +859,20 @@ function NewShipmentInner() {
         {error && <div className="error">{error}</div>}
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div className="row">
-            {tab !== 'allgemein' && (
+            {tab === 'zusatz' && (
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setTab(tab === 'zusatz' ? 'colli' : 'allgemein')}
+                onClick={() => setTab('allgemein')}
               >
                 Zurück
               </button>
             )}
-            {tab !== 'zusatz' && (
+            {tab === 'allgemein' && (
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setTab(tab === 'allgemein' ? 'colli' : 'zusatz')}
+                onClick={() => setTab('zusatz')}
               >
                 Weiter
               </button>
