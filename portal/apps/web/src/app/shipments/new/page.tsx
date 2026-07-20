@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { PACKAGING_TYPES } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
 
@@ -43,27 +44,40 @@ type Template = {
 
 type ColloDraft = {
   description: string;
+  packaging: string;
   weightKg: string;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
 };
 
-function emptyCollo(description = ''): ColloDraft {
-  return { description, weightKg: '', lengthCm: '', widthCm: '', heightCm: '' };
+function emptyCollo(description = '', packaging = 'EUP'): ColloDraft {
+  return { description, packaging, weightKg: '', lengthCm: '', widthCm: '', heightCm: '' };
 }
 
-function resizeColli(colli: ColloDraft[], count: number, fallbackDescription: string): ColloDraft[] {
-  const n = Math.max(1, count);
-  if (colli.length === n) return colli;
-  if (colli.length < n) {
-    const next = [...colli];
-    while (next.length < n) {
-      next.push(emptyCollo(fallbackDescription));
-    }
-    return next;
-  }
-  return colli.slice(0, n);
+/** n Colli aus Anzahl + Gesamtgewicht (z. B. 10 EUP / 2000 kg → 10×200 kg). */
+function splitColli(opts: {
+  count: number;
+  packaging: string;
+  totalWeightKg: number;
+  description: string;
+  lengthCm?: string;
+  widthCm?: string;
+  heightCm?: string;
+}): ColloDraft[] {
+  const n = Math.max(1, Math.floor(opts.count) || 1);
+  const unit =
+    opts.totalWeightKg > 0
+      ? String(Math.round((opts.totalWeightKg / n) * 1000) / 1000)
+      : '';
+  return Array.from({ length: n }, () => ({
+    description: opts.description,
+    packaging: opts.packaging || 'EUP',
+    weightKg: unit,
+    lengthCm: opts.lengthCm || '',
+    widthCm: opts.widthCm || '',
+    heightCm: opts.heightCm || '',
+  }));
 }
 
 type OpenOrder = {
@@ -89,6 +103,14 @@ function NewShipmentInner() {
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [error, setError] = useState('');
   const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
+  const [quick, setQuick] = useState({
+    count: '1',
+    packaging: 'EUP',
+    totalWeightKg: '',
+    lengthCm: '',
+    widthCm: '',
+    heightCm: '',
+  });
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
@@ -241,31 +263,94 @@ function NewShipmentInner() {
       deliveryCity: t.deliveryCity || '',
       notes: t.notes || '',
     }));
-    setColli(resizeColli([], count, t.goodsDescription || ''));
+    const next = splitColli({
+      count,
+      packaging: quick.packaging,
+      totalWeightKg: Number(t.weightKg) || 0,
+      description: t.goodsDescription || '',
+    });
+    setColli(next);
+    setQuick((q) => ({
+      ...q,
+      count: String(count),
+      totalWeightKg: t.weightKg ? String(t.weightKg) : '',
+    }));
   }
 
   function updateCollo(index: number, patch: Partial<ColloDraft>) {
     setColli((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
-  function setPackageCount(count: number) {
-    const n = Math.max(1, count || 1);
-    setForm((f) => ({ ...f, packageCount: n }));
-    setColli((rows) => resizeColli(rows, n, form.goodsDescription));
+  function applyQuickSplit() {
+    const count = Math.max(1, Number(quick.count) || 1);
+    const totalWeightKg = Number(quick.totalWeightKg) || 0;
+    const next = splitColli({
+      count,
+      packaging: quick.packaging,
+      totalWeightKg,
+      description: form.goodsDescription,
+      lengthCm: quick.lengthCm,
+      widthCm: quick.widthCm,
+      heightCm: quick.heightCm,
+    });
+    setColli(next);
+    setForm((f) => ({ ...f, packageCount: count, weightKg: totalWeightKg }));
+  }
+
+  function addCollo() {
+    const last = colli[colli.length - 1];
+    setColli((rows) => [
+      ...rows,
+      emptyCollo(form.goodsDescription, last?.packaging || quick.packaging || 'EUP'),
+    ]);
+    setForm((f) => ({ ...f, packageCount: f.packageCount + 1 }));
+  }
+
+  function removeCollo(index: number) {
+    setColli((rows) => {
+      if (rows.length <= 1) return rows;
+      const next = rows.filter((_, i) => i !== index);
+      setForm((f) => ({ ...f, packageCount: next.length }));
+      return next;
+    });
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     try {
-      const positions = colli.map((c) => {
+      // Wenn nur Schnellfassung gesetzt und Colli leer/unbearbeitet: vor Submit aufteilen
+      let rows = colli;
+      const quickCount = Math.max(1, Number(quick.count) || 1);
+      const quickTotal = Number(quick.totalWeightKg) || 0;
+      const untouched =
+        rows.length === 1 &&
+        !rows[0].weightKg &&
+        !rows[0].description &&
+        quickCount > 1 &&
+        quickTotal > 0;
+      if (untouched) {
+        rows = splitColli({
+          count: quickCount,
+          packaging: quick.packaging,
+          totalWeightKg: quickTotal,
+          description: form.goodsDescription,
+          lengthCm: quick.lengthCm,
+          widthCm: quick.widthCm,
+          heightCm: quick.heightCm,
+        });
+        setColli(rows);
+      }
+
+      const positions = rows.map((c) => {
         const weightKg = Number(c.weightKg);
         const lengthCm = Number(c.lengthCm);
         const widthCm = Number(c.widthCm);
         const heightCm = Number(c.heightCm);
         return {
-          description: c.description.trim() || form.goodsDescription || `Collo`,
+          description: c.description.trim() || form.goodsDescription || c.packaging || 'Collo',
           quantity: 1,
+          packaging: c.packaging || undefined,
           weightKg: Number.isFinite(weightKg) && weightKg > 0 ? weightKg : undefined,
           lengthCm: Number.isFinite(lengthCm) && lengthCm > 0 ? lengthCm : undefined,
           widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : undefined,
@@ -450,18 +535,7 @@ function NewShipmentInner() {
         </div>
 
         <div className="stack">
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
-            <strong>Colli</strong>
-            <div className="field" style={{ margin: 0, maxWidth: 120 }}>
-              <label>Anzahl</label>
-              <input
-                type="number"
-                min={1}
-                value={form.packageCount}
-                onChange={(e) => setPackageCount(Number(e.target.value))}
-              />
-            </div>
-          </div>
+          <strong>Colli</strong>
           <div className="field">
             <label>Warenbeschreibung (gesamt, optional)</label>
             <input
@@ -470,16 +544,120 @@ function NewShipmentInner() {
               placeholder="z. B. Heiztechnik / Mischsendung"
             />
           </div>
+
+          <div
+            className="stack"
+            style={{
+              background: 'var(--wog-green-soft, #eef7f1)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius, 8px)',
+              padding: '0.85rem 1rem',
+            }}
+          >
+            <strong style={{ fontSize: '0.95rem' }}>Schnellfassung</strong>
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              z. B. 10 EUP / 2000 kg → wird zu 10 einzelnen Colli à 200 kg aufgeteilt.
+            </p>
+            <div className="grid-3">
+              <div className="field">
+                <label>Anzahl</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={quick.count}
+                  onChange={(e) => setQuick({ ...quick, count: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Verpackungsart</label>
+                <select
+                  value={quick.packaging}
+                  onChange={(e) => setQuick({ ...quick, packaging: e.target.value })}
+                >
+                  {PACKAGING_TYPES.map((p) => (
+                    <option key={p.code} value={p.code}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Gesamtgewicht (kg)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={quick.totalWeightKg}
+                  onChange={(e) => setQuick({ ...quick, totalWeightKg: e.target.value })}
+                  placeholder="2000"
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>Abmessungen je Collo L × B × H (cm, optional)</label>
+              <div className="row">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="L"
+                  value={quick.lengthCm}
+                  onChange={(e) => setQuick({ ...quick, lengthCm: e.target.value })}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="B"
+                  value={quick.widthCm}
+                  onChange={(e) => setQuick({ ...quick, widthCm: e.target.value })}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="H"
+                  value={quick.heightCm}
+                  onChange={(e) => setQuick({ ...quick, heightCm: e.target.value })}
+                />
+              </div>
+            </div>
+            <button className="btn btn-secondary" type="button" onClick={applyQuickSplit}>
+              Aufteilen in einzelne Colli
+            </button>
+          </div>
+
           {colli.map((c, index) => (
             <div key={index} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
-              <strong style={{ fontSize: '0.95rem' }}>Collo {index + 1}</strong>
-              <div className="field">
-                <label>Inhalt</label>
-                <input
-                  value={c.description}
-                  onChange={(e) => updateCollo(index, { description: e.target.value })}
-                  placeholder={form.goodsDescription || 'Inhalt / Packstück'}
-                />
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '0.95rem' }}>Collo {index + 1}</strong>
+                {colli.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => removeCollo(index)}
+                    aria-label={`Collo ${index + 1} entfernen`}
+                    title="Collo entfernen"
+                  >
+                    −
+                  </button>
+                )}
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Verpackungsart</label>
+                  <select
+                    value={c.packaging}
+                    onChange={(e) => updateCollo(index, { packaging: e.target.value })}
+                  >
+                    {PACKAGING_TYPES.map((p) => (
+                      <option key={p.code} value={p.code}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Inhalt</label>
+                  <input
+                    value={c.description}
+                    onChange={(e) => updateCollo(index, { description: e.target.value })}
+                    placeholder={form.goodsDescription || 'Inhalt / Packstück'}
+                  />
+                </div>
               </div>
               <div className="grid-2">
                 <div className="field">
@@ -527,8 +705,18 @@ function NewShipmentInner() {
               </div>
             </div>
           ))}
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={addCollo}
+            aria-label="Collo hinzufügen"
+            style={{ alignSelf: 'flex-start' }}
+          >
+            + Collo hinzufügen
+          </button>
           <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-            Abmessungen und Gewicht je Collo fließen in Etiketten und Soloplan-Export ein.
+            Verpackung, Maße und Gewicht je Collo fließen in Etiketten und Soloplan-Export ein.
           </p>
         </div>
         <div className="field">

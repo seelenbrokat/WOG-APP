@@ -25,6 +25,15 @@ class PositionDto {
   @Min(1)
   quantity?: number;
 
+  /** Verpackungsart-Code, z. B. EUP, KRT */
+  @IsOptional()
+  @IsString()
+  packaging?: string;
+
+  /**
+   * Bei quantity > 1 = Gesamtgewicht der Gruppe (wird auf Colli aufgeteilt).
+   * Bei quantity = 1 = Gewicht dieses Collos.
+   */
   @IsOptional()
   @IsNumber()
   weightKg?: number;

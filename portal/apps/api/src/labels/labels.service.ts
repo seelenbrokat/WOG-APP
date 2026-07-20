@@ -72,6 +72,7 @@ export class LabelsService {
       itemNumber: collo.itemNumber,
       sscc: collo.sscc,
       content: collo.content,
+      packaging: collo.packaging,
       weightKg: collo.weightKg,
       lengthCm: collo.lengthCm,
       widthCm: collo.widthCm,
@@ -158,6 +159,7 @@ export class LabelsService {
     positions?: Array<{
       description: string;
       quantity: number;
+      packaging?: string | null;
       weightKg?: number | null;
       lengthCm?: number | null;
       widthCm?: number | null;
@@ -171,11 +173,41 @@ export class LabelsService {
     });
     if (existing.length) return existing;
 
-    const count = Math.max(1, shipment.packageCount || shipment.positions?.length || 1);
+    // Positionen mit quantity>1 aufteilen (Gesamtgewicht → Stückgewicht)
+    const flat: Array<{
+      description: string;
+      packaging?: string | null;
+      weightKg?: number | null;
+      lengthCm?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      sscc?: string | null;
+    }> = [];
+    for (const pos of shipment.positions || []) {
+      const qty = Math.max(1, Math.floor(Number(pos.quantity) || 1));
+      const total = pos.weightKg != null ? Number(pos.weightKg) : undefined;
+      const unit =
+        total != null && Number.isFinite(total)
+          ? Math.round((total / qty) * 1000) / 1000
+          : undefined;
+      for (let i = 0; i < qty; i++) {
+        flat.push({
+          description: pos.description,
+          packaging: pos.packaging,
+          weightKg: unit,
+          lengthCm: pos.lengthCm,
+          widthCm: pos.widthCm,
+          heightCm: pos.heightCm,
+          sscc: i === 0 ? pos.sscc : undefined,
+        });
+      }
+    }
+
+    const count = Math.max(1, flat.length || shipment.packageCount || 1);
 
     const created = [];
     for (let i = 1; i <= count; i++) {
-      const pos = shipment.positions?.[i - 1];
+      const pos = flat[i - 1];
       const sscc = isValidSscc(pos?.sscc)
         ? String(pos!.sscc).replace(/\D/g, '')
         : await this.nextSscc(shipment.organizationId);
@@ -185,6 +217,7 @@ export class LabelsService {
           itemNumber: i,
           sscc,
           content: pos?.description || shipment.goodsDescription || undefined,
+          packaging: pos?.packaging || undefined,
           quantity: 1,
           weightKg: pos?.weightKg ?? (shipment.weightKg != null ? shipment.weightKg / count : undefined),
           lengthCm: pos?.lengthCm ?? undefined,
@@ -220,6 +253,7 @@ export class LabelsService {
       itemNumber: number;
       sscc: string;
       content: string | null;
+      packaging?: string | null;
       quantity: number;
       weightKg: number | null;
       lengthCm: number | null;

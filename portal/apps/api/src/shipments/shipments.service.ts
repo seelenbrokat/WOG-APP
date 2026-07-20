@@ -18,6 +18,47 @@ function trackingNumber() {
   return `WOG${y}${m}${rand}`;
 }
 
+type PositionInput = {
+  description: string;
+  quantity?: number;
+  packaging?: string;
+  weightKg?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  sscc?: string;
+};
+
+/**
+ * quantity > 1 + Gesamtgewicht → einzelne Colli mit gleichem Stückgewicht.
+ * Beispiel: 10× EUP, 2000 kg → 10 Positionen à 200 kg.
+ */
+export function expandPositionsToColli(positions: PositionInput[]): PositionInput[] {
+  const out: PositionInput[] = [];
+  for (const p of positions || []) {
+    const qty = Math.max(1, Math.floor(Number(p.quantity) || 1));
+    const totalWeight = p.weightKg != null ? Number(p.weightKg) : undefined;
+    const unitWeight =
+      totalWeight != null && Number.isFinite(totalWeight)
+        ? Math.round((totalWeight / qty) * 1000) / 1000
+        : undefined;
+    for (let i = 0; i < qty; i++) {
+      out.push({
+        description: p.description,
+        quantity: 1,
+        packaging: p.packaging,
+        weightKg: unitWeight,
+        lengthCm: p.lengthCm,
+        widthCm: p.widthCm,
+        heightCm: p.heightCm,
+        // SSCC nur auf erstes Collo der Gruppe übernehmen
+        sscc: i === 0 ? p.sscc : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 @Injectable()
 export class ShipmentsService {
   constructor(
@@ -110,21 +151,17 @@ export class ShipmentsService {
       savePickupAddress?: boolean;
       saveDeliveryAddress?: boolean;
       saveAsTemplateName?: string;
-      positions?: {
-        description: string;
-        quantity?: number;
-        weightKg?: number;
-        lengthCm?: number;
-        widthCm?: number;
-        heightCm?: number;
-        sscc?: string;
-      }[];
+      positions?: PositionInput[];
     },
   ) {
     const mandant = await this.prisma.mandant.findFirst({
       where: { id: data.mandantId, organizationId: user.organizationId, active: true },
     });
     if (!mandant) throw new NotFoundException('Mandant nicht gefunden');
+
+    const expandedPositions = data.positions?.length
+      ? expandPositionsToColli(data.positions)
+      : [];
 
     let customerId = data.customerId;
     if (user.role === UserRole.CUSTOMER_USER) {
@@ -216,8 +253,12 @@ export class ShipmentsService {
         status,
         transportMode: data.transportMode,
         goodsDescription: data.goodsDescription,
-        packageCount: data.packageCount ?? 1,
-        weightKg: data.weightKg,
+        packageCount: expandedPositions.length || data.packageCount || 1,
+        weightKg:
+          data.weightKg ??
+          (expandedPositions.length
+            ? expandedPositions.reduce((sum, p) => sum + (p.weightKg || 0), 0) || undefined
+            : undefined),
         volumeM3: data.volumeM3,
         pickupCompany,
         pickupStreet,
@@ -233,11 +274,12 @@ export class ShipmentsService {
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : undefined,
         notes: data.notes,
         createdById: user.id,
-        positions: data.positions?.length
+        positions: expandedPositions.length
           ? {
-              create: data.positions.map((p) => ({
+              create: expandedPositions.map((p) => ({
                 description: p.description,
-                quantity: p.quantity ?? 1,
+                quantity: 1,
+                packaging: p.packaging,
                 weightKg: p.weightKg,
                 lengthCm: p.lengthCm,
                 widthCm: p.widthCm,

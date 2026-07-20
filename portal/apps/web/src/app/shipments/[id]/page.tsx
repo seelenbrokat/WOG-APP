@@ -239,6 +239,7 @@ function ShipmentDetailInner() {
                   return (
                     <div key={c.id || idx} className="muted" style={{ fontSize: '0.9rem' }}>
                       #{n}
+                      {c.packaging ? ` · ${c.packaging}` : ''}
                       {c.sscc ? `: ${c.sscc}` : ''}
                       {c.content || c.description ? ` · ${c.content || c.description}` : ''}
                       {c.weightKg != null ? ` · ${c.weightKg} kg` : ''}

@@ -72,3 +72,6 @@ export type { VorarlbergChGoodsBorder } from './borders';
 
 export { FRANKATUREN, isFrankatur } from './frankatur';
 export type { Frankatur } from './frankatur';
+
+export { PACKAGING_TYPES, packagingLabel } from './packaging';
+export type { PackagingCode } from './packaging';

@@ -325,6 +325,8 @@ model ShipmentItem {
   shipmentId  String
   description String
   quantity    Int     @default(1)
+  /// Verpackungsart-Code (z. B. EUP, KRT, FP)
+  packaging   String?
   weightKg    Float?
   lengthCm    Float?
   widthCm     Float?
@@ -342,6 +344,8 @@ model ShipmentCollo {
   /// GS1 SSCC-18 (18 Ziffern)
   sscc        String   @unique
   content     String?
+  /// Verpackungsart-Code (z. B. EUP, KRT, FP)
+  packaging   String?
   quantity    Int      @default(1)
   weightKg    Float?
   lengthCm    Float?

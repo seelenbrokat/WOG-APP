@@ -42,6 +42,7 @@ export type LabelCollo = {
   itemNumber: number;
   sscc: string;
   content?: string | null;
+  packaging?: string | null;
   weightKg?: number | null;
   lengthCm?: number | null;
   widthCm?: number | null;
@@ -80,6 +81,7 @@ async function drawLabelPage(
   if (shipment.orderExternalNumber) doc.text(`Auftrag: ${shipment.orderExternalNumber}`);
   if (shipment.reference) doc.text(`Referenz: ${shipment.reference}`);
   doc.text(`Collo: ${collo.itemNumber} / ${collo.totalColli}`);
+  if (collo.packaging) doc.text(`Verpackung: ${collo.packaging}`);
   if (collo.weightKg != null) doc.text(`Gewicht: ${collo.weightKg} kg`);
   if (collo.lengthCm != null || collo.widthCm != null || collo.heightCm != null) {
     doc.text(

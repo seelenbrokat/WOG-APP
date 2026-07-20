@@ -77,6 +77,7 @@ export type PortalShipmentForSoloplan = {
   positions: Array<{
     description: string;
     quantity: number;
+    packaging?: string | null;
     weightKg?: number | null;
     lengthCm?: number | null;
     widthCm?: number | null;
@@ -87,6 +88,7 @@ export type PortalShipmentForSoloplan = {
     itemNumber: number;
     sscc: string;
     content?: string | null;
+    packaging?: string | null;
     quantity: number;
     weightKg?: number | null;
     lengthCm?: number | null;
@@ -241,7 +243,7 @@ function buildConsignmentItems(shipment: PortalShipmentForSoloplan) {
             }
           : {}),
         mark,
-        packaging: 'KRT',
+        packaging: c.packaging || 'KRT',
         articleQuantity: Number(c.quantity || 1),
         ssccCurrents: [{ code: c.sscc }],
         ...(cubicMeter != null ? { dimensions: { cubicMeter } } : {}),
@@ -283,7 +285,7 @@ function buildConsignmentItems(shipment: PortalShipmentForSoloplan) {
             }
           : {}),
         mark,
-        packaging: 'KRT',
+        packaging: pos.packaging || 'KRT',
         articleQuantity: Number(pos.quantity || 1),
         ...(pos.sscc ? { ssccCurrents: [{ code: pos.sscc }] } : {}),
         ...(cubicMeter != null ? { dimensions: { cubicMeter } } : {}),

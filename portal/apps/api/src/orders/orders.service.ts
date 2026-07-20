@@ -209,7 +209,7 @@ export class OrdersService {
                 ? `${c.lengthCm ?? '–'}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'} cm`
                 : '–';
             doc.text(
-              `  ${colloRunning}. Collo ${c.itemNumber ?? ''}  ${c.content || '–'}  ·  ${c.weightKg ?? '–'} kg  ·  ${dims}${c.sscc ? `  ·  SSCC ${c.sscc}` : ''}`,
+              `  ${colloRunning}. Collo ${c.itemNumber ?? ''}  ${c.packaging || ''}  ${c.content || '–'}  ·  ${c.weightKg ?? '–'} kg  ·  ${dims}${c.sscc ? `  ·  SSCC ${c.sscc}` : ''}`,
             );
           }
         }
