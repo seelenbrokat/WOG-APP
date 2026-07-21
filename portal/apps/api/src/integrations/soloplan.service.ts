@@ -16,13 +16,13 @@ import {
   writeFileSync,
 } from 'fs';
 import { dirname, join } from 'path';
-import { PartnerJobStatus, ShipmentStatus } from '@prisma/client';
+import { DocumentType, NotificationEvent, PartnerJobStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationEvent } from '@prisma/client';
 import {
   buildSoloplanFilePayload,
   SoloplanFileFormat,
+  soloplanDocumentCategory,
   soloplanOutboundFileName,
 } from './soloplan-order.mapper';
 
@@ -163,6 +163,33 @@ export class SoloplanService implements TransportIntegration {
     this.pendingCreates.add(shipmentId);
   }
 
+  /** Portal-Dokumente als Soloplan documentData vorbereiten. */
+  private async loadSoloplanDocuments(shipmentId: string) {
+    const docs = await this.prisma.document.findMany({
+      where: {
+        shipmentId,
+        type: { in: [DocumentType.ABLIEFERBELEG, DocumentType.POD] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    const out: Array<{ fileName: string; category: string; contentBase64: string }> = [];
+    for (const doc of docs) {
+      if (!doc.storagePath || !existsSync(doc.storagePath)) continue;
+      try {
+        const buf = readFileSync(doc.storagePath);
+        out.push({
+          fileName: doc.fileName,
+          category: soloplanDocumentCategory(doc.type),
+          contentBase64: buf.toString('base64'),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Soloplan document skip ${doc.fileName}: ${err?.message || err}`);
+      }
+    }
+    return out;
+  }
+
   /** Exportiert eine Sendung sofort als Soloplan File-API JSON (auch wenn Worker noch nicht gelaufen ist). */
   async exportShipment(shipmentId: string) {
     await this.createOrder(shipmentId);
@@ -208,15 +235,27 @@ export class SoloplanService implements TransportIntegration {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Ablieferbeleg / POD als Soloplan documentData (Base64) anhängen
+    const orderShipmentsWithDocs = await Promise.all(
+      orderShipments.map(async (s) => ({
+        ...s,
+        documents: await this.loadSoloplanDocuments(s.id),
+      })),
+    );
+    const shipmentWithDocs = {
+      ...shipment,
+      documents: await this.loadSoloplanDocuments(shipment.id),
+    };
+
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
     const format = this.getFileFormat();
-    const payload = buildSoloplanFilePayload(shipment, {
+    const payload = buildSoloplanFilePayload(shipmentWithDocs, {
       format,
       defaultSender: this.getDefaultSender(),
       trackingBaseUrl: this.config.get('APP_URL') || undefined,
       objectOwnerId: Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
-      orderShipments,
+      orderShipments: orderShipmentsWithDocs,
     });
 
     if (!enabled || mode === 'stub') {

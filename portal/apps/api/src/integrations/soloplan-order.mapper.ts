@@ -97,7 +97,41 @@ export type PortalShipmentForSoloplan = {
     widthCm?: number | null;
     heightCm?: number | null;
   }>;
+  /** Dokumente für Soloplan documentData (content bereits Base64). */
+  documents?: Array<{
+    fileName: string;
+    /** Soloplan DocumentCategory Matchcode, z. B. ABL */
+    category: string;
+    contentBase64: string;
+  }>;
 };
+
+/** Portal DocumentType → Soloplan DocumentCategory Matchcode */
+export function soloplanDocumentCategory(type: string): string {
+  const map: Record<string, string> = {
+    ABLIEFERBELEG: 'ABL',
+    POD: 'UNTER',
+    LOADING_LIST: 'AUFTRAG',
+    CMR: 'TDOK',
+    CUSTOMS: 'CHBEL',
+    INVOICE: 'RG',
+    LABEL: 'INFO',
+    CUSTOMER_UPLOAD: 'INFO',
+  };
+  return map[type] || 'INFO';
+}
+
+export function toSoloplanDocumentData(
+  documents?: PortalShipmentForSoloplan['documents'],
+): Array<{ name: string; category: string; content: string }> {
+  return (documents || [])
+    .filter((d) => d?.fileName && d?.contentBase64)
+    .map((d) => ({
+      name: d.fileName,
+      category: d.category || 'INFO',
+      content: d.contentBase64,
+    }));
+}
 
 function customerToBp(customer: CustomerLike): BusinessPartnerLike {
   // Soloplan BP-Nummer: bevorzugt soloplanBusinessPartnerId, sonst numerische customerNumber
@@ -476,7 +510,7 @@ function buildConsignment(
     },
     additionalTimes: {},
     loadType: 0,
-    documentData: [],
+    documentData: toSoloplanDocumentData(shipment.documents),
   };
 }
 
@@ -516,6 +550,10 @@ export function buildSoloplanFilePayload(
     const freightPayer = shipment.order?.freightPayer || shipment.customer;
     const externalNumber =
       shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
+    // Auftragsweite Dokumente (z. B. Ablieferbeleg) zusätzlich auf Order-Ebene
+    const orderDocuments = toSoloplanDocumentData(
+      siblings.flatMap((s) => s.documents || []).filter((d) => d.category === 'ABL' || d.category === 'AUFABL'),
+    );
     return {
       header,
       order: [
@@ -528,6 +566,7 @@ export function buildSoloplanFilePayload(
           // Frachtzahler = eingeloggter Kunde / order.freightPayer
           customer: toMasterDataBp(customerToBp(freightPayer)),
           consignments,
+          documentData: orderDocuments,
         },
       ],
     };
