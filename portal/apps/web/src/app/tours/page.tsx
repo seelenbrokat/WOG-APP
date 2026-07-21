@@ -24,6 +24,7 @@ type Tour = {
   id: string;
   tourNumber: string;
   status: string;
+  telematicsStatus?: string | null;
   lastAction: string | null;
   caption: string | null;
   driverName: string | null;
@@ -112,11 +113,26 @@ export default function ToursPage() {
     setInfo('');
     setError('');
     try {
-      const res = await api<{ processed: number; imported: number; deleted: number }>('/tours/poll-inbox', {
-        method: 'POST',
-      });
+      const res = await api<{
+        tours?: { processed: number; imported: number; deleted: number };
+        telematics?: {
+          processed: number;
+          tourStatus: number;
+          orderStatus: number;
+          locations: number;
+          documents: number;
+        };
+        processed?: number;
+        imported?: number;
+        deleted?: number;
+      }>('/tours/poll-inbox', { method: 'POST' });
+      const t = res.tours || res;
+      const tel = res.telematics;
       setInfo(
-        `Import: ${res.processed} Datei(en) · ${res.imported} übernommen · ${res.deleted} gelöscht`,
+        `Touren: ${t.processed || 0} Datei(en)` +
+          (tel
+            ? ` · Rückmeldungen: ${tel.processed} (Tour ${tel.tourStatus}, TO ${tel.orderStatus}, GPS ${tel.locations}, Docs ${tel.documents})`
+            : ''),
       );
       await load();
     } catch (e: any) {
@@ -140,8 +156,8 @@ export default function ToursPage() {
   return (
     <AppShell title="Touren & Fahrzeuge">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Soloplan-StdTelematics-Touren für die Disposition. Statusmeldungen (T&amp;T) folgen, sobald die Tour-XMLs
-        importiert sind.
+        Soloplan-Touren und Telematics-Rückmeldungen.{' '}
+        <Link href="/tours/map">Kartenmonitor</Link>
       </p>
 
       <div className="row" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.65rem' }}>
@@ -161,7 +177,7 @@ export default function ToursPage() {
         </button>
         {canPoll ? (
           <button type="button" className="btn" disabled={polling} onClick={() => void pollInbox()}>
-            {polling ? 'Importiere…' : 'Tour-XMLs importieren'}
+            {polling ? 'Importiere…' : 'XMLs / Rückmeldungen importieren'}
           </button>
         ) : null}
       </div>
@@ -243,6 +259,7 @@ export default function ToursPage() {
                       </td>
                       <td>
                         <span className="badge">{TOUR_STATUS[t.status] || t.status}</span>
+                        {t.telematicsStatus ? <div className="muted">{t.telematicsStatus}</div> : null}
                       </td>
                       <td>
                         {t.vehicle?.licensePlate || t.vehicle?.number || '—'}

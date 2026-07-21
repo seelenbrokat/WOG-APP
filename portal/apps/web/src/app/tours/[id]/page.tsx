@@ -4,21 +4,21 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 
 type TourDetail = {
   id: string;
   tourNumber: string;
   status: string;
+  telematicsStatus: string | null;
+  lastStatusAt: string | null;
+  lastLatitude: number | null;
+  lastLongitude: number | null;
   lastAction: string | null;
   caption: string | null;
   infoText: string | null;
   driverName: string | null;
-  driverFirstName: string | null;
-  driverLastName: string | null;
   dispatcherName: string | null;
-  dispatcherEmail: string | null;
-  dispatcherPhone: string | null;
   targetStart: string | null;
   targetEnd: string | null;
   targetLoadKm: number | null;
@@ -29,6 +29,9 @@ type TourDetail = {
     number: string | null;
     licensePlate: string | null;
     matchcode: string | null;
+    lastLatitude?: number | null;
+    lastLongitude?: number | null;
+    lastLocationAt?: string | null;
   } | null;
   stops: Array<{
     id: string;
@@ -40,7 +43,6 @@ type TourDetail = {
     zip: string | null;
     city: string | null;
     country: string | null;
-    phone: string | null;
     targetStart: string | null;
     targetEnd: string | null;
     activityDescription: string | null;
@@ -52,6 +54,25 @@ type TourDetail = {
     senderName: string | null;
     senderBpNumber: string | null;
     receiverName: string | null;
+    status: string | null;
+    statusText: string | null;
+    lastStatusAt: string | null;
+  }>;
+  events: Array<{
+    id: string;
+    kind: string;
+    status: string | null;
+    statusText: string | null;
+    transportOrderNumber: string | null;
+    eventAt: string | null;
+  }>;
+  documents: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    transportOrderNumber: string | null;
+    createdAt: string;
   }>;
 };
 
@@ -60,6 +81,15 @@ const TOUR_STATUS: Record<string, string> = {
   ACTIVE: 'Aktiv',
   COMPLETED: 'Abgeschlossen',
   CANCELLED: 'Storniert',
+};
+
+const TO_STATUS: Record<string, string> = {
+  LoadingStart: 'Beladung Start',
+  LoadingFinished: 'Beladung Ende',
+  LoadingPlaceLeft: 'Beladestelle verlassen',
+  UnloadingStart: 'Entladung Start',
+  UnloadingFinished: 'Entladung Ende',
+  UnloadingPlaceLeft: 'Entladestelle verlassen',
 };
 
 function fmt(value?: string | null) {
@@ -79,6 +109,21 @@ function stopTypeLabel(t?: string | null) {
   if (lower.includes('load') || lower.includes('belad')) return 'Beladung';
   if (lower.includes('unload') || lower.includes('entlad')) return 'Entladung';
   return t;
+}
+
+async function openDocument(docId: string, fileName: string) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/tours/documents/${docId}/download`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Download fehlgeschlagen');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.target = '_blank';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function TourDetailPage() {
@@ -116,6 +161,8 @@ export default function TourDetailPage() {
     <AppShell title={`Tour ${tour.tourNumber}`}>
       <p style={{ marginBottom: '1rem' }}>
         <Link href="/tours">← Touren</Link>
+        {' · '}
+        <Link href="/tours/map">Kartenmonitor</Link>
       </p>
 
       <div className="grid-3" style={{ marginBottom: '1rem' }}>
@@ -124,7 +171,10 @@ export default function TourDetailPage() {
           <div className="value" style={{ fontSize: '1.15rem' }}>
             {TOUR_STATUS[tour.status] || tour.status}
           </div>
-          {tour.lastAction ? <div className="muted">letzte Aktion: {tour.lastAction}</div> : null}
+          <div className="muted">
+            Telematics: {tour.telematicsStatus || '—'}
+            {tour.lastStatusAt ? ` · ${fmt(tour.lastStatusAt)}` : ''}
+          </div>
         </div>
         <div className="stat">
           <div className="label">Fahrzeug</div>
@@ -132,7 +182,9 @@ export default function TourDetailPage() {
             {tour.vehicle?.licensePlate || tour.vehicle?.number || '—'}
           </div>
           <div className="muted">
-            {[tour.vehicle?.number, tour.vehicle?.matchcode].filter(Boolean).join(' · ') || '—'}
+            {tour.vehicle?.lastLatitude != null && tour.vehicle?.lastLongitude != null
+              ? `${tour.vehicle.lastLatitude.toFixed(4)}, ${tour.vehicle.lastLongitude.toFixed(4)}`
+              : [tour.vehicle?.number, tour.vehicle?.matchcode].filter(Boolean).join(' · ') || '—'}
           </div>
         </div>
         <div className="stat">
@@ -159,16 +211,10 @@ export default function TourDetailPage() {
             <strong>{tour.targetLoadKm ?? '—'}</strong>
           </div>
           <div>
-            <div className="muted">Letzter Import</div>
+            <div className="muted">Plan-Import</div>
             <strong>{fmt(tour.lastSendDate)}</strong>
-            {tour.lastFileName ? <div className="muted">{tour.lastFileName}</div> : null}
           </div>
         </div>
-        {tour.infoText ? (
-          <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-            {tour.infoText}
-          </p>
-        ) : null}
       </div>
 
       <h2 style={{ marginBottom: '0.5rem' }}>Stops ({tour.stops.length})</h2>
@@ -199,7 +245,6 @@ export default function TourDetailPage() {
                       .filter(Boolean)
                       .join(', ')}
                   </div>
-                  {s.activityDescription ? <div className="muted">{s.activityDescription}</div> : null}
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>{fmt(s.targetStart)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{fmt(s.targetEnd)}</td>
@@ -210,12 +255,13 @@ export default function TourDetailPage() {
       </div>
 
       <h2 style={{ marginBottom: '0.5rem' }}>Transportaufträge ({tour.consignments.length})</h2>
-      <div className="panel" style={{ overflowX: 'auto' }}>
+      <div className="panel" style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
         <table className="table">
           <thead>
             <tr>
               <th>TO-Nr.</th>
-              <th>Ext. Sendung</th>
+              <th>Status</th>
+              <th>Ort</th>
               <th>Absender</th>
               <th>Empfänger</th>
             </tr>
@@ -226,7 +272,11 @@ export default function TourDetailPage() {
                 <td>
                   <code>{c.soloplanOrderNumber}</code>
                 </td>
-                <td>{c.externalConsignmentNumber || '—'}</td>
+                <td>
+                  <span className="badge">{TO_STATUS[c.status || ''] || c.status || '—'}</span>
+                  {c.lastStatusAt ? <div className="muted">{fmt(c.lastStatusAt)}</div> : null}
+                </td>
+                <td>{c.statusText || '—'}</td>
                 <td>
                   {c.senderName || '—'}
                   {c.senderBpNumber ? <div className="muted">BP {c.senderBpNumber}</div> : null}
@@ -237,10 +287,86 @@ export default function TourDetailPage() {
           </tbody>
         </table>
       </div>
-      <p className="muted" style={{ marginTop: '0.75rem' }}>
-        Stops und TransportOrders sind über die TO-Nummer verknüpft. Statusmeldungen werden später an Tour/Stop
-        angehängt.
-      </p>
+
+      <h2 style={{ marginBottom: '0.5rem' }}>Dokumente ({tour.documents?.length || 0})</h2>
+      <div className="panel" style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Datei</th>
+              <th>TO</th>
+              <th>Größe</th>
+              <th>Empfangen</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {(tour.documents || []).length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted">
+                  Keine Retour-Dokumente.
+                </td>
+              </tr>
+            ) : (
+              tour.documents.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.fileName}</td>
+                  <td>
+                    <code>{d.transportOrderNumber || '—'}</code>
+                  </td>
+                  <td>{Math.round(d.sizeBytes / 1024)} KB</td>
+                  <td>{fmt(d.createdAt)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => void openDocument(d.id, d.fileName).catch((e) => alert(e.message))}
+                    >
+                      Öffnen
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 style={{ marginBottom: '0.5rem' }}>Statusmeldungen ({tour.events?.length || 0})</h2>
+      <div className="panel" style={{ overflowX: 'auto' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Zeit</th>
+              <th>Art</th>
+              <th>Status</th>
+              <th>Detail</th>
+              <th>TO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(tour.events || []).length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted">
+                  Noch keine Telematics-Events für diese Tour.
+                </td>
+              </tr>
+            ) : (
+              tour.events.map((e) => (
+                <tr key={e.id}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmt(e.eventAt)}</td>
+                  <td>{e.kind}</td>
+                  <td>{TO_STATUS[e.status || ''] || e.status || '—'}</td>
+                  <td>{e.statusText || '—'}</td>
+                  <td>
+                    <code>{e.transportOrderNumber || '—'}</code>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </AppShell>
   );
 }

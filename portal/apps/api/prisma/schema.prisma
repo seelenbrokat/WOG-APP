@@ -85,25 +85,33 @@ model Organization {
   documentCategories DocumentCategory[]
   vehicles          Vehicle[]
   tours             Tour[]
+  telematicsEvents  TelematicsEvent[]
+  tourDocuments     TourDocument[]
 }
 
 /// Soloplan-Fahrzeug (aus Tour-Header / Truck)
 model Vehicle {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   organizationId     String
   soloplanVehicleId  String
   number             String?
   matchcode          String?
   licensePlate       String?
-  active             Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  active             Boolean   @default(true)
+  lastLatitude       Float?
+  lastLongitude      Float?
+  lastLocationAt     DateTime?
+  lastDriverId       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
   tours        Tour[]
+  events       TelematicsEvent[]
 
   @@unique([organizationId, soloplanVehicleId])
   @@index([organizationId, licensePlate])
+  @@index([organizationId, lastLocationAt])
 }
 
 /// Soloplan StdTelematics-Tour (GP-Export *_Tour_*.xml)
@@ -118,6 +126,11 @@ model Tour {
   lastAction         String?
   /// PLANNED | ACTIVE | COMPLETED | CANCELLED
   status             String    @default("PLANNED")
+  /// Telematics: Started | Finished | …
+  telematicsStatus   String?
+  lastStatusAt       DateTime?
+  lastLatitude       Float?
+  lastLongitude      Float?
   caption            String?
   infoText           String?
   targetStart        DateTime?
@@ -138,10 +151,12 @@ model Tour {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  vehicle      Vehicle?          @relation(fields: [vehicleId], references: [id])
   stops        TourStop[]
   consignments TourConsignment[]
+  events       TelematicsEvent[]
+  documents    TourDocument[]
 
   @@unique([organizationId, soloplanTourId])
   @@index([organizationId, tourNumber])
@@ -175,18 +190,77 @@ model TourStop {
 }
 
 model TourConsignment {
-  id                         String  @id @default(cuid())
+  id                         String    @id @default(cuid())
   tourId                     String
   soloplanOrderNumber        String
   externalConsignmentNumber  String?
   senderName                 String?
   senderBpNumber             String?
   receiverName               String?
+  /// LoadingStart | LoadingFinished | UnloadingStart | …
+  status                     String?
+  statusText                 String?
+  lastStatusAt               DateTime?
+  lastLatitude               Float?
+  lastLongitude              Float?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
 
   @@index([tourId])
   @@index([soloplanOrderNumber])
+}
+
+/// Soloplan StdTelematics-Ereignis (TourStatus / TransportOrderStatus / Location)
+model TelematicsEvent {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  kind                  String
+  vehicleId             String?
+  tourId                String?
+  tourNumber            String?
+  transportOrderNumber  String?
+  status                String?
+  statusText            String?
+  latitude              Float?
+  longitude             Float?
+  eventAt               DateTime?
+  sendDate              DateTime?
+  sourceFile            String?
+  createdAt             DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  tour         Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventAt])
+  @@index([tourId, eventAt])
+  @@index([vehicleId, eventAt])
+  @@index([transportOrderNumber])
+  @@index([sourceFile])
+}
+
+/// Retour-Dokument aus Soloplan Telematics (POD / Unterschrift / Foto)
+model TourDocument {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  tourId               String?
+  tourNumber           String?
+  transportOrderNumber String?
+  vehicleSoloplanId    String?
+  fileName             String
+  mimeType             String
+  storagePath          String
+  sizeBytes            Int
+  sourceFile           String?
+  createdAt            DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tour         Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([tourId])
+  @@index([transportOrderNumber])
+  @@index([sourceFile])
 }
 
 /// Soloplan-Verpackungsstammdaten (GP-Export verpackung.csv)
