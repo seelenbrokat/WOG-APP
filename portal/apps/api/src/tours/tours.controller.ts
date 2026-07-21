@@ -119,6 +119,32 @@ export class ToursController {
     });
   }
 
+  /** Kunden ohne Lademitteltausch – Monat/Tag */
+  @Get('loading-units/no-exchange')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  loadingUnitNoExchange(
+    @CurrentUser() user: AuthUser,
+    @Query('month') month?: string,
+    @Query('day') day?: string,
+    @Query('groupBy') groupBy?: 'day' | 'month' | 'customer',
+    @Query('q') q?: string,
+    @Query('includeInternal') includeInternal?: string,
+  ) {
+    return this.loadingUnits.listNoExchangeOverview(user, {
+      month,
+      day,
+      groupBy,
+      q,
+      includeInternal: includeInternal === '1' || includeInternal === 'true',
+    });
+  }
+
+  @Post('loading-units/backfill-no-exchange')
+  @Roles(UserRole.ORG_ADMIN)
+  loadingUnitBackfillNoExchange(@CurrentUser() user: AuthUser) {
+    return this.loadingUnits.backfillNoExchangeFromFiles(user.organizationId);
+  }
+
   @Get('documents/:docId/download')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   async downloadDoc(

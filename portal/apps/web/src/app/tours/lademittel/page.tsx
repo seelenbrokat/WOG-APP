@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { api } from '@/lib/api';
 
@@ -36,6 +36,36 @@ type Posting = {
   tour?: { id: string; tourNumber: string } | null;
 };
 
+type NoExchangeCustomer = {
+  partnerName: string;
+  partnerNumber: string | null;
+  partnerCity: string | null;
+  tourNumber?: string | null;
+  tourId?: string | null;
+  stopType?: string | null;
+  packagingMatchcodes: string[];
+  occurredAt?: string | null;
+  events?: number;
+  days?: string[];
+  dayCount?: number;
+  lastAt?: string | null;
+};
+
+type NoExchangeDay = {
+  date: string;
+  customerCount: number;
+  eventCount: number;
+  customers: NoExchangeCustomer[];
+};
+
+type NoExchangeOverview = {
+  month: string;
+  groupBy: 'day' | 'month' | 'customer';
+  days?: NoExchangeDay[];
+  customers?: NoExchangeCustomer[];
+  totals: { customers: number; events: number; days: number };
+};
+
 function fmt(value?: string | null) {
   if (!value) return '—';
   return new Date(value).toLocaleString('de-CH', {
@@ -47,7 +77,33 @@ function fmt(value?: string | null) {
   });
 }
 
+function fmtDay(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('de-CH', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+  if (/^\d{4}-\d{2}$/.test(value)) {
+    const [y, m] = value.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('de-CH', {
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+  return value;
+}
+
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function LademittelPage() {
+  const [tab, setTab] = useState<'no-exchange' | 'balances'>('no-exchange');
   const [q, setQ] = useState('');
   const [matchcode, setMatchcode] = useState('');
   const [balances, setBalances] = useState<BalanceRow[]>([]);
@@ -58,7 +114,18 @@ export default function LademittelPage() {
   const [loading, setLoading] = useState(true);
   const [showSkipped, setShowSkipped] = useState(false);
 
-  async function load(next?: { q?: string; matchcode?: string; partnerName?: string | null }) {
+  const [month, setMonth] = useState(currentMonth);
+  const [groupBy, setGroupBy] = useState<'day' | 'customer'>('day');
+  const [overview, setOverview] = useState<NoExchangeOverview | null>(null);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+
+  const monthLabel = useMemo(() => fmtDay(month), [month]);
+
+  async function loadBalances(next?: {
+    q?: string;
+    matchcode?: string;
+    partnerName?: string | null;
+  }) {
     setLoading(true);
     setError('');
     try {
@@ -91,25 +158,73 @@ export default function LademittelPage() {
     }
   }
 
+  async function loadNoExchange(next?: { month?: string; groupBy?: 'day' | 'customer'; q?: string }) {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      params.set('month', next?.month ?? month);
+      params.set('groupBy', next?.groupBy ?? groupBy);
+      const qq = next?.q ?? q;
+      if (qq.trim()) params.set('q', qq.trim());
+      const data = await api<NoExchangeOverview>(`/tours/loading-units/no-exchange?${params}`);
+      setOverview(data);
+      if (data.days?.length && !openDay) {
+        setOpenDay(data.days[0].date);
+      }
+    } catch (e: any) {
+      setError(e.message || 'Laden fehlgeschlagen');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    void load();
+    if (tab === 'no-exchange') void loadNoExchange();
+    else void loadBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSkipped]);
+  }, [tab, showSkipped, month, groupBy]);
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
-    void load();
+    if (tab === 'no-exchange') void loadNoExchange();
+    else void loadBalances();
+  }
+
+  function shiftMonth(delta: number) {
+    const [y, m] = month.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setMonth(next);
+    setOpenDay(null);
   }
 
   return (
     <AppShell title="Lademittel">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Partner-Saldo aus TourStopStatus (Given / Taken). Gebucht werden nur Matchcodes aus der
+        Übersicht Lademitteltausch aus TourStopStatus. Gebucht werden nur Matchcodes aus der
         PackagingType-CSV.{' '}
         <Link href="/tours">Touren</Link>
         {' · '}
         <Link href="/tours/dashboard">Dispo-Dashboard</Link>
       </p>
+
+      <div className="row" style={{ gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className={tab === 'no-exchange' ? 'btn btn-primary' : 'btn btn-secondary'}
+          onClick={() => setTab('no-exchange')}
+        >
+          Nicht getauscht
+        </button>
+        <button
+          type="button"
+          className={tab === 'balances' ? 'btn btn-primary' : 'btn btn-secondary'}
+          onClick={() => setTab('balances')}
+        >
+          Partner-Saldo
+        </button>
+      </div>
 
       <form className="row" onSubmit={onSearch} style={{ marginBottom: '1rem', gap: '0.75rem' }}>
         <label style={{ flex: 1 }}>
@@ -117,26 +232,54 @@ export default function LademittelPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Partner, Matchcode, Stadt…"
+            placeholder="Kunde, Matchcode, Stadt…"
           />
         </label>
-        <label>
-          Lademittel
-          <input
-            value={matchcode}
-            onChange={(e) => setMatchcode(e.target.value)}
-            placeholder="z. B. EUP"
-            style={{ width: '8rem' }}
-          />
-        </label>
-        <label style={{ alignSelf: 'end', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          <input
-            type="checkbox"
-            checked={showSkipped}
-            onChange={(e) => setShowSkipped(e.target.checked)}
-          />
-          Übersprungene zeigen
-        </label>
+        {tab === 'no-exchange' ? (
+          <>
+            <label>
+              Monat
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => {
+                  setMonth(e.target.value);
+                  setOpenDay(null);
+                }}
+              />
+            </label>
+            <label>
+              Ansicht
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as 'day' | 'customer')}
+              >
+                <option value="day">Nach Tag</option>
+                <option value="customer">Nach Kunde</option>
+              </select>
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              Lademittel
+              <input
+                value={matchcode}
+                onChange={(e) => setMatchcode(e.target.value)}
+                placeholder="z. B. EUP"
+                style={{ width: '8rem' }}
+              />
+            </label>
+            <label style={{ alignSelf: 'end', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={showSkipped}
+                onChange={(e) => setShowSkipped(e.target.checked)}
+              />
+              Übersprungene zeigen
+            </label>
+          </>
+        )}
         <button type="submit" className="btn" style={{ alignSelf: 'end' }}>
           Filtern
         </button>
@@ -144,156 +287,332 @@ export default function LademittelPage() {
 
       {error ? <p className="error">{error}</p> : null}
 
-      <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        <div className="stat">
-          <div className="label">Given</div>
-          <div className="value">{totals.given}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Taken</div>
-          <div className="value">{totals.taken}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Saldo (Given − Taken)</div>
-          <div className="value">{totals.balance}</div>
-        </div>
-      </div>
+      {tab === 'no-exchange' ? (
+        <>
+          <div className="row" style={{ gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => shiftMonth(-1)}>
+              ←
+            </button>
+            <strong style={{ minWidth: '10rem', textAlign: 'center' }}>{monthLabel}</strong>
+            <button type="button" className="btn btn-secondary" onClick={() => shiftMonth(1)}>
+              →
+            </button>
+          </div>
 
-      <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Partner-Salden</h2>
-      {loading ? (
-        <p className="muted">Laden…</p>
-      ) : balances.length === 0 ? (
-        <p className="muted">Noch keine gebuchten Lademitteltäusche.</p>
-      ) : (
-        <div style={{ marginBottom: '1.5rem', overflowX: 'auto' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Partner</th>
-                <th>Nr.</th>
-                <th>Ort</th>
-                <th>Typ</th>
-                <th>Given</th>
-                <th>Taken</th>
-                <th>Saldo</th>
-                <th>Buchungen</th>
-                <th>Zuletzt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {balances.map((r) => {
-                const key = `${r.partnerName}|${r.packagingMatchcode}|${r.partnerNumber || ''}`;
-                const active = selectedPartner === r.partnerName;
+          <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="stat">
+              <div className="label">Kunden ohne Tausch</div>
+              <div className="value">{overview?.totals.customers ?? 0}</div>
+            </div>
+            <div className="stat">
+              <div className="label">Ereignisse</div>
+              <div className="value">{overview?.totals.events ?? 0}</div>
+            </div>
+            <div className="stat">
+              <div className="label">Tage</div>
+              <div className="value">{overview?.totals.days ?? 0}</div>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="muted">Laden…</p>
+          ) : groupBy === 'customer' ? (
+            !overview?.customers?.length ? (
+              <p className="muted">In diesem Monat keine gemeldeten Nicht-Tausche.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Kunde</th>
+                      <th>Nr.</th>
+                      <th>Ort</th>
+                      <th>Tage</th>
+                      <th>Ereignisse</th>
+                      <th>Lademittel</th>
+                      <th>Zuletzt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.customers.map((c) => (
+                      <tr key={`${c.partnerNumber}|${c.partnerName}`}>
+                        <td>{c.partnerName}</td>
+                        <td>{c.partnerNumber || '—'}</td>
+                        <td>{c.partnerCity || '—'}</td>
+                        <td>
+                          <strong>{c.dayCount ?? c.days?.length ?? 0}</strong>
+                          {c.days?.length ? (
+                            <div className="muted" style={{ fontSize: '0.85em' }}>
+                              {c.days.slice(0, 5).map(fmtDay).join(', ')}
+                              {c.days.length > 5 ? ' …' : ''}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td>{c.events}</td>
+                        <td>
+                          {c.packagingMatchcodes.map((mc) => (
+                            <code key={mc} style={{ marginRight: '0.35rem' }}>
+                              {mc}
+                            </code>
+                          ))}
+                        </td>
+                        <td>{fmt(c.lastAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : !overview?.days?.length ? (
+            <p className="muted">In diesem Monat keine gemeldeten Nicht-Tausche.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {overview.days.map((day) => {
+                const open = openDay === day.date;
                 return (
-                  <tr
-                    key={key}
-                    style={{ cursor: 'pointer', background: active ? 'var(--wog-green-soft)' : undefined }}
-                    onClick={() => {
-                      const next = active ? null : r.partnerName;
-                      setSelectedPartner(next);
-                      void load({ partnerName: next });
+                  <section
+                    key={day.date}
+                    style={{
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--radius-lg)',
+                      background: 'var(--bg-panel)',
+                      overflow: 'hidden',
                     }}
                   >
-                    <td>{r.partnerName}</td>
-                    <td>{r.partnerNumber || '—'}</td>
-                    <td>{r.partnerCity || '—'}</td>
-                    <td>
-                      <code>{r.packagingMatchcode}</code>
-                      {r.packagingLabel ? (
-                        <span className="muted"> · {r.packagingLabel}</span>
-                      ) : null}
-                    </td>
-                    <td>{r.given}</td>
-                    <td>{r.taken}</td>
-                    <td>
-                      <strong>{r.balance}</strong>
-                    </td>
-                    <td>{r.postings}</td>
-                    <td>{fmt(r.lastAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-        Einzelbuchungen
-        {selectedPartner ? (
-          <span className="muted" style={{ fontWeight: 400 }}>
-            {' '}
-            · {selectedPartner}{' '}
-            <button
-              type="button"
-              className="btn-ghost"
-              style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem' }}
-              onClick={() => {
-                setSelectedPartner(null);
-                void load({ partnerName: null });
-              }}
-            >
-              Filter lösen
-            </button>
-          </span>
-        ) : null}
-      </h2>
-      {postings.length === 0 ? (
-        <p className="muted">Keine Buchungen für die aktuelle Auswahl.</p>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Zeit</th>
-                <th>Partner</th>
-                <th>Typ</th>
-                <th>Given</th>
-                <th>Taken</th>
-                <th>Δ</th>
-                <th>Tour</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {postings.map((p) => (
-                <tr key={p.id}>
-                  <td>{fmt(p.occurredAt)}</td>
-                  <td>
-                    {p.partnerName || '—'}
-                    {p.partnerCity ? (
-                      <div className="muted" style={{ fontSize: '0.85em' }}>
-                        {p.partnerCity}
+                    <button
+                      type="button"
+                      onClick={() => setOpenDay(open ? null : day.date)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        border: 0,
+                        background: open ? 'var(--wog-green-soft)' : 'transparent',
+                        padding: '0.9rem 1.1rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <strong>{fmtDay(day.date)}</strong>
+                        <div className="muted" style={{ fontSize: '0.9em' }}>
+                          {day.customerCount} Kunde{day.customerCount === 1 ? '' : 'n'} ·{' '}
+                          {day.eventCount} Stop{day.eventCount === 1 ? '' : 's'} ohne Tausch
+                        </div>
+                      </div>
+                      <span className="muted">{open ? '▲' : '▼'}</span>
+                    </button>
+                    {open ? (
+                      <div style={{ padding: '0 1rem 1rem', overflowX: 'auto' }}>
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Kunde</th>
+                              <th>Nr.</th>
+                              <th>Ort</th>
+                              <th>Tour</th>
+                              <th>Typ</th>
+                              <th>Lademittel</th>
+                              <th>Zeit</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {day.customers.map((c, idx) => (
+                              <tr key={`${c.partnerName}|${c.tourNumber}|${idx}`}>
+                                <td>{c.partnerName}</td>
+                                <td>{c.partnerNumber || '—'}</td>
+                                <td>{c.partnerCity || '—'}</td>
+                                <td>
+                                  {c.tourId ? (
+                                    <Link href={`/tours/${c.tourId}`}>{c.tourNumber}</Link>
+                                  ) : (
+                                    c.tourNumber || '—'
+                                  )}
+                                </td>
+                                <td>{c.stopType || '—'}</td>
+                                <td>
+                                  {c.packagingMatchcodes.map((mc) => (
+                                    <code key={mc} style={{ marginRight: '0.35rem' }}>
+                                      {mc}
+                                    </code>
+                                  ))}
+                                </td>
+                                <td>{fmt(c.occurredAt)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ) : null}
-                  </td>
-                  <td>
-                    <code>{p.packagingMatchcode}</code>
-                  </td>
-                  <td>{p.given}</td>
-                  <td>{p.taken}</td>
-                  <td>{p.balanceDelta}</td>
-                  <td>
-                    {p.tour?.id ? (
-                      <Link href={`/tours/${p.tour.id}`}>{p.tour.tourNumber}</Link>
-                    ) : (
-                      p.tourNumber || '—'
-                    )}
-                  </td>
-                  <td>
-                    {p.status === 'BOOKED' ? (
-                      'Gebucht'
-                    ) : (
-                      <span title={p.skipReason || undefined} className="muted">
-                        {p.status === 'SKIPPED_UNKNOWN_TYPE' ? 'Unbekannter Typ' : p.status}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="stat">
+              <div className="label">Given</div>
+              <div className="value">{totals.given}</div>
+            </div>
+            <div className="stat">
+              <div className="label">Taken</div>
+              <div className="value">{totals.taken}</div>
+            </div>
+            <div className="stat">
+              <div className="label">Saldo (Given − Taken)</div>
+              <div className="value">{totals.balance}</div>
+            </div>
+          </div>
+
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Partner-Salden</h2>
+          {loading ? (
+            <p className="muted">Laden…</p>
+          ) : balances.length === 0 ? (
+            <p className="muted">Noch keine gebuchten Lademitteltäusche.</p>
+          ) : (
+            <div style={{ marginBottom: '1.5rem', overflowX: 'auto' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Partner</th>
+                    <th>Nr.</th>
+                    <th>Ort</th>
+                    <th>Typ</th>
+                    <th>Given</th>
+                    <th>Taken</th>
+                    <th>Saldo</th>
+                    <th>Buchungen</th>
+                    <th>Zuletzt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balances.map((r) => {
+                    const key = `${r.partnerName}|${r.packagingMatchcode}|${r.partnerNumber || ''}`;
+                    const active = selectedPartner === r.partnerName;
+                    return (
+                      <tr
+                        key={key}
+                        style={{
+                          cursor: 'pointer',
+                          background: active ? 'var(--wog-green-soft)' : undefined,
+                        }}
+                        onClick={() => {
+                          const next = active ? null : r.partnerName;
+                          setSelectedPartner(next);
+                          void loadBalances({ partnerName: next });
+                        }}
+                      >
+                        <td>{r.partnerName}</td>
+                        <td>{r.partnerNumber || '—'}</td>
+                        <td>{r.partnerCity || '—'}</td>
+                        <td>
+                          <code>{r.packagingMatchcode}</code>
+                          {r.packagingLabel ? (
+                            <span className="muted"> · {r.packagingLabel}</span>
+                          ) : null}
+                        </td>
+                        <td>{r.given}</td>
+                        <td>{r.taken}</td>
+                        <td>
+                          <strong>{r.balance}</strong>
+                        </td>
+                        <td>{r.postings}</td>
+                        <td>{fmt(r.lastAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+            Einzelbuchungen
+            {selectedPartner ? (
+              <span className="muted" style={{ fontWeight: 400 }}>
+                {' '}
+                · {selectedPartner}{' '}
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem' }}
+                  onClick={() => {
+                    setSelectedPartner(null);
+                    void loadBalances({ partnerName: null });
+                  }}
+                >
+                  Filter lösen
+                </button>
+              </span>
+            ) : null}
+          </h2>
+          {postings.length === 0 ? (
+            <p className="muted">Keine Buchungen für die aktuelle Auswahl.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Zeit</th>
+                    <th>Partner</th>
+                    <th>Typ</th>
+                    <th>Given</th>
+                    <th>Taken</th>
+                    <th>Δ</th>
+                    <th>Tour</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {postings.map((p) => (
+                    <tr key={p.id}>
+                      <td>{fmt(p.occurredAt)}</td>
+                      <td>
+                        {p.partnerName || '—'}
+                        {p.partnerCity ? (
+                          <div className="muted" style={{ fontSize: '0.85em' }}>
+                            {p.partnerCity}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <code>{p.packagingMatchcode}</code>
+                      </td>
+                      <td>{p.given}</td>
+                      <td>{p.taken}</td>
+                      <td>{p.balanceDelta}</td>
+                      <td>
+                        {p.tour?.id ? (
+                          <Link href={`/tours/${p.tour.id}`}>{p.tour.tourNumber}</Link>
+                        ) : (
+                          p.tourNumber || '—'
+                        )}
+                      </td>
+                      <td>
+                        {p.status === 'BOOKED'
+                          ? 'Gebucht'
+                          : p.status === 'SKIPPED_ZERO'
+                            ? 'Kein Tausch'
+                            : (
+                              <span title={p.skipReason || undefined} className="muted">
+                                {p.status === 'SKIPPED_UNKNOWN_TYPE'
+                                  ? 'Unbekannter Typ'
+                                  : p.status}
+                              </span>
+                            )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </AppShell>
   );

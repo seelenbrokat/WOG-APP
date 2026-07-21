@@ -1,14 +1,20 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
-import { ParsedTourStopStatus } from './telematics-xml.parser';
+import { parseTelematicsXml, ParsedTourStopStatus } from './telematics-xml.parser';
 
 @Injectable()
 export class LoadingUnitService {
   private readonly logger = new Logger(LoadingUnitService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {}
 
   /**
    * Bucht LoadingUnitExchange aus TourStopStatus.
@@ -75,12 +81,43 @@ export class LoadingUnitService {
       });
       if (existing) continue;
 
+      const packaging = await this.resolvePackagingType(organizationId, matchcode);
+
+      // Null-Tausch: nur für CSV-PackagingTypes erfassen (Übersicht „nicht getauscht“)
       if (ex.given === 0 && ex.taken === 0) {
+        if (!packaging) {
+          skippedUnknown += 1;
+          continue;
+        }
+        await this.prisma.loadingUnitPosting.create({
+          data: {
+            organizationId,
+            packagingTypeId: packaging.id,
+            packagingMatchcode: packaging.matchcode,
+            packagingLabel: packaging.label,
+            given: 0,
+            taken: 0,
+            balanceDelta: 0,
+            tourId: resolvedTour?.id,
+            tourNumber: parsed.tourNumber,
+            tourStopId: stop?.id,
+            tourStopExternalId: parsed.tourStopId,
+            partnerNumber: partner.partnerNumber,
+            partnerName: partner.partnerName,
+            partnerCity: partner.partnerCity,
+            customerId: partner.customerId,
+            vehicleSoloplanId: parsed.vehicleId,
+            status: 'SKIPPED_ZERO',
+            skipReason: 'Given=0 / Taken=0 – kein Lademitteltausch',
+            occurredAt: eventAt,
+            sendDate: parsed.sendDate,
+            sourceFile,
+          },
+        });
         skippedZero += 1;
         continue;
       }
 
-      const packaging = await this.resolvePackagingType(organizationId, matchcode);
       if (!packaging) {
         skippedUnknown += 1;
         this.logger.warn(
@@ -359,4 +396,419 @@ export class LoadingUnitService {
       },
     });
   }
+
+  /**
+   * Einmaliger/manueller Backfill: SKIPPED_ZERO aus verarbeiteten TourStopStatus-XMLs.
+   * Erzeugt keine neuen TelematicsEvents.
+   */
+  async backfillNoExchangeFromFiles(organizationId?: string) {
+    const org =
+      (organizationId
+        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
+        : null) ||
+      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
+    if (!org) return { scanned: 0, created: 0 };
+
+    const sftpInbound =
+      this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
+    const roots = [
+      join(sftpInbound, 'soloplan', 'business-partners'),
+      join(sftpInbound, 'intouch', 'dokumente'),
+    ];
+
+    let scanned = 0;
+    let created = 0;
+
+    for (const root of roots) {
+      for (const dir of [root, join(root, 'processed')]) {
+        if (!existsSync(dir)) continue;
+        for (const fileName of readdirSync(dir)) {
+          if (!fileName.toLowerCase().includes('_tourstopstatus_') || !fileName.endsWith('.xml')) {
+            continue;
+          }
+          scanned += 1;
+          const sourceFile = fileName.replace(/^\d+_/, '');
+          let xml: string;
+          try {
+            xml = readFileSync(join(dir, fileName), 'utf8');
+          } catch {
+            continue;
+          }
+          const parsed = parseTelematicsXml(xml, fileName);
+          if (!parsed || parsed.kind !== 'TourStopStatus') continue;
+
+          const eventAt = parsed.statusDate || parsed.sendDate || new Date();
+          let resolvedTour =
+            (await this.prisma.tour.findFirst({
+              where: { organizationId: org.id, tourNumber: parsed.tourNumber },
+              orderBy: [{ updatedAt: 'desc' }],
+              select: { id: true, tourNumber: true },
+            })) || null;
+          let stop = resolvedTour
+            ? await this.prisma.tourStop.findFirst({
+                where: { tourId: resolvedTour.id, soloplanTourStopId: parsed.tourStopId },
+              })
+            : null;
+          if (!stop) {
+            const stopWithTour = await this.prisma.tourStop.findFirst({
+              where: {
+                soloplanTourStopId: parsed.tourStopId,
+                tour: { organizationId: org.id },
+              },
+              include: { tour: { select: { id: true, tourNumber: true } } },
+            });
+            if (stopWithTour) {
+              const { tour: linkedTour, ...stopOnly } = stopWithTour;
+              stop = stopOnly;
+              if (!resolvedTour) resolvedTour = linkedTour;
+            }
+          }
+          const partner = await this.resolvePartner(org.id, stop, resolvedTour?.id);
+          if (!partner.partnerName) {
+            partner.partnerName = `Tour ${parsed.tourNumber} · Stop ${parsed.tourStopId}`;
+          }
+
+          for (const ex of parsed.exchanges) {
+            if (ex.given !== 0 || ex.taken !== 0) continue;
+            const matchcode = ex.matchcode.trim();
+            if (!matchcode) continue;
+            const packaging = await this.resolvePackagingType(org.id, matchcode);
+            if (!packaging) continue;
+
+            const existing = await this.prisma.loadingUnitPosting.findUnique({
+              where: {
+                organizationId_sourceFile_packagingMatchcode: {
+                  organizationId: org.id,
+                  sourceFile,
+                  packagingMatchcode: packaging.matchcode,
+                },
+              },
+            });
+            if (existing) continue;
+
+            await this.prisma.loadingUnitPosting.create({
+              data: {
+                organizationId: org.id,
+                packagingTypeId: packaging.id,
+                packagingMatchcode: packaging.matchcode,
+                packagingLabel: packaging.label,
+                given: 0,
+                taken: 0,
+                balanceDelta: 0,
+                tourId: resolvedTour?.id,
+                tourNumber: parsed.tourNumber,
+                tourStopId: stop?.id,
+                tourStopExternalId: parsed.tourStopId,
+                partnerNumber: partner.partnerNumber,
+                partnerName: partner.partnerName,
+                partnerCity: partner.partnerCity,
+                customerId: partner.customerId,
+                vehicleSoloplanId: parsed.vehicleId,
+                status: 'SKIPPED_ZERO',
+                skipReason: 'Given=0 / Taken=0 – kein Lademitteltausch',
+                occurredAt: eventAt,
+                sendDate: parsed.sendDate,
+                sourceFile,
+              },
+            });
+            created += 1;
+          }
+        }
+      }
+    }
+
+    this.logger.log(`Lademittel Backfill Nicht-Tausch: scanned=${scanned} created=${created}`);
+    return { scanned, created };
+  }
+
+  /**
+   * Übersicht: Kunden ohne Lademitteltausch (Given=0/Taken=0), gruppiert nach Tag oder Monat.
+   */
+  async listNoExchangeOverview(
+    user: AuthUser,
+    opts?: {
+      month?: string; // YYYY-MM
+      day?: string; // YYYY-MM-DD
+      groupBy?: 'day' | 'month' | 'customer';
+      q?: string;
+      includeInternal?: boolean;
+    },
+  ) {
+    if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
+
+    const groupBy = opts?.groupBy || 'day';
+    const month = opts?.month || zurichMonthKey(new Date());
+    const range = opts?.day
+      ? zurichDayRange(opts.day)
+      : zurichMonthRange(month);
+
+    const rows = await this.prisma.loadingUnitPosting.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: 'SKIPPED_ZERO',
+        occurredAt: { gte: range.from, lt: range.to },
+        ...(opts?.q
+          ? {
+              OR: [
+                { partnerName: { contains: opts.q, mode: 'insensitive' } },
+                { partnerNumber: { contains: opts.q, mode: 'insensitive' } },
+                { partnerCity: { contains: opts.q, mode: 'insensitive' } },
+                { packagingMatchcode: { contains: opts.q, mode: 'insensitive' } },
+                { tourNumber: { contains: opts.q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ occurredAt: 'desc' }],
+      include: {
+        tour: { select: { id: true, tourNumber: true } },
+        tourStop: { select: { id: true, stopType: true, name: true, city: true } },
+      },
+      take: 5000,
+    });
+
+    const filtered = rows.filter((r) => {
+      if (opts?.includeInternal) return true;
+      return !isInternalPartnerName(r.partnerName);
+    });
+
+    // Pro Stop/Datei nur einmal zählen (mehrere Matchcodes = ein Nicht-Tausch-Ereignis)
+    type EventKey = string;
+    const events = new Map<
+      EventKey,
+      {
+        day: string;
+        month: string;
+        partnerName: string;
+        partnerNumber: string | null;
+        partnerCity: string | null;
+        tourNumber: string | null;
+        tourId: string | null;
+        tourStopExternalId: string | null;
+        stopType: string | null;
+        packagingMatchcodes: string[];
+        occurredAt: Date | null;
+        sourceFile: string;
+      }
+    >();
+
+    for (const r of filtered) {
+      const at = r.occurredAt || r.createdAt;
+      const day = zurichDayKey(at);
+      const key = `${r.sourceFile}|${r.tourStopExternalId || ''}|${r.partnerName || ''}`;
+      const existing = events.get(key);
+      if (existing) {
+        if (!existing.packagingMatchcodes.includes(r.packagingMatchcode)) {
+          existing.packagingMatchcodes.push(r.packagingMatchcode);
+        }
+        continue;
+      }
+      events.set(key, {
+        day,
+        month: day.slice(0, 7),
+        partnerName: r.partnerName || 'Unbekannter Kunde',
+        partnerNumber: r.partnerNumber,
+        partnerCity: r.partnerCity || r.tourStop?.city || null,
+        tourNumber: r.tourNumber,
+        tourId: r.tourId,
+        tourStopExternalId: r.tourStopExternalId,
+        stopType: r.tourStop?.stopType || null,
+        packagingMatchcodes: [r.packagingMatchcode],
+        occurredAt: r.occurredAt,
+        sourceFile: r.sourceFile,
+      });
+    }
+
+    const eventList = [...events.values()]
+      .filter((e) => {
+        if (opts?.day) return e.day === opts.day;
+        return e.month === month;
+      })
+      .sort((a, b) => {
+        const ta = a.occurredAt?.getTime() || 0;
+        const tb = b.occurredAt?.getTime() || 0;
+        return tb - ta;
+      });
+
+    if (groupBy === 'customer') {
+      const byCustomer = new Map<
+        string,
+        {
+          partnerName: string;
+          partnerNumber: string | null;
+          partnerCity: string | null;
+          days: string[];
+          events: number;
+          packagingMatchcodes: string[];
+          lastAt: Date | null;
+        }
+      >();
+      for (const e of eventList) {
+        const ck = `${e.partnerNumber || ''}|${e.partnerName}`;
+        const cur = byCustomer.get(ck);
+        if (!cur) {
+          byCustomer.set(ck, {
+            partnerName: e.partnerName,
+            partnerNumber: e.partnerNumber,
+            partnerCity: e.partnerCity,
+            days: [e.day],
+            events: 1,
+            packagingMatchcodes: [...e.packagingMatchcodes],
+            lastAt: e.occurredAt,
+          });
+        } else {
+          cur.events += 1;
+          if (!cur.days.includes(e.day)) cur.days.push(e.day);
+          for (const mc of e.packagingMatchcodes) {
+            if (!cur.packagingMatchcodes.includes(mc)) cur.packagingMatchcodes.push(mc);
+          }
+          if (e.occurredAt && (!cur.lastAt || e.occurredAt > cur.lastAt)) cur.lastAt = e.occurredAt;
+        }
+      }
+      const customers = [...byCustomer.values()]
+        .map((c) => ({
+          ...c,
+          days: c.days.sort().reverse(),
+          dayCount: c.days.length,
+          packagingMatchcodes: c.packagingMatchcodes.sort(),
+        }))
+        .sort((a, b) => b.events - a.events || a.partnerName.localeCompare(b.partnerName, 'de'));
+
+      return {
+        month,
+        groupBy: 'customer' as const,
+        range: { from: range.from, to: range.to },
+        customers,
+        totals: {
+          customers: customers.length,
+          events: eventList.length,
+          days: new Set(eventList.map((e) => e.day)).size,
+        },
+      };
+    }
+
+    // day | month → Tagesgruppen (bei month-Filter mehrere Tage; groupBy month fasst nur Stats)
+    const byDay = new Map<
+      string,
+      {
+        date: string;
+        customers: Array<{
+          partnerName: string;
+          partnerNumber: string | null;
+          partnerCity: string | null;
+          tourNumber: string | null;
+          tourId: string | null;
+          stopType: string | null;
+          packagingMatchcodes: string[];
+          occurredAt: Date | null;
+          events: number;
+        }>;
+      }
+    >();
+
+    for (const e of eventList) {
+      const bucket = groupBy === 'month' ? e.month : e.day;
+      if (!byDay.has(bucket)) byDay.set(bucket, { date: bucket, customers: [] });
+      const dayBucket = byDay.get(bucket)!;
+      const existing = dayBucket.customers.find(
+        (c) =>
+          c.partnerName === e.partnerName &&
+          (c.partnerNumber || '') === (e.partnerNumber || '') &&
+          (c.tourNumber || '') === (e.tourNumber || ''),
+      );
+      if (existing) {
+        existing.events += 1;
+        for (const mc of e.packagingMatchcodes) {
+          if (!existing.packagingMatchcodes.includes(mc)) existing.packagingMatchcodes.push(mc);
+        }
+        if (e.occurredAt && (!existing.occurredAt || e.occurredAt > existing.occurredAt)) {
+          existing.occurredAt = e.occurredAt;
+        }
+      } else {
+        dayBucket.customers.push({
+          partnerName: e.partnerName,
+          partnerNumber: e.partnerNumber,
+          partnerCity: e.partnerCity,
+          tourNumber: e.tourNumber,
+          tourId: e.tourId,
+          stopType: e.stopType,
+          packagingMatchcodes: [...e.packagingMatchcodes],
+          occurredAt: e.occurredAt,
+          events: 1,
+        });
+      }
+    }
+
+    const days = [...byDay.values()]
+      .map((d) => ({
+        date: d.date,
+        customerCount: d.customers.length,
+        eventCount: d.customers.reduce((s, c) => s + c.events, 0),
+        customers: d.customers.sort((a, b) => a.partnerName.localeCompare(b.partnerName, 'de')),
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return {
+      month,
+      groupBy,
+      range: { from: range.from, to: range.to },
+      days,
+      totals: {
+        customers: new Set(eventList.map((e) => `${e.partnerNumber || ''}|${e.partnerName}`)).size,
+        events: eventList.length,
+        days: days.length,
+      },
+    };
+  }
+}
+
+const ZURICH = 'Europe/Zurich';
+
+function zurichDayKey(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: ZURICH });
+}
+
+function zurichMonthKey(d: Date): string {
+  return zurichDayKey(d).slice(0, 7);
+}
+
+function zurichMonthRange(month: string): { from: Date; to: Date } {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) {
+    const now = zurichMonthKey(new Date());
+    return zurichMonthRange(now);
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  // Zürich Mitternacht ≈ UTC+1/+2 – wir nutzen bewusst weite Grenzen und filtern per dayKey
+  const from = new Date(Date.UTC(y, mo - 1, 1, 0, 0, 0) - 2 * 3600 * 1000);
+  const to = new Date(Date.UTC(y, mo, 1, 0, 0, 0) + 24 * 3600 * 1000);
+  return { from, to };
+}
+
+function zurichDayRange(day: string): { from: Date; to: Date } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return zurichMonthRange(zurichMonthKey(new Date()));
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const from = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0) - 2 * 3600 * 1000);
+  const to = new Date(Date.UTC(y, mo - 1, d + 1, 0, 0, 0) + 24 * 3600 * 1000);
+  return { from, to };
+}
+
+function isInternalPartnerName(name?: string | null): boolean {
+  if (!name) return false;
+  const n = name.trim().toLowerCase();
+  if (!n) return false;
+  if (n.startsWith('tour ') || n.includes(' · stop ')) return false;
+  return (
+    n === 'wog' ||
+    n.startsWith('wog ') ||
+    n.startsWith('wog-') ||
+    n.includes('wog logistics') ||
+    n.includes('wog lager') ||
+    n.includes('wog aussenlager') ||
+    n.includes('ottenareal')
+  );
 }
