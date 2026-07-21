@@ -355,13 +355,13 @@ export class BusinessPartnerService {
       saved.push(row);
     }
 
-    // Verwaiste Kontakte ohne E-Mail vom vorherigen Fehl-Import entfernen
+  // Kontakte, die nicht mehr im Soloplan-Export sind, entfernen
+    // (inkl. früherem Firmen-E-Mail-Fallback).
     if (keepIds.size && (link.customerId || link.partnerId)) {
       await this.prisma.contact.deleteMany({
         where: {
           ...link,
           id: { notIn: [...keepIds] },
-          OR: [{ email: null }, { email: '' }],
         },
       });
     }
