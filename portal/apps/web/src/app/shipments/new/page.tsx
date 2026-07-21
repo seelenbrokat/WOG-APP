@@ -89,6 +89,8 @@ function splitColli(opts: {
   }));
 }
 
+type PackagingOption = { code: string; label: string };
+
 function NewShipmentInner() {
   const router = useRouter();
   const search = useSearchParams();
@@ -97,6 +99,7 @@ function NewShipmentInner() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [packagingTypes, setPackagingTypes] = useState<PackagingOption[]>([...PACKAGING_TYPES]);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabId>('allgemein');
   const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
@@ -183,6 +186,15 @@ function NewShipmentInner() {
         customerId: presetCustomerId || f.customerId,
       }));
     });
+    api<PackagingOption[]>('/integrations/soloplan/packaging-types')
+      .then((rows) => {
+        if (rows?.length) {
+          setPackagingTypes(rows.map((r) => ({ code: r.code, label: r.label || r.code })));
+        }
+      })
+      .catch(() => {
+        /* Fallback: PACKAGING_TYPES */
+      });
     if (user?.role !== 'CUSTOMER_USER') {
       api<any[]>('/customers').then(setCustomers);
     } else {
@@ -571,7 +583,7 @@ function NewShipmentInner() {
                   value={quick.packaging}
                   onChange={(e) => setQuick({ ...quick, packaging: e.target.value })}
                 >
-                  {PACKAGING_TYPES.map((p) => (
+                  {packagingTypes.map((p) => (
                     <option key={p.code} value={p.code}>{p.label}</option>
                   ))}
                 </select>
@@ -642,7 +654,7 @@ function NewShipmentInner() {
                     value={c.packaging}
                     onChange={(e) => updateCollo(index, { packaging: e.target.value })}
                   >
-                    {PACKAGING_TYPES.map((p) => (
+                    {packagingTypes.map((p) => (
                       <option key={p.code} value={p.code}>{p.label}</option>
                     ))}
                   </select>

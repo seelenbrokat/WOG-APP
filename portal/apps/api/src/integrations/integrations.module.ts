@@ -6,6 +6,7 @@ import { AuditModule } from '../audit/audit.module';
 import { ExchangeHubService } from './exchange-hub.service';
 import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-adapters';
 import { BusinessPartnerService } from './business-partner.service';
+import { MasterDataService } from './master-data.service';
 import { ShippingNetService } from './shippingnet.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { ShippingNetService } from './shippingnet.service';
     PartnerImportService,
     ExchangeHubService,
     BusinessPartnerService,
+    MasterDataService,
     ShippingNetService,
     LdvAdapter,
     MercurioAdapter,
@@ -26,6 +28,7 @@ import { ShippingNetService } from './shippingnet.service';
     PartnerImportService,
     ExchangeHubService,
     BusinessPartnerService,
+    MasterDataService,
     ShippingNetService,
   ],
 })

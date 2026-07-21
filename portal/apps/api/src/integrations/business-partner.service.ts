@@ -355,7 +355,7 @@ export class BusinessPartnerService {
       saved.push(row);
     }
 
-  // Kontakte, die nicht mehr im Soloplan-Export sind, entfernen
+    // Kontakte, die nicht mehr im Soloplan-Export sind, entfernen
     // (inkl. früherem Firmen-E-Mail-Fallback).
     if (keepIds.size && (link.customerId || link.partnerId)) {
       await this.prisma.contact.deleteMany({
