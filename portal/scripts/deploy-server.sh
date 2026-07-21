@@ -163,8 +163,8 @@ mkdir -p data/uploads \
 log "Docker Compose: nur Projekt $COMPOSE_PROJECT_NAME starten"
 docker compose up -d --build postgres redis
 sleep 5
-docker compose run --rm api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
-  docker compose run --rm api sh -c "npx prisma migrate deploy && npm run prisma:seed"
+docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
+  docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npm run prisma:seed"
 docker compose up -d --build api worker web
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
