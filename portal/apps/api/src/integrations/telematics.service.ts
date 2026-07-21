@@ -531,30 +531,41 @@ export class TelematicsService {
       tour?.consignments[0] ||
       null;
 
+    const stopKind = (s: { stopType?: string | null }) => {
+      const t = (s.stopType || '').toLowerCase();
+      if (
+        t.includes('receiver') ||
+        t.includes('unload') ||
+        t.includes('entlad') ||
+        t.includes('zustell') ||
+        t.includes('delivery')
+      ) {
+        return 'receiver';
+      }
+      if (
+        t.includes('sender') ||
+        t.includes('load') ||
+        t.includes('belad') ||
+        t.includes('pickup') ||
+        t.includes('abhol')
+      ) {
+        return 'sender';
+      }
+      return 'other';
+    };
+
     const unloadStop =
       (toNumber &&
-        tour?.stops.find(
-          (s) =>
-            s.transportOrderNumber === toNumber &&
-            (s.stopType || '').toLowerCase().includes('unload'),
-        )) ||
-      tour?.stops.find((s) => (s.stopType || '').toLowerCase().includes('unload')) ||
+        tour?.stops.find((s) => s.transportOrderNumber === toNumber && stopKind(s) === 'receiver')) ||
+      tour?.stops.find((s) => stopKind(s) === 'receiver') ||
+      (toNumber && tour?.stops.find((s) => s.transportOrderNumber === toNumber)) ||
       tour?.stops[tour.stops.length - 1] ||
       null;
 
     const loadStop =
       (toNumber &&
-        tour?.stops.find(
-          (s) =>
-            s.transportOrderNumber === toNumber &&
-            (s.stopType || '').toLowerCase().includes('load') &&
-            !(s.stopType || '').toLowerCase().includes('unload'),
-        )) ||
-      tour?.stops.find(
-        (s) =>
-          (s.stopType || '').toLowerCase().includes('load') &&
-          !(s.stopType || '').toLowerCase().includes('unload'),
-      ) ||
+        tour?.stops.find((s) => s.transportOrderNumber === toNumber && stopKind(s) === 'sender')) ||
+      tour?.stops.find((s) => stopKind(s) === 'sender') ||
       null;
 
     const eventOr = [
