@@ -113,7 +113,7 @@ export function soloplanDocumentCategory(type: string): string {
     POD: 'UNTER',
     LOADING_LIST: 'AUFTRAG',
     CMR: 'TDOK',
-    CUSTOMS: 'CHBEL',
+    CUSTOMS_PAPER: 'CHBEL',
     INVOICE: 'RG',
     LABEL: 'INFO',
     CUSTOMER_UPLOAD: 'INFO',
