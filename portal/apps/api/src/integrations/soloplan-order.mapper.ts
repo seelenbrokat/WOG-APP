@@ -530,8 +530,8 @@ function orderExternalNumber(shipment: PortalShipmentForSoloplan): string {
 }
 
 /**
- * Update-Export: keine Sendungsdaten erneut senden.
- * Nur externe Auftragsnummer + externe Sendungsnummer (mit actionAttribute=update).
+ * Update-Export: keine Sendungsinfos erneut senden.
+ * Nur externe Auftrags-/Sendungsnummer (+ documentData zum Ablegen in Soloplan).
  */
 export function buildSoloplanUpdatePayload(
   shipment: PortalShipmentForSoloplan,
@@ -546,13 +546,22 @@ export function buildSoloplanUpdatePayload(
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
 
-  const consignments = siblings.map((s, idx) => ({
-    itemNumber: idx + 1,
-    actionAttribute: 'update',
-    externalNumber: consignmentExternalNumber(s),
-  }));
+  const consignments = siblings.map((s, idx) => {
+    const documentData = toSoloplanDocumentData(s.documents);
+    return {
+      itemNumber: idx + 1,
+      actionAttribute: 'update',
+      externalNumber: consignmentExternalNumber(s),
+      ...(documentData.length ? { documentData } : {}),
+    };
+  });
 
   if (format === 'order') {
+    const orderDocuments = toSoloplanDocumentData(
+      siblings
+        .flatMap((s) => s.documents || [])
+        .filter((d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG'),
+    );
     return {
       header,
       order: [
@@ -561,6 +570,7 @@ export function buildSoloplanUpdatePayload(
           externalNumber: orderExternalNumber(shipment),
           ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
           consignments,
+          ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },
       ],
     };

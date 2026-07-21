@@ -48,6 +48,7 @@ export class DocumentsService {
     let shipmentExtras: Record<string, unknown> | null = null;
     let shipmentStatus: ShipmentStatus | null = null;
 
+    let alreadyExportedToSoloplan = false;
     if (shipmentId) {
       const shipment = await this.prisma.shipment.findFirst({
         where: {
@@ -57,6 +58,7 @@ export class DocumentsService {
             ? { customerId: user.customerId }
             : {}),
         },
+        include: { order: { select: { soloplanRef: true } } },
       });
       if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
       if (
@@ -72,6 +74,7 @@ export class DocumentsService {
           ? (shipment.extras as Record<string, unknown>)
           : null;
       shipmentStatus = shipment.status;
+      alreadyExportedToSoloplan = Boolean(shipment.soloplanRef || shipment.order?.soloplanRef);
     }
 
     const docType = opts.type || DocumentType.CUSTOMER_UPLOAD;
@@ -104,19 +107,28 @@ export class DocumentsService {
       type: doc.type,
     });
 
-    // Verzollung: nach Rechnung Soloplan-Export nachziehen
-    if (
-      shipmentId &&
+    // Soloplan: Dokument ablegen – Erstexport (Verzollung/Rechnung) oder Update nur mit Nummern+Dokument
+    const soloplanDocTypes: DocumentType[] = [
+      DocumentType.INVOICE,
+      DocumentType.ABLIEFERBELEG,
+      DocumentType.POD,
+    ];
+    const shouldExportForVerzollung =
       docType === DocumentType.INVOICE &&
       shipmentStatus === ShipmentStatus.SUBMITTED &&
-      shipmentExtras?.verzollung === true
-    ) {
+      shipmentExtras?.verzollung === true;
+    const shouldExportDocumentUpdate =
+      alreadyExportedToSoloplan && soloplanDocTypes.includes(docType);
+
+    if (shipmentId && (shouldExportForVerzollung || shouldExportDocumentUpdate)) {
       try {
         await this.soloplan.exportShipment(shipmentId);
-        this.logger.log(`Soloplan-Export nach Rechnungs-Upload für Sendung ${shipmentId}`);
+        this.logger.log(
+          `Soloplan-Export nach Dokument-Upload (${docType}${alreadyExportedToSoloplan ? ', update' : ''}) für Sendung ${shipmentId}`,
+        );
       } catch (err: any) {
         this.logger.warn(
-          `Soloplan-Export nach Rechnung fehlgeschlagen: ${err?.message || err}`,
+          `Soloplan-Export nach Dokument fehlgeschlagen: ${err?.message || err}`,
         );
       }
     }
@@ -151,7 +163,12 @@ export class DocumentsService {
           ? { customerId: user.customerId }
           : {}),
       },
-      include: { mandant: true, customer: true, positions: true },
+      include: {
+        mandant: true,
+        customer: true,
+        positions: true,
+        order: { select: { soloplanRef: true } },
+      },
     });
     if (!shipment) throw new NotFoundException();
     if (
@@ -182,6 +199,19 @@ export class DocumentsService {
     await this.audit.log(user.id, 'document.ablieferbeleg', 'Document', doc.id, {
       trackingNumber: shipment.trackingNumber,
     });
+
+    // Bereits in Soloplan → Update mit externen Nummern + Ablieferbeleg
+    if (shipment.soloplanRef || shipment.order?.soloplanRef) {
+      try {
+        await this.soloplan.exportShipment(shipment.id);
+        this.logger.log(`Soloplan-Update nach Ablieferbeleg für Sendung ${shipment.id}`);
+      } catch (err: any) {
+        this.logger.warn(
+          `Soloplan-Update nach Ablieferbeleg fehlgeschlagen: ${err?.message || err}`,
+        );
+      }
+    }
+
     return doc;
   }
 
