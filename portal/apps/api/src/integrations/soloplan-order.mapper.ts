@@ -578,12 +578,37 @@ export function buildSoloplanFilePayload(
   };
 }
 
-export function soloplanOutboundFileName(shipment: PortalShipmentForSoloplan, format: SoloplanFileFormat) {
-  const base = (
+/** Basisnummer ohne Präfix/Suffix, z. B. VLB210700003 */
+export function soloplanOrderBaseName(
+  shipment: PortalShipmentForSoloplan,
+  format: SoloplanFileFormat = 'order',
+): string {
+  return (
     (format === 'order' ? shipment.order?.externalNumber : null) ||
     shipment.reference ||
     shipment.trackingNumber ||
     shipment.id
   ).replace(/[^\w.\-]+/g, '_');
-  return format === 'order' ? `order-${base}.json` : `${base}.json`;
+}
+
+/**
+ * Outbound-Dateiname.
+ * Erstexport: order-VLB210700003.json
+ * Update:     order-VLB210700003-update-20260721T193024.json
+ */
+export function soloplanOutboundFileName(
+  shipment: PortalShipmentForSoloplan,
+  format: SoloplanFileFormat,
+  opts?: { update?: boolean; at?: Date },
+) {
+  const base = soloplanOrderBaseName(shipment, format);
+  if (!opts?.update) {
+    return format === 'order' ? `order-${base}.json` : `${base}.json`;
+  }
+  const d = opts.at || new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return format === 'order'
+    ? `order-${base}-update-${stamp}.json`
+    : `${base}-update-${stamp}.json`;
 }

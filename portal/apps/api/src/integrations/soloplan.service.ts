@@ -23,6 +23,7 @@ import {
   buildSoloplanFilePayload,
   SoloplanFileFormat,
   soloplanDocumentCategory,
+  soloplanOrderBaseName,
   soloplanOutboundFileName,
 } from './soloplan-order.mapper';
 
@@ -163,6 +164,59 @@ export class SoloplanService implements TransportIntegration {
     this.pendingCreates.add(shipmentId);
   }
 
+  /** Update = Auftrag wurde schon einmal nach Soloplan exportiert. */
+  private isSoloplanOrderUpdate(order: { soloplanRef?: string | null; externalNumber?: string | null }) {
+    if (order.soloplanRef) return true;
+    const base = String(order.externalNumber || '').replace(/[^\w.\-]+/g, '_');
+    if (!base) return false;
+    const candidates = [
+      join(this.ordersOutDir, `order-${base}.json`),
+      join(this.sftpOutboundRoot, 'soloplan', 'archive', `order-${base}.json`),
+      join(dirname(this.integrationOrdersOutDir), 'processed', `order-${base}.json`),
+    ];
+    return candidates.some((p) => existsSync(p));
+  }
+
+  /**
+   * Noch nicht abgeholte Dateien desselben Auftrags aus dem Pickup-Ordner
+   * nach archive verschieben, damit Updates nicht die Erstdatei überschreiben.
+   */
+  private retirePendingOutboundForOrder(
+    shipment: { order?: { externalNumber?: string | null } | null; reference?: string | null; trackingNumber?: string; id: string },
+    format: SoloplanFileFormat,
+  ) {
+    const base = soloplanOrderBaseName(shipment as any, format);
+    const prefix = format === 'order' ? `order-${base}` : base;
+    const archiveDir = join(this.sftpOutboundRoot, 'soloplan', 'archive');
+    if (!existsSync(archiveDir)) mkdirSync(archiveDir, { recursive: true });
+    if (!existsSync(this.ordersOutDir)) return;
+
+    for (const fileName of readdirSync(this.ordersOutDir)) {
+      if (!fileName.endsWith('.json')) continue;
+      // order-VLB…json sowie frühere order-VLB…-update-….json
+      if (fileName !== `${prefix}.json` && !fileName.startsWith(`${prefix}-update-`)) continue;
+      const primary = join(this.ordersOutDir, fileName);
+      const stamp = Date.now();
+      const targetName = fileName.replace(/\.json$/i, `-superseded-${stamp}.json`);
+      try {
+        renameSync(primary, join(archiveDir, targetName));
+        this.logger.log(`Soloplan pending outbound retired: ${fileName} → archive/${targetName}`);
+      } catch (err) {
+        this.logger.warn(`Soloplan retire failed ${fileName}: ${err}`);
+      }
+      const mirror = join(this.integrationOrdersOutDir, fileName);
+      if (existsSync(mirror)) {
+        try {
+          const mirrorProcessed = join(dirname(this.integrationOrdersOutDir), 'processed');
+          if (!existsSync(mirrorProcessed)) mkdirSync(mirrorProcessed, { recursive: true });
+          renameSync(mirror, join(mirrorProcessed, targetName));
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
   /** Portal-Dokumente als Soloplan documentData vorbereiten. */
   private async loadSoloplanDocuments(shipmentId: string) {
     const docs = await this.prisma.document.findMany({
@@ -291,7 +345,15 @@ export class SoloplanService implements TransportIntegration {
     }
 
     if (mode === 'file') {
-      const fileName = soloplanOutboundFileName(shipment, format);
+      const isUpdate = this.isSoloplanOrderUpdate(shipment.order);
+      // Noch liegende Erstdatei nicht überschreiben – bei Update umbenennen/wegarchivieren
+      if (isUpdate) {
+        this.retirePendingOutboundForOrder(shipment, format);
+      }
+      const fileName = soloplanOutboundFileName(shipment, format, {
+        update: isUpdate,
+        at: new Date(),
+      });
       const json = JSON.stringify(payload, null, 2);
       const primary = join(this.ordersOutDir, fileName);
       const mirror = join(this.integrationOrdersOutDir, fileName);
@@ -307,7 +369,7 @@ export class SoloplanService implements TransportIntegration {
         data: { soloplanRef: fileRef },
       });
       this.logger.log(
-        `Soloplan PORTAL-v6 order export ${primary} (${orderShipments.length} consignments)`,
+        `Soloplan PORTAL-v6 order export ${primary} (${orderShipments.length} consignments${isUpdate ? ', update' : ''})`,
       );
       return;
     }
