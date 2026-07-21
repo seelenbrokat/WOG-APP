@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { COUNTRIES, isValidZipForCountry } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
 
@@ -95,12 +96,37 @@ export default function AddressBookPage() {
     setError('');
     setMessage('');
     try {
+      if (!form.country) throw new Error('Bitte Land wählen.');
+      if (!isValidZipForCountry(form.zip, form.country)) {
+        throw new Error(`PLZ-Format für ${form.country} ungültig.`);
+      }
+      const check = await api<{
+        ok: boolean;
+        status: string;
+        message: string;
+      }>('/shipments/validate-address', {
+        method: 'POST',
+        body: JSON.stringify({
+          street: form.street,
+          zip: form.zip,
+          city: form.city,
+          country: form.country,
+          company: form.company,
+        }),
+      });
+      if (check.status === 'FORMAT_ERROR' || check.status === 'INVALID') {
+        throw new Error(check.message || 'Adresse ungültig');
+      }
       await api(`/customers/me/addresses${query}`, {
         method: 'POST',
         body: JSON.stringify(form),
       });
       setForm(emptyAddress);
-      setMessage('Adresse gespeichert');
+      setMessage(
+        check.status === 'AMBIGUOUS'
+          ? 'Adresse gespeichert (Prüfung ungenau – bitte Eintrag kontrollieren).'
+          : 'Adresse gespeichert und geprüft',
+      );
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -166,6 +192,20 @@ export default function AddressBookPage() {
               <input required placeholder="PLZ" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} />
               <input required placeholder="Ort" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
             </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.country}
+                onChange={(e) => setForm({ ...form, country: e.target.value })}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
             <select value={form.usage} onChange={(e) => setForm({ ...form, usage: e.target.value })}>
               <option value="BOTH">Abholung & Zustellung</option>
               <option value="PICKUP">Nur Abholung</option>
@@ -193,7 +233,7 @@ export default function AddressBookPage() {
                 {addresses.map((a) => (
                   <tr key={a.id}>
                     <td>{a.label || a.company || '–'}{a.isDefault ? ' ★' : ''}</td>
-                    <td>{a.street}, {a.zip} {a.city}</td>
+                    <td>{a.street}, {a.zip} {a.city} ({a.country})</td>
                     <td><span className="badge">{a.usage}</span></td>
                     <td>
                       <button

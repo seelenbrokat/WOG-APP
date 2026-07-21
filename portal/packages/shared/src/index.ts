@@ -78,3 +78,11 @@ export type { PackagingCode } from './packaging';
 
 export { SHIPMENT_EXTRA_OPTIONS, shipmentExtrasLabels } from './shipment-extras';
 export type { ShipmentExtraCode, ShipmentExtras } from './shipment-extras';
+
+export {
+  COUNTRIES,
+  countryLabel,
+  zipPatternForCountry,
+  isValidZipForCountry,
+} from './countries';
+export type { CountryCode } from './countries';

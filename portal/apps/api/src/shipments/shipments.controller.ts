@@ -17,6 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { AddressValidationService } from '../common/address-validation.service';
 
 class PositionDto {
   @IsString()
@@ -201,14 +202,41 @@ class StatusDto {
   location?: string;
 }
 
+class ValidateAddressDto {
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @IsString()
+  street!: string;
+
+  @IsString()
+  zip!: string;
+
+  @IsString()
+  city!: string;
+
+  @IsString()
+  country!: string;
+}
+
 @Controller('shipments')
 @UseGuards(RolesGuard)
 export class ShipmentsController {
-  constructor(private service: ShipmentsService) {}
+  constructor(
+    private service: ShipmentsService,
+    private addressValidation: AddressValidationService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('mandantId') mandantId?: string) {
     return this.service.list(user, mandantId);
+  }
+
+  @Post('validate-address')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  validateAddress(@Body() dto: ValidateAddressDto) {
+    return this.addressValidation.validate(dto);
   }
 
   @Get(':id')

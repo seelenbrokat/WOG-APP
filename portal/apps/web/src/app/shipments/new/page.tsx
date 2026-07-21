@@ -3,9 +3,29 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { PACKAGING_TYPES, SHIPMENT_EXTRA_OPTIONS, type ShipmentExtras } from '@wog/shared';
+import {
+  COUNTRIES,
+  PACKAGING_TYPES,
+  SHIPMENT_EXTRA_OPTIONS,
+  isValidZipForCountry,
+  type ShipmentExtras,
+} from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
+
+type AddressCheck = {
+  status: 'idle' | 'loading' | 'VALID' | 'AMBIGUOUS' | 'INVALID' | 'FORMAT_ERROR';
+  message?: string;
+  suggestions?: Array<{
+    street: string;
+    zip: string;
+    city: string;
+    country: string;
+    displayName: string;
+  }>;
+};
+
+const idleCheck: AddressCheck = { status: 'idle' };
 
 type TabId = 'allgemein' | 'zusatz';
 
@@ -149,10 +169,12 @@ function NewShipmentInner() {
     pickupStreet: '',
     pickupZip: '',
     pickupCity: '',
+    pickupCountry: 'AT',
     deliveryCompany: '',
     deliveryStreet: '',
     deliveryZip: '',
     deliveryCity: '',
+    deliveryCountry: 'AT',
     deliveryAvisPhone: '',
     notes: '',
     submit: true,
@@ -160,6 +182,8 @@ function NewShipmentInner() {
     saveDeliveryAddress: false,
     saveAsTemplateName: '',
   });
+  const [pickupCheck, setPickupCheck] = useState<AddressCheck>(idleCheck);
+  const [deliveryCheck, setDeliveryCheck] = useState<AddressCheck>(idleCheck);
 
   function toggleExtra(code: keyof ShipmentExtras, checked: boolean) {
     setExtras((prev) => {
@@ -249,7 +273,9 @@ function NewShipmentInner() {
         pickupStreet: addr.street,
         pickupZip: addr.zip,
         pickupCity: addr.city,
+        pickupCountry: addr.country || 'AT',
       }));
+      setPickupCheck(idleCheck);
     } else {
       setForm((f) => ({
         ...f,
@@ -258,7 +284,80 @@ function NewShipmentInner() {
         deliveryStreet: addr.street,
         deliveryZip: addr.zip,
         deliveryCity: addr.city,
+        deliveryCountry: addr.country || 'AT',
       }));
+      setDeliveryCheck(idleCheck);
+    }
+  }
+
+  async function validateAddress(kind: 'pickup' | 'delivery') {
+    const street = kind === 'pickup' ? form.pickupStreet : form.deliveryStreet;
+    const zip = kind === 'pickup' ? form.pickupZip : form.deliveryZip;
+    const city = kind === 'pickup' ? form.pickupCity : form.deliveryCity;
+    const country = kind === 'pickup' ? form.pickupCountry : form.deliveryCountry;
+    const company = kind === 'pickup' ? form.pickupCompany : form.deliveryCompany;
+    const setCheck = kind === 'pickup' ? setPickupCheck : setDeliveryCheck;
+
+    if (!street.trim() || !zip.trim() || !city.trim() || !country.trim()) {
+      setCheck({
+        status: 'FORMAT_ERROR',
+        message: 'Bitte Straße, PLZ, Ort und Land ausfüllen.',
+      });
+      return;
+    }
+    if (!isValidZipForCountry(zip, country)) {
+      setCheck({
+        status: 'FORMAT_ERROR',
+        message: `PLZ-Format für ${country} ungültig.`,
+      });
+      return;
+    }
+
+    setCheck({ status: 'loading', message: 'Adresse wird geprüft…' });
+    try {
+      const res = await api<{
+        ok: boolean;
+        status: AddressCheck['status'];
+        message: string;
+        suggestions?: AddressCheck['suggestions'];
+      }>('/shipments/validate-address', {
+        method: 'POST',
+        body: JSON.stringify({ street, zip, city, country, company }),
+      });
+      setCheck({
+        status: res.status || (res.ok ? 'VALID' : 'INVALID'),
+        message: res.message,
+        suggestions: res.suggestions || [],
+      });
+    } catch (err: any) {
+      setCheck({ status: 'INVALID', message: err.message || 'Prüfung fehlgeschlagen' });
+    }
+  }
+
+  function applySuggestion(
+    kind: 'pickup' | 'delivery',
+    s: { street: string; zip: string; city: string; country: string },
+  ) {
+    if (kind === 'pickup') {
+      setForm((f) => ({
+        ...f,
+        pickupAddressId: '',
+        pickupStreet: s.street,
+        pickupZip: s.zip,
+        pickupCity: s.city,
+        pickupCountry: s.country || f.pickupCountry,
+      }));
+      setPickupCheck({ status: 'VALID', message: 'Vorschlag übernommen.' });
+    } else {
+      setForm((f) => ({
+        ...f,
+        deliveryAddressId: '',
+        deliveryStreet: s.street,
+        deliveryZip: s.zip,
+        deliveryCity: s.city,
+        deliveryCountry: s.country || f.deliveryCountry,
+      }));
+      setDeliveryCheck({ status: 'VALID', message: 'Vorschlag übernommen.' });
     }
   }
 
@@ -280,12 +379,16 @@ function NewShipmentInner() {
       pickupStreet: t.pickupStreet || '',
       pickupZip: t.pickupZip || '',
       pickupCity: t.pickupCity || '',
+      pickupCountry: t.pickupCountry || 'AT',
       deliveryCompany: t.deliveryCompany || '',
       deliveryStreet: t.deliveryStreet || '',
       deliveryZip: t.deliveryZip || '',
       deliveryCity: t.deliveryCity || '',
+      deliveryCountry: t.deliveryCountry || 'AT',
       notes: t.notes || '',
     }));
+    setPickupCheck(idleCheck);
+    setDeliveryCheck(idleCheck);
     const next = splitColli({
       count,
       packaging: quick.packaging,
@@ -355,6 +458,34 @@ function NewShipmentInner() {
       if (extras.verzollung && !invoiceFile) {
         setTab('zusatz');
         throw new Error('Bei Verzollung muss eine Rechnung hochgeladen werden.');
+      }
+      if (!form.pickupCountry || !form.deliveryCountry) {
+        setTab('allgemein');
+        throw new Error('Bitte Land für Abholung und Zustellung wählen.');
+      }
+      if (!form.pickupStreet.trim() || !form.pickupZip.trim() || !form.pickupCity.trim()) {
+        setTab('allgemein');
+        throw new Error('Abholadresse unvollständig (Straße, PLZ, Ort, Land).');
+      }
+      if (!form.deliveryStreet.trim() || !form.deliveryZip.trim() || !form.deliveryCity.trim()) {
+        setTab('allgemein');
+        throw new Error('Zustelladresse unvollständig (Straße, PLZ, Ort, Land).');
+      }
+      if (!isValidZipForCountry(form.pickupZip, form.pickupCountry)) {
+        setTab('allgemein');
+        throw new Error(`Abholung: PLZ-Format für ${form.pickupCountry} ungültig.`);
+      }
+      if (!isValidZipForCountry(form.deliveryZip, form.deliveryCountry)) {
+        setTab('allgemein');
+        throw new Error(`Zustellung: PLZ-Format für ${form.deliveryCountry} ungültig.`);
+      }
+      if (pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR') {
+        setTab('allgemein');
+        throw new Error('Abholadresse prüfen: ' + (pickupCheck.message || 'ungültig'));
+      }
+      if (deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR') {
+        setTab('allgemein');
+        throw new Error('Zustelladresse prüfen: ' + (deliveryCheck.message || 'ungültig'));
       }
 
       // Wenn nur Schnellfassung gesetzt und Colli leer/unbearbeitet: vor Submit aufteilen
@@ -555,16 +686,100 @@ function NewShipmentInner() {
               <option value="">– aus Adressbuch oder neu –</option>
               {pickupAddresses.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city}
+                  {(a.label || a.company || a.street)} · {a.zip} {a.city} ({a.country})
                 </option>
               ))}
             </select>
-            <input placeholder="Firma" value={form.pickupCompany} onChange={(e) => setForm({ ...form, pickupCompany: e.target.value, pickupAddressId: '' })} />
-            <input placeholder="Straße" value={form.pickupStreet} onChange={(e) => setForm({ ...form, pickupStreet: e.target.value, pickupAddressId: '' })} />
+            <input
+              placeholder="Firma"
+              value={form.pickupCompany}
+              onChange={(e) => {
+                setForm({ ...form, pickupCompany: e.target.value, pickupAddressId: '' });
+                setPickupCheck(idleCheck);
+              }}
+            />
+            <input
+              required
+              placeholder="Straße"
+              value={form.pickupStreet}
+              onChange={(e) => {
+                setForm({ ...form, pickupStreet: e.target.value, pickupAddressId: '' });
+                setPickupCheck(idleCheck);
+              }}
+            />
             <div className="row">
-              <input placeholder="PLZ" value={form.pickupZip} onChange={(e) => setForm({ ...form, pickupZip: e.target.value, pickupAddressId: '' })} />
-              <input placeholder="Ort" value={form.pickupCity} onChange={(e) => setForm({ ...form, pickupCity: e.target.value, pickupAddressId: '' })} />
+              <input
+                required
+                placeholder="PLZ"
+                value={form.pickupZip}
+                onChange={(e) => {
+                  setForm({ ...form, pickupZip: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                }}
+              />
+              <input
+                required
+                placeholder="Ort"
+                value={form.pickupCity}
+                onChange={(e) => {
+                  setForm({ ...form, pickupCity: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                }}
+              />
             </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.pickupCountry}
+                onChange={(e) => {
+                  setForm({ ...form, pickupCountry: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                }}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pickupCheck.status === 'loading'}
+                onClick={() => void validateAddress('pickup')}
+              >
+                {pickupCheck.status === 'loading' ? 'Prüfe…' : 'Adresse prüfen'}
+              </button>
+              {pickupCheck.status === 'VALID' && (
+                <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
+              )}
+            </div>
+            {pickupCheck.message && pickupCheck.status !== 'idle' && pickupCheck.status !== 'loading' ? (
+              <p
+                className={pickupCheck.status === 'VALID' ? 'muted' : 'error'}
+                style={{ margin: 0, fontSize: '0.85rem' }}
+              >
+                {pickupCheck.message}
+              </p>
+            ) : null}
+            {pickupCheck.suggestions && pickupCheck.suggestions.length > 0 ? (
+              <div className="stack" style={{ gap: '0.35rem' }}>
+                {pickupCheck.suggestions.slice(0, 3).map((s, i) => (
+                  <button
+                    key={`${s.displayName}-${i}`}
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ textAlign: 'left', justifyContent: 'flex-start' }}
+                    onClick={() => applySuggestion('pickup', s)}
+                  >
+                    Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <label className="row">
               <input type="checkbox" checked={form.savePickupAddress} onChange={(e) => setForm({ ...form, savePickupAddress: e.target.checked })} />
               Abholung im Adressbuch speichern
@@ -579,16 +794,100 @@ function NewShipmentInner() {
               <option value="">– aus Adressbuch oder neu –</option>
               {deliveryAddresses.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city}
+                  {(a.label || a.company || a.street)} · {a.zip} {a.city} ({a.country})
                 </option>
               ))}
             </select>
-            <input placeholder="Firma" value={form.deliveryCompany} onChange={(e) => setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' })} />
-            <input placeholder="Straße" value={form.deliveryStreet} onChange={(e) => setForm({ ...form, deliveryStreet: e.target.value, deliveryAddressId: '' })} />
+            <input
+              placeholder="Firma"
+              value={form.deliveryCompany}
+              onChange={(e) => {
+                setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' });
+                setDeliveryCheck(idleCheck);
+              }}
+            />
+            <input
+              required
+              placeholder="Straße"
+              value={form.deliveryStreet}
+              onChange={(e) => {
+                setForm({ ...form, deliveryStreet: e.target.value, deliveryAddressId: '' });
+                setDeliveryCheck(idleCheck);
+              }}
+            />
             <div className="row">
-              <input placeholder="PLZ" value={form.deliveryZip} onChange={(e) => setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' })} />
-              <input placeholder="Ort" value={form.deliveryCity} onChange={(e) => setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' })} />
+              <input
+                required
+                placeholder="PLZ"
+                value={form.deliveryZip}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                }}
+              />
+              <input
+                required
+                placeholder="Ort"
+                value={form.deliveryCity}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                }}
+              />
             </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.deliveryCountry}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryCountry: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                }}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={deliveryCheck.status === 'loading'}
+                onClick={() => void validateAddress('delivery')}
+              >
+                {deliveryCheck.status === 'loading' ? 'Prüfe…' : 'Adresse prüfen'}
+              </button>
+              {deliveryCheck.status === 'VALID' && (
+                <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
+              )}
+            </div>
+            {deliveryCheck.message && deliveryCheck.status !== 'idle' && deliveryCheck.status !== 'loading' ? (
+              <p
+                className={deliveryCheck.status === 'VALID' ? 'muted' : 'error'}
+                style={{ margin: 0, fontSize: '0.85rem' }}
+              >
+                {deliveryCheck.message}
+              </p>
+            ) : null}
+            {deliveryCheck.suggestions && deliveryCheck.suggestions.length > 0 ? (
+              <div className="stack" style={{ gap: '0.35rem' }}>
+                {deliveryCheck.suggestions.slice(0, 3).map((s, i) => (
+                  <button
+                    key={`${s.displayName}-${i}`}
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ textAlign: 'left', justifyContent: 'flex-start' }}
+                    onClick={() => applySuggestion('delivery', s)}
+                  >
+                    Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="field">
               <label>Avis-Telefon Zustellung</label>
               <input
