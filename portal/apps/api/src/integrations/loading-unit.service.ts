@@ -22,25 +22,35 @@ export class LoadingUnitService {
     const sourceFile = fileName || `tourstopstatus-${parsed.tourNumber}-${parsed.tourStopId}`;
     const eventAt = parsed.statusDate || parsed.sendDate || new Date();
 
-    const tour = await this.prisma.tour.findFirst({
-      where: { organizationId, tourNumber: parsed.tourNumber },
-      orderBy: [{ updatedAt: 'desc' }],
-    });
+    let resolvedTour =
+      (await this.prisma.tour.findFirst({
+        where: { organizationId, tourNumber: parsed.tourNumber },
+        orderBy: [{ updatedAt: 'desc' }],
+        select: { id: true, tourNumber: true },
+      })) || null;
 
-    const stop = tour
+    let stop = resolvedTour
       ? await this.prisma.tourStop.findFirst({
-          where: { tourId: tour.id, soloplanTourStopId: parsed.tourStopId },
+          where: { tourId: resolvedTour.id, soloplanTourStopId: parsed.tourStopId },
         })
-      : await this.prisma.tourStop.findFirst({
-          where: {
-            soloplanTourStopId: parsed.tourStopId,
-            tour: { organizationId },
-          },
-          include: { tour: true },
-          orderBy: { sequence: 'asc' },
-        });
+      : null;
 
-    const resolvedTour = tour || (stop && 'tour' in stop ? stop.tour : null);
+    if (!stop) {
+      const stopWithTour = await this.prisma.tourStop.findFirst({
+        where: {
+          soloplanTourStopId: parsed.tourStopId,
+          tour: { organizationId },
+        },
+        include: { tour: { select: { id: true, tourNumber: true } } },
+        orderBy: { sequence: 'asc' },
+      });
+      if (stopWithTour) {
+        const { tour: linkedTour, ...stopOnly } = stopWithTour;
+        stop = stopOnly;
+        if (!resolvedTour) resolvedTour = linkedTour;
+      }
+    }
+
     const partner = await this.resolvePartner(organizationId, stop, resolvedTour?.id);
 
     let booked = 0;
