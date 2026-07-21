@@ -153,6 +153,10 @@ fi
 
 mkdir -p data/uploads \
   data/sftp/inbound/soloplan \
+  data/sftp/inbound/soloplan/business-partners \
+  data/sftp/inbound/soloplan/tours \
+  data/sftp/inbound/intouch/meldungen \
+  data/sftp/inbound/intouch/dokumente \
   data/sftp/outbound/soloplan/orders \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
@@ -172,10 +176,24 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
   # Optional zusätzlich: SFTPGo auf 12022
   log "Soloplan-SFTP auf Port 22 (OpenSSH internal-sftp)"
   SFTP_ROOT="${APP_DIR}/portal/data/sftp"
+  mkdir -p \
+    "$SFTP_ROOT/inbound/soloplan/business-partners" \
+    "$SFTP_ROOT/inbound/soloplan/tours" \
+    "$SFTP_ROOT/inbound/intouch/meldungen/processed" \
+    "$SFTP_ROOT/inbound/intouch/dokumente/processed" \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive"
   chown root:root "$SFTP_ROOT"
   chmod 755 "$SFTP_ROOT"
   find "$SFTP_ROOT" -type d -exec chmod 755 {} \;
   find "$SFTP_ROOT" -type f -exec chmod 644 {} \; 2>/dev/null || true
+  # Upload-Ordner beschreibbar für SFTP-User soloplan
+  if id soloplan >/dev/null 2>&1; then
+    chown -R soloplan:soloplan \
+      "$SFTP_ROOT/inbound/soloplan" \
+      "$SFTP_ROOT/inbound/intouch" \
+      2>/dev/null || true
+  fi
 
   if [[ ! -f /root/wog-soloplan-sftp.txt ]]; then
     SOLOPLAN_SFTP_PW="$(openssl rand -base64 14 | tr -d '\n=/+')"
@@ -204,6 +222,10 @@ EOF
       --comment "WOG Soloplan SFTP" soloplan
   fi
   echo "soloplan:${SOLOPLAN_SFTP_PW}" | chpasswd
+  chown -R soloplan:soloplan \
+    "$SFTP_ROOT/inbound/soloplan" \
+    "$SFTP_ROOT/inbound/intouch" \
+    2>/dev/null || true
 
   if ! grep -q '^Match User soloplan$' /etc/ssh/sshd_config; then
     cat >> /etc/ssh/sshd_config <<'EOF'

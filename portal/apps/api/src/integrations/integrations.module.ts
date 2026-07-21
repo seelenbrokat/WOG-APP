@@ -9,6 +9,7 @@ import { BusinessPartnerService } from './business-partner.service';
 import { MasterDataService } from './master-data.service';
 import { TourService } from './tour.service';
 import { TelematicsService } from './telematics.service';
+import { IntouchService } from './intouch.service';
 import { ShippingNetService } from './shippingnet.service';
 
 @Module({
@@ -22,6 +23,7 @@ import { ShippingNetService } from './shippingnet.service';
     MasterDataService,
     TourService,
     TelematicsService,
+    IntouchService,
     ShippingNetService,
     LdvAdapter,
     MercurioAdapter,
@@ -35,6 +37,7 @@ import { ShippingNetService } from './shippingnet.service';
     MasterDataService,
     TourService,
     TelematicsService,
+    IntouchService,
     ShippingNetService,
   ],
 })

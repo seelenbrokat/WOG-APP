@@ -373,7 +373,7 @@ export class TelematicsService {
     });
   }
 
-  async fleetMap(user: AuthUser) {
+  async fleetMap(user: AuthUser, opts?: { mandantId?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
@@ -381,10 +381,15 @@ export class TelematicsService {
         active: true,
         lastLatitude: { not: null },
         lastLongitude: { not: null },
+        ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
       },
       include: {
+        mandant: { select: { id: true, code: true, name: true } },
         tours: {
-          where: { status: { in: ['PLANNED', 'ACTIVE'] } },
+          where: {
+            status: { in: ['PLANNED', 'ACTIVE'] },
+            ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
+          },
           orderBy: [{ lastStatusAt: 'desc' }, { targetStart: 'desc' }],
           take: 1,
           select: {
@@ -406,6 +411,7 @@ export class TelematicsService {
       number: v.number,
       licensePlate: v.licensePlate,
       matchcode: v.matchcode,
+      mandant: v.mandant,
       latitude: v.lastLatitude,
       longitude: v.lastLongitude,
       locationAt: v.lastLocationAt,

@@ -17,32 +17,43 @@ function fmt(value?: string | null) {
   });
 }
 
+type Mandant = { id: string; code: string; name: string };
+
 export default function FleetMapPage() {
   const user = getUser();
   const canPoll = user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER';
   const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
+  const [mandanten, setMandanten] = useState<Mandant[]>([]);
+  const [mandantId, setMandantId] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mid?: string) => {
     setError('');
     try {
-      const rows = await api<FleetVehicle[]>('/tours/fleet-map');
+      const id = mid ?? mandantId;
+      const q = id ? `?mandantId=${id}` : '';
+      const [rows, mandantRows] = await Promise.all([
+        api<FleetVehicle[]>(`/tours/fleet-map${q}`),
+        api<Mandant[]>('/mandanten'),
+      ]);
       setVehicles(rows);
+      setMandanten(mandantRows);
+      if (!id && mandantRows.length === 1) setMandantId(mandantRows[0].id);
     } catch (e: any) {
       setError(e.message || 'Laden fehlgeschlagen');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mandantId]);
 
   useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 60_000);
+    void load(mandantId || undefined);
+    const t = setInterval(() => void load(mandantId || undefined), 60_000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, mandantId]);
 
   async function pollInbox() {
     setPolling(true);
@@ -75,12 +86,25 @@ export default function FleetMapPage() {
   return (
     <AppShell title="Kartenmonitor">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Live-Positionen aus Soloplan <code>VehicleLocations</code> / Statusmeldungen.{' '}
-        <Link href="/tours">Zur Tourübersicht</Link>
+        Live-Positionen (WOG Logistics AG).{' '}
+        <Link href="/tours/dashboard">Dispo-Dashboard</Link>
+        {' · '}
+        <Link href="/tours">Touren</Link>
       </p>
 
-      <div className="row" style={{ marginBottom: '1rem', gap: '0.65rem' }}>
-        <button type="button" className="btn btn-ghost" onClick={() => void load()}>
+      <div className="row" style={{ marginBottom: '1rem', gap: '0.65rem', alignItems: 'end' }}>
+        <label>
+          Mandant
+          <select value={mandantId} onChange={(e) => setMandantId(e.target.value)}>
+            <option value="">Alle aktiven</option>
+            {mandanten.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="btn btn-ghost" onClick={() => void load(mandantId || undefined)}>
           Aktualisieren
         </button>
         {canPoll ? (

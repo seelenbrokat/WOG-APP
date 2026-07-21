@@ -67,12 +67,27 @@ export class TourService {
     return { processed, imported, deleted };
   }
 
+  /** Standard-Mandant für Soloplan-Touren (WOG Logistics AG / code AG). */
+  async resolveDefaultMandantId(organizationId: string): Promise<string | undefined> {
+    const code = this.config.get('DEFAULT_TOUR_MANDANT_CODE') || 'AG';
+    const mandant =
+      (await this.prisma.mandant.findFirst({
+        where: { organizationId, code, active: true },
+      })) ||
+      (await this.prisma.mandant.findFirst({
+        where: { organizationId, active: true },
+        orderBy: { code: 'asc' },
+      }));
+    return mandant?.id;
+  }
+
   async importTourXml(organizationId: string, xml: string, fileName?: string) {
     const parsed = parseTourXml(xml, fileName);
     if (!parsed) throw new Error('Ungültiges Tour-XML');
 
     const { header } = parsed;
     let vehicleId: string | undefined;
+    const mandantId = await this.resolveDefaultMandantId(organizationId);
 
     if (header.vehicleId) {
       const vehicle = await this.prisma.vehicle.upsert({
@@ -84,6 +99,7 @@ export class TourService {
         },
         create: {
           organizationId,
+          mandantId,
           soloplanVehicleId: header.vehicleId,
           number: parsed.truckNumber || header.vehicleId,
           matchcode: parsed.truckMatchcode,
@@ -93,6 +109,7 @@ export class TourService {
           number: parsed.truckNumber || header.vehicleId,
           matchcode: parsed.truckMatchcode || undefined,
           licensePlate: parsed.truckLicensePlate || undefined,
+          mandantId: mandantId || undefined,
           active: true,
         },
       });
@@ -145,6 +162,7 @@ export class TourService {
       },
       create: {
         organizationId,
+        mandantId,
         soloplanTourId: header.tourId,
         tourNumber: header.tourNumber,
         lastAction: header.action,
@@ -171,6 +189,7 @@ export class TourService {
         tourNumber: header.tourNumber,
         lastAction: header.action,
         status: 'PLANNED',
+        mandantId: mandantId || undefined,
         caption: parsed.caption,
         infoText: parsed.infoText,
         targetStart: parsed.targetStart,
@@ -235,13 +254,20 @@ export class TourService {
 
   listTours(
     user: AuthUser,
-    opts?: { vehicleId?: string; date?: string; q?: string; includeCancelled?: boolean },
+    opts?: {
+      vehicleId?: string;
+      mandantId?: string;
+      date?: string;
+      q?: string;
+      includeCancelled?: boolean;
+    },
   ) {
     if (user.role === UserRole.CUSTOMER_USER) {
       throw new NotFoundException();
     }
     const where: Record<string, unknown> = { organizationId: user.organizationId };
     if (opts?.vehicleId) where.vehicleId = opts.vehicleId;
+    if (opts?.mandantId) where.mandantId = opts.mandantId;
     if (!opts?.includeCancelled) where.status = { not: 'CANCELLED' };
     if (opts?.date) {
       const day = new Date(opts.date);
@@ -269,6 +295,7 @@ export class TourService {
       where,
       include: {
         vehicle: true,
+        mandant: { select: { id: true, code: true, name: true } },
         stops: { orderBy: { sequence: 'asc' }, take: 8 },
         _count: { select: { stops: true, consignments: true } },
       },
@@ -283,6 +310,7 @@ export class TourService {
       where: { id, organizationId: user.organizationId },
       include: {
         vehicle: true,
+        mandant: { select: { id: true, code: true, name: true } },
         stops: { orderBy: { sequence: 'asc' } },
         consignments: { orderBy: { soloplanOrderNumber: 'asc' } },
       },
@@ -291,11 +319,16 @@ export class TourService {
     return tour;
   }
 
-  listVehicles(user: AuthUser) {
+  listVehicles(user: AuthUser, opts?: { mandantId?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
     return this.prisma.vehicle.findMany({
-      where: { organizationId: user.organizationId, active: true },
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
+      },
       include: {
+        mandant: { select: { id: true, code: true, name: true } },
         tours: {
           where: { status: { not: 'CANCELLED' } },
           orderBy: { targetStart: 'desc' },
@@ -318,5 +351,84 @@ export class TourService {
       },
       orderBy: [{ licensePlate: 'asc' }, { matchcode: 'asc' }],
     });
+  }
+
+  /**
+   * Dispo-Dashboard: Tour-/Zustellungsfortschritt je Mandant.
+   * Zustellung „erledigt“ = UnloadingFinished | UnloadingPlaceLeft.
+   */
+  async opsDashboard(user: AuthUser, opts?: { mandantId?: string }) {
+    if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
+    const mandantFilter = opts?.mandantId ? { mandantId: opts.mandantId } : {};
+    const orgId = user.organizationId;
+
+    const [tours, consignments, vehiclesGps, mandanten] = await Promise.all([
+      this.prisma.tour.findMany({
+        where: { organizationId: orgId, status: { not: 'CANCELLED' }, ...mandantFilter },
+        select: { id: true, status: true, telematicsStatus: true, orderCount: true },
+      }),
+      this.prisma.tourConsignment.findMany({
+        where: {
+          tour: { organizationId: orgId, status: { not: 'CANCELLED' }, ...mandantFilter },
+        },
+        select: { status: true },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          organizationId: orgId,
+          active: true,
+          lastLatitude: { not: null },
+          ...mandantFilter,
+        },
+      }),
+      this.prisma.mandant.findMany({
+        where: { organizationId: orgId, active: true },
+        select: { id: true, code: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const doneStatuses = new Set(['UnloadingFinished', 'UnloadingPlaceLeft']);
+    const inProgressStatuses = new Set([
+      'LoadingStart',
+      'LoadingFinished',
+      'LoadingPlaceLeft',
+      'UnloadingStart',
+    ]);
+
+    let deliveriesDone = 0;
+    let deliveriesInProgress = 0;
+    let deliveriesOpen = 0;
+    for (const c of consignments) {
+      if (!c.status) deliveriesOpen += 1;
+      else if (doneStatuses.has(c.status)) deliveriesDone += 1;
+      else if (inProgressStatuses.has(c.status)) deliveriesInProgress += 1;
+      else deliveriesOpen += 1;
+    }
+    const deliveriesTotal = consignments.length;
+    const percentDone =
+      deliveriesTotal > 0 ? Math.round((deliveriesDone / deliveriesTotal) * 1000) / 10 : 0;
+
+    const tourStats = {
+      total: tours.length,
+      planned: tours.filter((t) => t.status === 'PLANNED').length,
+      active: tours.filter((t) => t.status === 'ACTIVE' || t.telematicsStatus === 'Started').length,
+      completed: tours.filter((t) => t.status === 'COMPLETED' || t.telematicsStatus === 'Finished')
+        .length,
+    };
+
+    return {
+      mandantId: opts?.mandantId || null,
+      mandanten,
+      tours: tourStats,
+      deliveries: {
+        total: deliveriesTotal,
+        done: deliveriesDone,
+        inProgress: deliveriesInProgress,
+        open: deliveriesOpen,
+        percentDone,
+      },
+      vehiclesWithGps: vehiclesGps,
+    };
   }
 }

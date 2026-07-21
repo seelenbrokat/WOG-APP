@@ -6,31 +6,35 @@ const prisma = new PrismaClient();
 async function main() {
   const org = await prisma.organization.upsert({
     where: { slug: 'wog' },
-    update: { name: 'WOG Logistics', active: true },
-    create: { name: 'WOG Logistics', slug: 'wog', active: true },
+    update: { name: 'WOG Logistics AG', active: true },
+    create: { name: 'WOG Logistics AG', slug: 'wog', active: true },
   });
 
   const ag = await prisma.mandant.upsert({
     where: { organizationId_code: { organizationId: org.id, code: 'AG' } },
-    update: { name: 'WOG AG', legalName: 'WOG AG', active: true },
+    update: {
+      name: 'WOG Logistics AG',
+      legalName: 'WOG Logistics AG',
+      active: true,
+    },
     create: {
       organizationId: org.id,
       code: 'AG',
-      name: 'WOG AG',
-      legalName: 'WOG AG',
+      name: 'WOG Logistics AG',
+      legalName: 'WOG Logistics AG',
       active: true,
     },
   });
 
   const gmbh = await prisma.mandant.upsert({
     where: { organizationId_code: { organizationId: org.id, code: 'GMBH' } },
-    update: { name: 'WOG GmbH', legalName: 'WOG GmbH', active: true },
+    update: { name: 'WOG GmbH', legalName: 'WOG GmbH', active: false },
     create: {
       organizationId: org.id,
       code: 'GMBH',
       name: 'WOG GmbH',
       legalName: 'WOG GmbH',
-      active: true,
+      active: false,
     },
   });
 
