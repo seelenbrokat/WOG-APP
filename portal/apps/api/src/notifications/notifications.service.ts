@@ -29,7 +29,13 @@ export class NotificationsService {
     }
   }
 
-  async sendRaw(toEmail: string, subject: string, body: string, event?: NotificationEvent) {
+  async sendRaw(
+    toEmail: string,
+    subject: string,
+    body: string,
+    event?: NotificationEvent,
+    attachments?: Array<{ filename: string; path?: string; content?: Buffer; contentType?: string }>,
+  ) {
     const outbox = await this.prisma.emailOutbox.create({
       data: { toEmail, subject, body, event },
     });
@@ -40,6 +46,12 @@ export class NotificationsService {
           to: toEmail,
           subject,
           text: body,
+          attachments: attachments?.map((a) => ({
+            filename: a.filename,
+            path: a.path,
+            content: a.content,
+            contentType: a.contentType,
+          })),
         });
       } else {
         this.logger.log(`[DEV-MAIL] to=${toEmail} subject=${subject}`);

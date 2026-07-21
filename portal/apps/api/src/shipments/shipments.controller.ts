@@ -61,7 +61,7 @@ class CreateShipmentDto {
   @IsString()
   mandantId!: string;
 
-  /** Bestehenden Auftrag nutzen (1:n Sendungen); sonst neuer VLB-Auftrag */
+  /** Nur leere Aufträge (0 Sendungen); sonst immer neuer VLB-Auftrag (1:1). */
   @IsOptional()
   @IsString()
   orderId?: string;

@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
@@ -72,8 +71,6 @@ function ShipmentDetailInner() {
     () => soloplanStatusLabel(shipment?.order?.soloplanRef || shipment?.soloplanRef),
     [shipment],
   );
-  const siblings = (orderDetail?.shipments || []).filter((s: any) => s.id !== shipment?.id);
-
   if (!shipment) return <AppShell title="Sendung">Laden…</AppShell>;
 
   return (
@@ -139,14 +136,6 @@ function ShipmentDetailInner() {
                   Ladeliste / Auftragsbestätigung drucken
                 </button>
               )}
-              {shipment.orderId && (
-                <Link
-                  className="btn btn-ghost"
-                  href={`/shipments/new?orderId=${shipment.orderId}&mandantId=${shipment.mandantId}&customerId=${shipment.customerId}`}
-                >
-                  Weitere Sendung zum Auftrag
-                </Link>
-              )}
             </div>
           </div>
         )}
@@ -161,9 +150,6 @@ function ShipmentDetailInner() {
             <div><strong>Kunde:</strong> {shipment.customer?.name}</div>
             <div>
               <strong>Auftrag:</strong> {shipment.order?.externalNumber || '–'}
-              {orderDetail?._count?.shipments > 1 || siblings.length > 0
-                ? ` (${(orderDetail?.shipments?.length || siblings.length + 1)} Sendungen)`
-                : ''}
             </div>
             <div><strong>Frachtzahler:</strong> {shipment.order?.freightPayer?.name || shipment.customer?.name || '–'}</div>
             <div><strong>Referenz:</strong> {shipment.reference || '–'}</div>
@@ -195,20 +181,6 @@ function ShipmentDetailInner() {
                     ? ` · Warenwert ${(shipment.extras as ShipmentExtras).goodsValueEur} EUR`
                     : ''}
                 </div>
-              </div>
-            )}
-
-            {siblings.length > 0 && (
-              <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
-                <strong>Weitere Sendungen im Auftrag</strong>
-                {siblings.map((s: any) => (
-                  <Link key={s.id} href={`/shipments/${s.id}`} className="muted" style={{ fontSize: '0.9rem' }}>
-                    {s.trackingNumber} · {statusLabel(s.status)}
-                    {s.pickupCity || s.deliveryCity
-                      ? ` · ${s.pickupCity || '?'} → ${s.deliveryCity || '?'}`
-                      : ''}
-                  </Link>
-                ))}
               </div>
             )}
 

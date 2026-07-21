@@ -89,17 +89,7 @@ function splitColli(opts: {
   }));
 }
 
-type OpenOrder = {
-  id: string;
-  externalNumber: string;
-  mandantId: string;
-  freightPayerCustomerId: string;
-  status: string;
-  mandant?: { name: string };
-  freightPayer?: { name: string };
-  _count?: { shipments: number };
-  shipments?: Array<{ trackingNumber: string }>;
-};
+type PackagingOption = { code: string; label: string };
 
 function NewShipmentInner() {
   const router = useRouter();
@@ -109,7 +99,7 @@ function NewShipmentInner() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
+  const [packagingTypes, setPackagingTypes] = useState<PackagingOption[]>([...PACKAGING_TYPES]);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabId>('allgemein');
   const [colli, setColli] = useState<ColloDraft[]>([emptyCollo()]);
@@ -125,7 +115,6 @@ function NewShipmentInner() {
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
-    orderId: '',
     reference: '',
     transportMode: 'LKW',
     goodsDescription: '',
@@ -187,7 +176,6 @@ function NewShipmentInner() {
   }
 
   useEffect(() => {
-    const presetOrderId = search.get('orderId') || '';
     const presetMandantId = search.get('mandantId') || '';
     const presetCustomerId = search.get('customerId') || '';
     api<any[]>('/mandanten').then((m) => {
@@ -196,9 +184,17 @@ function NewShipmentInner() {
         ...f,
         mandantId: presetMandantId || f.mandantId || m[0]?.id || '',
         customerId: presetCustomerId || f.customerId,
-        orderId: presetOrderId || f.orderId,
       }));
     });
+    api<PackagingOption[]>('/integrations/soloplan/packaging-types')
+      .then((rows) => {
+        if (rows?.length) {
+          setPackagingTypes(rows.map((r) => ({ code: r.code, label: r.label || r.code })));
+        }
+      })
+      .catch(() => {
+        /* Fallback: PACKAGING_TYPES */
+      });
     if (user?.role !== 'CUSTOMER_USER') {
       api<any[]>('/customers').then(setCustomers);
     } else {
@@ -211,27 +207,6 @@ function NewShipmentInner() {
       loadAddressBook(form.customerId);
     }
   }, [form.customerId]);
-
-  useEffect(() => {
-    const q =
-      user?.role === 'CUSTOMER_USER'
-        ? '?openOnly=1'
-        : form.customerId
-          ? `?openOnly=1&customerId=${form.customerId}`
-          : '?openOnly=1';
-    if (user?.role !== 'CUSTOMER_USER' && !form.customerId && !form.orderId) {
-      setOpenOrders([]);
-      return;
-    }
-    api<OpenOrder[]>(`/orders${q}`)
-      .then((orders) => {
-        const filtered = form.mandantId
-          ? orders.filter((o) => o.mandantId === form.mandantId)
-          : orders;
-        setOpenOrders(filtered);
-      })
-      .catch(() => setOpenOrders([]));
-  }, [form.customerId, form.mandantId, user?.role]);
 
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
@@ -408,7 +383,6 @@ function NewShipmentInner() {
         method: 'POST',
         body: JSON.stringify({
           ...form,
-          orderId: form.orderId || undefined,
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
@@ -430,8 +404,6 @@ function NewShipmentInner() {
     }
   }
 
-  const selectedOrder = openOrders.find((o) => o.id === form.orderId);
-
   const pickupAddresses = addresses.filter((a) => a.usage !== 'DELIVERY');
   const deliveryAddresses = addresses.filter((a) => a.usage !== 'PICKUP');
 
@@ -440,7 +412,7 @@ function NewShipmentInner() {
       <form className="panel stack" onSubmit={onSubmit}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <p className="muted" style={{ margin: 0 }}>
-            Auftrag an WOG AG oder WOG GmbH. Adressen und Vorlagen aus dem Adressbuch vorausfüllen.
+            Ein Auftrag = eine Sendung. Adressen und Vorlagen aus dem Adressbuch vorausfüllen.
           </p>
           <Link href="/addresses">Adressbuch verwalten</Link>
         </div>
@@ -480,7 +452,7 @@ function NewShipmentInner() {
             <select
               required
               value={form.mandantId}
-              onChange={(e) => setForm({ ...form, mandantId: e.target.value, orderId: '' })}
+              onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
             >
               {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
@@ -491,7 +463,7 @@ function NewShipmentInner() {
               <select
                 required
                 value={form.customerId}
-                onChange={(e) => setForm({ ...form, customerId: e.target.value, orderId: '' })}
+                onChange={(e) => setForm({ ...form, customerId: e.target.value })}
               >
                 <option value="">Bitte wählen</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.customerNumber})</option>)}
@@ -507,39 +479,6 @@ function NewShipmentInner() {
             <input value={form.transportMode} onChange={(e) => setForm({ ...form, transportMode: e.target.value })} />
           </div>
         </div>
-
-        {(openOrders.length > 0 || form.orderId) && (
-          <div className="field">
-            <label>Auftrag</label>
-            <select
-              value={form.orderId}
-              onChange={(e) => {
-                const orderId = e.target.value;
-                const o = openOrders.find((x) => x.id === orderId);
-                setForm((f) => ({
-                  ...f,
-                  orderId,
-                  mandantId: o?.mandantId || f.mandantId,
-                  customerId: o?.freightPayerCustomerId || f.customerId,
-                }));
-              }}
-            >
-              <option value="">Neuer Auftrag (neue VLB-Nummer)</option>
-              {openOrders.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.externalNumber}
-                  {o._count?.shipments != null ? ` · ${o._count.shipments} Sendung(en)` : ''}
-                  {o.mandant?.name ? ` · ${o.mandant.name}` : ''}
-                </option>
-              ))}
-            </select>
-            {selectedOrder && (
-              <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                Weitere Sendung wird an {selectedOrder.externalNumber} angehängt (kumulierte Ladeliste).
-              </p>
-            )}
-          </div>
-        )}
 
         <div className="grid-2">
           <div className="stack">
@@ -644,7 +583,7 @@ function NewShipmentInner() {
                   value={quick.packaging}
                   onChange={(e) => setQuick({ ...quick, packaging: e.target.value })}
                 >
-                  {PACKAGING_TYPES.map((p) => (
+                  {packagingTypes.map((p) => (
                     <option key={p.code} value={p.code}>{p.label}</option>
                   ))}
                 </select>
@@ -715,7 +654,7 @@ function NewShipmentInner() {
                     value={c.packaging}
                     onChange={(e) => updateCollo(index, { packaging: e.target.value })}
                   >
-                    {PACKAGING_TYPES.map((p) => (
+                    {packagingTypes.map((p) => (
                       <option key={p.code} value={p.code}>{p.label}</option>
                     ))}
                   </select>

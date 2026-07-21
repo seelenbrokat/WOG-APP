@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -211,6 +216,7 @@ export class ShipmentsService {
     // Frachtzahler = eingeloggter Kunde; Fallback für Admin ohne Kundenkonto = Sendungskunde
     const freightPayerCustomerId = user.customerId || customerId;
 
+    // 1:1 Auftrag ↔ Sendung: Anhängen weiterer Sendungen ist nicht erlaubt.
     let transportOrder;
     if (data.orderId) {
       transportOrder = await this.prisma.transportOrder.findFirst({
@@ -219,7 +225,7 @@ export class ShipmentsService {
           organizationId: user.organizationId,
           mandantId: data.mandantId,
         },
-        include: { freightPayer: true },
+        include: { _count: { select: { shipments: true } } },
       });
       if (!transportOrder) throw new NotFoundException('Auftrag nicht gefunden');
       if (
@@ -234,6 +240,11 @@ export class ShipmentsService {
         !user.mandantIds.includes(transportOrder.mandantId)
       ) {
         throw new ForbiddenException();
+      }
+      if (transportOrder._count.shipments > 0) {
+        throw new BadRequestException(
+          'Pro Auftrag ist nur eine Sendung erlaubt. Bitte einen neuen Auftrag anlegen.',
+        );
       }
     } else {
       transportOrder = await this.createTransportOrder(user, {

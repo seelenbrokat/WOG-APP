@@ -175,14 +175,18 @@ export class BusinessPartnerService {
   }
 
   private async processDir(dir: string, organizationId: string) {
-    const files = readdirSync(dir).filter(
-      (f) =>
-        f.endsWith('.json') &&
-        (f.includes('BusinessPartner') ||
-          f.startsWith('PORTALGP') ||
-          f.includes('business-partner') ||
-          f.toLowerCase().includes('gpportal')),
-    );
+    // Soloplan liefert oft ".Json" (Großschreibung) – case-insensitive filtern.
+    const files = readdirSync(dir).filter((f) => {
+      const lower = f.toLowerCase();
+      if (!lower.endsWith('.json')) return false;
+      return (
+        f.includes('BusinessPartner') ||
+        lower.includes('businesspartner') ||
+        f.startsWith('PORTALGP') ||
+        lower.includes('business-partner') ||
+        lower.includes('gpportal')
+      );
+    });
     let processed = 0;
     const processedDir = join(dir, 'processed');
     if (!existsSync(processedDir)) mkdirSync(processedDir, { recursive: true });
@@ -351,13 +355,13 @@ export class BusinessPartnerService {
       saved.push(row);
     }
 
-    // Verwaiste Kontakte ohne E-Mail vom vorherigen Fehl-Import entfernen
+    // Kontakte, die nicht mehr im Soloplan-Export sind, entfernen
+    // (inkl. früherem Firmen-E-Mail-Fallback).
     if (keepIds.size && (link.customerId || link.partnerId)) {
       await this.prisma.contact.deleteMany({
         where: {
           ...link,
           id: { notIn: [...keepIds] },
-          OR: [{ email: null }, { email: '' }],
         },
       });
     }

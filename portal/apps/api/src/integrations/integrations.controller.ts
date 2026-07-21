@@ -20,6 +20,7 @@ import { Roles, CurrentUser, AuthUser } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { ExchangeHubService } from './exchange-hub.service';
 import { BusinessPartnerService } from './business-partner.service';
+import { MasterDataService } from './master-data.service';
 import { ShippingNetService } from './shippingnet.service';
 import { SoloplanService } from './soloplan.service';
 
@@ -110,9 +111,30 @@ export class IntegrationsController {
     private config: ConfigService,
     private hub: ExchangeHubService,
     private businessPartners: BusinessPartnerService,
+    private masterData: MasterDataService,
     private shippingNet: ShippingNetService,
     private soloplan: SoloplanService,
   ) {}
+
+  /** Soloplan-Verpackungen (GP-Export) für Colli-Dropdown */
+  @Get('soloplan/packaging-types')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  listPackagingTypes(@CurrentUser() user: AuthUser) {
+    return this.masterData.listPackagingTypes(user);
+  }
+
+  /** Soloplan-Dokumentenkategorien (GP-Export) */
+  @Get('soloplan/document-categories')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  listDocumentCategories(@CurrentUser() user: AuthUser) {
+    return this.masterData.listDocumentCategories(user);
+  }
+
+  @Post('soloplan/master-data/poll-inbox')
+  @Roles(UserRole.ORG_ADMIN)
+  pollMasterData(@CurrentUser() user: AuthUser) {
+    return this.masterData.processInboundDir(user.organizationId);
+  }
 
   @Get('soloplan/status')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
