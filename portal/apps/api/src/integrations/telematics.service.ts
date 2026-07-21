@@ -20,9 +20,9 @@ import {
   parseTelematicsXml,
 } from './telematics-xml.parser';
 import {
+  buildZustellTimeline,
   deliveryStatusFromEvents,
   isSignatureDocumentName,
-  mapTelematicsStatusLabel,
   writeZustellnachweisPdf,
 } from './zustellnachweis-pdf';
 
@@ -586,26 +586,23 @@ export class TelematicsService {
         })
       : [];
 
-    // TO-spezifische Events bevorzugen; TourStatus immer behalten
-    const timeline = toNumber
-      ? events.filter(
-          (e) =>
-            e.kind === 'TourStatus' ||
-            e.transportOrderNumber === toNumber ||
-            (e.kind === 'Document' &&
-              (!e.transportOrderNumber || e.transportOrderNumber === toNumber)),
-        )
-      : events;
+    // Für Status/Datum alle TO-Events nutzen; im PDF nur Ankunft + Zugestellt
+    const toEvents = events.filter(
+      (e) =>
+        e.kind === 'TransportOrderStatus' &&
+        (!toNumber || !e.transportOrderNumber || e.transportOrderNumber === toNumber),
+    );
+    const timeline = buildZustellTimeline(toEvents, toNumber);
 
     const deliveryMeta = deliveryStatusFromEvents([
       consignment?.status,
-      ...timeline.map((e) => e.status),
+      ...toEvents.map((e) => e.status),
     ]);
     const deliveryAt =
       consignment?.lastStatusAt ||
-      timeline
+      toEvents
         .filter((e) =>
-          ['UnloadingFinished', 'UnloadingPlaceLeft', 'DocumentReceived'].includes(e.status || ''),
+          ['UnloadingFinished', 'UnloadingPlaceLeft'].includes(e.status || ''),
         )
         .map((e) => e.eventAt)
         .filter(Boolean)
@@ -648,10 +645,7 @@ export class TelematicsService {
             ? signatureDoc.storagePath
             : null,
         signatureFileName: signatureDoc.fileName,
-        events: timeline.map((e) => ({
-          at: e.eventAt,
-          label: mapTelematicsStatusLabel(e.status, e.statusText),
-        })),
+        events: timeline,
       },
       storagePath,
     );

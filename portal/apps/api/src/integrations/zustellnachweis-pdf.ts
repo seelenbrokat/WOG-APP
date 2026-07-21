@@ -56,9 +56,9 @@ export function mapTelematicsStatusLabel(status?: string | null, statusText?: st
     LoadingStart: 'Beladung gestartet',
     LoadingFinished: 'Beladung abgeschlossen',
     LoadingPlaceLeft: 'Beladestelle verlassen',
-    UnloadingStart: 'Entladung gestartet',
-    UnloadingFinished: 'Entladung abgeschlossen – Zugestellt',
-    UnloadingPlaceLeft: 'Entladestelle verlassen',
+    UnloadingStart: 'Angekommen',
+    UnloadingFinished: 'Zugestellt',
+    UnloadingPlaceLeft: 'Zugestellt',
     DocumentReceived: 'Empfangsunterschrift erfasst',
     Started: 'Tour gestartet',
     Finished: 'Tour abgeschlossen',
@@ -68,6 +68,57 @@ export function mapTelematicsStatusLabel(status?: string | null, statusText?: st
     return detail ? `${map[status]} · ${detail}` : map[status];
   }
   return detail || status || 'Ereignis';
+}
+
+type TimelineEventLike = {
+  kind?: string | null;
+  status?: string | null;
+  statusText?: string | null;
+  transportOrderNumber?: string | null;
+  eventAt?: Date | null;
+};
+
+/**
+ * Kompakter Tracking-Verlauf für den Zustellnachweis:
+ * nur „Angekommen“ (UnloadingStart) und „Zugestellt“ (UnloadingFinished/PlaceLeft).
+ * TourStatus, Beladung, Dokumente usw. werden ausgeblendet.
+ */
+export function buildZustellTimeline(
+  events: TimelineEventLike[],
+  transportOrderNumber?: string | null,
+): Array<{ at: Date | null; label: string }> {
+  const relevant = events.filter((e) => {
+    if (e.kind && e.kind !== 'TransportOrderStatus') return false;
+    if (
+      transportOrderNumber &&
+      e.transportOrderNumber &&
+      e.transportOrderNumber !== transportOrderNumber
+    ) {
+      return false;
+    }
+    return e.status === 'UnloadingStart' || e.status === 'UnloadingFinished' || e.status === 'UnloadingPlaceLeft';
+  });
+
+  const byTime = (a: TimelineEventLike, b: TimelineEventLike) =>
+    (a.eventAt?.getTime() || 0) - (b.eventAt?.getTime() || 0);
+
+  const arrived = relevant.filter((e) => e.status === 'UnloadingStart').sort(byTime)[0];
+  const delivered =
+    relevant.filter((e) => e.status === 'UnloadingFinished').sort(byTime).pop() ||
+    relevant.filter((e) => e.status === 'UnloadingPlaceLeft').sort(byTime).pop();
+
+  const out: Array<{ at: Date | null; label: string }> = [];
+  if (arrived) {
+    out.push({ at: arrived.eventAt || null, label: mapTelematicsStatusLabel(arrived.status, arrived.statusText) });
+  }
+  if (delivered) {
+    // doppelte gleiche Zeile vermeiden, falls nur PlaceLeft ohne Start
+    const label = mapTelematicsStatusLabel(delivered.status, delivered.statusText);
+    if (!arrived || delivered.eventAt?.getTime() !== arrived.eventAt?.getTime() || label !== out[0]?.label) {
+      out.push({ at: delivered.eventAt || null, label });
+    }
+  }
+  return out;
 }
 
 export function deliveryStatusFromEvents(
