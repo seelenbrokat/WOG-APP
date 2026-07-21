@@ -44,15 +44,16 @@ Dateiname: `{Sendungsnummer oder Referenz}.json` (Consignment) bzw. `order-{…}
 
 ### SFTP
 
-Wenn SFTPGo aktiv ist (`ENABLE_SFTP=1`):
+Wenn SFTP aktiv ist (`ENABLE_SFTP=1`):
 
 - Host: `wog.logistikberater.at`
-- Port: `12022` (SFTP)
-- User: `soloplan` (siehe Server: `/root/wog-soloplan-sftp.txt`)
+- Port: **`22`** (OpenSSH internal-sftp, empfohlen für Soloplan)
+- User: `soloplan` (Credentials: `/root/wog-soloplan-sftp.txt`)
 - Remote-Pfad: `outbound/soloplan/orders/`
+- Optional zusätzlich: SFTPGo auf Port `12022` (gleicher User/Pfad)
 
 ```bash
-sftp -P 12022 soloplan@wog.logistikberater.at
+sftp soloplan@wog.logistikberater.at
 cd outbound/soloplan/orders
 ls
 get *.json
