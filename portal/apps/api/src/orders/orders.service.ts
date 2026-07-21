@@ -223,7 +223,48 @@ export class OrdersService {
       label: numbers,
     });
 
+    await this.notifyLoadingListCreated(user, orders, doc);
+
     return { orders, order: primaryOrder, document: doc };
+  }
+
+  /** Benachrichtigung an Dispo, wenn eine Ladeliste erzeugt wurde. */
+  private async notifyLoadingListCreated(user: AuthUser, orders: any[], doc: { id: string; fileName: string; storagePath: string }) {
+    const to =
+      this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') || 'mb@logistikberater.at';
+    if (!to.trim()) return;
+
+    const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
+    const numbers = orders.map((o) => o.externalNumber).join(', ');
+    const freightPayers = [
+      ...new Set(orders.map((o) => o.freightPayer?.name).filter(Boolean)),
+    ].join(', ');
+    const shipmentCount = orders.reduce((n, o) => n + (o.shipments?.length || 0), 0);
+    const subject =
+      orders.length === 1
+        ? `WOG Portal – Ladeliste ${orders[0].externalNumber}`
+        : `WOG Portal – Sammelladeliste (${orders.length} Aufträge)`;
+    const body = [
+      'Es wurde eine Ladeliste / Auftragsbestätigung erzeugt.',
+      '',
+      `Auftrag(e): ${numbers}`,
+      freightPayers ? `Frachtzahler: ${freightPayers}` : null,
+      `Sendungen: ${shipmentCount}`,
+      `Datei: ${doc.fileName}`,
+      `Erstellt von: ${user.email || user.id}`,
+      '',
+      `Portal: ${appUrl}`,
+    ]
+      .filter((line) => line != null)
+      .join('\n');
+
+    await this.notifications.sendRaw(to.trim(), subject, body, undefined, [
+      {
+        filename: doc.fileName,
+        path: doc.storagePath,
+        contentType: 'application/pdf',
+      },
+    ]);
   }
 
   private writeLoadingListPdf(orders: any[], storagePath: string): Promise<void> {
