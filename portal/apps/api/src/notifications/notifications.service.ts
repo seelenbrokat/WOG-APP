@@ -42,7 +42,10 @@ export class NotificationsService {
     try {
       if (this.transporter) {
         await this.transporter.sendMail({
-          from: this.config.get('SMTP_FROM') || 'noreply@wog.logistikberater.at',
+          from:
+            this.config.get('SMTP_FROM') ||
+            this.config.get('SMTP_USER') ||
+            'info@logistikberater.at',
           to: toEmail,
           subject,
           text: body,
