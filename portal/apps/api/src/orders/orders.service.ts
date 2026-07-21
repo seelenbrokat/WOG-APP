@@ -12,7 +12,7 @@ import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
-import { drawA4BrandHeader, drawA4Footer, WOG_PDF } from '../common/pdf-brand';
+import { drawA4BrandHeader, drawA4Footer, formatPdfDateTime, WOG_PDF } from '../common/pdf-brand';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -291,7 +291,7 @@ export class OrdersService {
         { width: contentW / 2 - 16 },
       );
       doc.font('Helvetica').fontSize(9).fillColor(WOG_PDF.muted);
-      doc.text(`erstellt ${new Date().toLocaleString('de-AT')}`, left + contentW / 2, metaTop + 12, {
+      doc.text(`erstellt ${formatPdfDateTime()}`, left + contentW / 2, metaTop + 12, {
         width: contentW / 2 - 12,
         align: 'right',
       });

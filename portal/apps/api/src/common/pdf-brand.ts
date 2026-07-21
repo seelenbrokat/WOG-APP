@@ -12,6 +12,13 @@ export const WOG_PDF = {
   white: '#ffffff',
 } as const;
 
+/** Server läuft oft in UTC – PDF-Zeiten in Mitteleuropa anzeigen. */
+export const PDF_TIMEZONE = 'Europe/Vienna';
+
+export function formatPdfDateTime(date: Date = new Date()): string {
+  return date.toLocaleString('de-AT', { timeZone: PDF_TIMEZONE });
+}
+
 /** Pfad zum WOG-Logo (JPEG) für PDFKit. */
 export function resolveWogLogoPath(): string | null {
   const candidates = [
