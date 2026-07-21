@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  chmodSync,
   createReadStream,
   existsSync,
   mkdirSync,
@@ -357,8 +358,21 @@ export class SoloplanService implements TransportIntegration {
       const json = JSON.stringify(payload, null, 2);
       const primary = join(this.ordersOutDir, fileName);
       const mirror = join(this.integrationOrdersOutDir, fileName);
+      if (!existsSync(this.ordersOutDir)) mkdirSync(this.ordersOutDir, { recursive: true });
+      // Soloplan muss Dateien nach Import löschen können → Ordner schreibbar halten
+      try {
+        chmodSync(this.ordersOutDir, 0o775);
+      } catch {
+        /* ignore */
+      }
       writeFileSync(primary, json);
       writeFileSync(mirror, json);
+      try {
+        chmodSync(primary, 0o664);
+        chmodSync(mirror, 0o664);
+      } catch {
+        /* ignore */
+      }
       const fileRef = `FILE:soloplan/orders/${fileName}`;
       await this.prisma.shipment.updateMany({
         where: { orderId: shipment.order.id },
