@@ -15,7 +15,7 @@ import {
   statSync,
   writeFileSync,
 } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { PartnerJobStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -82,6 +82,7 @@ export class SoloplanService implements TransportIntegration {
       .map((fileName) => {
         const full = join(this.ordersOutDir, fileName);
         const st = statSync(full);
+        if (!st.isFile()) return null;
         return {
           fileName,
           size: st.size,
@@ -89,7 +90,65 @@ export class SoloplanService implements TransportIntegration {
           path: `soloplan/orders/${fileName}`,
         };
       })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x))
       .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  }
+
+  /**
+   * Verschiebt abgeholt Dateien aus dem Soloplan-Pickup-Ordner nach archive/processed.
+   * Erkennung: atime > mtime (Datei wurde nach dem Schreiben gelesen / per SFTP geöffnet).
+   */
+  archiveDownloadedOrders() {
+    if (!existsSync(this.ordersOutDir)) return { archived: 0 as const, files: [] as string[] };
+    const delaySec = Number(this.config.get('SOLOPLAN_ARCHIVE_DELAY_SEC') || 20);
+    const delayMs = Math.max(5, delaySec) * 1000;
+    const now = Date.now();
+
+    const archiveDir = join(this.sftpOutboundRoot, 'soloplan', 'archive');
+    const mirrorProcessedDir = join(dirname(this.integrationOrdersOutDir), 'processed');
+    for (const dir of [archiveDir, mirrorProcessedDir]) {
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    }
+
+    const archived: string[] = [];
+    for (const fileName of readdirSync(this.ordersOutDir)) {
+      if (!fileName.endsWith('.json')) continue;
+      const primary = join(this.ordersOutDir, fileName);
+      let st;
+      try {
+        st = statSync(primary);
+      } catch {
+        continue;
+      }
+      if (!st.isFile()) continue;
+
+      // Nach SFTP-Download ist atime neuer als mtime (Schreiben beim Export).
+      const wasReadAfterWrite = st.atimeMs > st.mtimeMs + 500;
+      const settled = now - st.atimeMs >= delayMs;
+      if (!wasReadAfterWrite || !settled) continue;
+
+      const target = join(archiveDir, fileName);
+      try {
+        renameSync(primary, target);
+      } catch (err) {
+        this.logger.warn(`Archivieren fehlgeschlagen ${fileName}: ${err}`);
+        continue;
+      }
+
+      const mirror = join(this.integrationOrdersOutDir, fileName);
+      if (existsSync(mirror)) {
+        try {
+          renameSync(mirror, join(mirrorProcessedDir, fileName));
+        } catch (err) {
+          this.logger.warn(`Spiegel-Archiv fehlgeschlagen ${fileName}: ${err}`);
+        }
+      }
+
+      archived.push(fileName);
+      this.logger.log(`Soloplan Order nach Download archiviert: ${fileName}`);
+    }
+
+    return { archived: archived.length, files: archived };
   }
 
   openOutboundFile(fileName: string) {
