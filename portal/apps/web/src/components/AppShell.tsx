@@ -17,6 +17,7 @@ const NAV = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/customs', label: 'Verzollung', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
@@ -78,7 +79,8 @@ export function AppShell({
             {links.map((l) => {
               const active =
                 pathname === l.href ||
-                (l.href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname));
+                (l.href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname)) ||
+                (l.href === '/tours' && pathname.startsWith('/tours'));
               return (
                 <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
                   {l.label}
