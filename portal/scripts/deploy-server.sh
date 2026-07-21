@@ -187,11 +187,18 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
   chmod 755 "$SFTP_ROOT"
   find "$SFTP_ROOT" -type d -exec chmod 755 {} \;
   find "$SFTP_ROOT" -type f -exec chmod 644 {} \; 2>/dev/null || true
-  # Upload-Ordner beschreibbar für SFTP-User soloplan
+  # Upload- und Pickup-Ordner beschreibbar für SFTP-User soloplan
+  # (Outbound muss löschbar sein – Soloplan entfernt Dateien nach Import)
   if id soloplan >/dev/null 2>&1; then
     chown -R soloplan:soloplan \
       "$SFTP_ROOT/inbound/soloplan" \
       "$SFTP_ROOT/inbound/intouch" \
+      "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/archive" \
+      2>/dev/null || true
+    chmod 775 \
+      "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/archive" \
       2>/dev/null || true
   fi
 
@@ -225,6 +232,12 @@ EOF
   chown -R soloplan:soloplan \
     "$SFTP_ROOT/inbound/soloplan" \
     "$SFTP_ROOT/inbound/intouch" \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive" \
+    2>/dev/null || true
+  chmod 775 \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive" \
     2>/dev/null || true
 
   if ! grep -q '^Match User soloplan$' /etc/ssh/sshd_config; then
