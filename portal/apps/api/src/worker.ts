@@ -28,9 +28,10 @@ async function bootstrap() {
       await partnerImport.processInbound();
       await businessPartners.processInboundDir();
       await masterData.processInboundDir();
+      // Intouch-Ordner werden von Tour/Telematics mitgelesen; Intouch katalogisiert danach
       await tours.processInboundDir();
-      await telematics.processInboundDir(undefined, 150);
-      await intouch.processInboundDir(undefined, 100);
+      await telematics.processInboundDir(undefined, 250);
+      await intouch.processInboundDir(undefined, 200);
       await soloplan.syncPending();
       const archived = soloplan.archiveDownloadedOrders();
       if (archived.archived > 0) {

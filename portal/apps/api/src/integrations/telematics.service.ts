@@ -46,6 +46,8 @@ export class TelematicsService {
     this.inboundDirs = [
       join(sftpInbound, 'soloplan', 'tours'),
       join(sftpInbound, 'soloplan', 'business-partners'),
+      // Intouch Retour/Telematics (Status, GPS, POD)
+      join(sftpInbound, 'intouch', 'dokumente'),
     ];
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');

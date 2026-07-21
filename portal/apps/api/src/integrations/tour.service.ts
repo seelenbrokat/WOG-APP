@@ -21,6 +21,8 @@ export class TourService {
     this.inboundDirs = [
       join(sftpInbound, 'soloplan', 'tours'),
       join(sftpInbound, 'soloplan', 'business-partners'),
+      // Intouch liefert StdTelematics-Touren hierher
+      join(sftpInbound, 'intouch', 'meldungen'),
     ];
   }
 
