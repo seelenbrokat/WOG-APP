@@ -83,6 +83,110 @@ model Organization {
   transportOrders TransportOrder[]
   packagingTypes    PackagingType[]
   documentCategories DocumentCategory[]
+  vehicles          Vehicle[]
+  tours             Tour[]
+}
+
+/// Soloplan-Fahrzeug (aus Tour-Header / Truck)
+model Vehicle {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  soloplanVehicleId  String
+  number             String?
+  matchcode          String?
+  licensePlate       String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tours        Tour[]
+
+  @@unique([organizationId, soloplanVehicleId])
+  @@index([organizationId, licensePlate])
+}
+
+/// Soloplan StdTelematics-Tour (GP-Export *_Tour_*.xml)
+model Tour {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  /// Internes Soloplan TourId
+  soloplanTourId     String
+  /// Sichtbare Tournummer (z. B. 183434)
+  tourNumber         String
+  /// Create | Change | Delete
+  lastAction         String?
+  /// PLANNED | ACTIVE | COMPLETED | CANCELLED
+  status             String    @default("PLANNED")
+  caption            String?
+  infoText           String?
+  targetStart        DateTime?
+  targetEnd          DateTime?
+  targetLoadKm       Float?
+  driverName         String?
+  driverFirstName    String?
+  driverLastName     String?
+  driverTelematicsId String?
+  vehicleId          String?
+  dispatcherName     String?
+  dispatcherEmail    String?
+  dispatcherPhone    String?
+  stopCount          Int       @default(0)
+  orderCount         Int       @default(0)
+  lastSendDate       DateTime?
+  lastFileName       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+  stops        TourStop[]
+  consignments TourConsignment[]
+
+  @@unique([organizationId, soloplanTourId])
+  @@index([organizationId, tourNumber])
+  @@index([organizationId, status, targetStart])
+  @@index([vehicleId])
+}
+
+model TourStop {
+  id                   String    @id @default(cuid())
+  tourId               String
+  soloplanTourStopId   String?
+  sequence             Int
+  stopType             String?
+  transportOrderNumber String?
+  name                 String?
+  street               String?
+  zip                  String?
+  city                 String?
+  country              String?
+  latitude             Float?
+  longitude            Float?
+  targetStart          DateTime?
+  targetEnd            DateTime?
+  activityDescription  String?
+  phone                String?
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@index([tourId, sequence])
+  @@index([transportOrderNumber])
+}
+
+model TourConsignment {
+  id                         String  @id @default(cuid())
+  tourId                     String
+  soloplanOrderNumber        String
+  externalConsignmentNumber  String?
+  senderName                 String?
+  senderBpNumber             String?
+  receiverName               String?
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@index([tourId])
+  @@index([soloplanOrderNumber])
 }
 
 /// Soloplan-Verpackungsstammdaten (GP-Export verpackung.csv)

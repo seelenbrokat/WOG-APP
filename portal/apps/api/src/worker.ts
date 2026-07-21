@@ -4,6 +4,7 @@ import { PartnerImportService, SoloplanService } from './integrations/soloplan.s
 import { ExchangeHubService } from './integrations/exchange-hub.service';
 import { BusinessPartnerService } from './integrations/business-partner.service';
 import { MasterDataService } from './integrations/master-data.service';
+import { TourService } from './integrations/tour.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -12,14 +13,16 @@ async function bootstrap() {
   const hub = app.get(ExchangeHubService);
   const businessPartners = app.get(BusinessPartnerService);
   const masterData = app.get(MasterDataService);
+  const tours = app.get(TourService);
 
-  console.log('WOG Integration Worker started (Partner + Soloplan BP/Master + EZOLL Hub)');
+  console.log('WOG Integration Worker started (Partner + Soloplan BP/Master/Tours + EZOLL Hub)');
 
   const tick = async () => {
     try {
       await partnerImport.processInbound();
       await businessPartners.processInboundDir();
       await masterData.processInboundDir();
+      await tours.processInboundDir();
       await soloplan.syncPending();
       const archived = soloplan.archiveDownloadedOrders();
       if (archived.archived > 0) {

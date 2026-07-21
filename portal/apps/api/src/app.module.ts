@@ -19,6 +19,7 @@ import { AuditModule } from './audit/audit.module';
 import { CustomsModule } from './customs/customs.module';
 import { LabelsModule } from './labels/labels.module';
 import { OrdersModule } from './orders/orders.module';
+import { ToursModule } from './tours/tours.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
@@ -35,6 +36,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
     UsersModule,
     ShipmentsModule,
     OrdersModule,
+    ToursModule,
     LabelsModule,
     DocumentsModule,
     NotificationsModule,
