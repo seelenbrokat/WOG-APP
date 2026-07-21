@@ -96,6 +96,21 @@ export class ToursController {
     return file;
   }
 
+  @Get('documents/:docId/zustellnachweis')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  async zustellnachweis(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { file, fileName, mimeType } = await this.telematics.generateZustellnachweis(user, docId);
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `inline; filename="${fileName.replace(/"/g, '')}"`,
+    });
+    return file;
+  }
+
   @Get(':id')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {

@@ -111,6 +111,17 @@ function stopTypeLabel(t?: string | null) {
   return t;
 }
 
+function isSignatureDoc(fileName: string) {
+  const n = fileName.toUpperCase();
+  return (
+    n.includes('UNTERSCHRI') ||
+    n.includes('SIGNATURE') ||
+    n.includes('UNTERSCHRIFT') ||
+    n.includes('POD') ||
+    n.includes('EMPFANG')
+  );
+}
+
 async function openDocument(docId: string, fileName: string) {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/tours/documents/${docId}/download`, {
     headers: { Authorization: `Bearer ${getToken()}` },
@@ -121,6 +132,22 @@ async function openDocument(docId: string, fileName: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
+  a.target = '_blank';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function openZustellnachweis(docId: string) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL || '/api'}/tours/documents/${docId}/zustellnachweis`,
+    { headers: { Authorization: `Bearer ${getToken()}` } },
+  );
+  if (!res.ok) throw new Error('Zustellnachweis konnte nicht erzeugt werden');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Zustellnachweis.pdf`;
   a.target = '_blank';
   a.click();
   URL.revokeObjectURL(url);
@@ -316,7 +343,7 @@ export default function TourDetailPage() {
                   </td>
                   <td>{Math.round(d.sizeBytes / 1024)} KB</td>
                   <td>{fmt(d.createdAt)}</td>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
                     <button
                       type="button"
                       className="btn btn-ghost"
@@ -324,6 +351,16 @@ export default function TourDetailPage() {
                     >
                       Öffnen
                     </button>
+                    {isSignatureDoc(d.fileName) || d.mimeType.startsWith('image/') ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ marginLeft: '0.35rem' }}
+                        onClick={() => void openZustellnachweis(d.id).catch((e) => alert(e.message))}
+                      >
+                        Zustellnachweis
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))

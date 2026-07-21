@@ -1,6 +1,15 @@
 import { Injectable, Logger, NotFoundException, StreamableFile } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
 import { basename, join } from 'path';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,6 +19,12 @@ import {
   mimeFromFileName,
   parseTelematicsXml,
 } from './telematics-xml.parser';
+import {
+  deliveryStatusFromEvents,
+  isSignatureDocumentName,
+  mapTelematicsStatusLabel,
+  writeZustellnachweisPdf,
+} from './zustellnachweis-pdf';
 
 const TOUR_STATUS_MAP: Record<string, string> = {
   Started: 'ACTIVE',
@@ -476,6 +491,198 @@ export class TelematicsService {
       file: new StreamableFile(stream),
       fileName: basename(doc.fileName),
       mimeType: doc.mimeType,
+    };
+  }
+
+  /**
+   * Erzeugt einen digitalen Zustellnachweis (PDF) aus einem Soloplan-Unterschriftsdokument
+   * inkl. Empfänger, Zustellstatus und Tracking-Verlauf der zugehörigen Tour/TO.
+   */
+  async generateZustellnachweis(user: AuthUser, docId: string) {
+    if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
+
+    const signatureDoc = await this.prisma.tourDocument.findFirst({
+      where: { id: docId, organizationId: user.organizationId },
+    });
+    if (!signatureDoc || !existsSync(signatureDoc.storagePath)) {
+      throw new NotFoundException('Unterschriftsdokument nicht gefunden');
+    }
+
+    const toNumber = signatureDoc.transportOrderNumber || undefined;
+    const tour =
+      (signatureDoc.tourId
+        ? await this.prisma.tour.findFirst({
+            where: { id: signatureDoc.tourId, organizationId: user.organizationId },
+            include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
+          })
+        : null) ||
+      (signatureDoc.tourNumber
+        ? await this.prisma.tour.findFirst({
+            where: {
+              organizationId: user.organizationId,
+              tourNumber: signatureDoc.tourNumber,
+            },
+            include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
+          })
+        : null);
+
+    const consignment =
+      (toNumber && tour?.consignments.find((c) => c.soloplanOrderNumber === toNumber)) ||
+      tour?.consignments[0] ||
+      null;
+
+    const unloadStop =
+      (toNumber &&
+        tour?.stops.find(
+          (s) =>
+            s.transportOrderNumber === toNumber &&
+            (s.stopType || '').toLowerCase().includes('unload'),
+        )) ||
+      tour?.stops.find((s) => (s.stopType || '').toLowerCase().includes('unload')) ||
+      tour?.stops[tour.stops.length - 1] ||
+      null;
+
+    const loadStop =
+      (toNumber &&
+        tour?.stops.find(
+          (s) =>
+            s.transportOrderNumber === toNumber &&
+            (s.stopType || '').toLowerCase().includes('load') &&
+            !(s.stopType || '').toLowerCase().includes('unload'),
+        )) ||
+      tour?.stops.find(
+        (s) =>
+          (s.stopType || '').toLowerCase().includes('load') &&
+          !(s.stopType || '').toLowerCase().includes('unload'),
+      ) ||
+      null;
+
+    const eventOr = [
+      ...(toNumber ? [{ transportOrderNumber: toNumber }] : []),
+      ...(tour ? [{ tourId: tour.id }] : []),
+    ];
+    const events = eventOr.length
+      ? await this.prisma.telematicsEvent.findMany({
+          where: {
+            organizationId: user.organizationId,
+            kind: { in: ['TransportOrderStatus', 'TourStatus', 'Document'] },
+            OR: eventOr,
+          },
+          orderBy: { eventAt: 'asc' },
+          take: 80,
+        })
+      : [];
+
+    // TO-spezifische Events bevorzugen; TourStatus immer behalten
+    const timeline = toNumber
+      ? events.filter(
+          (e) =>
+            e.kind === 'TourStatus' ||
+            e.transportOrderNumber === toNumber ||
+            (e.kind === 'Document' &&
+              (!e.transportOrderNumber || e.transportOrderNumber === toNumber)),
+        )
+      : events;
+
+    const deliveryMeta = deliveryStatusFromEvents([
+      consignment?.status,
+      ...timeline.map((e) => e.status),
+    ]);
+    const deliveryAt =
+      consignment?.lastStatusAt ||
+      timeline
+        .filter((e) =>
+          ['UnloadingFinished', 'UnloadingPlaceLeft', 'DocumentReceived'].includes(e.status || ''),
+        )
+        .map((e) => e.eventAt)
+        .filter(Boolean)
+        .pop() ||
+      signatureDoc.createdAt;
+
+    const receiverName = consignment?.receiverName || unloadStop?.name || null;
+    const receiverAddress = unloadStop
+      ? [unloadStop.street, [unloadStop.zip, unloadStop.city].filter(Boolean).join(' '), unloadStop.country]
+          .filter(Boolean)
+          .join(', ')
+      : consignment?.statusText || null;
+    const senderName = consignment?.senderName || loadStop?.name || null;
+    const senderAddress = loadStop
+      ? [loadStop.street, [loadStop.zip, loadStop.city].filter(Boolean).join(' '), loadStop.country]
+          .filter(Boolean)
+          .join(', ')
+      : null;
+
+    const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
+    if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+    const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `Zustellnachweis-${safeTo}.pdf`;
+    const storagePath = join(outDir, fileName);
+
+    await writeZustellnachweisPdf(
+      {
+        tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+        transportOrderNumber: toNumber || consignment?.soloplanOrderNumber,
+        externalConsignmentNumber: consignment?.externalConsignmentNumber,
+        receiverName,
+        receiverAddress,
+        senderName,
+        senderAddress,
+        deliveryStatus: deliveryMeta.status,
+        deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
+        signaturePath: isSignatureDocumentName(signatureDoc.fileName)
+          ? signatureDoc.storagePath
+          : signatureDoc.mimeType.startsWith('image/')
+            ? signatureDoc.storagePath
+            : null,
+        signatureFileName: signatureDoc.fileName,
+        events: timeline.map((e) => ({
+          at: e.eventAt,
+          label: mapTelematicsStatusLabel(e.status, e.statusText),
+        })),
+      },
+      storagePath,
+    );
+
+    // Als TourDocument speichern (oder aktualisieren), damit es in der Tour sichtbar ist
+    const existing = await this.prisma.tourDocument.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        tourId: tour?.id || signatureDoc.tourId || undefined,
+        fileName,
+        mimeType: 'application/pdf',
+      },
+    });
+    const pdfDoc = existing
+      ? await this.prisma.tourDocument.update({
+          where: { id: existing.id },
+          data: {
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            transportOrderNumber: toNumber,
+            tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+          },
+        })
+      : await this.prisma.tourDocument.create({
+          data: {
+            organizationId: user.organizationId,
+            tourId: tour?.id || signatureDoc.tourId,
+            tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+            transportOrderNumber: toNumber,
+            fileName,
+            mimeType: 'application/pdf',
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+          },
+        });
+
+    const stream = createReadStream(storagePath);
+    return {
+      file: new StreamableFile(stream),
+      fileName,
+      mimeType: 'application/pdf',
+      documentId: pdfDoc.id,
     };
   }
 }
