@@ -1,7 +1,7 @@
 import { createWriteStream } from 'fs';
 import { createRequire } from 'module';
 import PDFDocument from 'pdfkit';
-import { drawLabelBrandHeader, WOG_PDF } from '../common/pdf-brand';
+import { drawDesignedByCredit, drawLabelBrandHeader, WOG_PDF } from '../common/pdf-brand';
 import { ssccAiData } from './sscc';
 
 // bwip-js package exports (`bwip-js/node`) need moduleResolution node16+;
@@ -172,6 +172,8 @@ async function drawLabelPage(
     .fontSize(7)
     .fillColor(WOG_PDF.muted)
     .text(`SSCC ${collo.sscc}`, left, doc.y + 1, { align: 'center', width });
+
+  drawDesignedByCredit(doc, { left, width });
 }
 
 /** Ein Collo-Etikett (ca. 100×150 mm) als PDF-Seite. */

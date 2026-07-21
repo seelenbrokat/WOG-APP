@@ -125,18 +125,25 @@ export function drawLabelBrandHeader(doc: PdfDoc, mandantName?: string | null): 
   doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(9);
 }
 
+export const PDF_DESIGNED_BY = 'designed by www.logistikberater.at (VLB e.U.)';
+
 export function drawA4Footer(doc: PdfDoc, pageNumber: number, pageCount?: number): void {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
+  const contentW = right - left;
   const savedX = doc.x;
   const savedY = doc.y;
   const savedBottom = doc.page.margins.bottom;
   // Footer in den unteren Rand schreiben, ohne Auto-Seitenumbruch
   doc.page.margins.bottom = 0;
-  const y = doc.page.height - 28;
+
+  const creditY = doc.page.height - 16;
+  const metaY = creditY - 12;
+  const ruleY = metaY - 8;
+
   doc
-    .moveTo(left, y - 8)
-    .lineTo(right, y - 8)
+    .moveTo(left, ruleY)
+    .lineTo(right, ruleY)
     .lineWidth(0.5)
     .strokeColor(WOG_PDF.line)
     .stroke();
@@ -144,17 +151,50 @@ export function drawA4Footer(doc: PdfDoc, pageNumber: number, pageCount?: number
     .fontSize(7)
     .fillColor(WOG_PDF.muted)
     .font('Helvetica')
-    .text('WOG – World of Green Logistics  ·  wog.logistikberater.at', left, y, {
-      width: (right - left) * 0.65,
+    .text('WOG – World of Green Logistics  ·  wog.logistikberater.at', left, metaY, {
+      width: contentW * 0.65,
       align: 'left',
       lineBreak: false,
     });
   const pageLabel = pageCount ? `Seite ${pageNumber} / ${pageCount}` : `Seite ${pageNumber}`;
-  doc.text(pageLabel, left + (right - left) * 0.65, y, {
-    width: (right - left) * 0.35,
+  doc.text(pageLabel, left + contentW * 0.65, metaY, {
+    width: contentW * 0.35,
     align: 'right',
     lineBreak: false,
   });
+  // Ganz unten in der Fußzeile
+  doc
+    .fontSize(6.5)
+    .fillColor(WOG_PDF.muted)
+    .font('Helvetica')
+    .text(PDF_DESIGNED_BY, left, creditY, {
+      width: contentW,
+      align: 'center',
+      lineBreak: false,
+    });
+
+  doc.page.margins.bottom = savedBottom;
+  doc.x = savedX;
+  doc.y = savedY;
+}
+
+/** Kleiner Designed-by-Hinweis unten (z. B. Etiketten). */
+export function drawDesignedByCredit(doc: PdfDoc, opts?: { left?: number; width?: number }): void {
+  const left = opts?.left ?? doc.page.margins.left;
+  const width = opts?.width ?? doc.page.width - left - (doc.page.margins.right || 18);
+  const savedX = doc.x;
+  const savedY = doc.y;
+  const savedBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  doc
+    .fontSize(5.5)
+    .fillColor(WOG_PDF.muted)
+    .font('Helvetica')
+    .text(PDF_DESIGNED_BY, left, doc.page.height - 12, {
+      width,
+      align: 'center',
+      lineBreak: false,
+    });
   doc.page.margins.bottom = savedBottom;
   doc.x = savedX;
   doc.y = savedY;

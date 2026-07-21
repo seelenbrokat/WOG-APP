@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { drawA4BrandHeader, drawA4Footer } from '../common/pdf-brand';
 
 @Injectable()
 export class DocumentsService {
@@ -149,11 +150,13 @@ export class DocumentsService {
 
   private writeAblieferbelegPdf(shipment: any, storagePath: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const stream = createWriteStream(storagePath);
       doc.pipe(stream);
-      doc.fontSize(20).text('Ablieferbeleg', { align: 'left' });
-      doc.moveDown();
+      drawA4BrandHeader(doc, {
+        title: 'Ablieferbeleg',
+        subtitle: shipment.trackingNumber,
+      });
       doc.fontSize(12).text(`Mandant: ${shipment.mandant.name}`);
       doc.text(`Sendungsnummer: ${shipment.trackingNumber}`);
       doc.text(`Referenz: ${shipment.reference || '-'}`);
@@ -181,6 +184,11 @@ export class DocumentsService {
       }
       doc.moveDown(2);
       doc.text('Empfangsbestätigung: ________________________  Datum: __________');
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        drawA4Footer(doc, i + 1, range.count);
+      }
       doc.end();
       stream.on('finish', () => resolve());
       stream.on('error', reject);
