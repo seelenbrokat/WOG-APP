@@ -18,6 +18,10 @@ async function bootstrap() {
       await partnerImport.processInbound();
       await businessPartners.processInboundDir();
       await soloplan.syncPending();
+      const archived = soloplan.archiveDownloadedOrders();
+      if (archived.archived > 0) {
+        console.log(`Soloplan: ${archived.archived} Order-Datei(en) nach Download archiviert`);
+      }
       await hub.processInboundQueues();
     } catch (err) {
       console.error('Worker tick failed', err);

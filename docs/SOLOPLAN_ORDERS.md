@@ -38,7 +38,9 @@ Referenz-Schemas und Samples:
 | Pfad im Container / auf dem Server | Zweck |
 |------------------------------------|--------|
 | `portal/data/sftp/outbound/soloplan/orders/` | **Pickup** für Soloplan (SFTP) |
-| `portal/data/integrations/soloplan/orders/out/` | Spiegelkopie |
+| `portal/data/sftp/outbound/soloplan/archive/` | Nach Download automatisch hierher verschoben |
+| `portal/data/integrations/soloplan/orders/out/` | Spiegelkopie (aktiv) |
+| `portal/data/integrations/soloplan/orders/processed/` | Spiegel nach Download |
 
 Dateiname: `{Sendungsnummer oder Referenz}.json` (Consignment) bzw. `order-{…}.json` (Order).
 
