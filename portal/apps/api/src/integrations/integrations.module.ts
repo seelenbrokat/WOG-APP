@@ -8,6 +8,7 @@ import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-a
 import { BusinessPartnerService } from './business-partner.service';
 import { MasterDataService } from './master-data.service';
 import { TourService } from './tour.service';
+import { TelematicsService } from './telematics.service';
 import { ShippingNetService } from './shippingnet.service';
 
 @Module({
@@ -20,6 +21,7 @@ import { ShippingNetService } from './shippingnet.service';
     BusinessPartnerService,
     MasterDataService,
     TourService,
+    TelematicsService,
     ShippingNetService,
     LdvAdapter,
     MercurioAdapter,
@@ -32,6 +34,7 @@ import { ShippingNetService } from './shippingnet.service';
     BusinessPartnerService,
     MasterDataService,
     TourService,
+    TelematicsService,
     ShippingNetService,
   ],
 })

@@ -305,6 +305,7 @@ export class TourService {
             tourNumber: true,
             caption: true,
             status: true,
+            telematicsStatus: true,
             targetStart: true,
             driverName: true,
             stopCount: true,

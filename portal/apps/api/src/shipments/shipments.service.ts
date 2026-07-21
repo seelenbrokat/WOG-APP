@@ -401,7 +401,8 @@ export class ShipmentsService {
         trackingNumber: shipment.trackingNumber,
         mandant: mandant.name,
       });
-      await this.soloplan.enqueueCreateOrder(shipment.id);
+      // Sofort exportieren – Worker hat eine eigene In-Memory-Queue und sähe enqueue nicht.
+      await this.soloplan.exportShipment(shipment.id);
     }
 
     return this.get(user, shipment.id);

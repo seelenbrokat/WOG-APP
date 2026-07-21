@@ -163,10 +163,12 @@ export class OrdersService {
                 mandant: order.mandant?.name,
               },
             );
-            await this.soloplan.enqueueCreateOrder(shipment.id);
+            // Sofort exportieren (nicht nur Worker-Queue): API und Worker
+            // haben getrennte In-Memory-Queues – sonst landet nichts im SFTP.
+            await this.soloplan.exportShipment(shipment.id);
             handedOver.push(shipment.id);
           } else if (!shipment.soloplanRef && !order.soloplanRef) {
-            await this.soloplan.enqueueCreateOrder(shipment.id);
+            await this.soloplan.exportShipment(shipment.id);
           }
         }
         if (order.status === 'OPEN' || order.status === 'DRAFT') {

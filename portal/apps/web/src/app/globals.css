@@ -713,3 +713,24 @@ code {
   .main { padding: 1rem 1rem 2rem; }
   .topbar { align-items: flex-start; }
 }
+
+/* Fleet / Kartenmonitor */
+.fleet-map {
+  width: 100%;
+  height: min(68vh, 620px);
+  min-height: 360px;
+  background: var(--wog-blue-mist);
+}
+.fleet-marker {
+  background: transparent;
+  border: none;
+}
+.fleet-marker-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--wog-green);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(18, 74, 41, 0.35);
+}
