@@ -63,7 +63,14 @@ type NoExchangeOverview = {
   groupBy: 'day' | 'month' | 'customer';
   days?: NoExchangeDay[];
   customers?: NoExchangeCustomer[];
-  totals: { customers: number; events: number; days: number };
+  excludedMatchcodes?: string[];
+  totals: {
+    customers: number;
+    events: number;
+    days: number;
+    stopsWithoutExchange?: number;
+    byMatchcode?: Record<string, number>;
+  };
 };
 
 function fmt(value?: string | null) {
@@ -299,19 +306,41 @@ export default function LademittelPage() {
             </button>
           </div>
 
+          <p className="muted" style={{ marginBottom: '0.75rem' }}>
+            Anzahl der Stops ohne Lademitteltausch (nur tauschrelevante Typen, z. B. EUP).{' '}
+            <strong>EWP/HP werden nicht gebucht</strong> und erscheinen hier nicht.
+          </p>
+
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="stat">
+              <div className="label">Stops ohne Tausch</div>
+              <div className="value">
+                {overview?.totals.stopsWithoutExchange ?? overview?.totals.events ?? 0}
+              </div>
+            </div>
             <div className="stat">
               <div className="label">Kunden ohne Tausch</div>
               <div className="value">{overview?.totals.customers ?? 0}</div>
             </div>
             <div className="stat">
-              <div className="label">Ereignisse</div>
-              <div className="value">{overview?.totals.events ?? 0}</div>
-            </div>
-            <div className="stat">
               <div className="label">Tage</div>
               <div className="value">{overview?.totals.days ?? 0}</div>
             </div>
+            {overview?.totals.byMatchcode &&
+              Object.keys(overview.totals.byMatchcode).length > 0 && (
+                <div className="stat">
+                  <div className="label">Nach Typ</div>
+                  <div className="value" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>
+                    {Object.entries(overview.totals.byMatchcode)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([mc, n]) => (
+                        <div key={mc}>
+                          <code>{mc}</code> {n}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
           </div>
 
           {loading ? (

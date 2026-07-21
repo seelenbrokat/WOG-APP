@@ -20,6 +20,18 @@ export type LoadingUnitExchangeNote = {
   }>;
 };
 
+/**
+ * Keine Lademittel-Buchung / kein „Nicht getauscht“:
+ * EWP (Einwegpalette), HP (Halbpalette), Alias EINWEGPALE.
+ */
+export const NON_EXCHANGEABLE_MATCHCODES = ['EWP', 'HP', 'EINWEGPALE'] as const;
+
+export function isExchangeBookableMatchcode(matchcode: string): boolean {
+  return !NON_EXCHANGEABLE_MATCHCODES.includes(
+    matchcode.trim().toUpperCase() as (typeof NON_EXCHANGEABLE_MATCHCODES)[number],
+  );
+}
+
 @Injectable()
 export class LoadingUnitService {
   private readonly logger = new Logger(LoadingUnitService.name);
@@ -82,19 +94,22 @@ export class LoadingUnitService {
     for (const ex of parsed.exchanges) {
       const matchcode = ex.matchcode.trim();
       if (!matchcode) continue;
+      // EWP/HP: keine Buchung, kein Nicht-Tausch-Eintrag
+      if (!isExchangeBookableMatchcode(matchcode)) continue;
+
+      const packaging = await this.resolvePackagingType(organizationId, matchcode);
+      const canonicalCode = packaging?.matchcode || matchcode;
 
       const existing = await this.prisma.loadingUnitPosting.findUnique({
         where: {
           organizationId_sourceFile_packagingMatchcode: {
             organizationId,
             sourceFile,
-            packagingMatchcode: matchcode,
+            packagingMatchcode: canonicalCode,
           },
         },
       });
       if (existing) continue;
-
-      const packaging = await this.resolvePackagingType(organizationId, matchcode);
 
       // Null-Tausch: nur für CSV-PackagingTypes erfassen (Übersicht „nicht getauscht“)
       if (ex.given === 0 && ex.taken === 0) {
@@ -345,6 +360,7 @@ export class LoadingUnitService {
           lastAt: r._max.occurredAt,
         };
       })
+      .filter((r) => isExchangeBookableMatchcode(r.packagingMatchcode))
       .filter((r) => (opts?.includeZero ? true : r.given !== 0 || r.taken !== 0))
       .sort((a, b) => {
         const na = (a.partnerName || '').localeCompare(b.partnerName || '', 'de');
@@ -484,7 +500,7 @@ export class LoadingUnitService {
           for (const ex of parsed.exchanges) {
             if (ex.given !== 0 || ex.taken !== 0) continue;
             const matchcode = ex.matchcode.trim();
-            if (!matchcode) continue;
+            if (!matchcode || !isExchangeBookableMatchcode(matchcode)) continue;
             const packaging = await this.resolvePackagingType(org.id, matchcode);
             if (!packaging) continue;
 
@@ -559,6 +575,7 @@ export class LoadingUnitService {
       where: {
         organizationId: user.organizationId,
         status: 'SKIPPED_ZERO',
+        packagingMatchcode: { notIn: [...NON_EXCHANGEABLE_MATCHCODES] },
         occurredAt: { gte: range.from, lt: range.to },
         ...(opts?.q
           ? {
@@ -581,6 +598,7 @@ export class LoadingUnitService {
     });
 
     const filtered = rows.filter((r) => {
+      if (!isExchangeBookableMatchcode(r.packagingMatchcode)) return false;
       if (opts?.includeInternal) return true;
       return !isInternalPartnerName(r.partnerName);
     });
@@ -687,15 +705,24 @@ export class LoadingUnitService {
         }))
         .sort((a, b) => b.events - a.events || a.partnerName.localeCompare(b.partnerName, 'de'));
 
+      const byMatchcode: Record<string, number> = {};
+      for (const e of eventList) {
+        for (const mc of e.packagingMatchcodes) {
+          byMatchcode[mc] = (byMatchcode[mc] || 0) + 1;
+        }
+      }
       return {
         month,
         groupBy: 'customer' as const,
         range: { from: range.from, to: range.to },
         customers,
+        excludedMatchcodes: [...NON_EXCHANGEABLE_MATCHCODES],
         totals: {
+          stopsWithoutExchange: eventList.length,
           customers: customers.length,
           events: eventList.length,
           days: new Set(eventList.map((e) => e.day)).size,
+          byMatchcode,
         },
       };
     }
@@ -761,15 +788,26 @@ export class LoadingUnitService {
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
 
+    const byMatchcode: Record<string, number> = {};
+    for (const e of eventList) {
+      for (const mc of e.packagingMatchcodes) {
+        byMatchcode[mc] = (byMatchcode[mc] || 0) + 1;
+      }
+    }
+
     return {
       month,
       groupBy,
       range: { from: range.from, to: range.to },
       days,
+      excludedMatchcodes: [...NON_EXCHANGEABLE_MATCHCODES],
       totals: {
+        /** Anzahl Stops/Kunden-Ereignisse ohne Tausch */
+        stopsWithoutExchange: eventList.length,
         customers: new Set(eventList.map((e) => `${e.partnerNumber || ''}|${e.partnerName}`)).size,
         events: eventList.length,
         days: days.length,
+        byMatchcode,
       },
     };
   }
@@ -824,9 +862,10 @@ export class LoadingUnitService {
       take: 40,
     });
 
-    // Pro Matchcode die neueste Meldung
+    // Pro Matchcode die neueste Meldung (ohne EWP/HP)
     const latestByCode = new Map<string, (typeof rows)[number]>();
     for (const r of rows) {
+      if (!isExchangeBookableMatchcode(r.packagingMatchcode)) continue;
       const key = r.packagingMatchcode.toUpperCase();
       if (!latestByCode.has(key)) latestByCode.set(key, r);
     }
