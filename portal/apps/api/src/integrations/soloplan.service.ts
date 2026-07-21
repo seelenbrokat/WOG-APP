@@ -323,12 +323,15 @@ export class SoloplanService implements TransportIntegration {
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
     const format = this.getFileFormat();
+    // Bereits exportiert → Update nur mit externen Nummern, keine Sendungsinfos erneut
+    const isUpdate = this.isSoloplanOrderUpdate(shipment.order);
     const payload = buildSoloplanFilePayload(shipmentWithDocs, {
       format,
-      defaultSender: this.getDefaultSender(),
-      trackingBaseUrl: this.config.get('APP_URL') || undefined,
+      defaultSender: isUpdate ? null : this.getDefaultSender(),
+      trackingBaseUrl: isUpdate ? undefined : this.config.get('APP_URL') || undefined,
       objectOwnerId: Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
       orderShipments: orderShipmentsWithDocs,
+      update: isUpdate,
     });
 
     if (!enabled || mode === 'stub') {
@@ -346,7 +349,6 @@ export class SoloplanService implements TransportIntegration {
     }
 
     if (mode === 'file') {
-      const isUpdate = this.isSoloplanOrderUpdate(shipment.order);
       // Noch liegende Erstdatei nicht überschreiben – bei Update umbenennen/wegarchivieren
       if (isUpdate) {
         this.retirePendingOutboundForOrder(shipment, format);

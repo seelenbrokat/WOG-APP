@@ -514,6 +514,64 @@ function buildConsignment(
   };
 }
 
+function soloplanHeader() {
+  return {
+    sendDate: formatSoloplanDateTime(new Date())!,
+    exportItemReference: randomUUID(),
+  };
+}
+
+function consignmentExternalNumber(shipment: PortalShipmentForSoloplan): string {
+  return shipment.reference || shipment.trackingNumber;
+}
+
+function orderExternalNumber(shipment: PortalShipmentForSoloplan): string {
+  return shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
+}
+
+/**
+ * Update-Export: keine Sendungsdaten erneut senden.
+ * Nur externe Auftragsnummer + externe Sendungsnummer (mit actionAttribute=update).
+ */
+export function buildSoloplanUpdatePayload(
+  shipment: PortalShipmentForSoloplan,
+  opts: {
+    format?: SoloplanFileFormat;
+    objectOwnerId?: number;
+    orderShipments?: PortalShipmentForSoloplan[];
+  } = {},
+) {
+  const format: SoloplanFileFormat = opts.format || 'order';
+  const header = soloplanHeader();
+  const siblings =
+    opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
+
+  const consignments = siblings.map((s, idx) => ({
+    itemNumber: idx + 1,
+    actionAttribute: 'update',
+    externalNumber: consignmentExternalNumber(s),
+  }));
+
+  if (format === 'order') {
+    return {
+      header,
+      order: [
+        {
+          actionAttribute: 'update',
+          externalNumber: orderExternalNumber(shipment),
+          ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
+          consignments,
+        },
+      ],
+    };
+  }
+
+  return {
+    header,
+    consignment: consignments,
+  };
+}
+
 export function buildSoloplanFilePayload(
   shipment: PortalShipmentForSoloplan,
   opts: {
@@ -523,14 +581,17 @@ export function buildSoloplanFilePayload(
     objectOwnerId?: number;
     /** Alle Sendungen desselben Auftrags (1:n) → kumulierte consignments */
     orderShipments?: PortalShipmentForSoloplan[];
+    /** true = nur externe Nummern, keine Sendungsinfos */
+    update?: boolean;
   } = {},
 ) {
+  if (opts.update) {
+    return buildSoloplanUpdatePayload(shipment, opts);
+  }
+
   // Soloplan braucht mindestens einen Auftrag mit Sendung – Default: order
   const format: SoloplanFileFormat = opts.format || 'order';
-  const header = {
-    sendDate: formatSoloplanDateTime(new Date())!,
-    exportItemReference: randomUUID(),
-  };
+  const header = soloplanHeader();
 
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
@@ -548,8 +609,7 @@ export function buildSoloplanFilePayload(
 
   if (format === 'order') {
     const freightPayer = shipment.order?.freightPayer || shipment.customer;
-    const externalNumber =
-      shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
+    const externalNumber = orderExternalNumber(shipment);
     // Auftragsweite Dokumente (z. B. Ablieferbeleg) zusätzlich auf Order-Ebene
     const orderDocuments = toSoloplanDocumentData(
       siblings.flatMap((s) => s.documents || []).filter((d) => d.category === 'ABL' || d.category === 'AUFABL'),
