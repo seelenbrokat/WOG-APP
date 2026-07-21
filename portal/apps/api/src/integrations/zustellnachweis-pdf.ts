@@ -4,8 +4,10 @@ import {
   WOG_PDF,
   PDF_TIMEZONE,
   drawA4BrandHeader,
+  drawLoadingUnitExchangeBox,
   formatPdfDateTime,
   resolveWogLogoPath,
+  type PdfLoadingUnitExchangeNote,
 } from '../common/pdf-brand';
 
 export type ZustellnachweisInput = {
@@ -22,6 +24,7 @@ export type ZustellnachweisInput = {
   deliveryAt?: Date | null;
   signaturePath?: string | null;
   signatureFileName?: string | null;
+  loadingUnitExchange?: PdfLoadingUnitExchangeNote | null;
   events: Array<{
     at: Date | null;
     label: string;
@@ -299,6 +302,11 @@ export function writeZustellnachweisPdf(
       .fontSize(14)
       .text(fmtDt(input.deliveryAt), left + colW + 8, boxY + 24, { width: colW - 20 });
     doc.y = boxY + boxH + 16;
+
+    if (input.loadingUnitExchange && input.loadingUnitExchange.status !== 'UNKNOWN') {
+      sectionTitle(doc, 'Lademittel');
+      drawLoadingUnitExchangeBox(doc, input.loadingUnitExchange);
+    }
 
     if (input.signaturePath && existsSync(input.signaturePath)) {
       sectionTitle(doc, 'Empfangsunterschrift');

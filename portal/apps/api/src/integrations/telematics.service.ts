@@ -647,6 +647,16 @@ export class TelematicsService {
           .join(', ')
       : null;
 
+    const loadingUnitExchange = await this.loadingUnits.resolveExchangeNote({
+      organizationId: user.organizationId,
+      tourStopId: unloadStop?.id,
+      tourStopExternalId: unloadStop?.soloplanTourStopId,
+      tourId: tour?.id,
+      tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+      partnerName: receiverName,
+      transportOrderNumber: toNumber,
+    });
+
     const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
     if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
     const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -670,6 +680,7 @@ export class TelematicsService {
             ? signatureDoc.storagePath
             : null,
         signatureFileName: signatureDoc.fileName,
+        loadingUnitExchange,
         events: timeline,
       },
       storagePath,

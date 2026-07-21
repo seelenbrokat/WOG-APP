@@ -18,8 +18,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
-import { drawA4BrandHeader, drawA4Footer } from '../common/pdf-brand';
+import { drawA4BrandHeader, drawA4Footer, drawLoadingUnitExchangeBox } from '../common/pdf-brand';
 import { SoloplanService } from '../integrations/soloplan.service';
+import {
+  LoadingUnitExchangeNote,
+  LoadingUnitService,
+} from '../integrations/loading-unit.service';
 
 @Injectable()
 export class DocumentsService {
@@ -32,6 +36,7 @@ export class DocumentsService {
     private notifications: NotificationsService,
     private audit: AuditService,
     @Inject(forwardRef(() => SoloplanService)) private soloplan: SoloplanService,
+    @Inject(forwardRef(() => LoadingUnitService)) private loadingUnits: LoadingUnitService,
   ) {
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     if (!existsSync(this.uploadDir)) mkdirSync(this.uploadDir, { recursive: true });
@@ -178,9 +183,14 @@ export class DocumentsService {
       throw new ForbiddenException();
     }
 
+    const exchangeNote = await this.loadingUnits.resolveExchangeNoteForShipment(
+      shipment.organizationId,
+      shipment,
+    );
+
     const fileName = `Ablieferbeleg-${shipment.trackingNumber}.pdf`;
     const storagePath = join(this.uploadDir, fileName);
-    await this.writeAblieferbelegPdf(shipment, storagePath);
+    await this.writeAblieferbelegPdf(shipment, storagePath, exchangeNote);
 
     const doc = await this.prisma.document.create({
       data: {
@@ -215,7 +225,11 @@ export class DocumentsService {
     return doc;
   }
 
-  private writeAblieferbelegPdf(shipment: any, storagePath: string): Promise<void> {
+  private writeAblieferbelegPdf(
+    shipment: any,
+    storagePath: string,
+    exchangeNote?: LoadingUnitExchangeNote | null,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const stream = createWriteStream(storagePath);
@@ -249,8 +263,11 @@ export class DocumentsService {
           doc.text(`- ${p.quantity}x ${p.description}${p.sscc ? ` (SSCC ${p.sscc})` : ''}`);
         }
       }
-      doc.moveDown(2);
-      doc.text('Empfangsbestätigung: ________________________  Datum: __________');
+      doc.moveDown();
+      // Nicht-Tausch (Given/Taken=0) muss auf dem Ablieferbeleg klar ersichtlich sein
+      drawLoadingUnitExchangeBox(doc, exchangeNote);
+      doc.moveDown();
+      doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);

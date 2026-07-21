@@ -7,6 +7,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { parseTelematicsXml, ParsedTourStopStatus } from './telematics-xml.parser';
 
+export type LoadingUnitExchangeNote = {
+  status: 'EXCHANGED' | 'NOT_EXCHANGED' | 'MIXED' | 'UNKNOWN';
+  headline: string;
+  detail: string;
+  lines: Array<{
+    matchcode: string;
+    label?: string | null;
+    given: number;
+    taken: number;
+    status: string;
+  }>;
+};
+
 @Injectable()
 export class LoadingUnitService {
   private readonly logger = new Logger(LoadingUnitService.name);
@@ -759,6 +772,202 @@ export class LoadingUnitService {
         days: days.length,
       },
     };
+  }
+
+  /**
+   * Lademitteltausch-Hinweis für Ablieferbeleg / Zustellnachweis.
+   */
+  async resolveExchangeNote(opts: {
+    organizationId: string;
+    tourStopId?: string | null;
+    tourStopExternalId?: string | null;
+    tourId?: string | null;
+    tourNumber?: string | null;
+    partnerName?: string | null;
+    transportOrderNumber?: string | null;
+  }): Promise<LoadingUnitExchangeNote> {
+    const or: Array<Record<string, unknown>> = [];
+    if (opts.tourStopId) or.push({ tourStopId: opts.tourStopId });
+    if (opts.tourStopExternalId) or.push({ tourStopExternalId: opts.tourStopExternalId });
+    if (opts.tourId && opts.partnerName) {
+      or.push({
+        tourId: opts.tourId,
+        partnerName: { equals: opts.partnerName, mode: 'insensitive' },
+      });
+    }
+    if (opts.tourNumber && opts.partnerName) {
+      or.push({
+        tourNumber: opts.tourNumber,
+        partnerName: { equals: opts.partnerName, mode: 'insensitive' },
+      });
+    }
+    if (opts.partnerName && !opts.tourStopId && !opts.tourStopExternalId) {
+      or.push({ partnerName: { equals: opts.partnerName, mode: 'insensitive' } });
+    }
+
+    if (!or.length) {
+      return {
+        status: 'UNKNOWN',
+        headline: 'Lademitteltausch',
+        detail: 'Keine Telematics-Meldung vorhanden',
+        lines: [],
+      };
+    }
+
+    const rows = await this.prisma.loadingUnitPosting.findMany({
+      where: {
+        organizationId: opts.organizationId,
+        status: { in: ['BOOKED', 'SKIPPED_ZERO'] },
+        OR: or,
+      },
+      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      take: 40,
+    });
+
+    // Pro Matchcode die neueste Meldung
+    const latestByCode = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) {
+      const key = r.packagingMatchcode.toUpperCase();
+      if (!latestByCode.has(key)) latestByCode.set(key, r);
+    }
+    const lines = [...latestByCode.values()].map((r) => ({
+      matchcode: r.packagingMatchcode,
+      label: r.packagingLabel,
+      given: r.given,
+      taken: r.taken,
+      status: r.status,
+    }));
+
+    if (!lines.length) {
+      return {
+        status: 'UNKNOWN',
+        headline: 'Lademitteltausch',
+        detail: 'Keine Telematics-Meldung vorhanden',
+        lines: [],
+      };
+    }
+
+    const hasBooked = lines.some((l) => l.status === 'BOOKED' && (l.given > 0 || l.taken > 0));
+    const hasZero = lines.some(
+      (l) => l.status === 'SKIPPED_ZERO' || (l.given === 0 && l.taken === 0),
+    );
+
+    let status: LoadingUnitExchangeNote['status'] = 'UNKNOWN';
+    let headline = 'Lademitteltausch';
+    let detail = '';
+    if (hasZero && !hasBooked) {
+      status = 'NOT_EXCHANGED';
+      headline = 'Lademittel NICHT getauscht';
+      detail = 'Laut TourStopStatus: Given 0 / Taken 0';
+    } else if (hasBooked && hasZero) {
+      status = 'MIXED';
+      headline = 'Lademitteltausch teilweise';
+      detail = 'Mindestens ein Typ ohne Tausch gemeldet';
+    } else if (hasBooked) {
+      status = 'EXCHANGED';
+      headline = 'Lademittel getauscht';
+      detail = lines.map((l) => `${l.matchcode}: Given ${l.given} / Taken ${l.taken}`).join(' · ');
+    } else {
+      status = 'NOT_EXCHANGED';
+      headline = 'Lademittel NICHT getauscht';
+      detail = 'Laut TourStopStatus: Given 0 / Taken 0';
+    }
+
+    return { status, headline, detail, lines };
+  }
+
+  /** Resolve für Portal-Sendung (Ablieferbeleg). */
+  async resolveExchangeNoteForShipment(
+    organizationId: string,
+    shipment: {
+      reference?: string | null;
+      trackingNumber?: string | null;
+      deliveryCompany?: string | null;
+      deliveryCity?: string | null;
+    },
+  ): Promise<LoadingUnitExchangeNote> {
+    const consOr: Array<Record<string, unknown>> = [];
+    if (shipment.reference) {
+      consOr.push({ externalConsignmentNumber: shipment.reference });
+      consOr.push({ soloplanOrderNumber: shipment.reference });
+    }
+    if (shipment.trackingNumber) {
+      consOr.push({ externalConsignmentNumber: shipment.trackingNumber });
+    }
+    if (shipment.deliveryCompany) {
+      consOr.push({ receiverName: { equals: shipment.deliveryCompany, mode: 'insensitive' } });
+    }
+
+    let tourStopId: string | null = null;
+    let tourStopExternalId: string | null = null;
+    let tourId: string | null = null;
+    let tourNumber: string | null = null;
+
+    if (consOr.length) {
+      const cons = await this.prisma.tourConsignment.findFirst({
+        where: { tour: { organizationId }, OR: consOr },
+        include: {
+          tour: {
+            select: {
+              id: true,
+              tourNumber: true,
+              stops: {
+                select: {
+                  id: true,
+                  soloplanTourStopId: true,
+                  stopType: true,
+                  name: true,
+                  transportOrderNumber: true,
+                  city: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ lastStatusAt: 'desc' }],
+      });
+      if (cons) {
+        tourId = cons.tourId;
+        tourNumber = cons.tour.tourNumber;
+        const stopKind = (t?: string | null) => {
+          const s = (t || '').toLowerCase();
+          if (
+            s.includes('receiver') ||
+            s.includes('unload') ||
+            s.includes('entlad') ||
+            s.includes('zustell') ||
+            s.includes('delivery')
+          ) {
+            return 'receiver';
+          }
+          return 'other';
+        };
+        const unload =
+          cons.tour.stops.find(
+            (s) =>
+              s.transportOrderNumber === cons.soloplanOrderNumber && stopKind(s.stopType) === 'receiver',
+          ) ||
+          cons.tour.stops.find(
+            (s) =>
+              shipment.deliveryCompany &&
+              s.name &&
+              s.name.toLowerCase() === shipment.deliveryCompany.toLowerCase(),
+          ) ||
+          cons.tour.stops.find((s) => stopKind(s.stopType) === 'receiver') ||
+          null;
+        tourStopId = unload?.id || null;
+        tourStopExternalId = unload?.soloplanTourStopId || null;
+      }
+    }
+
+    return this.resolveExchangeNote({
+      organizationId,
+      tourStopId,
+      tourStopExternalId,
+      tourId,
+      tourNumber,
+      partnerName: shipment.deliveryCompany,
+    });
   }
 }
 
