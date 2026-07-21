@@ -52,6 +52,9 @@ export class LoadingUnitService {
     }
 
     const partner = await this.resolvePartner(organizationId, stop, resolvedTour?.id);
+    if (!partner.partnerName) {
+      partner.partnerName = `Tour ${parsed.tourNumber} · Stop ${parsed.tourStopId}`;
+    }
 
     let booked = 0;
     let skippedZero = 0;
