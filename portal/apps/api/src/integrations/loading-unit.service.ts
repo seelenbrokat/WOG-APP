@@ -16,6 +16,7 @@ export type LoadingUnitExchangeNote = {
     label?: string | null;
     given: number;
     taken: number;
+    owedQuantity?: number;
     status: string;
   }>;
 };
@@ -117,6 +118,11 @@ export class LoadingUnitService {
           skippedUnknown += 1;
           continue;
         }
+        const owedQuantity = await this.resolveOwedQuantity(organizationId, packaging.matchcode, {
+          tourStopId: stop?.id,
+          transportOrderNumber: stop?.transportOrderNumber,
+          tourId: resolvedTour?.id,
+        });
         await this.prisma.loadingUnitPosting.create({
           data: {
             organizationId,
@@ -125,7 +131,8 @@ export class LoadingUnitService {
             packagingLabel: packaging.label,
             given: 0,
             taken: 0,
-            balanceDelta: 0,
+            balanceDelta: owedQuantity,
+            owedQuantity,
             tourId: resolvedTour?.id,
             tourNumber: parsed.tourNumber,
             tourStopId: stop?.id,
@@ -136,7 +143,10 @@ export class LoadingUnitService {
             customerId: partner.customerId,
             vehicleSoloplanId: parsed.vehicleId,
             status: 'SKIPPED_ZERO',
-            skipReason: 'Given=0 / Taken=0 – kein Lademitteltausch',
+            skipReason:
+              owedQuantity > 0
+                ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} schuldend laut Sendung)`
+                : 'Given=0 / Taken=0 – kein Lademitteltausch',
             occurredAt: eventAt,
             sendDate: parsed.sendDate,
             sourceFile,
@@ -151,13 +161,15 @@ export class LoadingUnitService {
         this.logger.warn(
           `Lademittel übersprungen (nicht in PackagingType-CSV): ${matchcode} @ ${sourceFile}`,
         );
+        const balanceDelta = ex.given - ex.taken;
         await this.prisma.loadingUnitPosting.create({
           data: {
             organizationId,
             packagingMatchcode: matchcode,
             given: ex.given,
             taken: ex.taken,
-            balanceDelta: ex.given - ex.taken,
+            balanceDelta,
+            owedQuantity: Math.max(0, balanceDelta),
             tourId: resolvedTour?.id,
             tourNumber: parsed.tourNumber,
             tourStopId: stop?.id,
@@ -177,6 +189,7 @@ export class LoadingUnitService {
         continue;
       }
 
+      const balanceDelta = ex.given - ex.taken;
       await this.prisma.loadingUnitPosting.create({
         data: {
           organizationId,
@@ -185,7 +198,8 @@ export class LoadingUnitService {
           packagingLabel: packaging.label,
           given: ex.given,
           taken: ex.taken,
-          balanceDelta: ex.given - ex.taken,
+          balanceDelta,
+          owedQuantity: Math.max(0, balanceDelta),
           tourId: resolvedTour?.id,
           tourNumber: parsed.tourNumber,
           tourStopId: stop?.id,
@@ -235,6 +249,128 @@ export class LoadingUnitService {
       orderBy: [{ soloplanNumber: 'asc' }],
     });
     return rows[0] || null;
+  }
+
+  /**
+   * Ermittelt die Anzahl schuldender Lademittel aus Portal-Sendung/Colli
+   * (für Nicht-Tausch, wenn Telematics Given/Taken = 0 meldet).
+   */
+  private async resolveOwedQuantity(
+    organizationId: string,
+    matchcode: string,
+    opts: {
+      tourStopId?: string | null;
+      transportOrderNumber?: string | null;
+      tourId?: string | null;
+    },
+  ): Promise<number> {
+    const mc = matchcode.trim().toUpperCase();
+    if (!mc) return 0;
+
+    const refs = new Set<string>();
+    if (opts.transportOrderNumber?.trim()) refs.add(opts.transportOrderNumber.trim());
+
+    if (opts.tourStopId) {
+      const stop = await this.prisma.tourStop.findUnique({
+        where: { id: opts.tourStopId },
+        select: { transportOrderNumber: true },
+      });
+      if (stop?.transportOrderNumber?.trim()) refs.add(stop.transportOrderNumber.trim());
+    }
+
+    if (opts.tourId) {
+      const consignments = await this.prisma.tourConsignment.findMany({
+        where: { tourId: opts.tourId },
+        select: { soloplanOrderNumber: true, externalConsignmentNumber: true },
+      });
+      for (const c of consignments) {
+        if (c.soloplanOrderNumber?.trim()) refs.add(c.soloplanOrderNumber.trim());
+        if (c.externalConsignmentNumber?.trim()) refs.add(c.externalConsignmentNumber.trim());
+      }
+    }
+
+    if (!refs.size) return 0;
+    const refList = [...refs];
+
+    const shipments = await this.prisma.shipment.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { trackingNumber: { in: refList } },
+          { reference: { in: refList } },
+          { soloplanRef: { in: refList } },
+          { order: { externalNumber: { in: refList } } },
+        ],
+      },
+      select: {
+        packageCount: true,
+        colli: { select: { packaging: true, quantity: true } },
+        positions: { select: { packaging: true, quantity: true } },
+      },
+      take: 20,
+    });
+
+    let total = 0;
+    for (const s of shipments) {
+      const fromColli = s.colli
+        .filter((c) => (c.packaging || '').trim().toUpperCase() === mc)
+        .reduce((sum, c) => sum + Math.max(0, c.quantity || 0), 0);
+      const fromPos = s.positions
+        .filter((p) => (p.packaging || '').trim().toUpperCase() === mc)
+        .reduce((sum, p) => sum + Math.max(0, p.quantity || 0), 0);
+      if (fromColli > 0) total += fromColli;
+      else if (fromPos > 0) total += fromPos;
+      else if (
+        s.packageCount > 0 &&
+        s.colli.length === 0 &&
+        s.positions.length === 0
+      ) {
+        // Keine Colli/Positionen: packageCount nur zählen, wenn Typ tauschrelevant ist
+        total += s.packageCount;
+      }
+    }
+    return total;
+  }
+
+  /** Bestehende Nicht-Tausch-Buchungen um schuldende Anzahl aus Sendungen ergänzen. */
+  async backfillOwedQuantities(organizationId: string) {
+    const rows = await this.prisma.loadingUnitPosting.findMany({
+      where: {
+        organizationId,
+        status: 'SKIPPED_ZERO',
+        packagingMatchcode: { notIn: [...NON_EXCHANGEABLE_MATCHCODES] },
+      },
+      select: {
+        id: true,
+        packagingMatchcode: true,
+        tourStopId: true,
+        tourId: true,
+        owedQuantity: true,
+        tourStop: { select: { transportOrderNumber: true } },
+      },
+      take: 10000,
+    });
+
+    let updated = 0;
+    for (const r of rows) {
+      if (!isExchangeBookableMatchcode(r.packagingMatchcode)) continue;
+      const owed = await this.resolveOwedQuantity(organizationId, r.packagingMatchcode, {
+        tourStopId: r.tourStopId,
+        transportOrderNumber: r.tourStop?.transportOrderNumber,
+        tourId: r.tourId,
+      });
+      if (owed <= 0 || owed === r.owedQuantity) continue;
+      await this.prisma.loadingUnitPosting.update({
+        where: { id: r.id },
+        data: {
+          owedQuantity: owed,
+          balanceDelta: owed,
+          skipReason: `Given=0 / Taken=0 – kein Tausch (${owed} schuldend laut Sendung)`,
+        },
+      });
+      updated += 1;
+    }
+    return { scanned: rows.length, updated };
   }
 
   private async resolvePartner(
@@ -321,7 +457,8 @@ export class LoadingUnitService {
       ],
       where: {
         organizationId: user.organizationId,
-        status: 'BOOKED',
+        // Gebuchte Täusche + Nicht-Tausch mit bekannter schuldender Menge
+        status: { in: ['BOOKED', 'SKIPPED_ZERO'] },
         ...(opts?.matchcode
           ? { packagingMatchcode: { equals: opts.matchcode, mode: 'insensitive' } }
           : {}),
@@ -337,7 +474,7 @@ export class LoadingUnitService {
             }
           : {}),
       },
-      _sum: { given: true, taken: true, balanceDelta: true },
+      _sum: { given: true, taken: true, balanceDelta: true, owedQuantity: true },
       _count: { _all: true },
       _max: { occurredAt: true },
     });
@@ -346,6 +483,7 @@ export class LoadingUnitService {
       .map((r) => {
         const given = r._sum.given || 0;
         const taken = r._sum.taken || 0;
+        const owedQuantity = r._sum.owedQuantity || 0;
         const balance = r._sum.balanceDelta ?? given - taken;
         return {
           partnerNumber: r.partnerNumber,
@@ -356,12 +494,16 @@ export class LoadingUnitService {
           given,
           taken,
           balance,
+          /** Anzahl schuldender Lademittel (Partner → WOG) */
+          owedQuantity: owedQuantity > 0 ? owedQuantity : Math.max(0, balance),
           postings: r._count._all,
           lastAt: r._max.occurredAt,
         };
       })
       .filter((r) => isExchangeBookableMatchcode(r.packagingMatchcode))
-      .filter((r) => (opts?.includeZero ? true : r.given !== 0 || r.taken !== 0))
+      .filter((r) =>
+        opts?.includeZero ? true : r.given !== 0 || r.taken !== 0 || r.owedQuantity !== 0,
+      )
       .sort((a, b) => {
         const na = (a.partnerName || '').localeCompare(b.partnerName || '', 'de');
         if (na !== 0) return na;
@@ -373,9 +515,10 @@ export class LoadingUnitService {
         acc.given += r.given;
         acc.taken += r.taken;
         acc.balance += r.balance;
+        acc.owedQuantity += r.owedQuantity;
         return acc;
       },
-      { given: 0, taken: 0, balance: 0 },
+      { given: 0, taken: 0, balance: 0, owedQuantity: 0 },
     );
 
     return { balances, totals, count: balances.length };
@@ -515,6 +658,11 @@ export class LoadingUnitService {
             });
             if (existing) continue;
 
+            const owedQuantity = await this.resolveOwedQuantity(org.id, packaging.matchcode, {
+              tourStopId: stop?.id,
+              transportOrderNumber: stop?.transportOrderNumber,
+              tourId: resolvedTour?.id,
+            });
             await this.prisma.loadingUnitPosting.create({
               data: {
                 organizationId: org.id,
@@ -523,7 +671,8 @@ export class LoadingUnitService {
                 packagingLabel: packaging.label,
                 given: 0,
                 taken: 0,
-                balanceDelta: 0,
+                balanceDelta: owedQuantity,
+                owedQuantity,
                 tourId: resolvedTour?.id,
                 tourNumber: parsed.tourNumber,
                 tourStopId: stop?.id,
@@ -534,7 +683,10 @@ export class LoadingUnitService {
                 customerId: partner.customerId,
                 vehicleSoloplanId: parsed.vehicleId,
                 status: 'SKIPPED_ZERO',
-                skipReason: 'Given=0 / Taken=0 – kein Lademitteltausch',
+                skipReason:
+                  owedQuantity > 0
+                    ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} schuldend laut Sendung)`
+                    : 'Given=0 / Taken=0 – kein Lademitteltausch',
                 occurredAt: eventAt,
                 sendDate: parsed.sendDate,
                 sourceFile,
@@ -618,6 +770,9 @@ export class LoadingUnitService {
         tourStopExternalId: string | null;
         stopType: string | null;
         packagingMatchcodes: string[];
+        /** Schuldende Stückzahl je Matchcode */
+        owedByMatchcode: Record<string, number>;
+        owedQuantity: number;
         occurredAt: Date | null;
         sourceFile: string;
       }
@@ -627,11 +782,15 @@ export class LoadingUnitService {
       const at = r.occurredAt || r.createdAt;
       const day = zurichDayKey(at);
       const key = `${r.sourceFile}|${r.tourStopExternalId || ''}|${r.partnerName || ''}`;
+      const owed = Math.max(0, r.owedQuantity || 0);
       const existing = events.get(key);
       if (existing) {
         if (!existing.packagingMatchcodes.includes(r.packagingMatchcode)) {
           existing.packagingMatchcodes.push(r.packagingMatchcode);
         }
+        existing.owedByMatchcode[r.packagingMatchcode] =
+          (existing.owedByMatchcode[r.packagingMatchcode] || 0) + owed;
+        existing.owedQuantity += owed;
         continue;
       }
       events.set(key, {
@@ -645,6 +804,8 @@ export class LoadingUnitService {
         tourStopExternalId: r.tourStopExternalId,
         stopType: r.tourStop?.stopType || null,
         packagingMatchcodes: [r.packagingMatchcode],
+        owedByMatchcode: { [r.packagingMatchcode]: owed },
+        owedQuantity: owed,
         occurredAt: r.occurredAt,
         sourceFile: r.sourceFile,
       });
@@ -670,6 +831,8 @@ export class LoadingUnitService {
           partnerCity: string | null;
           days: string[];
           events: number;
+          owedQuantity: number;
+          owedByMatchcode: Record<string, number>;
           packagingMatchcodes: string[];
           lastAt: Date | null;
         }
@@ -684,14 +847,20 @@ export class LoadingUnitService {
             partnerCity: e.partnerCity,
             days: [e.day],
             events: 1,
+            owedQuantity: e.owedQuantity,
+            owedByMatchcode: { ...e.owedByMatchcode },
             packagingMatchcodes: [...e.packagingMatchcodes],
             lastAt: e.occurredAt,
           });
         } else {
           cur.events += 1;
+          cur.owedQuantity += e.owedQuantity;
           if (!cur.days.includes(e.day)) cur.days.push(e.day);
           for (const mc of e.packagingMatchcodes) {
             if (!cur.packagingMatchcodes.includes(mc)) cur.packagingMatchcodes.push(mc);
+          }
+          for (const [mc, n] of Object.entries(e.owedByMatchcode)) {
+            cur.owedByMatchcode[mc] = (cur.owedByMatchcode[mc] || 0) + n;
           }
           if (e.occurredAt && (!cur.lastAt || e.occurredAt > cur.lastAt)) cur.lastAt = e.occurredAt;
         }
@@ -703,12 +872,21 @@ export class LoadingUnitService {
           dayCount: c.days.length,
           packagingMatchcodes: c.packagingMatchcodes.sort(),
         }))
-        .sort((a, b) => b.events - a.events || a.partnerName.localeCompare(b.partnerName, 'de'));
+        .sort(
+          (a, b) =>
+            b.owedQuantity - a.owedQuantity ||
+            b.events - a.events ||
+            a.partnerName.localeCompare(b.partnerName, 'de'),
+        );
 
       const byMatchcode: Record<string, number> = {};
+      const owedByMatchcode: Record<string, number> = {};
       for (const e of eventList) {
         for (const mc of e.packagingMatchcodes) {
           byMatchcode[mc] = (byMatchcode[mc] || 0) + 1;
+        }
+        for (const [mc, n] of Object.entries(e.owedByMatchcode)) {
+          owedByMatchcode[mc] = (owedByMatchcode[mc] || 0) + n;
         }
       }
       return {
@@ -719,10 +897,12 @@ export class LoadingUnitService {
         excludedMatchcodes: [...NON_EXCHANGEABLE_MATCHCODES],
         totals: {
           stopsWithoutExchange: eventList.length,
+          owedQuantity: eventList.reduce((s, e) => s + e.owedQuantity, 0),
           customers: customers.length,
           events: eventList.length,
           days: new Set(eventList.map((e) => e.day)).size,
           byMatchcode,
+          owedByMatchcode,
         },
       };
     }
@@ -740,6 +920,8 @@ export class LoadingUnitService {
           tourId: string | null;
           stopType: string | null;
           packagingMatchcodes: string[];
+          owedByMatchcode: Record<string, number>;
+          owedQuantity: number;
           occurredAt: Date | null;
           events: number;
         }>;
@@ -758,8 +940,12 @@ export class LoadingUnitService {
       );
       if (existing) {
         existing.events += 1;
+        existing.owedQuantity += e.owedQuantity;
         for (const mc of e.packagingMatchcodes) {
           if (!existing.packagingMatchcodes.includes(mc)) existing.packagingMatchcodes.push(mc);
+        }
+        for (const [mc, n] of Object.entries(e.owedByMatchcode)) {
+          existing.owedByMatchcode[mc] = (existing.owedByMatchcode[mc] || 0) + n;
         }
         if (e.occurredAt && (!existing.occurredAt || e.occurredAt > existing.occurredAt)) {
           existing.occurredAt = e.occurredAt;
@@ -773,6 +959,8 @@ export class LoadingUnitService {
           tourId: e.tourId,
           stopType: e.stopType,
           packagingMatchcodes: [...e.packagingMatchcodes],
+          owedByMatchcode: { ...e.owedByMatchcode },
+          owedQuantity: e.owedQuantity,
           occurredAt: e.occurredAt,
           events: 1,
         });
@@ -784,14 +972,19 @@ export class LoadingUnitService {
         date: d.date,
         customerCount: d.customers.length,
         eventCount: d.customers.reduce((s, c) => s + c.events, 0),
+        owedQuantity: d.customers.reduce((s, c) => s + c.owedQuantity, 0),
         customers: d.customers.sort((a, b) => a.partnerName.localeCompare(b.partnerName, 'de')),
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
 
     const byMatchcode: Record<string, number> = {};
+    const owedByMatchcode: Record<string, number> = {};
     for (const e of eventList) {
       for (const mc of e.packagingMatchcodes) {
         byMatchcode[mc] = (byMatchcode[mc] || 0) + 1;
+      }
+      for (const [mc, n] of Object.entries(e.owedByMatchcode)) {
+        owedByMatchcode[mc] = (owedByMatchcode[mc] || 0) + n;
       }
     }
 
@@ -804,10 +997,13 @@ export class LoadingUnitService {
       totals: {
         /** Anzahl Stops/Kunden-Ereignisse ohne Tausch */
         stopsWithoutExchange: eventList.length,
+        /** Summe schuldender Lademittel (Stück) */
+        owedQuantity: eventList.reduce((s, e) => s + e.owedQuantity, 0),
         customers: new Set(eventList.map((e) => `${e.partnerNumber || ''}|${e.partnerName}`)).size,
         events: eventList.length,
         days: days.length,
         byMatchcode,
+        owedByMatchcode,
       },
     };
   }
@@ -874,6 +1070,7 @@ export class LoadingUnitService {
       label: r.packagingLabel,
       given: r.given,
       taken: r.taken,
+      owedQuantity: Math.max(0, r.owedQuantity || Math.max(0, r.given - r.taken)),
       status: r.status,
     }));
 
@@ -890,6 +1087,14 @@ export class LoadingUnitService {
     const hasZero = lines.some(
       (l) => l.status === 'SKIPPED_ZERO' || (l.given === 0 && l.taken === 0),
     );
+    const owedTotal = lines.reduce((s, l) => s + (l.owedQuantity || 0), 0);
+    const owedDetail =
+      owedTotal > 0
+        ? `Schuldend: ${lines
+            .filter((l) => (l.owedQuantity || 0) > 0)
+            .map((l) => `${l.matchcode} ${l.owedQuantity}`)
+            .join(', ')}`
+        : '';
 
     let status: LoadingUnitExchangeNote['status'] = 'UNKNOWN';
     let headline = 'Lademitteltausch';
@@ -897,19 +1102,24 @@ export class LoadingUnitService {
     if (hasZero && !hasBooked) {
       status = 'NOT_EXCHANGED';
       headline = 'Lademittel NICHT getauscht';
-      detail = 'Laut TourStopStatus: Given 0 / Taken 0';
+      detail = ['Laut TourStopStatus: Given 0 / Taken 0', owedDetail].filter(Boolean).join(' · ');
     } else if (hasBooked && hasZero) {
       status = 'MIXED';
       headline = 'Lademitteltausch teilweise';
-      detail = 'Mindestens ein Typ ohne Tausch gemeldet';
+      detail = ['Mindestens ein Typ ohne Tausch gemeldet', owedDetail].filter(Boolean).join(' · ');
     } else if (hasBooked) {
       status = 'EXCHANGED';
       headline = 'Lademittel getauscht';
-      detail = lines.map((l) => `${l.matchcode}: Given ${l.given} / Taken ${l.taken}`).join(' · ');
+      detail = [
+        lines.map((l) => `${l.matchcode}: Given ${l.given} / Taken ${l.taken}`).join(' · '),
+        owedDetail,
+      ]
+        .filter(Boolean)
+        .join(' · ');
     } else {
       status = 'NOT_EXCHANGED';
       headline = 'Lademittel NICHT getauscht';
-      detail = 'Laut TourStopStatus: Given 0 / Taken 0';
+      detail = ['Laut TourStopStatus: Given 0 / Taken 0', owedDetail].filter(Boolean).join(' · ');
     }
 
     return { status, headline, detail, lines };

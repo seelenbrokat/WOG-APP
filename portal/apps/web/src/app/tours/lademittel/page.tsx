@@ -14,6 +14,7 @@ type BalanceRow = {
   given: number;
   taken: number;
   balance: number;
+  owedQuantity: number;
   postings: number;
   lastAt: string | null;
 };
@@ -25,6 +26,7 @@ type Posting = {
   given: number;
   taken: number;
   balanceDelta: number;
+  owedQuantity?: number;
   partnerNumber: string | null;
   partnerName: string | null;
   partnerCity: string | null;
@@ -44,6 +46,8 @@ type NoExchangeCustomer = {
   tourId?: string | null;
   stopType?: string | null;
   packagingMatchcodes: string[];
+  owedByMatchcode?: Record<string, number>;
+  owedQuantity?: number;
   occurredAt?: string | null;
   events?: number;
   days?: string[];
@@ -55,6 +59,7 @@ type NoExchangeDay = {
   date: string;
   customerCount: number;
   eventCount: number;
+  owedQuantity?: number;
   customers: NoExchangeCustomer[];
 };
 
@@ -69,9 +74,34 @@ type NoExchangeOverview = {
     events: number;
     days: number;
     stopsWithoutExchange?: number;
+    owedQuantity?: number;
     byMatchcode?: Record<string, number>;
+    owedByMatchcode?: Record<string, number>;
   };
 };
+
+function fmtOwed(n?: number | null) {
+  if (n == null || n <= 0) return '—';
+  return String(n);
+}
+
+function fmtOwedByMatchcode(
+  codes: string[],
+  owedBy?: Record<string, number> | null,
+  total?: number | null,
+) {
+  if (owedBy && Object.keys(owedBy).length) {
+    return Object.entries(owedBy)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([mc, n]) => `${mc}: ${n}`)
+      .join(', ');
+  }
+  if (total && total > 0) {
+    return codes.length ? `${codes.join(', ')}: ${total}` : String(total);
+  }
+  return '—';
+}
 
 function fmt(value?: string | null) {
   if (!value) return '—';
@@ -114,7 +144,7 @@ export default function LademittelPage() {
   const [q, setQ] = useState('');
   const [matchcode, setMatchcode] = useState('');
   const [balances, setBalances] = useState<BalanceRow[]>([]);
-  const [totals, setTotals] = useState({ given: 0, taken: 0, balance: 0 });
+  const [totals, setTotals] = useState({ given: 0, taken: 0, balance: 0, owedQuantity: 0 });
   const [postings, setPostings] = useState<Posting[]>([]);
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -150,13 +180,19 @@ export default function LademittelPage() {
       postParams.set('take', '150');
 
       const [bal, posts] = await Promise.all([
-        api<{ balances: BalanceRow[]; totals: { given: number; taken: number; balance: number } }>(
-          `/tours/loading-units/balances?${balParams}`,
-        ),
+        api<{
+          balances: BalanceRow[];
+          totals: { given: number; taken: number; balance: number; owedQuantity: number };
+        }>(`/tours/loading-units/balances?${balParams}`),
         api<Posting[]>(`/tours/loading-units/postings?${postParams}`),
       ]);
       setBalances(bal.balances);
-      setTotals(bal.totals);
+      setTotals({
+        given: bal.totals.given,
+        taken: bal.totals.taken,
+        balance: bal.totals.balance,
+        owedQuantity: bal.totals.owedQuantity ?? Math.max(0, bal.totals.balance),
+      });
       setPostings(posts);
     } catch (e: any) {
       setError(e.message || 'Laden fehlgeschlagen');
@@ -307,11 +343,16 @@ export default function LademittelPage() {
           </div>
 
           <p className="muted" style={{ marginBottom: '0.75rem' }}>
-            Anzahl der Stops ohne Lademitteltausch (nur tauschrelevante Typen, z. B. EUP).{' '}
-            <strong>EWP/HP werden nicht gebucht</strong> und erscheinen hier nicht.
+            Stops ohne Lademitteltausch und die{' '}
+            <strong>Anzahl schuldender Lademittel</strong> (aus Sendungsmenge, sofern bekannt).{' '}
+            Nur tauschrelevante Typen (z. B. EUP). <strong>EWP/HP werden nicht gebucht</strong>.
           </p>
 
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="stat">
+              <div className="label">Schuldende Lademittel</div>
+              <div className="value">{overview?.totals.owedQuantity ?? 0}</div>
+            </div>
             <div className="stat">
               <div className="label">Stops ohne Tausch</div>
               <div className="value">
@@ -326,21 +367,35 @@ export default function LademittelPage() {
               <div className="label">Tage</div>
               <div className="value">{overview?.totals.days ?? 0}</div>
             </div>
-            {overview?.totals.byMatchcode &&
-              Object.keys(overview.totals.byMatchcode).length > 0 && (
-                <div className="stat">
-                  <div className="label">Nach Typ</div>
-                  <div className="value" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>
-                    {Object.entries(overview.totals.byMatchcode)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([mc, n]) => (
-                        <div key={mc}>
-                          <code>{mc}</code> {n}
-                        </div>
-                      ))}
-                  </div>
+            {overview?.totals.owedByMatchcode &&
+            Object.keys(overview.totals.owedByMatchcode).length > 0 ? (
+              <div className="stat">
+                <div className="label">Schuldend nach Typ</div>
+                <div className="value" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>
+                  {Object.entries(overview.totals.owedByMatchcode)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([mc, n]) => (
+                      <div key={mc}>
+                        <code>{mc}</code> {n}
+                      </div>
+                    ))}
                 </div>
-              )}
+              </div>
+            ) : overview?.totals.byMatchcode &&
+              Object.keys(overview.totals.byMatchcode).length > 0 ? (
+              <div className="stat">
+                <div className="label">Stops nach Typ</div>
+                <div className="value" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>
+                  {Object.entries(overview.totals.byMatchcode)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([mc, n]) => (
+                      <div key={mc}>
+                        <code>{mc}</code> {n}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {loading ? (
@@ -358,6 +413,7 @@ export default function LademittelPage() {
                       <th>Ort</th>
                       <th>Tage</th>
                       <th>Ereignisse</th>
+                      <th>Schuldend</th>
                       <th>Lademittel</th>
                       <th>Zuletzt</th>
                     </tr>
@@ -378,6 +434,14 @@ export default function LademittelPage() {
                           ) : null}
                         </td>
                         <td>{c.events}</td>
+                        <td>
+                          <strong>{fmtOwed(c.owedQuantity)}</strong>
+                          {c.owedByMatchcode && Object.keys(c.owedByMatchcode).length > 0 ? (
+                            <div className="muted" style={{ fontSize: '0.85em' }}>
+                              {fmtOwedByMatchcode(c.packagingMatchcodes, c.owedByMatchcode)}
+                            </div>
+                          ) : null}
+                        </td>
                         <td>
                           {c.packagingMatchcodes.map((mc) => (
                             <code key={mc} style={{ marginRight: '0.35rem' }}>
@@ -429,6 +493,9 @@ export default function LademittelPage() {
                         <div className="muted" style={{ fontSize: '0.9em' }}>
                           {day.customerCount} Kunde{day.customerCount === 1 ? '' : 'n'} ·{' '}
                           {day.eventCount} Stop{day.eventCount === 1 ? '' : 's'} ohne Tausch
+                          {day.owedQuantity && day.owedQuantity > 0
+                            ? ` · ${day.owedQuantity} schuldend`
+                            : ''}
                         </div>
                       </div>
                       <span className="muted">{open ? '▲' : '▼'}</span>
@@ -443,6 +510,7 @@ export default function LademittelPage() {
                               <th>Ort</th>
                               <th>Tour</th>
                               <th>Typ</th>
+                              <th>Schuldend</th>
                               <th>Lademittel</th>
                               <th>Zeit</th>
                             </tr>
@@ -461,6 +529,18 @@ export default function LademittelPage() {
                                   )}
                                 </td>
                                 <td>{c.stopType || '—'}</td>
+                                <td>
+                                  <strong>{fmtOwed(c.owedQuantity)}</strong>
+                                  {c.owedByMatchcode &&
+                                  Object.values(c.owedByMatchcode).some((n) => n > 0) ? (
+                                    <div className="muted" style={{ fontSize: '0.85em' }}>
+                                      {fmtOwedByMatchcode(
+                                        c.packagingMatchcodes,
+                                        c.owedByMatchcode,
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </td>
                                 <td>
                                   {c.packagingMatchcodes.map((mc) => (
                                     <code key={mc} style={{ marginRight: '0.35rem' }}>
@@ -484,6 +564,10 @@ export default function LademittelPage() {
       ) : (
         <>
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="stat">
+              <div className="label">Schuldende Lademittel</div>
+              <div className="value">{totals.owedQuantity}</div>
+            </div>
             <div className="stat">
               <div className="label">Given</div>
               <div className="value">{totals.given}</div>
@@ -514,6 +598,7 @@ export default function LademittelPage() {
                     <th>Typ</th>
                     <th>Given</th>
                     <th>Taken</th>
+                    <th>Schuldend</th>
                     <th>Saldo</th>
                     <th>Buchungen</th>
                     <th>Zuletzt</th>
@@ -523,6 +608,7 @@ export default function LademittelPage() {
                   {balances.map((r) => {
                     const key = `${r.partnerName}|${r.packagingMatchcode}|${r.partnerNumber || ''}`;
                     const active = selectedPartner === r.partnerName;
+                    const owed = r.owedQuantity ?? Math.max(0, r.balance);
                     return (
                       <tr
                         key={key}
@@ -548,8 +634,9 @@ export default function LademittelPage() {
                         <td>{r.given}</td>
                         <td>{r.taken}</td>
                         <td>
-                          <strong>{r.balance}</strong>
+                          <strong>{owed}</strong>
                         </td>
+                        <td>{r.balance}</td>
                         <td>{r.postings}</td>
                         <td>{fmt(r.lastAt)}</td>
                       </tr>
@@ -592,6 +679,7 @@ export default function LademittelPage() {
                     <th>Typ</th>
                     <th>Given</th>
                     <th>Taken</th>
+                    <th>Schuldend</th>
                     <th>Δ</th>
                     <th>Tour</th>
                     <th>Status</th>
@@ -614,6 +702,11 @@ export default function LademittelPage() {
                       </td>
                       <td>{p.given}</td>
                       <td>{p.taken}</td>
+                      <td>
+                        <strong>
+                          {fmtOwed(p.owedQuantity ?? Math.max(0, p.balanceDelta))}
+                        </strong>
+                      </td>
                       <td>{p.balanceDelta}</td>
                       <td>
                         {p.tour?.id ? (

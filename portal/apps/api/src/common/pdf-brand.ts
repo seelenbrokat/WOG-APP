@@ -216,6 +216,7 @@ export type PdfLoadingUnitExchangeNote = {
     label?: string | null;
     given: number;
     taken: number;
+    owedQuantity?: number;
   }>;
 };
 
@@ -234,10 +235,14 @@ export function drawLoadingUnitExchangeBox(
   const contentW = right - left;
   const emphasize = note.status === 'NOT_EXCHANGED' || note.status === 'MIXED';
   const lineText = note.lines
-    .map((l) => `${l.matchcode}: Given ${l.given} / Taken ${l.taken}`)
+    .map((l) => {
+      const owed =
+        l.owedQuantity && l.owedQuantity > 0 ? ` · schuldend ${l.owedQuantity}` : '';
+      return `${l.matchcode}: Given ${l.given} / Taken ${l.taken}${owed}`;
+    })
     .join('   ');
   const body = [note.detail, lineText].filter(Boolean).join('\n');
-  const boxH = emphasize ? 58 : 48;
+  const boxH = emphasize ? 64 : 48;
   const y = doc.y;
 
   doc

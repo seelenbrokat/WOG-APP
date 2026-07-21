@@ -307,8 +307,10 @@ model LoadingUnitPosting {
   given               Int      @default(0)
   /// Vom Partner übernommen
   taken               Int      @default(0)
-  /// Partner-Schuld gegenüber WOG: Given − Taken
+  /// Partner-Schuld gegenüber WOG: Given − Taken (bzw. Sendungsmenge bei Nicht-Tausch)
   balanceDelta        Int      @default(0)
+  /// Anzahl schuldender Lademittel (max(0, Given−Taken) bzw. Sendungs-Colli bei Nicht-Tausch)
+  owedQuantity        Int      @default(0)
   tourId              String?
   tourNumber          String?
   tourStopId          String?

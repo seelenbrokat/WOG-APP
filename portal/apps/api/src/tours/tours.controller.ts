@@ -145,6 +145,13 @@ export class ToursController {
     return this.loadingUnits.backfillNoExchangeFromFiles(user.organizationId);
   }
 
+  /** Bestehende Nicht-Tausch-Einträge um schuldende Stückzahlen aus Sendungen ergänzen */
+  @Post('loading-units/backfill-owed')
+  @Roles(UserRole.ORG_ADMIN)
+  loadingUnitBackfillOwed(@CurrentUser() user: AuthUser) {
+    return this.loadingUnits.backfillOwedQuantities(user.organizationId);
+  }
+
   @Get('documents/:docId/download')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   async downloadDoc(
