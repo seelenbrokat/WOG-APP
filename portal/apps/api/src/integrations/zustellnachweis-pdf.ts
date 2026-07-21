@@ -42,6 +42,15 @@ export function isSignatureDocumentName(fileName: string): boolean {
   );
 }
 
+function cleanStatusText(statusText?: string | null, status?: string | null): string | null {
+  if (statusText == null) return null;
+  const text = String(statusText).trim();
+  if (!text) return null;
+  if (text === '[object Object]' || text === 'undefined' || text === 'null') return null;
+  if (status && text === status) return null;
+  return text;
+}
+
 export function mapTelematicsStatusLabel(status?: string | null, statusText?: string | null): string {
   const map: Record<string, string> = {
     LoadingStart: 'Beladung gestartet',
@@ -54,16 +63,11 @@ export function mapTelematicsStatusLabel(status?: string | null, statusText?: st
     Started: 'Tour gestartet',
     Finished: 'Tour abgeschlossen',
   };
+  const detail = cleanStatusText(statusText, status);
   if (status && map[status]) {
-    if (status === 'DocumentReceived' && statusText) {
-      return `${map[status]} · ${statusText}`;
-    }
-    if (statusText && statusText !== status) {
-      return `${map[status]} · ${statusText}`;
-    }
-    return map[status];
+    return detail ? `${map[status]} · ${detail}` : map[status];
   }
-  return statusText || status || 'Ereignis';
+  return detail || status || 'Ereignis';
 }
 
 export function deliveryStatusFromEvents(
