@@ -44,6 +44,8 @@ Referenz-Schemas und Samples:
 
 Dateiname: `{Sendungsnummer oder Referenz}.json` (Consignment) bzw. `order-{…}.json` (Order).
 
+Nach erfolgreichem SFTP-Download (Datei wurde gelesen) verschiebt der Worker die JSON nach ca. 20 s aus dem Pickup-Ordner nach `outbound/soloplan/archive/` (Spiegel nach `integrations/.../processed/`). Steuertbar über `SOLOPLAN_ARCHIVE_DELAY_SEC`.
+
 ### SFTP
 
 Wenn SFTP aktiv ist (`ENABLE_SFTP=1`):
