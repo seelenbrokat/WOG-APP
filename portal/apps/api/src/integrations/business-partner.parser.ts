@@ -115,24 +115,7 @@ function collectContacts(bp: Record<string, unknown>): ParsedContact[] {
     }
   }
 
-  // PORTALGP: Firmen-E-Mail als Kontakt, falls keine Ansprechpartner-Mails
-  if (!out.some((c) => c.email)) {
-    const companyEmail = str(
-      bp.email,
-      bp.Email,
-      bp.emailForInvoiceDispatch,
-      bp.EmailForInvoiceDispatch,
-    ).toLowerCase();
-    if (companyEmail) {
-      push(
-        pickContact({
-          emailAddress: companyEmail,
-          firstName: 'Portal',
-          lastName: str(bp.name1, bp.Name1, bp.name, 'Kontakt'),
-        }),
-      );
-    }
-  }
+  // Kein Fallback auf Firmen-/Rechnungs-E-Mail: Portal-Zugang kommt nur vom Ansprechpartner.
   return out;
 }
 
@@ -228,20 +211,16 @@ export function parseBusinessPartnerNode(
   const addr = asRecord(source.MainAddress) || asRecord(source.Address) || source;
   const country = asRecord(addr.Country) || asRecord(source.VATCountry) || {};
 
+  const contacts = collectContacts(source);
+  // Kunden-/Partner-E-Mail = erster Ansprechpartner mit E-Mail (nicht Firmen-/Rechnungsfeld).
+  const contactEmail = contacts.find((c) => c.email)?.email;
+
   return {
     businessPartnerId: businessPartnerId || matchcode,
     matchcode: matchcode || businessPartnerId,
     name,
     name2: str(source.Name2, source.name2) || undefined,
-    email:
-      str(
-        source.email,
-        source.Email,
-        source.emailAddress,
-        source.EmailAddress,
-        source.emailForInvoiceDispatch,
-        source.EmailForInvoiceDispatch,
-      ).toLowerCase() || undefined,
+    email: contactEmail,
     phone: str(source.PhoneNumberHeadOffice, source.Phone, source.phone, source.telephone) || undefined,
     vatId: str(source.VATNumber, source.VatNumber, source.vatNumber, source.vatId) || undefined,
     street:
@@ -266,7 +245,7 @@ export function parseBusinessPartnerNode(
         source.isoTwoCharacterCountryCode,
       ) || undefined,
     kind: detectKind(source, forcedKind),
-    contacts: collectContacts(source),
+    contacts,
     raw: source,
   };
 }
