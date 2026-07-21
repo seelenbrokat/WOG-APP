@@ -1,19 +1,29 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createWriteStream, existsSync, mkdirSync, createReadStream, statSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import PDFDocument from 'pdfkit';
-import { DocumentType, NotificationEvent, UserRole } from '@prisma/client';
+import { DocumentType, NotificationEvent, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { drawA4BrandHeader, drawA4Footer } from '../common/pdf-brand';
+import { SoloplanService } from '../integrations/soloplan.service';
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
   private uploadDir: string;
 
   constructor(
@@ -21,6 +31,7 @@ export class DocumentsService {
     private config: ConfigService,
     private notifications: NotificationsService,
     private audit: AuditService,
+    @Inject(forwardRef(() => SoloplanService)) private soloplan: SoloplanService,
   ) {
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     if (!existsSync(this.uploadDir)) mkdirSync(this.uploadDir, { recursive: true });
@@ -34,6 +45,8 @@ export class DocumentsService {
     let shipmentId = opts.shipmentId;
     let customerId = opts.customerId || user.customerId || undefined;
     let organizationId = user.organizationId;
+    let shipmentExtras: Record<string, unknown> | null = null;
+    let shipmentStatus: ShipmentStatus | null = null;
 
     if (shipmentId) {
       const shipment = await this.prisma.shipment.findFirst({
@@ -54,8 +67,14 @@ export class DocumentsService {
       }
       customerId = shipment.customerId;
       organizationId = shipment.organizationId;
+      shipmentExtras =
+        shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+          ? (shipment.extras as Record<string, unknown>)
+          : null;
+      shipmentStatus = shipment.status;
     }
 
+    const docType = opts.type || DocumentType.CUSTOMER_UPLOAD;
     const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, safeName);
     await pipeline(Readable.from(file.buffer), createWriteStream(storagePath));
@@ -65,7 +84,7 @@ export class DocumentsService {
         organizationId,
         shipmentId,
         customerId,
-        type: opts.type || DocumentType.CUSTOMER_UPLOAD,
+        type: docType,
         fileName: file.originalname,
         mimeType: file.mimetype,
         storagePath,
@@ -84,6 +103,24 @@ export class DocumentsService {
       fileName: doc.fileName,
       type: doc.type,
     });
+
+    // Verzollung: nach Rechnung Soloplan-Export nachziehen
+    if (
+      shipmentId &&
+      docType === DocumentType.INVOICE &&
+      shipmentStatus === ShipmentStatus.SUBMITTED &&
+      shipmentExtras?.verzollung === true
+    ) {
+      try {
+        await this.soloplan.exportShipment(shipmentId);
+        this.logger.log(`Soloplan-Export nach Rechnungs-Upload für Sendung ${shipmentId}`);
+      } catch (err: any) {
+        this.logger.warn(
+          `Soloplan-Export nach Rechnung fehlgeschlagen: ${err?.message || err}`,
+        );
+      }
+    }
+
     return doc;
   }
 

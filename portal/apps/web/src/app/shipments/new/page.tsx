@@ -91,6 +91,27 @@ function splitColli(opts: {
 
 type PackagingOption = { code: string; label: string };
 
+type UploadDocType = 'INVOICE' | 'CUSTOMER_UPLOAD' | 'CMR' | 'OTHER';
+
+type PendingDoc = {
+  id: string;
+  file: File;
+  type: UploadDocType;
+};
+
+const DOC_TYPE_OPTIONS: { value: UploadDocType; label: string }[] = [
+  { value: 'INVOICE', label: 'Rechnung' },
+  { value: 'CMR', label: 'CMR / Frachtbrief' },
+  { value: 'CUSTOMER_UPLOAD', label: 'Sonstiges Dokument' },
+  { value: 'OTHER', label: 'Andere' },
+];
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function NewShipmentInner() {
   const router = useRouter();
   const search = useSearchParams();
@@ -112,6 +133,8 @@ function NewShipmentInner() {
     heightCm: '',
   });
   const [extras, setExtras] = useState<ShipmentExtras>({});
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
@@ -146,6 +169,9 @@ function NewShipmentInner() {
       }
       return next;
     });
+    if (code === 'verzollung' && !checked) {
+      setInvoiceFile(null);
+    }
   }
 
   const customerQuery =
@@ -312,10 +338,25 @@ function NewShipmentInner() {
     });
   }
 
+  function addPendingDocs(files: FileList | null, defaultType: UploadDocType = 'CUSTOMER_UPLOAD') {
+    if (!files?.length) return;
+    const next: PendingDoc[] = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
+      file,
+      type: defaultType,
+    }));
+    setPendingDocs((prev) => [...prev, ...next]);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     try {
+      if (extras.verzollung && !invoiceFile) {
+        setTab('zusatz');
+        throw new Error('Bei Verzollung muss eine Rechnung hochgeladen werden.');
+      }
+
       // Wenn nur Schnellfassung gesetzt und Colli leer/unbearbeitet: vor Submit aufteilen
       let rows = colli;
       const quickCount = Math.max(1, Number(quick.count) || 1);
@@ -397,10 +438,34 @@ function NewShipmentInner() {
           positions,
         }),
       });
+
+      // Dokumente nach Create hochladen (Rechnung zuerst bei Verzollung)
+      const uploads: Array<{ file: File; type: UploadDocType }> = [];
+      if (invoiceFile) uploads.push({ file: invoiceFile, type: 'INVOICE' });
+      for (const d of pendingDocs) {
+        // Rechnung nicht doppelt, wenn separat gewählt
+        if (invoiceFile && d.file === invoiceFile) continue;
+        if (invoiceFile && d.type === 'INVOICE' && d.file.name === invoiceFile.name) continue;
+        uploads.push({ file: d.file, type: d.type });
+      }
+      for (const u of uploads) {
+        const fd = new FormData();
+        fd.append('file', u.file);
+        await api(`/documents/upload?shipmentId=${created.id}&type=${u.type}`, {
+          method: 'POST',
+          body: fd,
+        });
+      }
+
       router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);
-      setTab('allgemein');
+      if (String(err.message || '').toLowerCase().includes('rechnung') ||
+          String(err.message || '').toLowerCase().includes('verzoll')) {
+        setTab('zusatz');
+      } else {
+        setTab('allgemein');
+      }
     }
   }
 
@@ -772,6 +837,105 @@ function NewShipmentInner() {
                 />
               </div>
             )}
+
+            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
+              <strong style={{ fontSize: '0.95rem' }}>Dokumente</strong>
+              <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+                Laden Sie Begleitpapiere zum Auftrag hoch (PDF, Bilder). Bei Verzollung ist eine Rechnung Pflicht.
+              </p>
+
+              {extras.verzollung && (
+                <div
+                  className="field"
+                  style={{
+                    padding: '0.85rem 1rem',
+                    border: '1px solid var(--line)',
+                    borderRadius: 8,
+                    background: 'var(--soft, #f4f7f5)',
+                  }}
+                >
+                  <label>
+                    Rechnung <span style={{ color: 'var(--danger, #b42318)' }}>*</span>
+                  </label>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                    Verzollung erfordert eine Rechnung (Dokumenttyp Rechnung).
+                  </p>
+                  <input
+                    type="file"
+                    required={Boolean(extras.verzollung)}
+                    accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
+                    onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                  />
+                  {invoiceFile && (
+                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      Ausgewählt: {invoiceFile.name} ({formatBytes(invoiceFile.size)})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="field">
+                <label>Weitere Dokumente (optional)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
+                  onChange={(e) => {
+                    addPendingDocs(e.target.files, 'CUSTOMER_UPLOAD');
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              {pendingDocs.length > 0 && (
+                <div className="stack" style={{ gap: '0.5rem' }}>
+                  {pendingDocs.map((d) => (
+                    <div
+                      key={d.id}
+                      className="row"
+                      style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap',
+                        padding: '0.5rem 0',
+                        borderBottom: '1px solid var(--line)',
+                      }}
+                    >
+                      <span style={{ flex: '1 1 12rem' }}>
+                        {d.file.name}{' '}
+                        <span className="muted">({formatBytes(d.file.size)})</span>
+                      </span>
+                      <select
+                        value={d.type}
+                        onChange={(e) =>
+                          setPendingDocs((prev) =>
+                            prev.map((x) =>
+                              x.id === d.id ? { ...x, type: e.target.value as UploadDocType } : x,
+                            ),
+                          )
+                        }
+                        style={{ minWidth: '10rem' }}
+                      >
+                        {DOC_TYPE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => setPendingDocs((prev) => prev.filter((x) => x.id !== d.id))}
+                      >
+                        Entfernen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="field">
               <label>Hinweise / Bemerkungen</label>
               <textarea

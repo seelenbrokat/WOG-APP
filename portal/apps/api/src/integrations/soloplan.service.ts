@@ -168,7 +168,9 @@ export class SoloplanService implements TransportIntegration {
     const docs = await this.prisma.document.findMany({
       where: {
         shipmentId,
-        type: { in: [DocumentType.ABLIEFERBELEG, DocumentType.POD] },
+        type: {
+          in: [DocumentType.ABLIEFERBELEG, DocumentType.POD, DocumentType.INVOICE],
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -214,6 +216,11 @@ export class SoloplanService implements TransportIntegration {
       mandant: true,
       customer: { include: { contacts: true } },
       order: { include: { freightPayer: { include: { contacts: true } } } },
+      documents: {
+        where: { type: DocumentType.INVOICE },
+        select: { id: true },
+        take: 1,
+      },
     };
 
     const shipment = await this.prisma.shipment.findUnique({
@@ -226,6 +233,16 @@ export class SoloplanService implements TransportIntegration {
     if (!shipment.order) {
       this.logger.warn(`Soloplan export übersprungen – Sendung ${shipment.trackingNumber} hat keinen Auftrag`);
       return;
+    }
+
+    const extras =
+      shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+        ? (shipment.extras as Record<string, unknown>)
+        : null;
+    if (extras?.verzollung === true && (!shipment.documents || shipment.documents.length === 0)) {
+      throw new BadRequestException(
+        'Bei Verzollung muss eine Rechnung (Dokumenttyp INVOICE) hochgeladen werden, bevor der Soloplan-Export erfolgen kann.',
+      );
     }
 
     // Alle Sendungen des Auftrags (1:n) für kumulierten Order-Export

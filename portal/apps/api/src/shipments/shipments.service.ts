@@ -396,16 +396,27 @@ export class ShipmentsService {
       positions: shipment.positions,
     });
 
+    const needsCustomsInvoice = Boolean(
+      data.extras && typeof data.extras === 'object' && (data.extras as any).verzollung === true,
+    );
+
     if (status === ShipmentStatus.SUBMITTED) {
       await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.SHIPMENT_CREATED, {
         trackingNumber: shipment.trackingNumber,
         mandant: mandant.name,
       });
-      // Sofort exportieren – Worker hat eine eigene In-Memory-Queue und sähe enqueue nicht.
-      await this.soloplan.exportShipment(shipment.id);
+      // Bei Verzollung erst nach Rechnung (INVOICE) nach Soloplan exportieren
+      if (!needsCustomsInvoice) {
+        await this.soloplan.exportShipment(shipment.id);
+      }
     }
 
-    return this.get(user, shipment.id);
+    const created = await this.get(user, shipment.id);
+    return {
+      ...created,
+      pendingSoloplanExport: needsCustomsInvoice && status === ShipmentStatus.SUBMITTED,
+      requiresInvoice: needsCustomsInvoice,
+    };
   }
 
   /** Neuer Portal-Auftrag mit externer Nummer VLB{TT}{MM}{#####}. */
