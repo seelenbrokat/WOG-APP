@@ -168,15 +168,67 @@ docker compose run --rm api sh -c "npx prisma migrate deploy && npx ts-node --tr
 docker compose up -d --build api worker web
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
-  log "SFTPGo-Profil aktiviert (Order-Pickup Port 12022)"
-  # Admin-Passwort für SFTPGo persistent halten
+  # Primär: OpenSSH internal-sftp auf Port 22 (Soloplan-Firewall oft nur 22)
+  # Optional zusätzlich: SFTPGo auf 12022
+  log "Soloplan-SFTP auf Port 22 (OpenSSH internal-sftp)"
+  SFTP_ROOT="${APP_DIR}/portal/data/sftp"
+  chown root:root "$SFTP_ROOT"
+  chmod 755 "$SFTP_ROOT"
+  find "$SFTP_ROOT" -type d -exec chmod 755 {} \;
+  find "$SFTP_ROOT" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
+  if [[ ! -f /root/wog-soloplan-sftp.txt ]]; then
+    SOLOPLAN_SFTP_PW="$(openssl rand -base64 14 | tr -d '\n=/+')"
+    cat > /root/wog-soloplan-sftp.txt <<EOF
+user=soloplan
+password=$SOLOPLAN_SFTP_PW
+host=$DOMAIN
+port=22
+path=outbound/soloplan/orders
+protocol=SFTP
+EOF
+    chmod 600 /root/wog-soloplan-sftp.txt
+  else
+    SOLOPLAN_SFTP_PW="$(grep '^password=' /root/wog-soloplan-sftp.txt | cut -d= -f2-)"
+    # Port auf 22 normalisieren (früher 12022)
+    if grep -q '^port=' /root/wog-soloplan-sftp.txt; then
+      sed -i 's|^port=.*|port=22|' /root/wog-soloplan-sftp.txt
+    else
+      echo 'port=22' >> /root/wog-soloplan-sftp.txt
+    fi
+    grep -q '^protocol=' /root/wog-soloplan-sftp.txt || echo 'protocol=SFTP' >> /root/wog-soloplan-sftp.txt
+  fi
+
+  if ! id soloplan >/dev/null 2>&1; then
+    useradd --system --home-dir "$SFTP_ROOT" --shell /usr/sbin/nologin \
+      --comment "WOG Soloplan SFTP" soloplan
+  fi
+  echo "soloplan:${SOLOPLAN_SFTP_PW}" | chpasswd
+
+  if ! grep -q '^Match User soloplan$' /etc/ssh/sshd_config; then
+    cat >> /etc/ssh/sshd_config <<'EOF'
+
+# WOG Portal – Soloplan Order-Pickup (SFTP on port 22)
+Match User soloplan
+    ChrootDirectory /opt/wog-portal/portal/data/sftp
+    ForceCommand internal-sftp
+    PasswordAuthentication yes
+    AllowTcpForwarding no
+    X11Forwarding no
+    PermitTunnel no
+EOF
+  fi
+  sshd -t
+  systemctl reload ssh 2>/dev/null || systemctl reload sshd
+  log "SFTP-User soloplan auf Port 22 bereit (Credentials: /root/wog-soloplan-sftp.txt)"
+
+  log "SFTPGo-Profil zusätzlich (Port 12022, optional)"
   if [[ ! -f /root/wog-sftpgo-admin-password.txt ]]; then
     openssl rand -base64 18 | tr -d '\n' > /root/wog-sftpgo-admin-password.txt
     chmod 600 /root/wog-sftpgo-admin-password.txt
   fi
   SFTPGO_ADMIN_PASSWORD="$(cat /root/wog-sftpgo-admin-password.txt)"
   export SFTPGO_ADMIN_PASSWORD
-  # In .env spiegeln, damit Compose es sieht
   if grep -q '^SFTPGO_ADMIN_PASSWORD=' .env 2>/dev/null; then
     sed -i "s|^SFTPGO_ADMIN_PASSWORD=.*|SFTPGO_ADMIN_PASSWORD=$SFTPGO_ADMIN_PASSWORD|" .env
   else
@@ -184,19 +236,6 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
   fi
   docker compose --profile sftp up -d sftpgo
   sleep 5
-  # Soloplan-User anlegen (Home = gesamtes data/sftp → outbound/soloplan/orders)
-  if [[ ! -f /root/wog-soloplan-sftp.txt ]]; then
-    SOLOPLAN_SFTP_PW="$(openssl rand -base64 14 | tr -d '\n=/+')"
-    echo "user=soloplan" > /root/wog-soloplan-sftp.txt
-    echo "password=$SOLOPLAN_SFTP_PW" >> /root/wog-soloplan-sftp.txt
-    echo "host=$DOMAIN" >> /root/wog-soloplan-sftp.txt
-    echo "port=12022" >> /root/wog-soloplan-sftp.txt
-    echo "path=outbound/soloplan/orders" >> /root/wog-soloplan-sftp.txt
-    chmod 600 /root/wog-soloplan-sftp.txt
-  else
-    SOLOPLAN_SFTP_PW="$(grep '^password=' /root/wog-soloplan-sftp.txt | cut -d= -f2-)"
-  fi
-  # Token + User via SFTPGo Admin-API (localhost:18080)
   TOKEN="$(curl -sS -u "admin:${SFTPGO_ADMIN_PASSWORD}" \
     'http://127.0.0.1:18080/api/v2/token' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true)"
   if [[ -n "$TOKEN" ]]; then
@@ -205,9 +244,6 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
       -H 'Content-Type: application/json' \
       -d "{\"status\":1,\"username\":\"soloplan\",\"password\":\"${SOLOPLAN_SFTP_PW}\",\"home_dir\":\"/srv/sftpgo/data\",\"permissions\":{\"/\":[\"list\",\"download\"]}}" \
       >/dev/null || true
-    log "SFTP-User soloplan bereit (Credentials: /root/wog-soloplan-sftp.txt)"
-  else
-    log "SFTPGo Token nicht erhalten – User ggf. manuell anlegen (Admin http://127.0.0.1:18080)"
   fi
 fi
 

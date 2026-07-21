@@ -94,7 +94,7 @@ services:
       - ./data/sftp:/srv/sftpgo/data
       - sftpgo_data:/var/lib/sftpgo
     ports:
-      # SFTP öffentlich auf 12022 (Soloplan Order-Pickup), Web-Admin nur localhost
+      # Optional zusätzlich zu OpenSSH:12022; Soloplan primär Port 22 (sshd internal-sftp)
       - "0.0.0.0:12022:2022"
       - "127.0.0.1:18080:8080"
 
