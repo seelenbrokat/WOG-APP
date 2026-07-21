@@ -19,6 +19,7 @@ import {
   mimeFromFileName,
   parseTelematicsXml,
 } from './telematics-xml.parser';
+import { LoadingUnitService } from './loading-unit.service';
 import {
   buildZustellTimeline,
   deliveryStatusFromEvents,
@@ -40,6 +41,7 @@ export class TelematicsService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private loadingUnits: LoadingUnitService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -62,13 +64,22 @@ export class TelematicsService {
         : null) ||
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
     if (!org) {
-      return { processed: 0, tourStatus: 0, orderStatus: 0, locations: 0, documents: 0, failed: 0 };
+      return {
+        processed: 0,
+        tourStatus: 0,
+        orderStatus: 0,
+        stopStatus: 0,
+        locations: 0,
+        documents: 0,
+        failed: 0,
+      };
     }
 
     const counts = {
       processed: 0,
       tourStatus: 0,
       orderStatus: 0,
+      stopStatus: 0,
       locations: 0,
       documents: 0,
       failed: 0,
@@ -88,8 +99,9 @@ export class TelematicsService {
     const rank: Record<string, number> = {
       TourStatus: 0,
       TransportOrderStatus: 1,
-      VehicleLocations: 2,
-      Document: 3,
+      TourStopStatus: 2,
+      VehicleLocations: 3,
+      Document: 4,
     };
     files.sort((a, b) => rank[a.kind] - rank[b.kind] || a.fileName.localeCompare(b.fileName));
 
@@ -115,7 +127,14 @@ export class TelematicsService {
                 select: { id: true },
               })
             : null;
-        if (already || alreadyDoc) {
+        const alreadyLu =
+          kind === 'TourStopStatus'
+            ? await this.prisma.loadingUnitPosting.findFirst({
+                where: { organizationId: org.id, sourceFile: fileName },
+                select: { id: true },
+              })
+            : null;
+        if (already || alreadyDoc || alreadyLu) {
           renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
           continue;
         }
@@ -126,6 +145,7 @@ export class TelematicsService {
         remaining -= 1;
         if (result.kind === 'TourStatus') counts.tourStatus += 1;
         else if (result.kind === 'TransportOrderStatus') counts.orderStatus += 1;
+        else if (result.kind === 'TourStopStatus') counts.stopStatus += 1;
         else if (result.kind === 'VehicleLocations') counts.locations += 1;
         else if (result.kind === 'Document') counts.documents += 1;
         renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
@@ -137,7 +157,7 @@ export class TelematicsService {
 
     if (counts.processed) {
       this.logger.log(
-        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Loc=${counts.locations}, Doc=${counts.documents}, fail=${counts.failed})`,
+        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Stop=${counts.stopStatus}, Loc=${counts.locations}, Doc=${counts.documents}, fail=${counts.failed})`,
       );
     }
     return counts;
@@ -256,6 +276,11 @@ export class TelematicsService {
           sourceFile: fileName,
         },
       });
+      return parsed;
+    }
+
+    if (parsed.kind === 'TourStopStatus') {
+      await this.loadingUnits.bookTourStopStatus(organizationId, parsed, fileName);
       return parsed;
     }
 

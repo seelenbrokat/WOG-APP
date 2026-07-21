@@ -64,6 +64,8 @@ export default function ToursDashboardPage() {
         Zustellungsfortschritt für <strong>WOG Logistics AG</strong>.{' '}
         <Link href="/tours">Touren</Link>
         {' · '}
+        <Link href="/tours/lademittel">Lademittel</Link>
+        {' · '}
         <Link href="/tours/map">Kartenmonitor</Link>
       </p>
 

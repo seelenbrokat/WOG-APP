@@ -1,6 +1,6 @@
 /**
  * Parser für Soloplan StdTelematics-Rückmeldungen:
- * TourStatus, TransportOrderStatus, VehicleLocations, Document
+ * TourStatus, TransportOrderStatus, TourStopStatus, VehicleLocations, Document
  */
 
 import { XMLParser } from 'fast-xml-parser';
@@ -31,6 +31,26 @@ export type ParsedTransportOrderStatus = {
   location?: GeoPoint;
 };
 
+export type ParsedLoadingUnitExchange = {
+  matchcode: string;
+  given: number;
+  taken: number;
+};
+
+export type ParsedTourStopStatus = {
+  kind: 'TourStopStatus';
+  tourStopId: string;
+  tourNumber: string;
+  vehicleId?: string;
+  driverId?: string;
+  sendDate?: Date;
+  statusDate?: Date;
+  status?: string;
+  statusText?: string;
+  location?: GeoPoint;
+  exchanges: ParsedLoadingUnitExchange[];
+};
+
 export type ParsedVehicleLocations = {
   kind: 'VehicleLocations';
   vehicleId: string;
@@ -50,6 +70,7 @@ export type ParsedTelematicsDocument = {
 export type ParsedTelematics =
   | ParsedTourStatus
   | ParsedTransportOrderStatus
+  | ParsedTourStopStatus
   | ParsedVehicleLocations
   | ParsedTelematicsDocument;
 
@@ -77,6 +98,12 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function intOrZero(v: unknown): number {
+  const n = num(v);
+  if (n == null) return 0;
+  return Math.trunc(n);
+}
+
 function dt(v: unknown): Date | undefined {
   const s = str(v);
   if (!s) return undefined;
@@ -102,6 +129,7 @@ export function detectTelematicsKind(fileName: string): ParsedTelematics['kind']
   const lower = fileName.toLowerCase();
   if (lower.includes('_tourstatus_')) return 'TourStatus';
   if (lower.includes('_transportorderstatus_')) return 'TransportOrderStatus';
+  if (lower.includes('_tourstopstatus_')) return 'TourStopStatus';
   if (lower.includes('_vehiclelocations_')) return 'VehicleLocations';
   if (lower.includes('_document_')) return 'Document';
   return null;
@@ -112,7 +140,7 @@ export function parseTelematicsXml(xml: string, fileName?: string): ParsedTelema
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
     removeNSPrefix: true,
-    isArray: (name) => ['Location', 'Activity'].includes(name),
+    isArray: (name) => ['Location', 'Activity', 'LoadingUnitExchange'].includes(name),
   });
 
   let raw: Record<string, unknown>;
@@ -155,6 +183,43 @@ export function parseTelematicsXml(xml: string, fileName?: string): ParsedTelema
       status,
       statusText: str(n.StatusText) || undefined,
       location: parseLocation(n.VehicleLocation as Record<string, unknown> | undefined),
+    };
+  }
+
+  if (raw.TourStopStatus) {
+    const n = raw.TourStopStatus as Record<string, unknown>;
+    const tourStopId = str(n.TourStopId);
+    const tourNumber = str(n.TourNumber);
+    if (!tourStopId || !tourNumber) return null;
+    const exchangeNodes = asArray(
+      (n.LoadingUnitExchanges as Record<string, unknown> | undefined)?.LoadingUnitExchange as
+        | Record<string, unknown>
+        | Record<string, unknown>[]
+        | undefined,
+    );
+    const exchanges: ParsedLoadingUnitExchange[] = exchangeNodes
+      .map((ex) => {
+        const matchcode = str(ex.LoadingUnitMatchcode);
+        if (!matchcode) return null;
+        return {
+          matchcode,
+          given: intOrZero(ex.Given),
+          taken: intOrZero(ex.Taken),
+        };
+      })
+      .filter(Boolean) as ParsedLoadingUnitExchange[];
+    return {
+      kind: 'TourStopStatus',
+      tourStopId,
+      tourNumber,
+      vehicleId: str(n.VehicleId) || undefined,
+      driverId: str(n.DriverId) || undefined,
+      sendDate: dt(n.SendDate),
+      statusDate: dt(n.StatusDate),
+      status: str(n.Status) || undefined,
+      statusText: str(n.StatusText) || undefined,
+      location: parseLocation(n.VehicleLocation as Record<string, unknown> | undefined),
+      exchanges,
     };
   }
 

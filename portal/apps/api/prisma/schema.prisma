@@ -88,6 +88,7 @@ model Organization {
   telematicsEvents  TelematicsEvent[]
   tourDocuments     TourDocument[]
   intouchFiles      IntouchFile[]
+  loadingUnitPostings LoadingUnitPosting[]
 }
 
 /// Soloplan-Fahrzeug (aus Tour-Header / Truck)
@@ -164,6 +165,7 @@ model Tour {
   consignments TourConsignment[]
   events       TelematicsEvent[]
   documents    TourDocument[]
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@unique([organizationId, soloplanTourId])
   @@index([organizationId, tourNumber])
@@ -192,9 +194,11 @@ model TourStop {
   phone                String?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@index([tourId, sequence])
   @@index([transportOrderNumber])
+  @@index([soloplanTourStopId])
 }
 
 model TourConsignment {
@@ -286,9 +290,53 @@ model PackagingType {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@unique([organizationId, soloplanNumber])
   @@index([organizationId, matchcode])
+}
+
+/// Lademitteltausch aus TourStopStatus / LoadingUnitExchange (nur CSV-PackagingTypes)
+model LoadingUnitPosting {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  packagingTypeId     String?
+  packagingMatchcode  String
+  packagingLabel      String?
+  /// An Partner abgegeben
+  given               Int      @default(0)
+  /// Vom Partner übernommen
+  taken               Int      @default(0)
+  /// Partner-Schuld gegenüber WOG: Given − Taken
+  balanceDelta        Int      @default(0)
+  tourId              String?
+  tourNumber          String?
+  tourStopId          String?
+  tourStopExternalId  String?
+  partnerNumber       String?
+  partnerName         String?
+  partnerCity         String?
+  customerId          String?
+  vehicleSoloplanId   String?
+  /// BOOKED | SKIPPED_ZERO | SKIPPED_UNKNOWN_TYPE
+  status              String   @default("BOOKED")
+  skipReason          String?
+  occurredAt          DateTime?
+  sendDate            DateTime?
+  sourceFile          String
+  createdAt           DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  packagingType PackagingType? @relation(fields: [packagingTypeId], references: [id], onDelete: SetNull)
+  tour          Tour?          @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  tourStop      TourStop?      @relation(fields: [tourStopId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, sourceFile, packagingMatchcode])
+  @@index([organizationId, partnerName, packagingMatchcode])
+  @@index([organizationId, partnerNumber, packagingMatchcode])
+  @@index([organizationId, occurredAt])
+  @@index([tourId])
+  @@index([sourceFile])
 }
 
 /// Soloplan-Dokumentenkategorien (GP-Export dokumentenkategorieren.csv)

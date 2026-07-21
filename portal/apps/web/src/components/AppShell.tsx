@@ -19,6 +19,7 @@ const NAV = [
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
+  { href: '/tours/lademittel', label: 'Lademittel', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/map', label: 'Kartenmonitor', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/customs', label: 'Verzollung', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -83,8 +84,10 @@ export function AppShell({
                 pathname === l.href ||
                 (l.href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname)) ||
                 (l.href === '/tours' &&
-                  (pathname === '/tours' || /^\/tours\/(?!map$|dashboard$)[^/]+$/.test(pathname))) ||
+                  (pathname === '/tours' ||
+                    /^\/tours\/(?!map$|dashboard$|lademittel$)[^/]+$/.test(pathname))) ||
                 (l.href === '/tours/dashboard' && pathname.startsWith('/tours/dashboard')) ||
+                (l.href === '/tours/lademittel' && pathname.startsWith('/tours/lademittel')) ||
                 (l.href === '/tours/map' && pathname.startsWith('/tours/map'));
               return (
                 <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>

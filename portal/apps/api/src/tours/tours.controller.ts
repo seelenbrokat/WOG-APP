@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { TourService } from '../integrations/tour.service';
 import { TelematicsService } from '../integrations/telematics.service';
 import { IntouchService } from '../integrations/intouch.service';
+import { LoadingUnitService } from '../integrations/loading-unit.service';
 
 @Controller('tours')
 @UseGuards(RolesGuard)
@@ -14,6 +15,7 @@ export class ToursController {
     private tours: TourService,
     private telematics: TelematicsService,
     private intouch: IntouchService,
+    private loadingUnits: LoadingUnitService,
   ) {}
 
   @Get()
@@ -79,6 +81,42 @@ export class ToursController {
     @Query('vehicleId') vehicleId?: string,
   ) {
     return this.telematics.listEvents(user, { tourId, vehicleId });
+  }
+
+  @Get('loading-units/balances')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  loadingUnitBalances(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('matchcode') matchcode?: string,
+    @Query('includeZero') includeZero?: string,
+  ) {
+    return this.loadingUnits.listBalances(user, {
+      q,
+      matchcode,
+      includeZero: includeZero === '1' || includeZero === 'true',
+    });
+  }
+
+  @Get('loading-units/postings')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  loadingUnitPostings(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('matchcode') matchcode?: string,
+    @Query('partnerNumber') partnerNumber?: string,
+    @Query('partnerName') partnerName?: string,
+    @Query('includeSkipped') includeSkipped?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.loadingUnits.listPostings(user, {
+      q,
+      matchcode,
+      partnerNumber,
+      partnerName,
+      includeSkipped: includeSkipped === '1' || includeSkipped === 'true',
+      take: take ? Number(take) : undefined,
+    });
   }
 
   @Get('documents/:docId/download')
