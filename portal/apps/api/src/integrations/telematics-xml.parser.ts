@@ -60,8 +60,12 @@ function asArray<T>(v: T | T[] | undefined | null): T[] {
 
 function str(v: unknown): string {
   if (v == null) return '';
-  if (typeof v === 'object' && v !== null && '#text' in (v as object)) {
-    return String((v as { '#text'?: unknown })['#text'] ?? '').trim();
+  if (typeof v === 'object' && v !== null) {
+    const rec = v as Record<string, unknown>;
+    if (rec['@_nil'] === 'true' || rec['@_xsi:nil'] === 'true') return '';
+    if ('#text' in rec) return String(rec['#text'] ?? '').trim();
+    // leere/unbekannte XML-Objekte nicht als "[object Object]" speichern
+    return '';
   }
   return String(v).trim();
 }
