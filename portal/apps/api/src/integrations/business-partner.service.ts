@@ -14,18 +14,35 @@ import {
 @Injectable()
 export class BusinessPartnerService {
   private readonly logger = new Logger(BusinessPartnerService.name);
+  /** SFTP: inbound/soloplan/business-partners */
   private inboundDir: string;
+  /** Alter Pfad integrations/.../in (falls noch genutzt) */
+  private legacyInboundDir?: string;
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
     private audit: AuditService,
   ) {
-    const base =
-      this.config.get('INTEGRATION_DIR') ||
-      join(process.cwd(), '../../data/integrations');
-    this.inboundDir = join(base, 'soloplan', 'business-partners', 'in');
+    // Primär: SFTP-Upload-Pfad (Chroot data/sftp → inbound/soloplan/business-partners)
+    const sftpInbound =
+      this.config.get('SFTP_INBOUND_DIR') ||
+      join(process.cwd(), '../../data/sftp/inbound');
+    this.inboundDir = join(sftpInbound, 'soloplan', 'business-partners');
     if (!existsSync(this.inboundDir)) mkdirSync(this.inboundDir, { recursive: true });
+
+    // Kompatibilität: alter Integrations-Pfad weiter mitlesen
+    const legacy =
+      this.config.get('SOLOPLAN_BP_IN_DIR') ||
+      join(
+        this.config.get('INTEGRATION_DIR') || join(process.cwd(), '../../data/integrations'),
+        'soloplan',
+        'business-partners',
+        'in',
+      );
+    if (existsSync(legacy) && legacy !== this.inboundDir) {
+      this.legacyInboundDir = legacy;
+    }
   }
 
   async list(user: AuthUser) {
@@ -140,9 +157,8 @@ export class BusinessPartnerService {
     }
   }
 
-  /** Worker: Dateien aus integrations/soloplan/business-partners/in */
+  /** Worker: Dateien aus SFTP inbound/soloplan/business-partners (+ Legacy-Pfad) */
   async processInboundDir(organizationId?: string) {
-    if (!existsSync(this.inboundDir)) return { processed: 0 };
     const org =
       (organizationId
         ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
@@ -150,22 +166,34 @@ export class BusinessPartnerService {
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
     if (!org) return { processed: 0 };
 
-    const files = readdirSync(this.inboundDir).filter(
+    let processed = 0;
+    for (const dir of [this.inboundDir, this.legacyInboundDir].filter(Boolean) as string[]) {
+      if (!existsSync(dir)) continue;
+      processed += await this.processDir(dir, org.id);
+    }
+    return { processed };
+  }
+
+  private async processDir(dir: string, organizationId: string) {
+    const files = readdirSync(dir).filter(
       (f) =>
         f.endsWith('.json') &&
-        (f.includes('BusinessPartner') || f.startsWith('PORTALGP') || f.includes('business-partner')),
+        (f.includes('BusinessPartner') ||
+          f.startsWith('PORTALGP') ||
+          f.includes('business-partner') ||
+          f.toLowerCase().includes('gpportal')),
     );
     let processed = 0;
-    const processedDir = join(this.inboundDir, 'processed');
+    const processedDir = join(dir, 'processed');
     if (!existsSync(processedDir)) mkdirSync(processedDir, { recursive: true });
 
     for (const fileName of files) {
-      const full = join(this.inboundDir, fileName);
+      const full = join(dir, fileName);
       try {
         const data = this.parseJsonBuffer(readFileSync(full));
         const parsed = extractBusinessPartners(data);
         for (const bp of parsed) {
-          await this.upsertParsed(org.id, bp);
+          await this.upsertParsed(organizationId, bp);
         }
         renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
         processed += 1;
@@ -174,7 +202,7 @@ export class BusinessPartnerService {
         this.logger.error(`BusinessPartner import failed ${fileName}`, err?.message || err);
       }
     }
-    return { processed };
+    return processed;
   }
 
   private async upsertParsed(organizationId: string, bp: ParsedBusinessPartner) {

@@ -10,7 +10,20 @@ Die **BusinessPartnerId** wird für spätere Auftragsanlage und Integrationen be
    - PascalCase-Tour-JSON mit `OriginalBusinessPartner` / `BusinessPartner`
    - NDJSON (ein JSON-Objekt pro Zeile)
 2. Im Portal unter **Kunden** als Admin hochladen  
-   oder Datei nach `portal/data/integrations/soloplan/business-partners/in/` legen (Worker importiert automatisch)
+   oder per **SFTP** nach `inbound/soloplan/business-partners/` legen (Worker importiert automatisch)
+
+### SFTP-Upload (GPPortal / BusinessPartner)
+
+| Feld | Wert |
+|------|------|
+| Protokoll | **SFTP** (nicht FTP) |
+| Host | `wog.logistikberater.at` |
+| Port | `22` |
+| Benutzer | `soloplan` |
+| Passwort | siehe Server `/root/wog-soloplan-sftp.txt` |
+| Remote-Pfad | `inbound/soloplan/business-partners/` |
+
+Dateiname z. B. `PORTALGP.v1-BusinessPartner_….json`. Nach Import verschiebt der Worker die Datei nach `…/processed/`.
 3. Ansprechpartner (`MainContactPerson` / `ContactPersons`) werden als Kontakte gespeichert
 
 ## Portal-User
