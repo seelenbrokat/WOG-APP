@@ -7,6 +7,14 @@ import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { AppShell } from '@/components/AppShell';
 import { api, getToken } from '@/lib/api';
 
+type PartyAddress = {
+  company?: string | null;
+  street?: string | null;
+  zip?: string | null;
+  city?: string | null;
+  country?: string | null;
+};
+
 type ScanResult = {
   sscc: string;
   scannedAt: string;
@@ -28,11 +36,15 @@ type ScanResult = {
     packageCount: number;
     weightKg?: number | null;
     pickupCompany?: string | null;
+    pickupStreet?: string | null;
     pickupCity?: string | null;
     pickupZip?: string | null;
+    pickupCountry?: string | null;
     deliveryCompany?: string | null;
+    deliveryStreet?: string | null;
     deliveryCity?: string | null;
     deliveryZip?: string | null;
+    deliveryCountry?: string | null;
     mandant?: { code: string; name: string } | null;
     customer?: { name: string; customerNumber: string } | null;
     order?: { externalNumber: string } | null;
@@ -49,11 +61,41 @@ type TestLabelShipment = {
   trackingNumber: string;
   status: string;
   goodsDescription?: string | null;
+  pickupCompany?: string | null;
+  pickupStreet?: string | null;
+  pickupZip?: string | null;
+  pickupCity?: string | null;
+  pickupCountry?: string | null;
+  deliveryCompany?: string | null;
+  deliveryStreet?: string | null;
+  deliveryZip?: string | null;
+  deliveryCity?: string | null;
+  deliveryCountry?: string | null;
+  customer?: { name: string; customerNumber: string } | null;
   kind?: 'wareneingang' | 'test' | 'other';
   colli: Array<{ id: string; itemNumber: number; sscc: string | null }>;
   documents: Array<{ id: string; fileName: string; createdAt: string }>;
   printDocument: { id: string; fileName: string; createdAt: string } | null;
 };
+
+function formatParty(p: PartyAddress): string {
+  const line1 = p.company?.trim() || '';
+  const line2 = [p.street?.trim()].filter(Boolean).join('');
+  const line3 = [p.zip?.trim(), p.city?.trim()].filter(Boolean).join(' ');
+  const line4 = p.country?.trim() || '';
+  return [line1, line2, line3, line4].filter(Boolean).join('\n') || '—';
+}
+
+function ScanField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="muted" style={{ fontSize: '0.75rem' }}>
+        {label}
+      </div>
+      <div style={{ fontWeight: 600, whiteSpace: 'pre-line', wordBreak: 'break-word' }}>{value}</div>
+    </div>
+  );
+}
 
 async function downloadDocument(docId: string, fileName: string) {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${docId}/download`, {
@@ -531,20 +573,57 @@ export default function ScanningPage() {
                 <div>{result.collo.weightKg != null ? `${result.collo.weightKg} kg` : '—'}</div>
               </div>
             </div>
-            {result.shipment.reference ? (
-              <div className="muted" style={{ fontSize: '0.88rem' }}>
-                Ref: {result.shipment.reference}
-              </div>
-            ) : null}
-            {result.shipment.goodsDescription ? (
-              <div className="muted" style={{ fontSize: '0.88rem' }}>
-                Ware: {result.shipment.goodsDescription}
-              </div>
-            ) : null}
-            <div className="muted" style={{ fontSize: '0.88rem' }}>
-              {[result.shipment.deliveryCompany, result.shipment.deliveryZip, result.shipment.deliveryCity]
-                .filter(Boolean)
-                .join(', ') || 'Zustellung —'}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                gap: '0.55rem',
+                paddingTop: '0.25rem',
+                borderTop: '1px solid color-mix(in srgb, #2f9e62 25%, transparent)',
+              }}
+            >
+              <ScanField
+                label="Referenznummer"
+                value={result.shipment.reference?.trim() || '—'}
+              />
+              <ScanField
+                label="Auftraggeber"
+                value={
+                  result.shipment.customer
+                    ? [
+                        result.shipment.customer.name,
+                        result.shipment.customer.customerNumber
+                          ? `(${result.shipment.customer.customerNumber})`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                    : '—'
+                }
+              />
+              <ScanField
+                label="Absender"
+                value={formatParty({
+                  company: result.shipment.pickupCompany,
+                  street: result.shipment.pickupStreet,
+                  zip: result.shipment.pickupZip,
+                  city: result.shipment.pickupCity,
+                  country: result.shipment.pickupCountry,
+                })}
+              />
+              <ScanField
+                label="Empfänger"
+                value={formatParty({
+                  company: result.shipment.deliveryCompany,
+                  street: result.shipment.deliveryStreet,
+                  zip: result.shipment.deliveryZip,
+                  city: result.shipment.deliveryCity,
+                  country: result.shipment.deliveryCountry,
+                })}
+              />
+              {result.shipment.goodsDescription ? (
+                <ScanField label="Ware" value={result.shipment.goodsDescription} />
+              ) : null}
             </div>
             <Link
               className="btn btn-primary"
@@ -635,7 +714,7 @@ export default function ScanningPage() {
                 }}
               >
                 <div style={{ marginBottom: '0.45rem' }}>
-                  <strong>{s.reference}</strong>{' '}
+                  <strong>{s.reference || s.trackingNumber}</strong>{' '}
                   <Link href={`/shipments/${s.id}`}>{s.trackingNumber}</Link>
                   {s.kind === 'wareneingang' ? (
                     <span className="badge" style={{ marginLeft: 6 }}>
@@ -646,11 +725,38 @@ export default function ScanningPage() {
                       Test
                     </span>
                   ) : null}
-                  {s.goodsDescription ? (
-                    <div className="muted" style={{ fontSize: '0.85rem' }}>
-                      {s.goodsDescription}
+                  <div
+                    style={{
+                      marginTop: '0.4rem',
+                      display: 'grid',
+                      gap: '0.35rem',
+                      fontSize: '0.88rem',
+                    }}
+                  >
+                    <div>
+                      <span className="muted">Referenz: </span>
+                      <strong>{s.reference || '—'}</strong>
                     </div>
-                  ) : null}
+                    <div>
+                      <span className="muted">Auftraggeber: </span>
+                      {s.customer?.name || '—'}
+                      {s.customer?.customerNumber ? ` (${s.customer.customerNumber})` : ''}
+                    </div>
+                    <div>
+                      <span className="muted">Absender: </span>
+                      {[s.pickupCompany, s.pickupZip, s.pickupCity].filter(Boolean).join(', ') || '—'}
+                    </div>
+                    <div>
+                      <span className="muted">Empfänger: </span>
+                      {[s.deliveryCompany, s.deliveryZip, s.deliveryCity].filter(Boolean).join(', ') ||
+                        '—'}
+                    </div>
+                    {s.goodsDescription ? (
+                      <div className="muted" style={{ fontSize: '0.85rem' }}>
+                        Ware: {s.goodsDescription}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.45rem' }}>
                   {s.printDocument ? (
