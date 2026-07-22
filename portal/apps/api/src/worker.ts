@@ -69,6 +69,17 @@ async function bootstrap() {
   } catch (err) {
     console.error('Telematics Reimport failed', err);
   }
+  // Einmalig: Receipts mit Soloplan-TourId an Tour.tourNumber koppeln
+  try {
+    const relink = await telematics.relinkOrphanTourRefs(undefined, 3000);
+    if (relink.linked) {
+      console.log(
+        `Telematics Relink: ${relink.linked} Events, ${relink.toursUpdated} Touren aktualisiert`,
+      );
+    }
+  } catch (err) {
+    console.error('Telematics Relink failed', err);
+  }
   setInterval(tick, 30_000);
 }
 

@@ -447,6 +447,18 @@ export class TelematicsService {
         parsed.referenceType === 'Tour' && parsed.referenceId
           ? await this.resolveTour(organizationId, parsed.referenceId)
           : null;
+      const eventAt = parsed.sendDate || new Date();
+      if (tour && parsed.receiptType) {
+        // Receipt = Geräte-ACK (Pending/Sent/Arrived), kein TourStatus Started/Finished
+        await this.prisma.tour.update({
+          where: { id: tour.id },
+          data: {
+            telematicsStatus: parsed.receiptType,
+            lastStatusAt: eventAt,
+            ...(vehicle ? { vehicleId: vehicle.id } : {}),
+          },
+        });
+      }
       await this.prisma.telematicsEvent.create({
         data: {
           organizationId,
@@ -456,7 +468,7 @@ export class TelematicsService {
           tourNumber: tour?.tourNumber || parsed.referenceId,
           status: parsed.receiptType || 'Receipt',
           statusText: [parsed.referenceType, parsed.referenceId].filter(Boolean).join(' '),
-          eventAt: parsed.sendDate || new Date(),
+          eventAt,
           sendDate: parsed.sendDate,
           sourceFile: fileName,
         },
@@ -578,11 +590,89 @@ export class TelematicsService {
     });
   }
 
-  private async resolveTour(organizationId: string, tourNumber: string) {
+  /**
+   * Soloplan referenziert Touren mal als TourNumber (z.B. 184200),
+   * mal als interne TourId / soloplanTourId (z.B. 166702935 in Receipt.Reference.Id).
+   */
+  private async resolveTour(organizationId: string, tourRef: string) {
     return this.prisma.tour.findFirst({
-      where: { organizationId, tourNumber },
+      where: {
+        organizationId,
+        OR: [{ tourNumber: tourRef }, { soloplanTourId: tourRef }],
+      },
       orderBy: [{ updatedAt: 'desc' }],
     });
+  }
+
+  /** Receipts/Events nachziehen, die nur die Soloplan-TourId statt tourNumber hatten. */
+  async relinkOrphanTourRefs(organizationId?: string, limit = 2000) {
+    const org =
+      (organizationId
+        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
+        : null) ||
+      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
+    if (!org) return { linked: 0, toursUpdated: 0 };
+
+    const orphans = await this.prisma.telematicsEvent.findMany({
+      where: {
+        organizationId: org.id,
+        tourId: null,
+        tourNumber: { not: null },
+      },
+      select: { id: true, tourNumber: true, kind: true, status: true, eventAt: true, vehicleId: true },
+      orderBy: { eventAt: 'asc' },
+      take: limit,
+    });
+
+    let linked = 0;
+    const latestByTour = new Map<
+      string,
+      { status: string; eventAt: Date; vehicleId?: string | null }
+    >();
+
+    for (const ev of orphans) {
+      if (!ev.tourNumber) continue;
+      const tour = await this.resolveTour(org.id, ev.tourNumber);
+      if (!tour) continue;
+      await this.prisma.telematicsEvent.update({
+        where: { id: ev.id },
+        data: {
+          tourId: tour.id,
+          tourNumber: tour.tourNumber,
+        },
+      });
+      linked += 1;
+      if (ev.kind === 'Receipt' && ev.status && ev.eventAt) {
+        const prev = latestByTour.get(tour.id);
+        if (!prev || ev.eventAt > prev.eventAt) {
+          latestByTour.set(tour.id, {
+            status: ev.status,
+            eventAt: ev.eventAt,
+            vehicleId: ev.vehicleId,
+          });
+        }
+      }
+    }
+
+    let toursUpdated = 0;
+    for (const [tourId, info] of latestByTour) {
+      await this.prisma.tour.update({
+        where: { id: tourId },
+        data: {
+          telematicsStatus: info.status,
+          lastStatusAt: info.eventAt,
+          ...(info.vehicleId ? { vehicleId: info.vehicleId } : {}),
+        },
+      });
+      toursUpdated += 1;
+    }
+
+    if (linked) {
+      this.logger.log(
+        `Telematics Relink: ${linked} Events an Touren gebunden, ${toursUpdated} Tour-Status aktualisiert`,
+      );
+    }
+    return { linked, toursUpdated };
   }
 
   async fleetMap(user: AuthUser, opts?: { mandantId?: string }) {
