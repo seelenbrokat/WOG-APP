@@ -246,7 +246,7 @@ export class ShipmentsController {
     return this.service.findBySscc(user, sscc);
   }
 
-  /** Testlabels (SCAN-TEST-*) für Scanning-Übung: SSCCs + PDF-Downloads */
+  /** Scan-Labels: SCAN-TEST + Wareneingang (Auftrag 2291) */
   @Get('scan-test-labels')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   scanTestLabels(@CurrentUser() user: AuthUser) {

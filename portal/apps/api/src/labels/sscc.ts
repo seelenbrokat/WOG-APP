@@ -73,9 +73,27 @@ export function normalizeSsccDigits(raw: string | null | undefined): string | nu
   return digits;
 }
 
-/** Scan-Rohwert → gültige SSCC oder null. */
+/** Scan-Rohwert → gültige GS1-SSCC oder null. */
 export function parseSsccFromScan(raw: string | null | undefined): string | null {
   const digits = normalizeSsccDigits(raw);
   if (!digits || !isValidSscc(digits)) return null;
   return digits;
+}
+
+/**
+ * Soloplan/Intouch-SSCC (z. B. IKU516494298) oder GS1-18.
+ * Für Lager-Scan wenn kein reines GS1-Barcode vorliegt.
+ */
+export function normalizeScanCode(raw: string | null | undefined): string | null {
+  const gs1 = parseSsccFromScan(raw);
+  if (gs1) return gs1;
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^\]C1/i, '') // Code 128 AIM
+    .replace(/\s+/g, '')
+    .toUpperCase();
+  if (!cleaned) return null;
+  // Alphanumerisch, typisch Soloplan Sscc.Code
+  if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;
+  return null;
 }

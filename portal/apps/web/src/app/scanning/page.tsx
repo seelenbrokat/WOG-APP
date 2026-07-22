@@ -37,6 +37,7 @@ type ScanResult = {
     customer?: { name: string; customerNumber: string } | null;
     order?: { externalNumber: string } | null;
     colloCount: number;
+    isWareneingang?: boolean;
   };
 };
 
@@ -47,6 +48,8 @@ type TestLabelShipment = {
   reference: string | null;
   trackingNumber: string;
   status: string;
+  goodsDescription?: string | null;
+  kind?: 'wareneingang' | 'test' | 'other';
   colli: Array<{ id: string; itemNumber: number; sscc: string | null }>;
   documents: Array<{ id: string; fileName: string; createdAt: string }>;
   printDocument: { id: string; fileName: string; createdAt: string } | null;
@@ -75,13 +78,20 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Storniert',
 };
 
-/** Rohscan → 18-stellige SSCC-Ziffern (ohne strenge Prüfziffer – API validiert). */
+/** Rohscan → GS1-18 oder Soloplan-Code (Wareneingang / Intouch). */
 function extractSsccCandidate(raw: string): string | null {
   let digits = String(raw || '').replace(/\D/g, '');
-  if (!digits) return null;
-  if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
-  if (digits.length > 18 && digits.startsWith('00')) digits = digits.slice(-18);
-  if (digits.length === 18) return digits;
+  if (digits) {
+    if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.length > 18 && digits.startsWith('00')) digits = digits.slice(-18);
+    if (digits.length === 18) return digits;
+  }
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^\]C1/i, '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+  if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;
   return null;
 }
 
@@ -193,7 +203,12 @@ export default function ScanningPage() {
   }
 
   async function lookup(raw: string) {
-    const candidate = extractSsccCandidate(raw) || String(raw).replace(/\D/g, '');
+    const candidate =
+      extractSsccCandidate(raw) ||
+      String(raw)
+        .trim()
+        .replace(/\s+/g, '')
+        .toUpperCase();
     if (!candidate) {
       setError('Kein gültiger Code erkannt.');
       void feedback(false);
@@ -469,7 +484,14 @@ export default function ScanningPage() {
               background: 'color-mix(in srgb, #2f9e62 8%, transparent)',
             }}
           >
-            <strong style={{ fontSize: '1.05rem' }}>Treffer</strong>
+            <strong style={{ fontSize: '1.05rem' }}>
+              Treffer
+              {result.shipment.isWareneingang ? (
+                <span className="badge" style={{ marginLeft: 8 }}>
+                  Wareneingang
+                </span>
+              ) : null}
+            </strong>
             <div>
               <div className="muted" style={{ fontSize: '0.75rem' }}>
                 SSCC
@@ -512,6 +534,11 @@ export default function ScanningPage() {
             {result.shipment.reference ? (
               <div className="muted" style={{ fontSize: '0.88rem' }}>
                 Ref: {result.shipment.reference}
+              </div>
+            ) : null}
+            {result.shipment.goodsDescription ? (
+              <div className="muted" style={{ fontSize: '0.88rem' }}>
+                Ware: {result.shipment.goodsDescription}
               </div>
             ) : null}
             <div className="muted" style={{ fontSize: '0.88rem' }}>
@@ -590,12 +617,12 @@ export default function ScanningPage() {
         )}
 
         {(testLabels.length > 0 || testLabelsError) && (
-          <details className="panel">
+          <details className="panel" open>
             <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
-              Testlabels ({testLabels.length})
+              Scan-Labels ({testLabels.length})
             </summary>
             <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.88rem' }}>
-              PDF drucken oder SSCC antippen.
+              Testlabels und Wareneingang (Auftrag 2291) – PDF drucken oder SSCC antippen.
             </p>
             {testLabelsError ? <p className="error">{testLabelsError}</p> : null}
             {testLabels.map((s) => (
@@ -610,6 +637,20 @@ export default function ScanningPage() {
                 <div style={{ marginBottom: '0.45rem' }}>
                   <strong>{s.reference}</strong>{' '}
                   <Link href={`/shipments/${s.id}`}>{s.trackingNumber}</Link>
+                  {s.kind === 'wareneingang' ? (
+                    <span className="badge" style={{ marginLeft: 6 }}>
+                      Wareneingang
+                    </span>
+                  ) : s.kind === 'test' ? (
+                    <span className="badge" style={{ marginLeft: 6 }}>
+                      Test
+                    </span>
+                  ) : null}
+                  {s.goodsDescription ? (
+                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      {s.goodsDescription}
+                    </div>
+                  ) : null}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.45rem' }}>
                   {s.printDocument ? (

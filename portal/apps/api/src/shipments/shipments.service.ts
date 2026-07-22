@@ -13,7 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { LabelsService } from '../labels/labels.service';
-import { parseSsccFromScan } from '../labels/sscc';
+import { normalizeScanCode, parseSsccFromScan } from '../labels/sscc';
 import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
@@ -131,9 +131,10 @@ export class ShipmentsService {
     if (user.role === UserRole.CUSTOMER_USER) {
       throw new ForbiddenException('Scanning nur für Lager / Disposition');
     }
-    const sscc = parseSsccFromScan(rawSscc);
+    // GS1-18 oder Soloplan-Code (z. B. IKU… / Wareneingang)
+    const sscc = normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
     if (!sscc) {
-      throw new BadRequestException('Ungültige SSCC (18 Ziffern mit Prüfziffer erwartet)');
+      throw new BadRequestException('Ungültige SSCC (GS1-18 oder Soloplan-Code erwartet)');
     }
 
     const collo = await this.prisma.shipmentCollo.findFirst({
@@ -165,6 +166,12 @@ export class ShipmentsService {
     ) {
       throw new ForbiddenException();
     }
+
+    const isWareneingang =
+      /wareneingang/i.test(shipment.goodsDescription || '') ||
+      /wareneingang/i.test(shipment.reference || '') ||
+      /^2291\b/i.test(shipment.reference || '') ||
+      shipment.reference?.includes('2291');
 
     return {
       sscc,
@@ -199,31 +206,43 @@ export class ShipmentsService {
         customer: shipment.customer,
         order: shipment.order,
         colloCount: shipment.colli.length,
+        isWareneingang: !!isWareneingang,
       },
     };
   }
 
   /**
-   * Testlabels für Lager-Scanning: Sendungen mit Referenz SCAN-TEST-*
-   * inkl. SSCCs und LABEL-Dokumente (PDF-Download).
+   * Labels für Lager-Scanning:
+   * - SCAN-TEST-* (Übung)
+   * - Auftrag 2291 / Bezeichnung Wareneingang
    */
   async listScanTestLabels(user: AuthUser) {
     if (user.role === UserRole.CUSTOMER_USER) {
       throw new ForbiddenException('Scanning nur für Lager / Disposition');
     }
 
+    const scope = {
+      organizationId: user.organizationId,
+      ...mandantFilter(user),
+      ...customerFilter(user),
+    };
+
     const shipments = await this.prisma.shipment.findMany({
       where: {
-        organizationId: user.organizationId,
-        reference: { startsWith: 'SCAN-TEST-' },
-        ...mandantFilter(user),
-        ...customerFilter(user),
+        ...scope,
+        OR: [
+          { reference: { startsWith: 'SCAN-TEST-' } },
+          { reference: { contains: '2291', mode: 'insensitive' } },
+          { reference: { contains: 'Wareneingang', mode: 'insensitive' } },
+          { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
+        ],
       },
       select: {
         id: true,
         reference: true,
         trackingNumber: true,
         status: true,
+        goodsDescription: true,
         colli: {
           orderBy: { itemNumber: 'asc' },
           select: { id: true, itemNumber: true, sscc: true },
@@ -234,17 +253,25 @@ export class ShipmentsService {
           select: { id: true, fileName: true, createdAt: true },
         },
       },
-      orderBy: { reference: 'asc' },
+      orderBy: [{ reference: 'asc' }, { createdAt: 'desc' }],
+      take: 50,
     });
 
     return shipments.map((s) => {
       const printDocument =
         s.documents.find((d) => d.fileName.startsWith('Etiketten-')) || s.documents[0] || null;
+      const isWareneingang =
+        /wareneingang/i.test(s.goodsDescription || '') ||
+        /wareneingang/i.test(s.reference || '') ||
+        (s.reference || '').includes('2291');
+      const isTest = (s.reference || '').startsWith('SCAN-TEST-');
       return {
         id: s.id,
         reference: s.reference,
         trackingNumber: s.trackingNumber,
         status: s.status,
+        goodsDescription: s.goodsDescription,
+        kind: isWareneingang ? 'wareneingang' : isTest ? 'test' : 'other',
         colli: s.colli,
         documents: s.documents,
         printDocument,
