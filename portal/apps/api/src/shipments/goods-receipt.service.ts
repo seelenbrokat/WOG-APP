@@ -70,10 +70,10 @@ export class GoodsReceiptService {
     const where: any = {
       organizationId: user.organizationId,
       mandantId,
+      // Nur echte Wareneingangs-Importe (nicht normale Portal-/Soloplan-Aufträge)
       OR: [
         { reference: { startsWith: 'WE-' } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
-        { soloplanRef: { not: null } },
       ],
     };
     if (opts.customerId) where.customerId = opts.customerId;
