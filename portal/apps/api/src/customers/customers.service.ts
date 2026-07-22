@@ -326,4 +326,124 @@ export class CustomersService {
     }
     return saved;
   }
+
+  /**
+   * Einmalig/nachträglich: Abhol- und Zustelladressen aus bisherigen Sendungen ins Adressbuch.
+   */
+  async importAddressesFromShipments(user: AuthUser, customerId?: string) {
+    const id = this.resolveCustomerId(user, customerId);
+    await this.get(user, id);
+
+    const shipments = await this.prisma.shipment.findMany({
+      where: { customerId: id, organizationId: user.organizationId },
+      select: {
+        pickupCompany: true,
+        pickupStreet: true,
+        pickupZip: true,
+        pickupCity: true,
+        pickupCountry: true,
+        deliveryCompany: true,
+        deliveryStreet: true,
+        deliveryZip: true,
+        deliveryCity: true,
+        deliveryCountry: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const s of shipments) {
+      if (s.pickupStreet && s.pickupZip && s.pickupCity) {
+        const r = await this.upsertAddress(id, {
+          label: s.pickupCompany || 'Abholung',
+          company: s.pickupCompany,
+          street: s.pickupStreet,
+          zip: s.pickupZip,
+          city: s.pickupCity,
+          country: s.pickupCountry || 'AT',
+          usage: 'PICKUP',
+        });
+        if (r === 'created') created += 1;
+        else if (r === 'updated') updated += 1;
+        else skipped += 1;
+      }
+      if (s.deliveryStreet && s.deliveryZip && s.deliveryCity) {
+        const r = await this.upsertAddress(id, {
+          label: s.deliveryCompany || 'Zustellung',
+          company: s.deliveryCompany,
+          street: s.deliveryStreet,
+          zip: s.deliveryZip,
+          city: s.deliveryCity,
+          country: s.deliveryCountry || 'AT',
+          usage: 'DELIVERY',
+        });
+        if (r === 'created') created += 1;
+        else if (r === 'updated') updated += 1;
+        else skipped += 1;
+      }
+    }
+
+    return { created, updated, skipped, shipments: shipments.length };
+  }
+
+  private async upsertAddress(
+    customerId: string,
+    data: {
+      label?: string | null;
+      company?: string | null;
+      street: string;
+      zip: string;
+      city: string;
+      country: string;
+      usage: 'PICKUP' | 'DELIVERY' | 'BOTH';
+    },
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const street = data.street.trim();
+    const zip = data.zip.trim();
+    const city = data.city.trim();
+    const country = (data.country || 'AT').trim().toUpperCase() || 'AT';
+    if (!street || !zip || !city) return 'skipped';
+
+    const existing = await this.prisma.address.findFirst({
+      where: {
+        customerId,
+        zip,
+        country,
+        street: { equals: street, mode: 'insensitive' },
+        city: { equals: city, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      const nextUsage =
+        existing.usage === 'BOTH' || existing.usage === data.usage ? existing.usage : 'BOTH';
+      const patch: { usage?: string; company?: string; label?: string } = {};
+      if (nextUsage !== existing.usage) patch.usage = nextUsage;
+      if (data.company && !existing.company) patch.company = data.company;
+      if (data.label && !existing.label) patch.label = data.label;
+      if (Object.keys(patch).length) {
+        await this.prisma.address.update({ where: { id: existing.id }, data: patch });
+        return 'updated';
+      }
+      return 'skipped';
+    }
+
+    await this.prisma.address.create({
+      data: {
+        customerId,
+        label: data.label || data.company || undefined,
+        company: data.company || undefined,
+        street,
+        zip,
+        city,
+        country,
+        usage: data.usage,
+      },
+    });
+    return 'created';
+  }
 }

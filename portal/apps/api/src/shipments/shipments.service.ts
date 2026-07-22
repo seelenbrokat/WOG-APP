@@ -530,32 +530,27 @@ export class ShipmentsService {
       },
     });
 
-    if (data.savePickupAddress && pickupStreet && pickupZip && pickupCity) {
-      await this.prisma.address.create({
-        data: {
-          customerId,
-          label: pickupCompany || 'Abholung',
-          company: pickupCompany,
-          street: pickupStreet,
-          zip: pickupZip,
-          city: pickupCity,
-          country: pickupCountry,
-          usage: 'PICKUP',
-        },
+    // Adressen standardmäßig ins Adressbuch (außer explizit abgewählt)
+    if (data.savePickupAddress !== false && pickupStreet && pickupZip && pickupCity) {
+      await this.ensureCustomerAddress(customerId, {
+        label: pickupCompany || 'Abholung',
+        company: pickupCompany,
+        street: pickupStreet,
+        zip: pickupZip,
+        city: pickupCity,
+        country: pickupCountry,
+        usage: 'PICKUP',
       });
     }
-    if (data.saveDeliveryAddress && deliveryStreet && deliveryZip && deliveryCity) {
-      await this.prisma.address.create({
-        data: {
-          customerId,
-          label: deliveryCompany || 'Zustellung',
-          company: deliveryCompany,
-          street: deliveryStreet,
-          zip: deliveryZip,
-          city: deliveryCity,
-          country: deliveryCountry,
-          usage: 'DELIVERY',
-        },
+    if (data.saveDeliveryAddress !== false && deliveryStreet && deliveryZip && deliveryCity) {
+      await this.ensureCustomerAddress(customerId, {
+        label: deliveryCompany || 'Zustellung',
+        company: deliveryCompany,
+        street: deliveryStreet,
+        zip: deliveryZip,
+        city: deliveryCity,
+        country: deliveryCountry,
+        usage: 'DELIVERY',
       });
     }
     if (data.saveAsTemplateName) {
@@ -701,5 +696,70 @@ export class ShipmentsService {
 
     await this.audit.log(user.id, 'shipment.status', 'Shipment', id, { status, message });
     return updated;
+  }
+
+  /**
+   * Adresse im Kunden-Adressbuch anlegen bzw. wiederverwenden (ohne Duplikate).
+   * Gleiche Straße/PLZ/Ort/Land → bestehender Eintrag; Usage ggf. auf BOTH erweitern.
+   */
+  private async ensureCustomerAddress(
+    customerId: string,
+    data: {
+      label?: string | null;
+      company?: string | null;
+      street: string;
+      zip: string;
+      city: string;
+      country?: string | null;
+      usage: 'PICKUP' | 'DELIVERY' | 'BOTH';
+    },
+  ) {
+    const street = data.street.trim();
+    const zip = data.zip.trim();
+    const city = data.city.trim();
+    const country = (data.country || 'AT').trim().toUpperCase() || 'AT';
+    if (!street || !zip || !city) return null;
+
+    const existing = await this.prisma.address.findFirst({
+      where: {
+        customerId,
+        zip,
+        country,
+        street: { equals: street, mode: 'insensitive' },
+        city: { equals: city, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      const nextUsage =
+        existing.usage === 'BOTH' || existing.usage === data.usage
+          ? existing.usage
+          : 'BOTH';
+      const patch: {
+        usage?: string;
+        company?: string;
+        label?: string;
+      } = {};
+      if (nextUsage !== existing.usage) patch.usage = nextUsage;
+      if (data.company && !existing.company) patch.company = data.company;
+      if (data.label && !existing.label) patch.label = data.label;
+      if (Object.keys(patch).length) {
+        return this.prisma.address.update({ where: { id: existing.id }, data: patch });
+      }
+      return existing;
+    }
+
+    return this.prisma.address.create({
+      data: {
+        customerId,
+        label: data.label || data.company || (data.usage === 'PICKUP' ? 'Abholung' : 'Zustellung'),
+        company: data.company || undefined,
+        street,
+        zip,
+        city,
+        country,
+        usage: data.usage,
+      },
+    });
   }
 }

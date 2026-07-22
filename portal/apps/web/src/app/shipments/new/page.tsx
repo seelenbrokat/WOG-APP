@@ -180,8 +180,8 @@ function NewShipmentInner() {
     deliveryNotes: '',
     notes: '',
     submit: true,
-    savePickupAddress: false,
-    saveDeliveryAddress: false,
+    savePickupAddress: true,
+    saveDeliveryAddress: true,
     saveAsTemplateName: '',
   });
   const [pickupCheck, setPickupCheck] = useState<AddressCheck>(idleCheck);
@@ -576,6 +576,8 @@ function NewShipmentInner() {
           notes: form.notes.trim() || undefined,
           extras: Object.keys(extrasPayload).length ? extrasPayload : undefined,
           saveAsTemplateName: form.saveAsTemplateName || undefined,
+          savePickupAddress: form.savePickupAddress !== false,
+          saveDeliveryAddress: form.saveDeliveryAddress !== false,
           positions,
         }),
       });
@@ -818,6 +820,9 @@ function NewShipmentInner() {
               <input type="checkbox" checked={form.savePickupAddress} onChange={(e) => setForm({ ...form, savePickupAddress: e.target.checked })} />
               Abholung im Adressbuch speichern
             </label>
+            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Auswahl.
+            </p>
           </div>
           <div className="stack">
             <strong>Zustellung</strong>
@@ -901,8 +906,23 @@ function NewShipmentInner() {
             </div>
             {deliveryCheck.message && deliveryCheck.status !== 'idle' && deliveryCheck.status !== 'loading' ? (
               <p
-                className={deliveryCheck.status === 'VALID' ? 'muted' : 'error'}
-                style={{ margin: 0, fontSize: '0.85rem' }}
+                className={
+                  deliveryCheck.status === 'VALID'
+                    ? 'success'
+                    : deliveryCheck.status === 'AMBIGUOUS'
+                      ? 'muted'
+                      : 'error'
+                }
+                style={{
+                  margin: 0,
+                  fontSize: '0.85rem',
+                  color:
+                    deliveryCheck.status === 'VALID'
+                      ? 'var(--ok, #2f9e62)'
+                      : deliveryCheck.status === 'AMBIGUOUS'
+                        ? 'var(--warn, #b78103)'
+                        : undefined,
+                }}
               >
                 {deliveryCheck.message}
               </p>
@@ -947,6 +967,9 @@ function NewShipmentInner() {
               <input type="checkbox" checked={form.saveDeliveryAddress} onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })} />
               Zustellung im Adressbuch speichern
             </label>
+            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Auswahl.
+            </p>
           </div>
         </div>
 
