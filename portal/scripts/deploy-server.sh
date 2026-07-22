@@ -169,7 +169,8 @@ docker compose up -d --build postgres redis
 sleep 5
 docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
   docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npm run prisma:seed"
-docker compose up -d --build api worker web
+# Kernstack inkl. SFTPGo (restart: unless-stopped) – nach Docker-Crash wieder hoch
+docker compose up -d --build api worker web sftpgo
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
   # Primär: OpenSSH internal-sftp auf Port 22 (Soloplan-Firewall oft nur 22)
@@ -257,7 +258,7 @@ EOF
   systemctl reload ssh 2>/dev/null || systemctl reload sshd
   log "SFTP-User soloplan auf Port 22 bereit (Credentials: /root/wog-soloplan-sftp.txt)"
 
-  log "SFTPGo-Profil zusätzlich (Port 12022, optional)"
+  log "SFTPGo User/Admin absichern (Port 12022, läuft bereits mit Kernstack)"
   if [[ ! -f /root/wog-sftpgo-admin-password.txt ]]; then
     openssl rand -base64 18 | tr -d '\n' > /root/wog-sftpgo-admin-password.txt
     chmod 600 /root/wog-sftpgo-admin-password.txt
@@ -269,7 +270,7 @@ EOF
   else
     echo "SFTPGO_ADMIN_PASSWORD=$SFTPGO_ADMIN_PASSWORD" >> .env
   fi
-  docker compose --profile sftp up -d sftpgo
+  docker compose up -d sftpgo
   sleep 5
   TOKEN="$(curl -sS -u "admin:${SFTPGO_ADMIN_PASSWORD}" \
     'http://127.0.0.1:18080/api/v2/token' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true)"

@@ -2,6 +2,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: wog
       POSTGRES_PASSWORD: wog_secret
@@ -18,6 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
 
@@ -25,6 +27,7 @@ services:
     build:
       context: .
       target: api
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://wog:wog_secret@postgres:5432/wog_portal?schema=public
@@ -49,6 +52,7 @@ services:
     build:
       context: .
       target: worker
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://wog:wog_secret@postgres:5432/wog_portal?schema=public
@@ -72,6 +76,7 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: /api
+    restart: unless-stopped
     environment:
       PORT: 3000
       HOSTNAME: 0.0.0.0
@@ -81,9 +86,11 @@ services:
     depends_on:
       - api
 
+  # Intouch/Soloplan-Uploads: OpenSSH :22 ist primär; SFTPGo :12022 parallel.
+  # Ohne Profil, damit Teil-Deploys (api/web) den Dienst nicht „vergessen“.
   sftpgo:
     image: drakkan/sftpgo:v2
-    profiles: ["sftp"]
+    restart: unless-stopped
     environment:
       SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
       SFTPGO_DEFAULT_ADMIN_USERNAME: admin
@@ -94,7 +101,7 @@ services:
       - ./data/sftp:/srv/sftpgo/data
       - sftpgo_data:/var/lib/sftpgo
     ports:
-      # Optional zusätzlich zu OpenSSH:12022; Soloplan primär Port 22 (sshd internal-sftp)
+      # Optional zusätzlich zu OpenSSH:22; Soloplan/Intouch oft Port 22 (sshd internal-sftp)
       - "0.0.0.0:12022:2022"
       - "127.0.0.1:18080:8080"
 
