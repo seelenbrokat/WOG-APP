@@ -384,6 +384,7 @@ export default function ScanningPage() {
       >
         <p className="muted" style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.35 }}>
           SSCC scannen (Kamera) oder tippen. Vibration + Ton bei Treffer.
+          Nur Aufträge von Organisation/Mandant 2 (WOG Logistics AG).
         </p>
 
         <div
