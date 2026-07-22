@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { DocumentType, NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -69,6 +70,7 @@ export function expandPositionsToColli(positions: PositionInput[]): PositionInpu
 export class ShipmentsService {
   constructor(
     private prisma: PrismaService,
+    private config: ConfigService,
     private audit: AuditService,
     private notifications: NotificationsService,
     private soloplan: SoloplanService,
@@ -81,6 +83,32 @@ export class ShipmentsService {
       ...mandantFilter(user),
       ...customerFilter(user),
     };
+  }
+
+  /**
+   * Scanning nur Mandant Soloplan-OrgaNumber 2 (= Code AG / WOG Logistics AG).
+   * Übersteuerbar via SCANNING_MANDANT_CODE.
+   */
+  private async resolveScanningMandantId(user: AuthUser): Promise<string> {
+    const code = this.config.get<string>('SCANNING_MANDANT_CODE') || 'AG';
+    const mandant = await this.prisma.mandant.findFirst({
+      where: { organizationId: user.organizationId, code, active: true },
+      select: { id: true, code: true, name: true },
+    });
+    if (!mandant) {
+      throw new BadRequestException(
+        `Scanning-Mandant „${code}“ (Soloplan-Organisation/Mandant 2) nicht gefunden`,
+      );
+    }
+    if (
+      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+      !user.mandantIds.includes(mandant.id)
+    ) {
+      throw new ForbiddenException(
+        `Kein Zugriff auf Scanning-Mandant ${mandant.code} (Organisation/Mandant 2)`,
+      );
+    }
+    return mandant.id;
   }
 
   list(user: AuthUser, mandantId?: string) {
@@ -126,7 +154,7 @@ export class ShipmentsService {
     return shipment;
   }
 
-  /** Lager-Scan: Collo anhand SSCC finden (Organisation / Mandant-Scope). */
+  /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */
   async findBySscc(user: AuthUser, rawSscc: string) {
     if (user.role === UserRole.CUSTOMER_USER) {
       throw new ForbiddenException('Scanning nur für Lager / Disposition');
@@ -137,12 +165,14 @@ export class ShipmentsService {
       throw new BadRequestException('Ungültige SSCC (GS1-18 oder Soloplan-Code erwartet)');
     }
 
+    const scanningMandantId = await this.resolveScanningMandantId(user);
+
     const collo = await this.prisma.shipmentCollo.findFirst({
       where: {
         sscc,
         shipment: {
           organizationId: user.organizationId,
-          ...mandantFilter(user),
+          mandantId: scanningMandantId,
           ...customerFilter(user),
         },
       },
@@ -160,12 +190,6 @@ export class ShipmentsService {
     if (!collo) throw new NotFoundException(`Kein Collo mit SSCC ${sscc} gefunden`);
 
     const shipment = collo.shipment;
-    if (
-      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
-      !user.mandantIds.includes(shipment.mandantId)
-    ) {
-      throw new ForbiddenException();
-    }
 
     const isWareneingang =
       /wareneingang/i.test(shipment.goodsDescription || '') ||
@@ -216,7 +240,7 @@ export class ShipmentsService {
   }
 
   /**
-   * Labels für Lager-Scanning:
+   * Labels für Lager-Scanning (nur Mandant 2 / AG):
    * - SCAN-TEST-* (Übung)
    * - Auftrag 2291 / Bezeichnung Wareneingang
    */
@@ -225,9 +249,11 @@ export class ShipmentsService {
       throw new ForbiddenException('Scanning nur für Lager / Disposition');
     }
 
+    const scanningMandantId = await this.resolveScanningMandantId(user);
+
     const scope = {
       organizationId: user.organizationId,
-      ...mandantFilter(user),
+      mandantId: scanningMandantId,
       ...customerFilter(user),
     };
 
