@@ -1,0 +1,112 @@
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { UserRole } from '@prisma/client';
+import { GoodsReceiptService } from './goods-receipt.service';
+import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
+import { RolesGuard } from '../auth/roles.guard';
+
+class OpenSessionDto {
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @IsString()
+  date!: string;
+
+  @IsString()
+  externalRef!: string;
+}
+
+class ScanDto {
+  @IsString()
+  sscc!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  damaged?: boolean;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class DamageDto {
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class PhotoMetaDto {
+  @IsOptional()
+  @IsString()
+  colloId?: string;
+
+  @IsOptional()
+  @IsString()
+  surplusId?: string;
+
+  @IsString()
+  documentId!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class CloseDto {
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+@Controller('goods-receipt')
+@UseGuards(RolesGuard)
+@Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+export class GoodsReceiptController {
+  constructor(private service: GoodsReceiptService) {}
+
+  @Get('groups')
+  listGroups(
+    @CurrentUser() user: AuthUser,
+    @Query('customerId') customerId?: string,
+    @Query('date') date?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.service.listGroups(user, { customerId, date, q });
+  }
+
+  @Post('sessions')
+  openSession(@CurrentUser() user: AuthUser, @Body() dto: OpenSessionDto) {
+    return this.service.openSession(user, dto);
+  }
+
+  @Get('sessions/:id')
+  getSession(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.getSession(user, id);
+  }
+
+  @Post('sessions/:id/scan')
+  scan(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ScanDto) {
+    return this.service.scan(user, id, dto.sscc, { damaged: dto.damaged, note: dto.note });
+  }
+
+  @Post('sessions/:id/colli/:colloId/damage')
+  markDamaged(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('colloId') colloId: string,
+    @Body() dto: DamageDto,
+  ) {
+    return this.service.markDamaged(user, id, colloId, dto.note);
+  }
+
+  @Post('sessions/:id/photo')
+  attachPhoto(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PhotoMetaDto) {
+    return this.service.attachPhotoMeta(user, id, dto);
+  }
+
+  @Post('sessions/:id/close')
+  close(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: CloseDto) {
+    return this.service.closeSession(user, id, dto.notes);
+  }
+}

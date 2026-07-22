@@ -6,6 +6,7 @@ import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { AppShell } from '@/components/AppShell';
 import { api, getToken } from '@/lib/api';
+import { GoodsReceiptControl } from './GoodsReceiptControl';
 
 type PartyAddress = {
   company?: string | null;
@@ -182,7 +183,9 @@ export default function ScanningPage() {
   const lastScanRef = useRef<string>('');
   const lastScanAtRef = useRef(0);
   const audioCtxRef = useRef<AudioCtx | null>(null);
+  const weScanRef = useRef<((sscc: string) => Promise<void>) | null>(null);
 
+  const [mode, setMode] = useState<'lookup' | 'goods-receipt'>('goods-receipt');
   const [cameraOn, setCameraOn] = useState(false);
   const [manual, setManual] = useState('');
   const [loading, setLoading] = useState(false);
@@ -193,6 +196,7 @@ export default function ScanningPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [testLabels, setTestLabels] = useState<TestLabelShipment[]>([]);
   const [testLabelsError, setTestLabelsError] = useState('');
+  const [weCameraSscc, setWeCameraSscc] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,6 +264,14 @@ export default function ScanningPage() {
     if (candidate === lastScanRef.current && now - lastScanAtRef.current < 2500) return;
     lastScanRef.current = candidate;
     lastScanAtRef.current = now;
+
+    if (mode === 'goods-receipt') {
+      setError('');
+      setWeCameraSscc(candidate);
+      window.setTimeout(() => setWeCameraSscc(null), 50);
+      void feedback(true);
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -387,6 +399,25 @@ export default function ScanningPage() {
           Nur Aufträge von Organisation/Mandant 2 (WOG Logistics AG).
         </p>
 
+        <div className="row" style={{ gap: '0.4rem' }}>
+          <button
+            type="button"
+            className={mode === 'goods-receipt' ? 'btn btn-primary' : 'btn btn-secondary'}
+            style={{ flex: 1, minHeight: 44 }}
+            onClick={() => setMode('goods-receipt')}
+          >
+            WE-Kontrolle
+          </button>
+          <button
+            type="button"
+            className={mode === 'lookup' ? 'btn btn-primary' : 'btn btn-secondary'}
+            style={{ flex: 1, minHeight: 44 }}
+            onClick={() => setMode('lookup')}
+          >
+            Schnellsuche
+          </button>
+        </div>
+
         <div
           className="panel"
           style={{
@@ -395,8 +426,8 @@ export default function ScanningPage() {
             background: '#0b1210',
             position: 'relative',
             width: '100%',
-            height: 'min(58vh, 420px)',
-            minHeight: 260,
+            height: mode === 'goods-receipt' ? 'min(42vh, 320px)' : 'min(58vh, 420px)',
+            minHeight: mode === 'goods-receipt' ? 200 : 260,
             borderRadius: 14,
             border: flashBorder,
             transition: 'border-color 120ms ease',
@@ -507,18 +538,27 @@ export default function ScanningPage() {
           )}
         </div>
 
-        {info ? (
+        {mode === 'goods-receipt' ? (
+          <GoodsReceiptControl
+            cameraSscc={weCameraSscc}
+            onScanHook={(fn) => {
+              weScanRef.current = fn;
+            }}
+          />
+        ) : null}
+
+        {mode === 'lookup' && info ? (
           <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
             {info}
           </p>
         ) : null}
-        {error ? (
+        {mode === 'lookup' && error ? (
           <p className="error" style={{ margin: 0, fontSize: '0.95rem' }}>
             {error}
           </p>
         ) : null}
 
-        {result ? (
+        {mode === 'lookup' && result ? (
           <div
             className="panel stack"
             style={{
@@ -636,6 +676,8 @@ export default function ScanningPage() {
           </div>
         ) : null}
 
+        {mode === 'lookup' ? (
+        <>
         <form
           className="panel stack"
           onSubmit={onManual}
@@ -801,6 +843,8 @@ export default function ScanningPage() {
             ))}
           </details>
         )}
+        </>
+        ) : null}
       </div>
     </AppShell>
   );

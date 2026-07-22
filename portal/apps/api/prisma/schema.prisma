@@ -36,6 +36,7 @@ enum DocumentType {
   CUSTOMS_PAPER
   LABEL
   LOADING_LIST
+  WAREHOUSE_PHOTO
   OTHER
 }
 
@@ -423,6 +424,7 @@ model Customer {
   templates    ShipmentTemplate[]
   customsOrders CustomsOrder[]
   freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
+  goodsReceiptSessions GoodsReceiptSession[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -652,13 +654,80 @@ model ShipmentCollo {
   lengthCm    Float?
   widthCm     Float?
   heightCm    Float?
+  /// Wareneingang-Kontrolle: PENDING | RECEIVED | DAMAGED
+  warehouseStatus String    @default("PENDING")
+  receivedAt      DateTime?
+  receivedById    String?
+  warehouseNote   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  goodsReceiptChecks GoodsReceiptColloCheck[]
 
   @@unique([shipmentId, itemNumber])
   @@index([shipmentId])
+  @@index([warehouseStatus])
+}
+
+/// Wareneingangs-Kontrollsitzung (Kunde + Datum + externe Auftragsnr.)
+model GoodsReceiptSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  mandantId      String?
+  customerId     String?
+  /// Soloplan-OrderNumber / WE-Referenz (externe Auftragsnummer)
+  externalRef    String
+  /// Entlade-/Kontrolldatum (Tag)
+  sessionDate    DateTime
+  status         String   @default("OPEN") // OPEN | CLOSED
+  createdById    String?
+  closedAt       DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  customer Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  checks   GoodsReceiptColloCheck[]
+  surplus  GoodsReceiptSurplus[]
+
+  @@index([organizationId, sessionDate])
+  @@index([customerId, externalRef])
+  @@index([organizationId, externalRef, sessionDate])
+}
+
+model GoodsReceiptColloCheck {
+  id          String    @id @default(cuid())
+  sessionId   String
+  colloId     String
+  /// PENDING | RECEIVED | DAMAGED | MISSING
+  status      String    @default("PENDING")
+  scannedAt   DateTime?
+  scannedById String?
+  note        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  session GoodsReceiptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  collo   ShipmentCollo       @relation(fields: [colloId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, colloId])
+  @@index([sessionId, status])
+}
+
+model GoodsReceiptSurplus {
+  id          String   @id @default(cuid())
+  sessionId   String
+  sscc        String
+  scannedAt   DateTime @default(now())
+  scannedById String?
+  note        String?
+  documentId  String?
+
+  session GoodsReceiptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sscc])
 }
 
 /// Sequenz für SSCC-Seriennummern (pro Organisation / Tag optional global)
