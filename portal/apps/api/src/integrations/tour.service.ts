@@ -5,6 +5,7 @@ import { join } from 'path';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
+import { zurichDayKey, zurichDayRange } from '../common/zurich-date';
 import { parseTourXml } from './tour-xml.parser';
 
 @Injectable()
@@ -272,13 +273,10 @@ export class TourService {
     if (opts?.mandantId) where.mandantId = opts.mandantId;
     if (!opts?.includeCancelled) where.status = { not: 'CANCELLED' };
     if (opts?.date) {
-      const day = new Date(opts.date);
-      if (!Number.isNaN(day.getTime())) {
-        const start = new Date(day);
-        start.setUTCHours(0, 0, 0, 0);
-        const end = new Date(day);
-        end.setUTCHours(23, 59, 59, 999);
-        where.targetStart = { gte: start, lte: end };
+      const dayKey = /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : zurichDayKey(new Date(opts.date));
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+        const range = zurichDayRange(dayKey);
+        where.targetStart = { gte: range.from, lt: range.to };
       }
     }
     const q = opts?.q?.trim();
@@ -357,21 +355,36 @@ export class TourService {
 
   /**
    * Dispo-Dashboard: Tour-/Zustellungsfortschritt je Mandant.
+   * Standard: nur Touren mit Startdatum = heute (Europe/Zurich).
    * Zustellung „erledigt“ = UnloadingFinished | UnloadingPlaceLeft.
    */
-  async opsDashboard(user: AuthUser, opts?: { mandantId?: string }) {
+  async opsDashboard(user: AuthUser, opts?: { mandantId?: string; date?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
     const mandantFilter = opts?.mandantId ? { mandantId: opts.mandantId } : {};
     const orgId = user.organizationId;
+    const day =
+      opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : zurichDayKey(new Date());
+    const range = zurichDayRange(day);
+    const startFilter = { targetStart: { gte: range.from, lt: range.to } };
 
     const [tours, consignments, vehiclesGps, mandanten] = await Promise.all([
       this.prisma.tour.findMany({
-        where: { organizationId: orgId, status: { not: 'CANCELLED' }, ...mandantFilter },
+        where: {
+          organizationId: orgId,
+          status: { not: 'CANCELLED' },
+          ...mandantFilter,
+          ...startFilter,
+        },
         select: { id: true, status: true, telematicsStatus: true, orderCount: true },
       }),
       this.prisma.tourConsignment.findMany({
         where: {
-          tour: { organizationId: orgId, status: { not: 'CANCELLED' }, ...mandantFilter },
+          tour: {
+            organizationId: orgId,
+            status: { not: 'CANCELLED' },
+            ...mandantFilter,
+            ...startFilter,
+          },
         },
         select: { status: true },
       }),
@@ -421,6 +434,7 @@ export class TourService {
 
     return {
       mandantId: opts?.mandantId || null,
+      date: day,
       mandanten,
       tours: tourStats,
       deliveries: {

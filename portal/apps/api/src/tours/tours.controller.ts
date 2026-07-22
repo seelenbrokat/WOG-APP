@@ -51,8 +51,12 @@ export class ToursController {
 
   @Get('ops-dashboard')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
-  opsDashboard(@CurrentUser() user: AuthUser, @Query('mandantId') mandantId?: string) {
-    return this.tours.opsDashboard(user, { mandantId });
+  opsDashboard(
+    @CurrentUser() user: AuthUser,
+    @Query('mandantId') mandantId?: string,
+    @Query('date') date?: string,
+  ) {
+    return this.tours.opsDashboard(user, { mandantId, date });
   }
 
   @Get('intouch/status')

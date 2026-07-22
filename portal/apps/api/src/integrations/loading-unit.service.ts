@@ -5,6 +5,12 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
+import {
+  zurichDayKey,
+  zurichDayRange,
+  zurichMonthKey,
+  zurichMonthRange,
+} from '../common/zurich-date';
 import { parseTelematicsXml, ParsedTourStopStatus } from './telematics-xml.parser';
 
 export type LoadingUnitExchangeNote = {
@@ -118,11 +124,13 @@ export class LoadingUnitService {
           skippedUnknown += 1;
           continue;
         }
-        const owedQuantity = await this.resolveOwedQuantity(organizationId, packaging.matchcode, {
+        const resolvedQty = await this.resolveOwedQuantity(organizationId, packaging.matchcode, {
           tourStopId: stop?.id,
           transportOrderNumber: stop?.transportOrderNumber,
           tourId: resolvedTour?.id,
         });
+        // Bei Nicht-Tausch mindestens 1 Stück je gemeldetem Typ (sonst Anzahl fehlt)
+        const owedQuantity = Math.max(1, resolvedQty);
         await this.prisma.loadingUnitPosting.create({
           data: {
             organizationId,
@@ -144,9 +152,9 @@ export class LoadingUnitService {
             vehicleSoloplanId: parsed.vehicleId,
             status: 'SKIPPED_ZERO',
             skipReason:
-              owedQuantity > 0
-                ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} schuldend laut Sendung)`
-                : 'Given=0 / Taken=0 – kein Lademitteltausch',
+              resolvedQty > 0
+                ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück laut Sendung)`
+                : `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück)`,
             occurredAt: eventAt,
             sendDate: parsed.sendDate,
             sourceFile,
@@ -280,7 +288,17 @@ export class LoadingUnitService {
 
     if (opts.tourId) {
       const consignments = await this.prisma.tourConsignment.findMany({
-        where: { tourId: opts.tourId },
+        where: {
+          tourId: opts.tourId,
+          ...(opts.transportOrderNumber
+            ? {
+                OR: [
+                  { soloplanOrderNumber: opts.transportOrderNumber },
+                  { externalConsignmentNumber: opts.transportOrderNumber },
+                ],
+              }
+            : {}),
+        },
         select: { soloplanOrderNumber: true, externalConsignmentNumber: true },
       });
       for (const c of consignments) {
@@ -354,18 +372,22 @@ export class LoadingUnitService {
     let updated = 0;
     for (const r of rows) {
       if (!isExchangeBookableMatchcode(r.packagingMatchcode)) continue;
-      const owed = await this.resolveOwedQuantity(organizationId, r.packagingMatchcode, {
+      const resolved = await this.resolveOwedQuantity(organizationId, r.packagingMatchcode, {
         tourStopId: r.tourStopId,
         transportOrderNumber: r.tourStop?.transportOrderNumber,
         tourId: r.tourId,
       });
-      if (owed <= 0 || owed === r.owedQuantity) continue;
+      const owed = Math.max(1, resolved);
+      if (owed === r.owedQuantity && r.owedQuantity > 0) continue;
       await this.prisma.loadingUnitPosting.update({
         where: { id: r.id },
         data: {
           owedQuantity: owed,
           balanceDelta: owed,
-          skipReason: `Given=0 / Taken=0 – kein Tausch (${owed} schuldend laut Sendung)`,
+          skipReason:
+            resolved > 0
+              ? `Given=0 / Taken=0 – kein Tausch (${owed} Stück laut Sendung)`
+              : `Given=0 / Taken=0 – kein Tausch (${owed} Stück)`,
         },
       });
       updated += 1;
@@ -658,11 +680,12 @@ export class LoadingUnitService {
             });
             if (existing) continue;
 
-            const owedQuantity = await this.resolveOwedQuantity(org.id, packaging.matchcode, {
+            const resolvedQty = await this.resolveOwedQuantity(org.id, packaging.matchcode, {
               tourStopId: stop?.id,
               transportOrderNumber: stop?.transportOrderNumber,
               tourId: resolvedTour?.id,
             });
+            const owedQuantity = Math.max(1, resolvedQty);
             await this.prisma.loadingUnitPosting.create({
               data: {
                 organizationId: org.id,
@@ -684,9 +707,9 @@ export class LoadingUnitService {
                 vehicleSoloplanId: parsed.vehicleId,
                 status: 'SKIPPED_ZERO',
                 skipReason:
-                  owedQuantity > 0
-                    ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} schuldend laut Sendung)`
-                    : 'Given=0 / Taken=0 – kein Lademitteltausch',
+                  resolvedQty > 0
+                    ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück laut Sendung)`
+                    : `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück)`,
                 occurredAt: eventAt,
                 sendDate: parsed.sendDate,
                 sourceFile,
@@ -1090,7 +1113,7 @@ export class LoadingUnitService {
     const owedTotal = lines.reduce((s, l) => s + (l.owedQuantity || 0), 0);
     const owedDetail =
       owedTotal > 0
-        ? `Schuldend: ${lines
+        ? `Anzahl nicht getauscht: ${lines
             .filter((l) => (l.owedQuantity || 0) > 0)
             .map((l) => `${l.matchcode} ${l.owedQuantity}`)
             .join(', ')}`
@@ -1218,41 +1241,6 @@ export class LoadingUnitService {
       partnerName: shipment.deliveryCompany,
     });
   }
-}
-
-const ZURICH = 'Europe/Zurich';
-
-function zurichDayKey(d: Date): string {
-  return d.toLocaleDateString('en-CA', { timeZone: ZURICH });
-}
-
-function zurichMonthKey(d: Date): string {
-  return zurichDayKey(d).slice(0, 7);
-}
-
-function zurichMonthRange(month: string): { from: Date; to: Date } {
-  const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!m) {
-    const now = zurichMonthKey(new Date());
-    return zurichMonthRange(now);
-  }
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  // Zürich Mitternacht ≈ UTC+1/+2 – wir nutzen bewusst weite Grenzen und filtern per dayKey
-  const from = new Date(Date.UTC(y, mo - 1, 1, 0, 0, 0) - 2 * 3600 * 1000);
-  const to = new Date(Date.UTC(y, mo, 1, 0, 0, 0) + 24 * 3600 * 1000);
-  return { from, to };
-}
-
-function zurichDayRange(day: string): { from: Date; to: Date } {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
-  if (!m) return zurichMonthRange(zurichMonthKey(new Date()));
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  const from = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0) - 2 * 3600 * 1000);
-  const to = new Date(Date.UTC(y, mo - 1, d + 1, 0, 0, 0) + 24 * 3600 * 1000);
-  return { from, to };
 }
 
 function isInternalPartnerName(name?: string | null): boolean {

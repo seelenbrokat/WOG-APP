@@ -237,7 +237,7 @@ export function drawLoadingUnitExchangeBox(
   const lineText = note.lines
     .map((l) => {
       const owed =
-        l.owedQuantity && l.owedQuantity > 0 ? ` · schuldend ${l.owedQuantity}` : '';
+        l.owedQuantity && l.owedQuantity > 0 ? ` · Anzahl ${l.owedQuantity}` : '';
       return `${l.matchcode}: Given ${l.given} / Taken ${l.taken}${owed}`;
     })
     .join('   ');

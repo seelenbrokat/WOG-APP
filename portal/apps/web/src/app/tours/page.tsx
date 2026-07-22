@@ -63,6 +63,10 @@ function fmt(value?: string | null) {
   });
 }
 
+function todayLocal(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' });
+}
+
 export default function ToursPage() {
   const user = getUser();
   const canPoll = user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER';
@@ -73,6 +77,7 @@ export default function ToursPage() {
   const [vehicleId, setVehicleId] = useState('');
   const [mandantId, setMandantId] = useState('');
   const [mandanten, setMandanten] = useState<Mandant[]>([]);
+  const [date, setDate] = useState(todayLocal);
   const [includeCancelled, setIncludeCancelled] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -83,6 +88,7 @@ export default function ToursPage() {
     q?: string;
     vehicleId?: string;
     mandantId?: string;
+    date?: string;
     includeCancelled?: boolean;
   }) {
     setLoading(true);
@@ -92,10 +98,12 @@ export default function ToursPage() {
       const qq = next?.q ?? q;
       const vid = next?.vehicleId ?? vehicleId;
       const mid = next?.mandantId ?? mandantId;
+      const day = next?.date ?? date;
       const cancelled = next?.includeCancelled ?? includeCancelled;
       if (qq.trim()) params.set('q', qq.trim());
       if (vid) params.set('vehicleId', vid);
       if (mid) params.set('mandantId', mid);
+      if (day) params.set('date', day);
       if (cancelled) params.set('includeCancelled', '1');
       const vParams = mid ? `?mandantId=${mid}` : '';
       const [tourRows, vehicleRows, mandantRows] = await Promise.all([
@@ -117,7 +125,7 @@ export default function ToursPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [date]);
 
   async function onFilter(e: FormEvent) {
     e.preventDefault();
@@ -172,7 +180,7 @@ export default function ToursPage() {
   return (
     <AppShell title="Touren & Fahrzeuge">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Soloplan-Touren für WOG Logistics AG.{' '}
+        Soloplan-Touren für WOG Logistics AG – Standardfilter <strong>Startdatum heute</strong>.{' '}
         <Link href="/tours/dashboard">Dispo-Dashboard</Link>
         {' · '}
         <Link href="/tours/map">Kartenmonitor</Link>
@@ -218,6 +226,17 @@ export default function ToursPage() {
                   ))}
                 </select>
               </label>
+              <label>
+                Startdatum
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDate(todayLocal())}
+              >
+                Heute
+              </button>
               <label>
                 Suche
                 <input
@@ -275,8 +294,8 @@ export default function ToursPage() {
                 ) : tours.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="muted">
-                      Keine Touren. XMLs nach <code>inbound/soloplan/tours</code> oder{' '}
-                      <code>business-partners</code> legen und importieren.
+                      Keine Touren für dieses Startdatum. Anderen Tag wählen oder XMLs nach{' '}
+                      <code>inbound/soloplan/tours</code> importieren.
                     </td>
                   </tr>
                 ) : (

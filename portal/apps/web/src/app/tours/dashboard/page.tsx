@@ -9,6 +9,7 @@ type Mandant = { id: string; code: string; name: string };
 
 type OpsDashboard = {
   mandantId: string | null;
+  date?: string;
   mandanten: Mandant[];
   tours: { total: number; planned: number; active: number; completed: number };
   deliveries: {
@@ -21,6 +22,21 @@ type OpsDashboard = {
   vehiclesWithGps: number;
 };
 
+function todayLocal(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' });
+}
+
+function fmtDayLabel(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'Heute';
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('de-CH', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 type IntouchStatus = {
   root: string;
   channels: Array<{ channel: string; path: string; pendingFiles: number; files: string[] }>;
@@ -28,20 +44,27 @@ type IntouchStatus = {
 
 export default function ToursDashboardPage() {
   const [mandantId, setMandantId] = useState('');
+  const [date, setDate] = useState(todayLocal);
   const [data, setData] = useState<OpsDashboard | null>(null);
   const [intouch, setIntouch] = useState<IntouchStatus | null>(null);
   const [error, setError] = useState('');
 
-  async function load(mid?: string) {
+  async function load(mid?: string, day?: string) {
     setError('');
     try {
-      const q = mid ? `?mandantId=${mid}` : '';
+      const params = new URLSearchParams();
+      const m = mid ?? mandantId;
+      const d = day ?? date;
+      if (m) params.set('mandantId', m);
+      if (d) params.set('date', d);
+      const q = params.toString() ? `?${params}` : '';
       const [dash, ito] = await Promise.all([
         api<OpsDashboard>(`/tours/ops-dashboard${q}`),
         api<IntouchStatus>('/tours/intouch/status'),
       ]);
       setData(dash);
       setIntouch(ito);
+      if (dash.date && dash.date !== date) setDate(dash.date);
       if (!mandantId && dash.mandanten.length === 1) {
         setMandantId(dash.mandanten[0].id);
       }
@@ -51,9 +74,9 @@ export default function ToursDashboardPage() {
   }
 
   useEffect(() => {
-    void load(mandantId || undefined);
+    void load(mandantId || undefined, date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mandantId]);
+  }, [mandantId, date]);
 
   const d = data?.deliveries;
   const pct = d?.percentDone ?? 0;
@@ -61,7 +84,8 @@ export default function ToursDashboardPage() {
   return (
     <AppShell title="Dispo-Dashboard">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Zustellungsfortschritt für <strong>WOG Logistics AG</strong>.{' '}
+        Zustellungsfortschritt für <strong>WOG Logistics AG</strong> – nur Touren mit{' '}
+        <strong>Startdatum {fmtDayLabel(date)}</strong>.{' '}
         <Link href="/tours">Touren</Link>
         {' · '}
         <Link href="/tours/lademittel">Lademittel</Link>
@@ -69,7 +93,7 @@ export default function ToursDashboardPage() {
         <Link href="/tours/map">Kartenmonitor</Link>
       </p>
 
-      <div className="row" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+      <div className="row" style={{ marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
         <label>
           Mandant / Organisation
           <select value={mandantId} onChange={(e) => setMandantId(e.target.value)}>
@@ -81,7 +105,24 @@ export default function ToursDashboardPage() {
             ))}
           </select>
         </label>
-        <button type="button" className="btn btn-ghost" onClick={() => void load(mandantId || undefined)}>
+        <label>
+          Startdatum
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ alignSelf: 'end' }}
+          onClick={() => setDate(todayLocal())}
+        >
+          Heute
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ alignSelf: 'end' }}
+          onClick={() => void load(mandantId || undefined, date)}
+        >
           Aktualisieren
         </button>
       </div>

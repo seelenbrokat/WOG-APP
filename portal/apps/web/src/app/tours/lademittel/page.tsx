@@ -81,7 +81,7 @@ type NoExchangeOverview = {
 };
 
 function fmtOwed(n?: number | null) {
-  if (n == null || n <= 0) return '—';
+  if (n == null || n < 0) return '—';
   return String(n);
 }
 
@@ -343,14 +343,14 @@ export default function LademittelPage() {
           </div>
 
           <p className="muted" style={{ marginBottom: '0.75rem' }}>
-            Stops ohne Lademitteltausch und die{' '}
-            <strong>Anzahl schuldender Lademittel</strong> (aus Sendungsmenge, sofern bekannt).{' '}
-            Nur tauschrelevante Typen (z. B. EUP). <strong>EWP/HP werden nicht gebucht</strong>.
+            Stops ohne Lademitteltausch inkl. <strong>Anzahl nicht getauschter</strong> Stück
+            (aus Sendung, sonst mindestens 1 je gemeldetem Typ). Nur tauschrelevante Typen
+            (z. B. EUP). <strong>EWP/HP werden nicht gebucht</strong>.
           </p>
 
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <div className="stat">
-              <div className="label">Schuldende Lademittel</div>
+              <div className="label">Anzahl nicht getauscht</div>
               <div className="value">{overview?.totals.owedQuantity ?? 0}</div>
             </div>
             <div className="stat">
@@ -370,7 +370,7 @@ export default function LademittelPage() {
             {overview?.totals.owedByMatchcode &&
             Object.keys(overview.totals.owedByMatchcode).length > 0 ? (
               <div className="stat">
-                <div className="label">Schuldend nach Typ</div>
+                <div className="label">Anzahl nach Typ</div>
                 <div className="value" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>
                   {Object.entries(overview.totals.owedByMatchcode)
                     .sort((a, b) => b[1] - a[1])
@@ -413,7 +413,7 @@ export default function LademittelPage() {
                       <th>Ort</th>
                       <th>Tage</th>
                       <th>Ereignisse</th>
-                      <th>Schuldend</th>
+                      <th>Anzahl</th>
                       <th>Lademittel</th>
                       <th>Zuletzt</th>
                     </tr>
@@ -493,8 +493,8 @@ export default function LademittelPage() {
                         <div className="muted" style={{ fontSize: '0.9em' }}>
                           {day.customerCount} Kunde{day.customerCount === 1 ? '' : 'n'} ·{' '}
                           {day.eventCount} Stop{day.eventCount === 1 ? '' : 's'} ohne Tausch
-                          {day.owedQuantity && day.owedQuantity > 0
-                            ? ` · ${day.owedQuantity} schuldend`
+                          {day.owedQuantity != null && day.owedQuantity > 0
+                            ? ` · Anzahl ${day.owedQuantity}`
                             : ''}
                         </div>
                       </div>
@@ -510,7 +510,7 @@ export default function LademittelPage() {
                               <th>Ort</th>
                               <th>Tour</th>
                               <th>Typ</th>
-                              <th>Schuldend</th>
+                              <th>Anzahl</th>
                               <th>Lademittel</th>
                               <th>Zeit</th>
                             </tr>
@@ -565,7 +565,7 @@ export default function LademittelPage() {
         <>
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <div className="stat">
-              <div className="label">Schuldende Lademittel</div>
+              <div className="label">Anzahl schuldend</div>
               <div className="value">{totals.owedQuantity}</div>
             </div>
             <div className="stat">
@@ -598,7 +598,7 @@ export default function LademittelPage() {
                     <th>Typ</th>
                     <th>Given</th>
                     <th>Taken</th>
-                    <th>Schuldend</th>
+                    <th>Anzahl</th>
                     <th>Saldo</th>
                     <th>Buchungen</th>
                     <th>Zuletzt</th>
@@ -679,7 +679,7 @@ export default function LademittelPage() {
                     <th>Typ</th>
                     <th>Given</th>
                     <th>Taken</th>
-                    <th>Schuldend</th>
+                    <th>Anzahl</th>
                     <th>Δ</th>
                     <th>Tour</th>
                     <th>Status</th>
