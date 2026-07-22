@@ -54,16 +54,19 @@ export type LabelCollo = {
 async function barcodePng(sscc: string): Promise<Buffer> {
   const digits = String(sscc).replace(/\D/g, '');
   if (digits.length === 18) {
-    return bwipjs.toBuffer({
-      bcid: 'gs1-128',
-      text: `(00)${digits}`,
-      scale: 2,
-      height: 14,
-      includetext: false,
-      textxalign: 'center',
-    });
+    try {
+      return await bwipjs.toBuffer({
+        bcid: 'gs1-128',
+        text: `(00)${digits}`,
+        scale: 2,
+        height: 14,
+        includetext: false,
+        textxalign: 'center',
+      });
+    } catch {
+      // Wareneingang/Soloplan: 18 Ziffern ohne gültige GS1-Prüfziffer
+    }
   }
-  // Soloplan / Wareneingang: alphanumerisch oder abweichende Länge
   return bwipjs.toBuffer({
     bcid: 'code128',
     text: String(sscc),
