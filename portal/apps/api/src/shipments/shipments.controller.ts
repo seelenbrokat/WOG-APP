@@ -239,6 +239,13 @@ export class ShipmentsController {
     return this.addressValidation.validate(dto);
   }
 
+  /** Lager-Scan: Sendung/Collo per SSCC (vor :id, damit „by-sscc“ nicht als ID gilt) */
+  @Get('by-sscc/:sscc')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  bySscc(@CurrentUser() user: AuthUser, @Param('sscc') sscc: string) {
+    return this.service.findBySscc(user, sscc);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.get(user, id);

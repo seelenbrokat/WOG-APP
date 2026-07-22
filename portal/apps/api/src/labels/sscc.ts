@@ -46,11 +46,36 @@ export function ssccAiData(sscc: string): string {
 
 /** True wenn 18 Ziffern und GS1-Prüfziffer korrekt. */
 export function isValidSscc(sscc: string | null | undefined): boolean {
-  const digits = String(sscc || '').replace(/\D/g, '');
-  if (digits.length !== 18) return false;
+  const digits = normalizeSsccDigits(sscc);
+  if (!digits) return false;
   try {
     return gs1CheckDigit(digits.slice(0, 17)) === Number(digits[17]);
   } catch {
     return false;
   }
+}
+
+/**
+ * Normalisiert Scan-/Eingabewerte auf 18 SSCC-Ziffern.
+ * Akzeptiert z. B. "(00)0912…", "000912…", "91…" mit Leerzeichen.
+ */
+export function normalizeSsccDigits(raw: string | null | undefined): string | null {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return null;
+  // GS1 Application Identifier (00) oft als führende 00 im Rohscan
+  if (digits.length === 20 && digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > 18 && digits.startsWith('00')) {
+    digits = digits.slice(-18);
+  }
+  if (digits.length !== 18) return null;
+  return digits;
+}
+
+/** Scan-Rohwert → gültige SSCC oder null. */
+export function parseSsccFromScan(raw: string | null | undefined): string | null {
+  const digits = normalizeSsccDigits(raw);
+  if (!digits || !isValidSscc(digits)) return null;
+  return digits;
 }

@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { LabelsService } from '../labels/labels.service';
+import { parseSsccFromScan } from '../labels/sscc';
 import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
@@ -123,6 +124,83 @@ export class ShipmentsService {
       throw new ForbiddenException();
     }
     return shipment;
+  }
+
+  /** Lager-Scan: Collo anhand SSCC finden (Organisation / Mandant-Scope). */
+  async findBySscc(user: AuthUser, rawSscc: string) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      throw new ForbiddenException('Scanning nur für Lager / Disposition');
+    }
+    const sscc = parseSsccFromScan(rawSscc);
+    if (!sscc) {
+      throw new BadRequestException('Ungültige SSCC (18 Ziffern mit Prüfziffer erwartet)');
+    }
+
+    const collo = await this.prisma.shipmentCollo.findFirst({
+      where: {
+        sscc,
+        shipment: {
+          organizationId: user.organizationId,
+          ...mandantFilter(user),
+          ...customerFilter(user),
+        },
+      },
+      include: {
+        shipment: {
+          include: {
+            mandant: { select: { id: true, code: true, name: true } },
+            customer: { select: { id: true, name: true, customerNumber: true } },
+            order: { select: { id: true, externalNumber: true } },
+            colli: { orderBy: { itemNumber: 'asc' }, select: { id: true, itemNumber: true, sscc: true } },
+          },
+        },
+      },
+    });
+    if (!collo) throw new NotFoundException(`Kein Collo mit SSCC ${sscc} gefunden`);
+
+    const shipment = collo.shipment;
+    if (
+      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+      !user.mandantIds.includes(shipment.mandantId)
+    ) {
+      throw new ForbiddenException();
+    }
+
+    return {
+      sscc,
+      scannedAt: new Date().toISOString(),
+      collo: {
+        id: collo.id,
+        itemNumber: collo.itemNumber,
+        sscc: collo.sscc,
+        content: collo.content,
+        packaging: collo.packaging,
+        quantity: collo.quantity,
+        weightKg: collo.weightKg,
+        lengthCm: collo.lengthCm,
+        widthCm: collo.widthCm,
+        heightCm: collo.heightCm,
+      },
+      shipment: {
+        id: shipment.id,
+        trackingNumber: shipment.trackingNumber,
+        reference: shipment.reference,
+        status: shipment.status,
+        goodsDescription: shipment.goodsDescription,
+        packageCount: shipment.packageCount,
+        weightKg: shipment.weightKg,
+        pickupCompany: shipment.pickupCompany,
+        pickupCity: shipment.pickupCity,
+        pickupZip: shipment.pickupZip,
+        deliveryCompany: shipment.deliveryCompany,
+        deliveryCity: shipment.deliveryCity,
+        deliveryZip: shipment.deliveryZip,
+        mandant: shipment.mandant,
+        customer: shipment.customer,
+        order: shipment.order,
+        colloCount: shipment.colli.length,
+      },
+    };
   }
 
   async create(
