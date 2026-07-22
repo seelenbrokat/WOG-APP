@@ -246,6 +246,13 @@ export class ShipmentsController {
     return this.service.findBySscc(user, sscc);
   }
 
+  /** Testlabels (SCAN-TEST-*) für Scanning-Übung: SSCCs + PDF-Downloads */
+  @Get('scan-test-labels')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  scanTestLabels(@CurrentUser() user: AuthUser) {
+    return this.service.listScanTestLabels(user);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.get(user, id);

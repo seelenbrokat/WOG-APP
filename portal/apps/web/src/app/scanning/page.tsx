@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { AppShell } from '@/components/AppShell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 
 type ScanResult = {
   sscc: string;
@@ -42,6 +42,30 @@ type ScanResult = {
 
 type HistoryItem = { sscc: string; trackingNumber: string; at: string; ok: boolean };
 
+type TestLabelShipment = {
+  id: string;
+  reference: string | null;
+  trackingNumber: string;
+  status: string;
+  colli: Array<{ id: string; itemNumber: number; sscc: string | null }>;
+  documents: Array<{ id: string; fileName: string; createdAt: string }>;
+  printDocument: { id: string; fileName: string; createdAt: string } | null;
+};
+
+async function downloadDocument(docId: string, fileName: string) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${docId}/download`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Download fehlgeschlagen');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Entwurf',
   SUBMITTED: 'Übermittelt',
@@ -74,6 +98,24 @@ export default function ScanningPage() {
   const [info, setInfo] = useState('Kamera starten oder SSCC manuell eingeben.');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [testLabels, setTestLabels] = useState<TestLabelShipment[]>([]);
+  const [testLabelsError, setTestLabelsError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api<TestLabelShipment[]>('/shipments/scan-test-labels')
+      .then((rows) => {
+        if (!cancelled) setTestLabels(rows || []);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setTestLabelsError(err instanceof Error ? err.message : 'Testlabels konnten nicht geladen werden');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -208,6 +250,87 @@ export default function ScanningPage() {
         WOG-Lager: Collo per <strong>SSCC</strong> scannen (Kamera) oder manuell eingeben. Läuft als
         Webapp auf iPhone/Android im Browser (HTTPS, Kamerazugriff).
       </p>
+
+      {(testLabels.length > 0 || testLabelsError) && (
+        <div className="panel stack" style={{ marginBottom: '1rem' }}>
+          <strong>Testlabels</strong>
+          <p className="muted" style={{ margin: 0 }}>
+            PDFs drucken und Barcode mit der Kamera scannen – oder SSCC antippen zum manuellen Test.
+          </p>
+          {testLabelsError ? <p className="error">{testLabelsError}</p> : null}
+          {testLabels.map((s) => (
+            <div
+              key={s.id}
+              style={{
+                borderTop: '1px solid var(--border, #d8e0db)',
+                paddingTop: '0.75rem',
+              }}
+            >
+              <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <div>
+                    <strong>{s.reference}</strong>{' '}
+                    <Link href={`/shipments/${s.id}`}>{s.trackingNumber}</Link>
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.85rem' }}>
+                    {s.colli.length} Colli
+                  </div>
+                </div>
+                <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {s.printDocument ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() =>
+                        downloadDocument(s.printDocument!.id, s.printDocument!.fileName).catch((e) =>
+                          setError(e instanceof Error ? e.message : 'Download fehlgeschlagen'),
+                        )
+                      }
+                    >
+                      Etiketten-PDF
+                    </button>
+                  ) : null}
+                  {s.documents
+                    .filter((d) => d.id !== s.printDocument?.id)
+                    .map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() =>
+                          downloadDocument(d.id, d.fileName).catch((e) =>
+                            setError(e instanceof Error ? e.message : 'Download fehlgeschlagen'),
+                          )
+                        }
+                      >
+                        {d.fileName.replace(/^Label-/, '').replace(/\.pdf$/i, '')}
+                      </button>
+                    ))}
+                </div>
+              </div>
+              <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                {s.colli.map((c) =>
+                  c.sscc ? (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}
+                      title={`Collo #${c.itemNumber} suchen`}
+                      onClick={() => {
+                        setManual(c.sscc!);
+                        void lookup(c.sscc!);
+                      }}
+                    >
+                      #{c.itemNumber} · {c.sscc}
+                    </button>
+                  ) : null,
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid-2" style={{ gap: '1rem', alignItems: 'start' }}>
         <div className="stack">

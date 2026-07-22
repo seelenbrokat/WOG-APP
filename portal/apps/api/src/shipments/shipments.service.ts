@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
+import { DocumentType, NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { mandantFilter, customerFilter, assertMandantAccess } from '../common/access';
@@ -201,6 +201,55 @@ export class ShipmentsService {
         colloCount: shipment.colli.length,
       },
     };
+  }
+
+  /**
+   * Testlabels für Lager-Scanning: Sendungen mit Referenz SCAN-TEST-*
+   * inkl. SSCCs und LABEL-Dokumente (PDF-Download).
+   */
+  async listScanTestLabels(user: AuthUser) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      throw new ForbiddenException('Scanning nur für Lager / Disposition');
+    }
+
+    const shipments = await this.prisma.shipment.findMany({
+      where: {
+        organizationId: user.organizationId,
+        reference: { startsWith: 'SCAN-TEST-' },
+        ...mandantFilter(user),
+        ...customerFilter(user),
+      },
+      select: {
+        id: true,
+        reference: true,
+        trackingNumber: true,
+        status: true,
+        colli: {
+          orderBy: { itemNumber: 'asc' },
+          select: { id: true, itemNumber: true, sscc: true },
+        },
+        documents: {
+          where: { type: DocumentType.LABEL },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, fileName: true, createdAt: true },
+        },
+      },
+      orderBy: { reference: 'asc' },
+    });
+
+    return shipments.map((s) => {
+      const printDocument =
+        s.documents.find((d) => d.fileName.startsWith('Etiketten-')) || s.documents[0] || null;
+      return {
+        id: s.id,
+        reference: s.reference,
+        trackingNumber: s.trackingNumber,
+        status: s.status,
+        colli: s.colli,
+        documents: s.documents,
+        printDocument,
+      };
+    });
   }
 
   async create(
