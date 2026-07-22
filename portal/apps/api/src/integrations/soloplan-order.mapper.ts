@@ -487,21 +487,37 @@ function buildConsignment(
       customBool10: true,
     },
     isHeavyDutyTransport: false,
-    information: {
-      ...(shipment.notes ? { senderInfo1: shipment.notes } : {}),
-      senderInfo2: [
-        shipment.deliveryCompany,
-        shipment.deliveryCountry,
-        shipment.deliveryZip,
-        shipment.deliveryCity,
-      ]
-        .filter(Boolean)
-        .join('-'),
-      ...(shipment.deliveryAvisPhone
-        ? { receiverInfo1: `Avis-Tel: ${shipment.deliveryAvisPhone}` }
-        : {}),
-      ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
-    },
+    information: (() => {
+      const extras =
+        shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+          ? (shipment.extras as Record<string, unknown>)
+          : {};
+      const pickupNote = String(extras.pickupNote || '').trim();
+      const deliveryNote = String(extras.deliveryNote || '').trim();
+      const pickupAvis = String(extras.pickupAvisPhone || '').trim();
+      const senderParts = [
+        pickupAvis ? `Avis-Tel: ${pickupAvis}` : '',
+        pickupNote,
+        !pickupNote && !deliveryNote && shipment.notes ? String(shipment.notes) : '',
+      ].filter(Boolean);
+      const receiverParts = [
+        shipment.deliveryAvisPhone ? `Avis-Tel: ${shipment.deliveryAvisPhone}` : '',
+        deliveryNote,
+      ].filter(Boolean);
+      return {
+        ...(senderParts.length ? { senderInfo1: senderParts.join(' | ') } : {}),
+        senderInfo2: [
+          shipment.deliveryCompany,
+          shipment.deliveryCountry,
+          shipment.deliveryZip,
+          shipment.deliveryCity,
+        ]
+          .filter(Boolean)
+          .join('-'),
+        ...(receiverParts.length ? { receiverInfo1: receiverParts.join(' | ') } : {}),
+        ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
+      };
+    })(),
     airAndSea: {
       isShipperSecure: false,
       transportWay: 0,
