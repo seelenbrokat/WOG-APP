@@ -769,8 +769,23 @@ function NewShipmentInner() {
             </div>
             {pickupCheck.message && pickupCheck.status !== 'idle' && pickupCheck.status !== 'loading' ? (
               <p
-                className={pickupCheck.status === 'VALID' ? 'muted' : 'error'}
-                style={{ margin: 0, fontSize: '0.85rem' }}
+                className={
+                  pickupCheck.status === 'VALID'
+                    ? 'success'
+                    : pickupCheck.status === 'AMBIGUOUS'
+                      ? 'muted'
+                      : 'error'
+                }
+                style={{
+                  margin: 0,
+                  fontSize: '0.85rem',
+                  color:
+                    pickupCheck.status === 'VALID'
+                      ? 'var(--ok, #2f9e62)'
+                      : pickupCheck.status === 'AMBIGUOUS'
+                        ? 'var(--warn, #b78103)'
+                        : undefined,
+                }}
               >
                 {pickupCheck.message}
               </p>
