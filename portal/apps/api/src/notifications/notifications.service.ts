@@ -19,6 +19,9 @@ export class NotificationsService {
         host,
         port: Number(this.config.get('SMTP_PORT') || 587),
         secure: false,
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 12_000,
         auth: this.config.get('SMTP_USER')
           ? {
               user: this.config.get('SMTP_USER'),

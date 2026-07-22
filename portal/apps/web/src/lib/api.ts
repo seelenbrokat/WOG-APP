@@ -13,6 +13,20 @@ export type SessionUser = {
   mustChangePassword?: boolean;
 };
 
+export class ApiError extends Error {
+  status: number;
+  body: any;
+
+  constructor(status: number, body: any) {
+    const raw = body?.message;
+    const msg = Array.isArray(raw) ? raw.join(', ') : raw || `Fehler ${status}`;
+    super(String(msg));
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('wog_token');
@@ -49,7 +63,7 @@ export async function api<T = unknown>(
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `Fehler ${res.status}`);
+    throw new ApiError(res.status, err);
   }
   if (res.status === 204) return undefined as T;
   const contentType = res.headers.get('content-type') || '';
