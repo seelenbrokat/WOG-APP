@@ -87,13 +87,33 @@ export function parseSsccFromScan(raw: string | null | undefined): string | null
 export function normalizeScanCode(raw: string | null | undefined): string | null {
   const gs1 = parseSsccFromScan(raw);
   if (gs1) return gs1;
+
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
+  // Wareneingang liefert oft 18 Ziffern ohne gültige Prüfziffer – trotzdem suchen
+  if (digits.length === 18) return digits;
+  if (digits.length >= 12 && digits.length <= 22 && /^\d+$/.test(digits)) return digits;
+
   const cleaned = String(raw || '')
     .trim()
-    .replace(/^\]C1/i, '') // Code 128 AIM
+    .replace(/^\]C1/i, '')
     .replace(/\s+/g, '')
     .toUpperCase();
   if (!cleaned) return null;
-  // Alphanumerisch, typisch Soloplan Sscc.Code
   if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;
   return null;
+}
+
+/** Wareneingang-/Soloplan-Code für Speicherung (Barcode auf Collo). */
+export function normalizeIncomingSscc(raw: string | null | undefined): string | null {
+  const cleaned = String(raw || '').trim();
+  if (!cleaned) return null;
+  let digits = cleaned.replace(/\D/g, '');
+  if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length === 18) return digits;
+  if (/^[A-Z0-9-]{6,32}$/i.test(cleaned.replace(/\s+/g, ''))) {
+    return cleaned.replace(/\s+/g, '').toUpperCase();
+  }
+  if (digits.length >= 12) return digits;
+  return cleaned;
 }

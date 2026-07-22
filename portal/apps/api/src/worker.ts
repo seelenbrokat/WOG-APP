@@ -7,6 +7,7 @@ import { MasterDataService } from './integrations/master-data.service';
 import { TourService } from './integrations/tour.service';
 import { TelematicsService } from './integrations/telematics.service';
 import { IntouchService } from './integrations/intouch.service';
+import { WareneingangService } from './integrations/wareneingang.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -18,9 +19,10 @@ async function bootstrap() {
   const tours = app.get(TourService);
   const telematics = app.get(TelematicsService);
   const intouch = app.get(IntouchService);
+  const wareneingang = app.get(WareneingangService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Intouch + EZOLL Hub)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub)',
   );
 
   const tick = async () => {
@@ -28,9 +30,10 @@ async function bootstrap() {
       await partnerImport.processInbound();
       await businessPartners.processInboundDir();
       await masterData.processInboundDir();
-      // Intouch-Ordner werden von Tour/Telematics mitgelesen; Intouch katalogisiert danach
+      // Intouch-Ordner werden von Tour/Telematics/Wareneingang mitgelesen; Intouch katalogisiert danach
       await tours.processInboundDir();
       await telematics.processInboundDir(undefined, 250);
+      await wareneingang.processInboundDir(undefined, 50);
       await intouch.processInboundDir(undefined, 200);
       await soloplan.syncPending();
       const archived = soloplan.archiveDownloadedOrders();
@@ -44,6 +47,17 @@ async function bootstrap() {
   };
 
   await tick();
+  // Einmalig: vor Parser-Existenz archivierte WareneingangXML nachziehen
+  try {
+    const backfill = await wareneingang.reimportFromProcessed(undefined, 30);
+    if (backfill.processed || backfill.failed) {
+      console.log(
+        `Wareneingang Reimport: ${backfill.processed} importiert, ${backfill.failed} fehlgeschlagen`,
+      );
+    }
+  } catch (err) {
+    console.error('Wareneingang Reimport failed', err);
+  }
   setInterval(tick, 30_000);
 }
 

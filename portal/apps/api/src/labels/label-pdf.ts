@@ -52,9 +52,21 @@ export type LabelCollo = {
 };
 
 async function barcodePng(sscc: string): Promise<Buffer> {
+  const digits = String(sscc).replace(/\D/g, '');
+  if (digits.length === 18) {
+    return bwipjs.toBuffer({
+      bcid: 'gs1-128',
+      text: `(00)${digits}`,
+      scale: 2,
+      height: 14,
+      includetext: false,
+      textxalign: 'center',
+    });
+  }
+  // Soloplan / Wareneingang: alphanumerisch oder abweichende Länge
   return bwipjs.toBuffer({
-    bcid: 'gs1-128',
-    text: `(00)${sscc}`,
+    bcid: 'code128',
+    text: String(sscc),
     scale: 2,
     height: 14,
     includetext: false,
@@ -68,7 +80,8 @@ async function drawLabelPage(
   collo: LabelCollo,
 ): Promise<void> {
   const barcode = await barcodePng(collo.sscc);
-  const hr = ssccAiData(collo.sscc);
+  const digits = String(collo.sscc).replace(/\D/g, '');
+  const hr = digits.length === 18 ? ssccAiData(digits) : String(collo.sscc);
   const left = 18;
   const right = 265;
   const width = right - left;

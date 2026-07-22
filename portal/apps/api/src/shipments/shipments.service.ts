@@ -232,6 +232,7 @@ export class ShipmentsService {
         ...scope,
         OR: [
           { reference: { startsWith: 'SCAN-TEST-' } },
+          { reference: { startsWith: 'WE-' } },
           { reference: { contains: '2291', mode: 'insensitive' } },
           { reference: { contains: 'Wareneingang', mode: 'insensitive' } },
           { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },

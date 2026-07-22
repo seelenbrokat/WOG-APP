@@ -12,6 +12,7 @@ import { TelematicsService } from './telematics.service';
 import { IntouchService } from './intouch.service';
 import { ShippingNetService } from './shippingnet.service';
 import { LoadingUnitService } from './loading-unit.service';
+import { WareneingangService } from './wareneingang.service';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule), AuditModule],
@@ -26,6 +27,7 @@ import { LoadingUnitService } from './loading-unit.service';
     LoadingUnitService,
     TelematicsService,
     IntouchService,
+    WareneingangService,
     ShippingNetService,
     LdvAdapter,
     MercurioAdapter,
@@ -41,6 +43,7 @@ import { LoadingUnitService } from './loading-unit.service';
     LoadingUnitService,
     TelematicsService,
     IntouchService,
+    WareneingangService,
     ShippingNetService,
   ],
 })

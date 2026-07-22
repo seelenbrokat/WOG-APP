@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { detectTelematicsKind } from './telematics-xml.parser';
+import { isWareneingangXml } from './wareneingang-xml.parser';
 
 const CHANNELS = ['meldungen', 'dokumente'] as const;
 export type IntouchChannel = (typeof CHANNELS)[number];
@@ -112,7 +113,7 @@ export class IntouchService {
         }
         if (!st.isFile()) continue;
 
-        // Tour-/Telematics-XMLs nicht „wegarchivieren“ – fachlicher Import übernimmt sie
+        // Tour-/Telematics-/Wareneingang-XMLs nicht „wegarchivieren“ – fachlicher Import übernimmt sie
         if (ch === 'meldungen' && isIntouchTourFile(fileName)) {
           skippedForImport += 1;
           continue;
@@ -120,6 +121,17 @@ export class IntouchService {
         if (ch === 'dokumente' && isIntouchTelematicsFile(fileName)) {
           skippedForImport += 1;
           continue;
+        }
+        if (ch === 'dokumente') {
+          try {
+            const preview = readFileSync(full, 'utf8').slice(0, 600);
+            if (isWareneingangXml(fileName, preview)) {
+              skippedForImport += 1;
+              continue;
+            }
+          } catch {
+            /* ignore preview errors */
+          }
         }
 
         try {
