@@ -163,6 +163,7 @@ export default function AddressBookPage() {
     <AppShell title="Adressbuch & Vorlagen">
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Gespeicherte Adressen und Auftragsvorlagen – beim nächsten Auftrag einfach auswählen statt neu tippen.
+        Neue Aufträge speichern Abhol- und Zustelladressen automatisch im Adressbuch.
       </p>
 
       {user?.role !== 'CUSTOMER_USER' && (
@@ -180,6 +181,38 @@ export default function AddressBookPage() {
 
       {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {message && <div className="success" style={{ marginBottom: '1rem' }}>{message}</div>}
+
+      <div className="panel row" style={{ marginBottom: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <strong>Aus bisherigen Sendungen übernehmen</strong>
+          <div className="muted" style={{ fontSize: '0.88rem' }}>
+            Einmalig Abhol- und Zustelladressen aus erfassten Aufträgen ins Adressbuch laden.
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={user?.role !== 'CUSTOMER_USER' && !customerId}
+          onClick={async () => {
+            setError('');
+            setMessage('');
+            try {
+              const res = await api<{ created: number; updated: number; skipped: number }>(
+                `/customers/me/addresses/import-from-shipments${query}`,
+                { method: 'POST' },
+              );
+              setMessage(
+                `${res.created} Adressen neu, ${res.updated} aktualisiert, ${res.skipped} bereits vorhanden.`,
+              );
+              await load();
+            } catch (err: any) {
+              setError(err.message);
+            }
+          }}
+        >
+          Adressen importieren
+        </button>
+      </div>
 
       <div className="grid-2">
         <div className="stack">
