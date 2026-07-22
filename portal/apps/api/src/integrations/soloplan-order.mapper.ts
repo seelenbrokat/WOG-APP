@@ -494,18 +494,13 @@ function buildConsignment(
           : {};
       const pickupNote = String(extras.pickupNote || '').trim();
       const deliveryNote = String(extras.deliveryNote || '').trim();
-      const pickupAvis = String(extras.pickupAvisPhone || '').trim();
-      const senderParts = [
-        pickupAvis ? `Avis-Tel: ${pickupAvis}` : '',
-        pickupNote,
-        !pickupNote && !deliveryNote && shipment.notes ? String(shipment.notes) : '',
-      ].filter(Boolean);
+      const senderInfo1 = pickupNote || (shipment.notes ? String(shipment.notes) : '');
       const receiverParts = [
         shipment.deliveryAvisPhone ? `Avis-Tel: ${shipment.deliveryAvisPhone}` : '',
         deliveryNote,
       ].filter(Boolean);
       return {
-        ...(senderParts.length ? { senderInfo1: senderParts.join(' | ') } : {}),
+        ...(senderInfo1 ? { senderInfo1 } : {}),
         senderInfo2: [
           shipment.deliveryCompany,
           shipment.deliveryCountry,

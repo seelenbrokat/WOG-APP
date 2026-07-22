@@ -3,11 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
-import {
-  shipmentExtrasLabels,
-  shipmentExtrasLabelsForSite,
-  type ShipmentExtras,
-} from '@wog/shared';
+import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
 import { api, getToken, getUser, statusLabel } from '@/lib/api';
 
 const STATUSES = [
@@ -182,6 +178,11 @@ function ShipmentDetailInner() {
                 <div className="muted">{shipment.pickupCompany}</div>
                 <div className="muted">{shipment.pickupStreet}</div>
                 <div className="muted">{shipment.pickupZip} {shipment.pickupCity}</div>
+                {(shipment.extras as ShipmentExtras | null)?.pickupNote ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Info: {(shipment.extras as ShipmentExtras).pickupNote}
+                  </div>
+                ) : null}
               </div>
               <div>
                 <strong>Zustellung</strong>
@@ -191,61 +192,22 @@ function ShipmentDetailInner() {
                 {shipment.deliveryAvisPhone && (
                   <div className="muted">Avis-Tel: {shipment.deliveryAvisPhone}</div>
                 )}
+                {(shipment.extras as ShipmentExtras | null)?.deliveryNote ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Info: {(shipment.extras as ShipmentExtras).deliveryNote}
+                  </div>
+                ) : null}
               </div>
             </div>
-            {shipment.extras && (
-              <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem', gap: '0.75rem' }}>
-                {(() => {
-                  const ex = shipment.extras as ShipmentExtras & { pickupAvisPhone?: string };
-                  const pickupLabels = shipmentExtrasLabelsForSite(ex, 'pickup');
-                  const deliveryLabels = shipmentExtrasLabelsForSite(ex, 'delivery');
-                  const allLabels = shipmentExtrasLabels(ex);
-                  if (!allLabels.length && !ex.pickupNote && !ex.deliveryNote && !ex.extrasNote) {
-                    return null;
-                  }
-                  return (
-                    <>
-                      <strong>Zusatzinformationen</strong>
-                      {(pickupLabels.length > 0 || ex.pickupNote || ex.pickupAvisPhone) && (
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Ladestelle</div>
-                          <div className="muted" style={{ fontSize: '0.9rem' }}>
-                            {[
-                              ex.pickupAvisPhone ? `Avis-Tel: ${ex.pickupAvisPhone}` : '',
-                              pickupLabels.join(' · '),
-                              ex.pickupNote || '',
-                            ]
-                              .filter(Boolean)
-                              .join(' · ') || '—'}
-                          </div>
-                        </div>
-                      )}
-                      {(deliveryLabels.length > 0 ||
-                        ex.deliveryNote ||
-                        shipment.deliveryAvisPhone) && (
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Entladestelle</div>
-                          <div className="muted" style={{ fontSize: '0.9rem' }}>
-                            {[
-                              shipment.deliveryAvisPhone
-                                ? `Avis-Tel: ${shipment.deliveryAvisPhone}`
-                                : '',
-                              deliveryLabels.join(' · '),
-                              ex.deliveryNote || '',
-                            ]
-                              .filter(Boolean)
-                              .join(' · ') || '—'}
-                          </div>
-                        </div>
-                      )}
-                      {ex.goodsValueEur != null ? (
-                        <div className="muted" style={{ fontSize: '0.9rem' }}>
-                          Warenwert {ex.goodsValueEur} EUR
-                        </div>
-                      ) : null}
-                    </>
-                  );
-                })()}
+            {shipment.extras && shipmentExtrasLabels(shipment.extras as ShipmentExtras).length > 0 && (
+              <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
+                <strong>Zusatzinformationen</strong>
+                <div className="muted" style={{ fontSize: '0.9rem' }}>
+                  {shipmentExtrasLabels(shipment.extras as ShipmentExtras).join(' · ')}
+                  {(shipment.extras as ShipmentExtras).goodsValueEur != null
+                    ? ` · Warenwert ${(shipment.extras as ShipmentExtras).goodsValueEur} EUR`
+                    : ''}
+                </div>
               </div>
             )}
 

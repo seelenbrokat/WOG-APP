@@ -6,8 +6,8 @@ import Link from 'next/link';
 import {
   COUNTRIES,
   PACKAGING_TYPES,
+  SHIPMENT_EXTRA_OPTIONS,
   isValidZipForCountry,
-  shipmentExtrasForSite,
   type ShipmentExtras,
 } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
@@ -27,19 +27,14 @@ type AddressCheck = {
 
 const idleCheck: AddressCheck = { status: 'idle' };
 
-type TabId = 'allgemein' | 'ladestelle' | 'entladestelle';
+type TabId = 'allgemein' | 'zusatz';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'allgemein', label: 'Allgemein' },
-  { id: 'ladestelle', label: 'Infos Ladestelle' },
-  { id: 'entladestelle', label: 'Infos Entladestelle' },
+  { id: 'zusatz', label: 'Zusatzinformationen' },
 ];
 
-const TAB_ORDER: TabId[] = ['allgemein', 'ladestelle', 'entladestelle'];
-
-function extraGroupsForSite(site: 'pickup' | 'delivery') {
-  return Array.from(new Set(shipmentExtrasForSite(site).map((o) => o.group)));
-}
+const EXTRA_GROUPS = Array.from(new Set(SHIPMENT_EXTRA_OPTIONS.map((o) => o.group)));
 
 type Address = {
   id: string;
@@ -181,9 +176,9 @@ function NewShipmentInner() {
     deliveryCity: '',
     deliveryCountry: 'AT',
     deliveryAvisPhone: '',
-    pickupAvisPhone: '',
     pickupNotes: '',
     deliveryNotes: '',
+    notes: '',
     submit: true,
     savePickupAddress: false,
     saveDeliveryAddress: false,
@@ -392,8 +387,7 @@ function NewShipmentInner() {
       deliveryZip: t.deliveryZip || '',
       deliveryCity: t.deliveryCity || '',
       deliveryCountry: t.deliveryCountry || 'AT',
-      pickupNotes: t.notes || '',
-      deliveryNotes: '',
+      notes: t.notes || '',
     }));
     setPickupCheck(idleCheck);
     setDeliveryCheck(idleCheck);
@@ -464,7 +458,7 @@ function NewShipmentInner() {
     setError('');
     try {
       if (extras.verzollung && !invoiceFile) {
-        setTab('entladestelle');
+        setTab('zusatz');
         throw new Error('Bei Verzollung muss eine Rechnung hochgeladen werden.');
       }
       if (!form.pickupCountry || !form.deliveryCountry) {
@@ -548,15 +542,11 @@ function NewShipmentInner() {
       if (extrasPayload.warenwertVersicherung && extras.goodsValueEur != null) {
         extrasPayload.goodsValueEur = Number(extras.goodsValueEur) || undefined;
       }
+      if (form.notes.trim()) {
+        extrasPayload.extrasNote = form.notes.trim();
+      }
       if (form.pickupNotes.trim()) extrasPayload.pickupNote = form.pickupNotes.trim();
       if (form.deliveryNotes.trim()) extrasPayload.deliveryNote = form.deliveryNotes.trim();
-      if (form.pickupAvisPhone.trim()) {
-        extrasPayload.pickupAvisPhone = form.pickupAvisPhone.trim();
-      }
-      const combinedNotes = [form.pickupNotes.trim(), form.deliveryNotes.trim()]
-        .filter(Boolean)
-        .join('\n\n');
-      if (combinedNotes) extrasPayload.extrasNote = combinedNotes;
       // leere Flags entfernen
       Object.keys(extrasPayload).forEach((k) => {
         const key = k as keyof ShipmentExtras;
@@ -565,36 +555,27 @@ function NewShipmentInner() {
         }
       });
 
+      const {
+        pickupNotes: _pickupNotes,
+        deliveryNotes: _deliveryNotes,
+        ...formFields
+      } = form;
+
       const created = await api<any>('/shipments', {
         method: 'POST',
         body: JSON.stringify({
-          mandantId: form.mandantId,
+          ...formFields,
           customerId: form.customerId || undefined,
-          reference: form.reference || undefined,
-          transportMode: form.transportMode || undefined,
-          pickupCompany: form.pickupCompany || undefined,
-          pickupStreet: form.pickupStreet,
-          pickupZip: form.pickupZip,
-          pickupCity: form.pickupCity,
-          pickupCountry: form.pickupCountry,
-          deliveryCompany: form.deliveryCompany || undefined,
-          deliveryStreet: form.deliveryStreet,
-          deliveryZip: form.deliveryZip,
-          deliveryCity: form.deliveryCity,
-          deliveryCountry: form.deliveryCountry,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
           deliveryAvisPhone: form.deliveryAvisPhone.trim() || undefined,
-          submit: form.submit,
-          savePickupAddress: form.savePickupAddress,
-          saveDeliveryAddress: form.saveDeliveryAddress,
-          saveAsTemplateName: form.saveAsTemplateName || undefined,
           packageCount: positions.length,
           weightKg: totalWeight || Number(form.weightKg) || undefined,
           volumeM3: volumeM3 > 0 ? Math.round(volumeM3 * 1000) / 1000 : undefined,
           goodsDescription,
-          notes: combinedNotes || undefined,
+          notes: form.notes.trim() || undefined,
           extras: Object.keys(extrasPayload).length ? extrasPayload : undefined,
+          saveAsTemplateName: form.saveAsTemplateName || undefined,
           positions,
         }),
       });
@@ -622,7 +603,7 @@ function NewShipmentInner() {
       setError(err.message);
       if (String(err.message || '').toLowerCase().includes('rechnung') ||
           String(err.message || '').toLowerCase().includes('verzoll')) {
-        setTab('entladestelle');
+        setTab('zusatz');
       } else {
         setTab('allgemein');
       }
@@ -809,6 +790,15 @@ function NewShipmentInner() {
                 ))}
               </div>
             ) : null}
+            <div className="field">
+              <label>Info Ladestelle</label>
+              <textarea
+                rows={2}
+                value={form.pickupNotes}
+                onChange={(e) => setForm({ ...form, pickupNotes: e.target.value })}
+                placeholder="z. B. Tor 3, Öffnungszeiten, Ansprechpartner"
+              />
+            </div>
             <label className="row">
               <input type="checkbox" checked={form.savePickupAddress} onChange={(e) => setForm({ ...form, savePickupAddress: e.target.checked })} />
               Abholung im Adressbuch speichern
@@ -917,13 +907,31 @@ function NewShipmentInner() {
                 ))}
               </div>
             ) : null}
+            <div className="field">
+              <label>Avis-Telefon Zustellung</label>
+              <input
+                type="tel"
+                placeholder="+43 … / +41 …"
+                value={form.deliveryAvisPhone}
+                onChange={(e) => setForm({ ...form, deliveryAvisPhone: e.target.value })}
+              />
+              <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
+                Nummer, unter der die Zustellung avisiert werden kann.
+              </p>
+            </div>
+            <div className="field">
+              <label>Info Entladestelle</label>
+              <textarea
+                rows={2}
+                value={form.deliveryNotes}
+                onChange={(e) => setForm({ ...form, deliveryNotes: e.target.value })}
+                placeholder="z. B. Anfahrt, Rampe, Öffnungszeiten Empfang"
+              />
+            </div>
             <label className="row">
               <input type="checkbox" checked={form.saveDeliveryAddress} onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })} />
               Zustellung im Adressbuch speichern
             </label>
-            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-              Aviso und Hinweise unter „Infos Entladestelle“.
-            </p>
           </div>
         </div>
 
@@ -1115,112 +1123,26 @@ function NewShipmentInner() {
           </>
         )}
 
-        {tab === 'ladestelle' && (
+        {tab === 'zusatz' && (
           <div className="stack">
-            <strong>Infos Ladestelle</strong>
+            <strong>Zusatzinformationen</strong>
             <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-              Anforderungen und Hinweise für die Abholung / Beladung.
+              Zusatzleistungen und Hinweise für Disposition, Fahrer und Aviso.
             </p>
-            <div className="field">
-              <label>Avis-Telefon Ladestelle</label>
-              <input
-                type="tel"
-                placeholder="+43 … / +41 …"
-                value={form.pickupAvisPhone}
-                onChange={(e) => setForm({ ...form, pickupAvisPhone: e.target.value })}
-              />
-            </div>
-            {extraGroupsForSite('pickup').map((group) => (
-              <div
-                key={`pickup-${group}`}
-                className="stack"
-                style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}
-              >
+            {EXTRA_GROUPS.map((group) => (
+              <div key={group} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
                 <strong style={{ fontSize: '0.95rem' }}>{group}</strong>
                 <div className="extras-grid">
-                  {shipmentExtrasForSite('pickup')
-                    .filter((o) => o.group === group)
-                    .map((opt) => (
-                      <label key={opt.code} className="row">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(extras[opt.code])}
-                          onChange={(e) => toggleExtra(opt.code, e.target.checked)}
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                </div>
-              </div>
-            ))}
-            {extras.warenwertVersicherung && (
-              <div className="field">
-                <label>Warenwert (EUR)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={extras.goodsValueEur ?? ''}
-                  onChange={(e) =>
-                    setExtras((prev) => ({
-                      ...prev,
-                      goodsValueEur: e.target.value === '' ? undefined : Number(e.target.value),
-                    }))
-                  }
-                  placeholder="z. B. 15000"
-                />
-              </div>
-            )}
-            <div className="field">
-              <label>Hinweise Ladestelle</label>
-              <textarea
-                rows={3}
-                value={form.pickupNotes}
-                onChange={(e) => setForm({ ...form, pickupNotes: e.target.value })}
-                placeholder="z. B. Tor 3, Öffnungszeiten, Ansprechpartner Beladung"
-              />
-            </div>
-          </div>
-        )}
-
-        {tab === 'entladestelle' && (
-          <div className="stack">
-            <strong>Infos Entladestelle</strong>
-            <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-              Anforderungen und Hinweise für die Zustellung / Entladung.
-            </p>
-            <div className="field">
-              <label>Avis-Telefon Entladestelle</label>
-              <input
-                type="tel"
-                placeholder="+43 … / +41 …"
-                value={form.deliveryAvisPhone}
-                onChange={(e) => setForm({ ...form, deliveryAvisPhone: e.target.value })}
-              />
-              <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
-                Nummer, unter der die Zustellung avisiert werden kann.
-              </p>
-            </div>
-            {extraGroupsForSite('delivery').map((group) => (
-              <div
-                key={`delivery-${group}`}
-                className="stack"
-                style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}
-              >
-                <strong style={{ fontSize: '0.95rem' }}>{group}</strong>
-                <div className="extras-grid">
-                  {shipmentExtrasForSite('delivery')
-                    .filter((o) => o.group === group)
-                    .map((opt) => (
-                      <label key={opt.code} className="row">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(extras[opt.code])}
-                          onChange={(e) => toggleExtra(opt.code, e.target.checked)}
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
+                  {SHIPMENT_EXTRA_OPTIONS.filter((o) => o.group === group).map((opt) => (
+                    <label key={opt.code} className="row">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(extras[opt.code])}
+                        onChange={(e) => toggleExtra(opt.code, e.target.checked)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             ))}
@@ -1246,7 +1168,7 @@ function NewShipmentInner() {
             <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
               <strong style={{ fontSize: '0.95rem' }}>Dokumente</strong>
               <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-                Begleitpapiere zum Auftrag (PDF, Bilder). Bei Verzollung ist eine Rechnung Pflicht.
+                Laden Sie Begleitpapiere zum Auftrag hoch (PDF, Bilder). Bei Verzollung ist eine Rechnung Pflicht.
               </p>
 
               {extras.verzollung && (
@@ -1342,12 +1264,12 @@ function NewShipmentInner() {
             </div>
 
             <div className="field">
-              <label>Hinweise Entladestelle</label>
+              <label>Hinweise / Bemerkungen</label>
               <textarea
                 rows={3}
-                value={form.deliveryNotes}
-                onChange={(e) => setForm({ ...form, deliveryNotes: e.target.value })}
-                placeholder="z. B. Anfahrt, Rampe, Öffnungszeiten Empfang"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="z. B. Anfahrtshinweise, Öffnungszeiten, Ansprechpartner"
               />
             </div>
           </div>
@@ -1367,28 +1289,26 @@ function NewShipmentInner() {
         {error && <div className="error">{error}</div>}
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div className="row">
-            {TAB_ORDER.indexOf(tab) > 0 && (
+            {tab === 'zusatz' && (
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setTab(TAB_ORDER[TAB_ORDER.indexOf(tab) - 1])}
+                onClick={() => setTab('allgemein')}
               >
                 Zurück
               </button>
             )}
-            {TAB_ORDER.indexOf(tab) < TAB_ORDER.length - 1 && (
+            {tab === 'allgemein' && (
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setTab(TAB_ORDER[TAB_ORDER.indexOf(tab) + 1])}
+                onClick={() => setTab('zusatz')}
               >
                 Weiter
               </button>
             )}
           </div>
-          <button className="btn btn-primary" type="submit">
-            Auftrag übermitteln
-          </button>
+          <button className="btn btn-primary" type="submit">Auftrag übermitteln</button>
         </div>
       </form>
     </AppShell>
