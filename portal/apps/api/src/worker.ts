@@ -58,6 +58,17 @@ async function bootstrap() {
   } catch (err) {
     console.error('Wareneingang Reimport failed', err);
   }
+  // Einmalig: zuvor als „sonstige“ archivierte SsccStatus/Receipt/DriverActivities
+  try {
+    const telematicsBackfill = await telematics.reimportUnrecognizedFromProcessed(undefined, 500);
+    if (telematicsBackfill.processed || telematicsBackfill.failed) {
+      console.log(
+        `Telematics Reimport: ${telematicsBackfill.processed} nachgezogen, ${telematicsBackfill.failed} fehlgeschlagen`,
+      );
+    }
+  } catch (err) {
+    console.error('Telematics Reimport failed', err);
+  }
   setInterval(tick, 30_000);
 }
 

@@ -1,6 +1,7 @@
 /**
  * Parser für Soloplan StdTelematics-Rückmeldungen:
- * TourStatus, TransportOrderStatus, TourStopStatus, VehicleLocations, Document
+ * TourStatus, TransportOrderStatus, TourStopStatus, VehicleLocations, Document,
+ * SsccStatus, Receipt, DriverActivities
  */
 
 import { XMLParser } from 'fast-xml-parser';
@@ -67,12 +68,48 @@ export type ParsedTelematicsDocument = {
   contentBase64: string;
 };
 
+export type ParsedSsccLine = {
+  code: string;
+  status?: string;
+  statusTimestamp?: Date;
+  transportStatus?: string;
+  scanPoint?: string;
+  comment?: string;
+};
+
+export type ParsedSsccStatus = {
+  kind: 'SsccStatus';
+  transportOrderNumber: string;
+  itemNumber?: string;
+  ssccs: ParsedSsccLine[];
+};
+
+export type ParsedReceipt = {
+  kind: 'Receipt';
+  vehicleId?: string;
+  sendDate?: Date;
+  receiptType?: string;
+  referenceType?: string;
+  referenceId?: string;
+};
+
+export type ParsedDriverActivities = {
+  kind: 'DriverActivities';
+  driverId?: string;
+  vehicleId?: string;
+  vehicleLicensePlate?: string;
+  activities: Array<{ start?: Date; end?: Date; activity?: string }>;
+};
+
 export type ParsedTelematics =
   | ParsedTourStatus
   | ParsedTransportOrderStatus
   | ParsedTourStopStatus
   | ParsedVehicleLocations
-  | ParsedTelematicsDocument;
+  | ParsedTelematicsDocument
+  | ParsedSsccStatus
+  | ParsedReceipt
+  | ParsedDriverActivities;
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
   if (v == null) return [];
@@ -132,6 +169,9 @@ export function detectTelematicsKind(fileName: string): ParsedTelematics['kind']
   if (lower.includes('_tourstopstatus_')) return 'TourStopStatus';
   if (lower.includes('_vehiclelocations_')) return 'VehicleLocations';
   if (lower.includes('_document_')) return 'Document';
+  if (lower.includes('_ssccstatus_')) return 'SsccStatus';
+  if (lower.includes('_receipt_')) return 'Receipt';
+  if (lower.includes('_driveractivities_')) return 'DriverActivities';
   return null;
 }
 
@@ -255,6 +295,72 @@ export function parseTelematicsXml(xml: string, fileName?: string): ParsedTelema
       vehicleId: str(n.VehicleId) || undefined,
       fileName: fileNameDoc,
       contentBase64,
+    };
+  }
+
+  if (raw.SsccStatus) {
+    const n = raw.SsccStatus as Record<string, unknown>;
+    const transportOrderNumber = str(n.TransportOrderNumber);
+    if (!transportOrderNumber) return null;
+    const ssccNodes = asArray(
+      (n.Ssccs as Record<string, unknown> | undefined)?.Sscc as
+        | Record<string, unknown>
+        | Record<string, unknown>[]
+        | undefined,
+    );
+    const ssccs: ParsedSsccLine[] = ssccNodes
+      .map((s) => {
+        const code = str(s.Code);
+        if (!code) return null;
+        return {
+          code,
+          status: str(s.Status) || undefined,
+          statusTimestamp: dt(s.StatusTimestamp),
+          transportStatus: str(s.TransportStatus) || undefined,
+          scanPoint: str(s.ScanPoint) || undefined,
+          comment: str(s.Comment) || undefined,
+        };
+      })
+      .filter(Boolean) as ParsedSsccLine[];
+    return {
+      kind: 'SsccStatus',
+      transportOrderNumber,
+      itemNumber: str(n.ItemNumber) || undefined,
+      ssccs,
+    };
+  }
+
+  if (raw.Receipt) {
+    const n = raw.Receipt as Record<string, unknown>;
+    const ref = (n.Reference || {}) as Record<string, unknown>;
+    return {
+      kind: 'Receipt',
+      vehicleId: str(n.VehicleId) || undefined,
+      sendDate: dt(n.SendDate),
+      receiptType: str(n.ReceiptType) || undefined,
+      referenceType: str(ref.Type) || undefined,
+      referenceId: str(ref.Id) || undefined,
+    };
+  }
+
+  if (raw.DriverActivities) {
+    const n = raw.DriverActivities as Record<string, unknown>;
+    const activities = asArray(
+      (n.Activities as Record<string, unknown> | undefined)?.Activity as
+        | Record<string, unknown>
+        | Record<string, unknown>[]
+        | undefined,
+    ).map((a) => ({
+      start: dt(a.Start),
+      end: dt(a.End),
+      activity: str(a.Activity) || undefined,
+    }));
+    return {
+      kind: 'DriverActivities',
+      driverId: str(n.DriverId) || undefined,
+      vehicleId: str(n.VehicleId) || undefined,
+      vehicleLicensePlate: str(n.VehicleLicensePlate) || undefined,
+      activities,
     };
   }
 

@@ -71,6 +71,9 @@ export class TelematicsService {
         stopStatus: 0,
         locations: 0,
         documents: 0,
+        ssccStatus: 0,
+        receipts: 0,
+        driverActivities: 0,
         failed: 0,
       };
     }
@@ -82,6 +85,9 @@ export class TelematicsService {
       stopStatus: 0,
       locations: 0,
       documents: 0,
+      ssccStatus: 0,
+      receipts: 0,
+      driverActivities: 0,
       failed: 0,
     };
 
@@ -100,8 +106,11 @@ export class TelematicsService {
       TourStatus: 0,
       TransportOrderStatus: 1,
       TourStopStatus: 2,
-      VehicleLocations: 3,
-      Document: 4,
+      SsccStatus: 3,
+      VehicleLocations: 4,
+      Document: 5,
+      Receipt: 6,
+      DriverActivities: 7,
     };
     files.sort((a, b) => rank[a.kind] - rank[b.kind] || a.fileName.localeCompare(b.fileName));
 
@@ -148,6 +157,9 @@ export class TelematicsService {
         else if (result.kind === 'TourStopStatus') counts.stopStatus += 1;
         else if (result.kind === 'VehicleLocations') counts.locations += 1;
         else if (result.kind === 'Document') counts.documents += 1;
+        else if (result.kind === 'SsccStatus') counts.ssccStatus += 1;
+        else if (result.kind === 'Receipt') counts.receipts += 1;
+        else if (result.kind === 'DriverActivities') counts.driverActivities += 1;
         renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
       } catch (err: any) {
         counts.failed += 1;
@@ -157,10 +169,78 @@ export class TelematicsService {
 
     if (counts.processed) {
       this.logger.log(
-        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Stop=${counts.stopStatus}, Loc=${counts.locations}, Doc=${counts.documents}, fail=${counts.failed})`,
+        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Stop=${counts.stopStatus}, SSCC=${counts.ssccStatus}, Loc=${counts.locations}, Doc=${counts.documents}, Receipt=${counts.receipts}, Driver=${counts.driverActivities}, fail=${counts.failed})`,
       );
     }
     return counts;
+  }
+
+  /**
+   * Einmaliger/manueller Backfill: zuvor als „sonstige“ archivierte
+   * SsccStatus/Receipt/DriverActivities aus processed/ nachziehen.
+   */
+  async reimportUnrecognizedFromProcessed(organizationId?: string, limit = 400) {
+    const org =
+      (organizationId
+        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
+        : null) ||
+      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
+    if (!org) return { processed: 0, failed: 0, skipped: 0 };
+
+    let processed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const dir of this.inboundDirs) {
+      const processedDir = join(dir, 'processed');
+      if (!existsSync(processedDir)) continue;
+      const files = readdirSync(processedDir)
+        .filter((f) => {
+          const kind = detectTelematicsKind(f);
+          return (
+            !!kind &&
+            (kind === 'SsccStatus' || kind === 'Receipt' || kind === 'DriverActivities')
+          );
+        })
+        .sort()
+        .reverse();
+
+      for (const storedName of files) {
+        if (processed >= limit) break;
+        const originalName = storedName.replace(/^\d{10,}_/, '');
+        const already = await this.prisma.telematicsEvent.findFirst({
+          where: {
+            organizationId: org.id,
+            OR: [{ sourceFile: originalName }, { sourceFile: storedName }],
+          },
+          select: { id: true },
+        });
+        if (already) {
+          skipped += 1;
+          continue;
+        }
+
+        const full = join(processedDir, storedName);
+        try {
+          const xml = readFileSync(full, 'utf8');
+          await this.importXml(org.id, xml, originalName);
+          processed += 1;
+        } catch (err: any) {
+          failed += 1;
+          this.logger.error(
+            `Telematics reimport failed ${storedName}`,
+            err?.message || err,
+          );
+        }
+      }
+    }
+
+    if (processed || failed) {
+      this.logger.log(
+        `Telematics Reimport: ${processed} nachgezogen, ${failed} fehlgeschlagen, ${skipped} übersprungen`,
+      );
+    }
+    return { processed, failed, skipped };
   }
 
   async importXml(organizationId: string, xml: string, fileName?: string) {
@@ -321,7 +401,97 @@ export class TelematicsService {
       return parsed;
     }
 
-    // Document
+    if (parsed.kind === 'SsccStatus') {
+      const primary = parsed.ssccs[0];
+      const eventAt = primary?.statusTimestamp || new Date();
+      const consignments = await this.prisma.tourConsignment.findMany({
+        where: {
+          soloplanOrderNumber: parsed.transportOrderNumber,
+          tour: { organizationId },
+        },
+        include: { tour: true },
+        take: 4,
+      });
+      consignments.sort(
+        (a, b) => (b.tour.updatedAt?.getTime() || 0) - (a.tour.updatedAt?.getTime() || 0),
+      );
+      const primaryConsignment = consignments[0];
+      const statusText = parsed.ssccs
+        .slice(0, 8)
+        .map((s) =>
+          [s.code, s.scanPoint, s.status, s.transportStatus].filter(Boolean).join(':'),
+        )
+        .join('; ');
+
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'SsccStatus',
+          tourId: primaryConsignment?.tourId,
+          tourNumber: primaryConsignment?.tour.tourNumber,
+          transportOrderNumber: parsed.transportOrderNumber,
+          status: primary?.status || primary?.scanPoint || 'SsccStatus',
+          statusText: statusText || undefined,
+          eventAt,
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind === 'Receipt') {
+      const vehicle = parsed.vehicleId
+        ? await this.resolveVehicle(organizationId, parsed.vehicleId)
+        : null;
+      const tour =
+        parsed.referenceType === 'Tour' && parsed.referenceId
+          ? await this.resolveTour(organizationId, parsed.referenceId)
+          : null;
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'Receipt',
+          vehicleId: vehicle?.id,
+          tourId: tour?.id,
+          tourNumber: tour?.tourNumber || parsed.referenceId,
+          status: parsed.receiptType || 'Receipt',
+          statusText: [parsed.referenceType, parsed.referenceId].filter(Boolean).join(' '),
+          eventAt: parsed.sendDate || new Date(),
+          sendDate: parsed.sendDate,
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind === 'DriverActivities') {
+      const vehicle = parsed.vehicleId
+        ? await this.resolveVehicle(organizationId, parsed.vehicleId, parsed.driverId)
+        : null;
+      const primary = parsed.activities[0];
+      const statusText = parsed.activities
+        .slice(0, 6)
+        .map((a) => a.activity || 'Activity')
+        .join(', ');
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'DriverActivities',
+          vehicleId: vehicle?.id,
+          status: primary?.activity || 'DriverActivities',
+          statusText:
+            [parsed.vehicleLicensePlate, statusText].filter(Boolean).join(' · ') || undefined,
+          eventAt: primary?.end || primary?.start || new Date(),
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind !== 'Document') {
+      throw new Error(`Unbekannter Telematics-Typ: ${(parsed as { kind: string }).kind}`);
+    }
+
     const buffer = Buffer.from(parsed.contentBase64.replace(/\s/g, ''), 'base64');
     const safe = `${Date.now()}_${parsed.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, 'telematics', safe);
