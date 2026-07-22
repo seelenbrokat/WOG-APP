@@ -551,7 +551,7 @@ function NewShipmentInner() {
       if (form.pickupNotes.trim()) extrasPayload.pickupNote = form.pickupNotes.trim();
       if (form.deliveryNotes.trim()) extrasPayload.deliveryNote = form.deliveryNotes.trim();
       if (form.pickupAvisPhone.trim()) {
-        (extrasPayload as Record<string, unknown>).pickupAvisPhone = form.pickupAvisPhone.trim();
+        extrasPayload.pickupAvisPhone = form.pickupAvisPhone.trim();
       }
       const combinedNotes = [form.pickupNotes.trim(), form.deliveryNotes.trim()]
         .filter(Boolean)
