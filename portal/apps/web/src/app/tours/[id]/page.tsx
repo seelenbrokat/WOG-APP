@@ -90,6 +90,11 @@ const TO_STATUS: Record<string, string> = {
   UnloadingStart: 'Entladung Start',
   UnloadingFinished: 'Entladung Ende',
   UnloadingPlaceLeft: 'Entladestelle verlassen',
+  Started: 'Gestartet',
+  Finished: 'Beendet',
+  Pending: 'An Gerät ausstehend',
+  Sent: 'An Gerät gesendet',
+  Arrived: 'Auf Gerät angekommen',
 };
 
 function fmt(value?: string | null) {
