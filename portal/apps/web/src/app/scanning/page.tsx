@@ -85,18 +85,59 @@ function extractSsccCandidate(raw: string): string | null {
   return null;
 }
 
+function vibrate(pattern: number | number[]) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+type AudioCtx = AudioContext;
+
+function playTone(ctx: AudioCtx, ok: boolean) {
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  gain.gain.setValueAtTime(0.0001, now);
+
+  if (ok) {
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1320, now + 0.07);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.22);
+  } else {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(240, now);
+    osc.frequency.setValueAtTime(160, now + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+    osc.start(now);
+    osc.stop(now + 0.34);
+  }
+}
+
 export default function ScanningPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const lastScanRef = useRef<string>('');
   const lastScanAtRef = useRef(0);
+  const audioCtxRef = useRef<AudioCtx | null>(null);
 
   const [cameraOn, setCameraOn] = useState(false);
   const [manual, setManual] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('Kamera starten oder SSCC manuell eingeben.');
+  const [info, setInfo] = useState('Kamera starten oder SSCC eingeben.');
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [testLabels, setTestLabels] = useState<TestLabelShipment[]>([]);
   const [testLabelsError, setTestLabelsError] = useState('');
@@ -121,16 +162,43 @@ export default function ScanningPage() {
     return () => {
       controlsRef.current?.stop();
       controlsRef.current = null;
+      void audioCtxRef.current?.close().catch(() => undefined);
+      audioCtxRef.current = null;
     };
   }, []);
+
+  async function ensureAudio(): Promise<AudioCtx | null> {
+    try {
+      const AC =
+        typeof window !== 'undefined'
+          ? window.AudioContext ||
+            (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+          : undefined;
+      if (!AC) return null;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      if (audioCtxRef.current.state === 'suspended') await audioCtxRef.current.resume();
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  }
+
+  async function feedback(ok: boolean) {
+    if (ok) vibrate([25, 35, 55]);
+    else vibrate([70, 45, 70, 45, 90]);
+    setFlash(ok ? 'ok' : 'err');
+    window.setTimeout(() => setFlash(null), 650);
+    const ctx = await ensureAudio();
+    if (ctx) playTone(ctx, ok);
+  }
 
   async function lookup(raw: string) {
     const candidate = extractSsccCandidate(raw) || String(raw).replace(/\D/g, '');
     if (!candidate) {
       setError('Kein gültiger Code erkannt.');
+      void feedback(false);
       return;
     }
-    // Debounce gleicher Scan
     const now = Date.now();
     if (candidate === lastScanRef.current && now - lastScanAtRef.current < 2500) return;
     lastScanRef.current = candidate;
@@ -138,11 +206,11 @@ export default function ScanningPage() {
 
     setLoading(true);
     setError('');
-    setInfo(`Suche SSCC ${candidate}…`);
+    setInfo(`Suche ${candidate}…`);
     try {
       const data = await api<ScanResult>(`/shipments/by-sscc/${encodeURIComponent(candidate)}`);
       setResult(data);
-      setInfo(`Gefunden: ${data.shipment.trackingNumber}`);
+      setInfo(`OK · ${data.shipment.trackingNumber}`);
       setHistory((h) =>
         [
           {
@@ -154,13 +222,11 @@ export default function ScanningPage() {
           ...h,
         ].slice(0, 20),
       );
-      // Kurze Pause der Kamera nach Treffer (Feedback)
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(40);
-      }
-    } catch (e: any) {
+      void feedback(true);
+    } catch (e: unknown) {
       setResult(null);
-      setError(e.message || 'Lookup fehlgeschlagen');
+      const msg = e instanceof Error ? e.message : 'Lookup fehlgeschlagen';
+      setError(msg);
       setHistory((h) =>
         [
           {
@@ -172,6 +238,7 @@ export default function ScanningPage() {
           ...h,
         ].slice(0, 20),
       );
+      void feedback(false);
     } finally {
       setLoading(false);
     }
@@ -179,7 +246,8 @@ export default function ScanningPage() {
 
   async function startCamera() {
     setError('');
-    setInfo('Kamera wird gestartet… Bitte Zugriff erlauben.');
+    setInfo('Kamera startet… Zugriff erlauben.');
+    await ensureAudio();
     try {
       controlsRef.current?.stop();
       controlsRef.current = null;
@@ -207,28 +275,22 @@ export default function ScanningPage() {
           },
         },
         videoRef.current,
-        (res, err) => {
-          if (res) {
-            const text = res.getText();
-            void lookup(text);
-          }
-          // NotFoundException ist normal zwischen Frames
-          if (err && err.name !== 'NotFoundException') {
-            // ignore continuous decode noise
-          }
+        (res) => {
+          if (res) void lookup(res.getText());
         },
       );
       controlsRef.current = controls;
       setCameraOn(true);
-      setInfo('Kamera aktiv – SSCC-Barcode ins Visier nehmen.');
-    } catch (e: any) {
+      setInfo('Barcode ins Visier nehmen.');
+    } catch (e: unknown) {
       setCameraOn(false);
+      const err = e as { message?: string; name?: string };
       setError(
-        e?.message?.includes('Permission') || e?.name === 'NotAllowedError'
-          ? 'Kamerazugriff verweigert. Bitte in den Browser-Einstellungen erlauben (HTTPS).'
-          : e?.message || 'Kamera konnte nicht gestartet werden.',
+        err?.message?.includes('Permission') || err?.name === 'NotAllowedError'
+          ? 'Kamerazugriff verweigert – in den Browser-Einstellungen erlauben (HTTPS).'
+          : err?.message || 'Kamera konnte nicht gestartet werden.',
       );
-      setInfo('Manuelle Eingabe weiterhin möglich.');
+      setInfo('Manuelle Eingabe möglich.');
     }
   }
 
@@ -241,46 +303,320 @@ export default function ScanningPage() {
 
   function onManual(e: FormEvent) {
     e.preventDefault();
-    void lookup(manual.trim());
+    void ensureAudio().then(() => lookup(manual.trim()));
   }
+
+  const flashBorder =
+    flash === 'ok'
+      ? '3px solid #2f9e62'
+      : flash === 'err'
+        ? '3px solid #c0392b'
+        : '1px solid var(--border, #d8e0db)';
 
   return (
     <AppShell title="Scanning">
-      <p className="muted" style={{ marginBottom: '1rem' }}>
-        WOG-Lager: Collo per <strong>SSCC</strong> scannen (Kamera) oder manuell eingeben. Läuft als
-        Webapp auf iPhone/Android im Browser (HTTPS, Kamerazugriff).
-      </p>
+      <div
+        className="stack"
+        style={{
+          maxWidth: 520,
+          margin: '0 auto',
+          width: '100%',
+          gap: '0.85rem',
+          paddingBottom: '1.5rem',
+        }}
+      >
+        <p className="muted" style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.35 }}>
+          SSCC scannen (Kamera) oder tippen. Vibration + Ton bei Treffer.
+        </p>
 
-      {(testLabels.length > 0 || testLabelsError) && (
-        <div className="panel stack" style={{ marginBottom: '1rem' }}>
-          <strong>Testlabels</strong>
-          <p className="muted" style={{ margin: 0 }}>
-            PDFs drucken und Barcode mit der Kamera scannen – oder SSCC antippen zum manuellen Test.
-          </p>
-          {testLabelsError ? <p className="error">{testLabelsError}</p> : null}
-          {testLabels.map((s) => (
+        <div
+          className="panel"
+          style={{
+            padding: 0,
+            overflow: 'hidden',
+            background: '#0b1210',
+            position: 'relative',
+            width: '100%',
+            height: 'min(58vh, 420px)',
+            minHeight: 260,
+            borderRadius: 14,
+            border: flashBorder,
+            transition: 'border-color 120ms ease',
+          }}
+        >
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: cameraOn ? 'block' : 'none',
+            }}
+          />
+          {!cameraOn && (
             <div
-              key={s.id}
               style={{
-                borderTop: '1px solid var(--border, #d8e0db)',
-                paddingTop: '0.75rem',
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                padding: '1rem',
+                textAlign: 'center',
+                color: '#c5d0cb',
+                fontSize: '1rem',
               }}
             >
-              <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div>
-                  <div>
-                    <strong>{s.reference}</strong>{' '}
-                    <Link href={`/shipments/${s.id}`}>{s.trackingNumber}</Link>
-                  </div>
-                  <div className="muted" style={{ fontSize: '0.85rem' }}>
-                    {s.colli.length} Colli
-                  </div>
+              Kamera aus
+            </div>
+          )}
+          <div
+            aria-hidden
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              left: '8%',
+              right: '8%',
+              top: '28%',
+              bottom: '28%',
+              border: '2px solid rgba(90, 184, 122, 0.9)',
+              borderRadius: 10,
+              boxShadow: '0 0 0 999px rgba(0,0,0,0.32)',
+            }}
+          />
+          {loading ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: 12,
+                right: 12,
+                bottom: 12,
+                background: 'rgba(0,0,0,0.55)',
+                color: '#fff',
+                borderRadius: 8,
+                padding: '0.45rem 0.65rem',
+                fontSize: '0.9rem',
+                textAlign: 'center',
+              }}
+            >
+              Laden…
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: cameraOn ? '1fr 1fr' : '1fr',
+            gap: '0.55rem',
+          }}
+        >
+          {!cameraOn ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ minHeight: 48, fontSize: '1rem' }}
+              onClick={() => void startCamera()}
+            >
+              Kamera starten
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ minHeight: 48, fontSize: '1rem' }}
+                onClick={stopCamera}
+              >
+                Stoppen
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ minHeight: 48, fontSize: '1rem' }}
+                disabled={loading || !result}
+                onClick={() => {
+                  setResult(null);
+                  setError('');
+                  lastScanRef.current = '';
+                  setInfo('Bereit für nächsten Scan.');
+                }}
+              >
+                Nächster
+              </button>
+            </>
+          )}
+        </div>
+
+        {info ? (
+          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+            {info}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="error" style={{ margin: 0, fontSize: '0.95rem' }}>
+            {error}
+          </p>
+        ) : null}
+
+        {result ? (
+          <div
+            className="panel stack"
+            style={{
+              gap: '0.55rem',
+              border: '2px solid #2f9e62',
+              background: 'color-mix(in srgb, #2f9e62 8%, transparent)',
+            }}
+          >
+            <strong style={{ fontSize: '1.05rem' }}>Treffer</strong>
+            <div>
+              <div className="muted" style={{ fontSize: '0.75rem' }}>
+                SSCC
+              </div>
+              <code style={{ fontSize: '1.05rem', wordBreak: 'break-all' }}>{result.sscc}</code>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+              <div>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                  Sendung
                 </div>
-                <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Link href={`/shipments/${result.shipment.id}`} style={{ fontWeight: 600 }}>
+                  {result.shipment.trackingNumber}
+                </Link>
+              </div>
+              <div>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                  Status
+                </div>
+                <span className="badge">
+                  {STATUS_LABEL[result.shipment.status] || result.shipment.status}
+                </span>
+              </div>
+              <div>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                  Collo
+                </div>
+                <div>
+                  #{result.collo.itemNumber}
+                  {result.collo.packaging ? ` · ${result.collo.packaging}` : ''}
+                </div>
+              </div>
+              <div>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                  Gewicht
+                </div>
+                <div>{result.collo.weightKg != null ? `${result.collo.weightKg} kg` : '—'}</div>
+              </div>
+            </div>
+            {result.shipment.reference ? (
+              <div className="muted" style={{ fontSize: '0.88rem' }}>
+                Ref: {result.shipment.reference}
+              </div>
+            ) : null}
+            <div className="muted" style={{ fontSize: '0.88rem' }}>
+              {[result.shipment.deliveryCompany, result.shipment.deliveryZip, result.shipment.deliveryCity]
+                .filter(Boolean)
+                .join(', ') || 'Zustellung —'}
+            </div>
+            <Link
+              className="btn btn-primary"
+              href={`/shipments/${result.shipment.id}`}
+              style={{ minHeight: 48, textAlign: 'center' }}
+            >
+              Sendung öffnen
+            </Link>
+          </div>
+        ) : null}
+
+        <form
+          className="panel stack"
+          onSubmit={onManual}
+          style={{ gap: '0.55rem' }}
+        >
+          <strong>Manuelle SSCC</strong>
+          <input
+            inputMode="numeric"
+            autoComplete="off"
+            enterKeyHint="search"
+            placeholder="18 Ziffern oder (00)…"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            style={{ minHeight: 48, fontSize: '1.05rem' }}
+          />
+          <button
+            type="submit"
+            className="btn btn-secondary"
+            disabled={loading || !manual.trim()}
+            style={{ minHeight: 48 }}
+          >
+            Suchen
+          </button>
+        </form>
+
+        {history.length > 0 && (
+          <details className="panel" open={false}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
+              Letzte Scans ({history.length})
+            </summary>
+            <ul style={{ listStyle: 'none', margin: '0.65rem 0 0', padding: 0 }}>
+              {history.map((h, i) => (
+                <li
+                  key={`${h.sscc}-${h.at}-${i}`}
+                  style={{
+                    padding: '0.55rem 0',
+                    borderTop: '1px solid var(--border, #d8e0db)',
+                    display: 'grid',
+                    gap: 2,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: h.ok ? undefined : 'var(--danger, #b42318)', fontWeight: 600 }}>
+                      {h.trackingNumber}
+                    </span>
+                    <span className="muted" style={{ fontSize: '0.8rem' }}>
+                      {new Date(h.at).toLocaleTimeString('de-CH', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <code style={{ fontSize: '0.82rem', wordBreak: 'break-all' }}>{h.sscc}</code>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {(testLabels.length > 0 || testLabelsError) && (
+          <details className="panel">
+            <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
+              Testlabels ({testLabels.length})
+            </summary>
+            <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.88rem' }}>
+              PDF drucken oder SSCC antippen.
+            </p>
+            {testLabelsError ? <p className="error">{testLabelsError}</p> : null}
+            {testLabels.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  borderTop: '1px solid var(--border, #d8e0db)',
+                  marginTop: '0.65rem',
+                  paddingTop: '0.65rem',
+                }}
+              >
+                <div style={{ marginBottom: '0.45rem' }}>
+                  <strong>{s.reference}</strong>{' '}
+                  <Link href={`/shipments/${s.id}`}>{s.trackingNumber}</Link>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.45rem' }}>
                   {s.printDocument ? (
                     <button
                       type="button"
                       className="btn btn-primary"
+                      style={{ minHeight: 42 }}
                       onClick={() =>
                         downloadDocument(s.printDocument!.id, s.printDocument!.fileName).catch((e) =>
                           setError(e instanceof Error ? e.message : 'Download fehlgeschlagen'),
@@ -290,258 +626,33 @@ export default function ScanningPage() {
                       Etiketten-PDF
                     </button>
                   ) : null}
-                  {s.documents
-                    .filter((d) => d.id !== s.printDocument?.id)
-                    .map((d) => (
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {s.colli.map((c) =>
+                    c.sscc ? (
                       <button
-                        key={d.id}
+                        key={c.id}
                         type="button"
-                        className="btn btn-ghost"
-                        onClick={() =>
-                          downloadDocument(d.id, d.fileName).catch((e) =>
-                            setError(e instanceof Error ? e.message : 'Download fehlgeschlagen'),
-                          )
-                        }
+                        className="btn btn-secondary"
+                        style={{
+                          fontFamily: 'ui-monospace, monospace',
+                          fontSize: '0.8rem',
+                          minHeight: 42,
+                        }}
+                        onClick={() => {
+                          setManual(c.sscc!);
+                          void ensureAudio().then(() => lookup(c.sscc!));
+                        }}
                       >
-                        {d.fileName.replace(/^Label-/, '').replace(/\.pdf$/i, '')}
+                        #{c.itemNumber} · {c.sscc}
                       </button>
-                    ))}
+                    ) : null,
+                  )}
                 </div>
               </div>
-              <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                {s.colli.map((c) =>
-                  c.sscc ? (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}
-                      title={`Collo #${c.itemNumber} suchen`}
-                      onClick={() => {
-                        setManual(c.sscc!);
-                        void lookup(c.sscc!);
-                      }}
-                    >
-                      #{c.itemNumber} · {c.sscc}
-                    </button>
-                  ) : null,
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="grid-2" style={{ gap: '1rem', alignItems: 'start' }}>
-        <div className="stack">
-          <div
-            className="panel"
-            style={{
-              padding: 0,
-              overflow: 'hidden',
-              background: '#0b1210',
-              aspectRatio: '4 / 3',
-              position: 'relative',
-            }}
-          >
-            <video
-              ref={videoRef}
-              muted
-              playsInline
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: cameraOn ? 'block' : 'none',
-              }}
-            />
-            {!cameraOn && (
-              <div
-                className="muted"
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'grid',
-                  placeItems: 'center',
-                  padding: '1rem',
-                  textAlign: 'center',
-                  color: '#c5d0cb',
-                }}
-              >
-                Kamera aus
-              </div>
-            )}
-            <div
-              aria-hidden
-              style={{
-                pointerEvents: 'none',
-                position: 'absolute',
-                inset: '18% 12%',
-                border: '2px solid rgba(90, 184, 122, 0.85)',
-                borderRadius: 12,
-                boxShadow: '0 0 0 999px rgba(0,0,0,0.28)',
-              }}
-            />
-          </div>
-
-          <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-            {!cameraOn ? (
-              <button type="button" className="btn btn-primary" onClick={() => void startCamera()}>
-                Kamera starten
-              </button>
-            ) : (
-              <button type="button" className="btn btn-secondary" onClick={stopCamera}>
-                Kamera stoppen
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={loading || !result}
-              onClick={() => {
-                setResult(null);
-                lastScanRef.current = '';
-                setInfo('Bereit für nächsten Scan.');
-              }}
-            >
-              Nächster Scan
-            </button>
-          </div>
-
-          <form className="panel stack" onSubmit={onManual}>
-            <strong>Manuelle SSCC</strong>
-            <input
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="18 Ziffern oder (00)…"
-              value={manual}
-              onChange={(e) => setManual(e.target.value)}
-            />
-            <button type="submit" className="btn btn-secondary" disabled={loading || !manual.trim()}>
-              Suchen
-            </button>
-          </form>
-
-          {info ? <p className="muted">{info}</p> : null}
-          {error ? <p className="error">{error}</p> : null}
-          {loading ? <p className="muted">Laden…</p> : null}
-        </div>
-
-        <div className="stack">
-          {result ? (
-            <div className="panel stack">
-              <strong>Scan-Ergebnis</strong>
-              <div>
-                <div className="label">SSCC</div>
-                <div className="value" style={{ fontSize: '1.15rem' }}>
-                  <code>{result.sscc}</code>
-                </div>
-              </div>
-              <div className="row" style={{ gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    Sendung
-                  </div>
-                  <div>
-                    <Link href={`/shipments/${result.shipment.id}`}>
-                      {result.shipment.trackingNumber}
-                    </Link>
-                  </div>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    Status
-                  </div>
-                  <div>
-                    <span className="badge">
-                      {STATUS_LABEL[result.shipment.status] || result.shipment.status}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    Collo
-                  </div>
-                  <div>
-                    #{result.collo.itemNumber}
-                    {result.collo.packaging ? ` · ${result.collo.packaging}` : ''}
-                    {result.collo.weightKg != null ? ` · ${result.collo.weightKg} kg` : ''}
-                  </div>
-                </div>
-              </div>
-              {result.shipment.reference ? (
-                <div className="muted">Referenz: {result.shipment.reference}</div>
-              ) : null}
-              {result.shipment.order?.externalNumber ? (
-                <div className="muted">Auftrag: {result.shipment.order.externalNumber}</div>
-              ) : null}
-              {result.shipment.customer ? (
-                <div className="muted">
-                  Kunde: {result.shipment.customer.name} ({result.shipment.customer.customerNumber})
-                </div>
-              ) : null}
-              <div className="muted">
-                Abholung: {[result.shipment.pickupCompany, result.shipment.pickupZip, result.shipment.pickupCity]
-                  .filter(Boolean)
-                  .join(', ') || '—'}
-              </div>
-              <div className="muted">
-                Zustellung:{' '}
-                {[result.shipment.deliveryCompany, result.shipment.deliveryZip, result.shipment.deliveryCity]
-                  .filter(Boolean)
-                  .join(', ') || '—'}
-              </div>
-              <div className="muted">
-                Colli gesamt: {result.shipment.colloCount}
-                {result.shipment.goodsDescription ? ` · ${result.shipment.goodsDescription}` : ''}
-              </div>
-              <Link className="btn btn-primary" href={`/shipments/${result.shipment.id}`}>
-                Sendung öffnen
-              </Link>
-            </div>
-          ) : (
-            <div className="panel">
-              <strong>Kein Treffer</strong>
-              <p className="muted" style={{ marginBottom: 0 }}>
-                Nach dem Scan erscheinen hier Sendung, Status und Collo-Daten.
-              </p>
-            </div>
-          )}
-
-          {history.length > 0 && (
-            <div className="panel" style={{ overflowX: 'auto' }}>
-              <strong>Letzte Scans</strong>
-              <table className="table" style={{ marginTop: '0.5rem' }}>
-                <thead>
-                  <tr>
-                    <th>Zeit</th>
-                    <th>SSCC</th>
-                    <th>Sendung</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h, i) => (
-                    <tr key={`${h.sscc}-${h.at}-${i}`}>
-                      <td>
-                        {new Date(h.at).toLocaleTimeString('de-CH', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        })}
-                      </td>
-                      <td>
-                        <code style={{ fontSize: '0.85em' }}>{h.sscc}</code>
-                      </td>
-                      <td style={{ color: h.ok ? undefined : 'var(--danger, #b42318)' }}>
-                        {h.trackingNumber}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+            ))}
+          </details>
+        )}
       </div>
     </AppShell>
   );
