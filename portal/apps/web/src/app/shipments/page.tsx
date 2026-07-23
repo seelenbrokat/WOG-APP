@@ -19,6 +19,21 @@ async function downloadDocument(docId: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Abhol-/Zustelltermine als UTC-Kalenderzeit (00:00 = 00:00). */
+function formatSchedule(value?: string | null) {
+  if (!value) return '–';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '–';
+  return d.toLocaleString('de-CH', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
@@ -161,7 +176,9 @@ export default function ShipmentsPage() {
                 <th>Referenz</th>
                 <th>Mandant</th>
                 <th>Von</th>
+                <th>Abholung</th>
                 <th>Nach</th>
+                <th>Zustellung</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -188,7 +205,14 @@ export default function ShipmentsPage() {
                   <td>{s.reference || '–'}</td>
                   <td>{s.mandant?.name}</td>
                   <td>{s.pickupCity || '–'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{formatSchedule(s.pickupDate)}</td>
                   <td>{s.deliveryCity || '–'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {formatSchedule(s.deliveryDate)}
+                    {s.deliveryDateEnd && s.deliveryDateEnd !== s.deliveryDate ? (
+                      <span className="muted"> – {formatSchedule(s.deliveryDateEnd)}</span>
+                    ) : null}
+                  </td>
                   <td><span className="badge">{statusLabel(s.status)}</span></td>
                   <td><Link href={`/shipments/${s.id}`}>Details</Link></td>
                 </tr>
