@@ -5,10 +5,13 @@ import { api, getToken } from '@/lib/api';
 
 type Group = {
   externalRef: string;
+  allCustomerShipments?: boolean;
   customerId: string | null;
   customerName: string | null;
   customerNumber: string | null;
   date: string;
+  shipmentCount?: number;
+  orderRefs?: string[];
   expected: number;
   received: number;
   damaged: number;
@@ -83,6 +86,8 @@ export function GoodsReceiptControl(props: {
   const [customerId, setCustomerId] = useState('');
   const [date, setDate] = useState(todayIso());
   const [q, setQ] = useState('');
+  /** Kunden-Auftragsnummer für Sammelkontrolle (z. B. RPK1002343) */
+  const [customerOrderNo, setCustomerOrderNo] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [manual, setManual] = useState('');
@@ -120,16 +125,23 @@ export function GoodsReceiptControl(props: {
     setLoading(true);
     setError('');
     try {
+      const label = customerOrderNo.trim() || undefined;
+      const all = !!g.allCustomerShipments || (g.shipmentCount != null && g.shipmentCount > 1);
       const s = await api<Session>('/goods-receipt/sessions', {
         method: 'POST',
         body: JSON.stringify({
           customerId: g.customerId || undefined,
           date: g.date,
-          externalRef: g.externalRef,
+          externalRef: all ? label || 'ALLE' : g.externalRef,
+          allCustomerShipments: all,
+          sessionLabel: label,
         }),
       });
       setSession(s);
-      setInfo(`Kontrolle gestartet: Auftrag ${s.externalRef}`);
+      setInfo(
+        `Kontrolle gestartet: ${s.externalRef}` +
+          (all && g.shipmentCount ? ` · ${g.shipmentCount} Sendungen · ${g.expected} Colli` : ''),
+      );
     } catch (e: any) {
       setError(e.message || 'Sitzung konnte nicht geöffnet werden');
     } finally {
@@ -289,7 +301,8 @@ export function GoodsReceiptControl(props: {
           <div className="panel stack" style={{ gap: '0.55rem' }}>
             <strong>Lieferung wählen</strong>
             <p className="muted" style={{ margin: 0, fontSize: '0.88rem' }}>
-              Filter nach Kunde, Entlade-Datum und externer Auftragsnummer (Soloplan / WE).
+              Sendungen eines Kunden am gleichen Tag werden gebündelt (z.&nbsp;B. alle WE von
+              Schmidt&apos;s). Optional Kunden-Auftragsnummer eintragen (z.&nbsp;B. RPK…).
             </p>
             <div className="field">
               <label>Kunde</label>
@@ -307,11 +320,19 @@ export function GoodsReceiptControl(props: {
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="field">
-              <label>Suche (Auftragsnr. / Kunde)</label>
+              <label>Kunden-Auftragsnummer (optional)</label>
+              <input
+                value={customerOrderNo}
+                onChange={(e) => setCustomerOrderNo(e.target.value)}
+                placeholder="z. B. RPK1002343"
+              />
+            </div>
+            <div className="field">
+              <label>Suche (Kunde / Soloplan-WE)</label>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="z. B. 438714"
+                placeholder="z. B. Schmidt"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void loadGroups().catch((err) => setError(err.message));
                 }}
@@ -352,16 +373,24 @@ export function GoodsReceiptControl(props: {
                 >
                   <div>
                     <div>
-                      <strong>Auftrag {g.externalRef}</strong>
+                      <strong>
+                        {g.allCustomerShipments || (g.shipmentCount || 0) > 1
+                          ? `${g.customerName || 'Kunde'} · Sammelkontrolle`
+                          : `Auftrag ${g.externalRef}`}
+                      </strong>
                       <span className="muted" style={{ marginLeft: 8 }}>
                         {g.date}
                       </span>
                     </div>
                     <div className="muted" style={{ fontSize: '0.85rem' }}>
-                      {g.customerName || 'ohne Kunde'}
-                      {g.customerNumber ? ` (${g.customerNumber})` : ''} · {g.received}/{g.expected}{' '}
-                      gescannt
+                      {g.shipmentCount && g.shipmentCount > 1
+                        ? `${g.shipmentCount} Sendungen · `
+                        : ''}
+                      {g.received}/{g.expected} Colli gescannt
                       {g.damaged ? ` · ${g.damaged} beschädigt` : ''}
+                      {customerOrderNo.trim()
+                        ? ` · Nr. ${customerOrderNo.trim()}`
+                        : ''}
                     </div>
                   </div>
                 </button>

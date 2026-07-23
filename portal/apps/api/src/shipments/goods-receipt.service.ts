@@ -119,31 +119,41 @@ export class GoodsReceiptService {
     });
 
     type Group = {
+      /** Anzeigename / Session-Schlüssel; bei Sammel z. B. ALLE oder Kundensuchbegriff */
       externalRef: string;
+      /** true = alle WE-Sendungen des Kunden an diesem Tag */
+      allCustomerShipments: boolean;
       customerId: string | null;
       customerName: string | null;
       customerNumber: string | null;
       date: string;
       shipmentIds: string[];
+      shipmentCount: number;
+      orderRefs: string[];
       expected: number;
       received: number;
       damaged: number;
     };
 
+    // Primär: Sammelgruppe je Kunde + Tag (viele Soloplan-WE-Nr. gehören oft zu einer Kundenlieferung)
     const map = new Map<string, Group>();
     for (const s of shipments) {
-      const externalRef = s.soloplanRef || (s.reference || '').replace(/^WE-/i, '') || s.reference || s.trackingNumber;
+      const orderRef =
+        s.soloplanRef || (s.reference || '').replace(/^WE-/i, '') || s.reference || s.trackingNumber;
       const date = s.createdAt.toISOString().slice(0, 10);
-      const key = `${s.customerId || 'none'}|${date}|${externalRef}`;
+      const key = `${s.customerId || 'none'}|${date}`;
       let g = map.get(key);
       if (!g) {
         g = {
-          externalRef,
+          externalRef: 'ALLE',
+          allCustomerShipments: true,
           customerId: s.customerId,
           customerName: s.customer?.name || null,
           customerNumber: s.customer?.customerNumber || null,
           date,
           shipmentIds: [],
+          shipmentCount: 0,
+          orderRefs: [],
           expected: 0,
           received: 0,
           damaged: 0,
@@ -151,38 +161,87 @@ export class GoodsReceiptService {
         map.set(key, g);
       }
       g.shipmentIds.push(s.id);
+      g.shipmentCount += 1;
+      if (orderRef && !g.orderRefs.includes(orderRef)) g.orderRefs.push(orderRef);
       g.expected += s.colli.length;
-      g.received += s.colli.filter((c) => c.warehouseStatus === 'RECEIVED' || c.warehouseStatus === 'DAMAGED').length;
+      g.received += s.colli.filter(
+        (c) => c.warehouseStatus === 'RECEIVED' || c.warehouseStatus === 'DAMAGED',
+      ).length;
       g.damaged += s.colli.filter((c) => c.warehouseStatus === 'DAMAGED').length;
     }
 
-    return [...map.values()].sort((a, b) => b.date.localeCompare(a.date) || a.externalRef.localeCompare(b.externalRef));
+    for (const g of map.values()) {
+      if (g.orderRefs.length === 1) {
+        g.externalRef = g.orderRefs[0];
+        // Eine einzige Soloplan-Nr. → Session genau darauf; sonst Sammel
+        g.allCustomerShipments = false;
+      } else {
+        g.externalRef = 'ALLE';
+        g.allCustomerShipments = true;
+      }
+    }
+
+    return [...map.values()].sort(
+      (a, b) => b.date.localeCompare(a.date) || (a.customerName || '').localeCompare(b.customerName || '', 'de'),
+    );
   }
 
   /** Session öffnen/fortsetzen und Soll-Liste laden. */
   async openSession(
     user: AuthUser,
-    data: { customerId?: string; date: string; externalRef: string },
+    data: {
+      customerId?: string;
+      date: string;
+      externalRef: string;
+      /** Alle WE-Sendungen des Kunden an diesem Tag (Sammelkontrolle) */
+      allCustomerShipments?: boolean;
+      /** Anzeigename/Session-Schlüssel, z. B. Kunden-Auftragsnr. RPK… */
+      sessionLabel?: string;
+    },
   ) {
     this.assertWarehouseRole(user);
     const mandantId = await this.scanningMandantId(user);
-    const externalRef = normalizeExternalRef(data.externalRef);
-    if (!externalRef) throw new BadRequestException('Externe Auftragsnummer fehlt');
+    const externalRefRaw = normalizeExternalRef(data.externalRef);
     if (!data.date) throw new BadRequestException('Datum fehlt');
 
     const { start, end } = dayBounds(data.date);
+    const wantAll =
+      !!data.allCustomerShipments ||
+      !externalRefRaw ||
+      externalRefRaw.toUpperCase() === 'ALLE' ||
+      externalRefRaw === '*';
 
-    const shipments = await this.prisma.shipment.findMany({
+    const weClause = {
+      OR: [
+        { reference: { startsWith: 'WE-' } },
+        { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' as const } },
+      ],
+    };
+
+    if (wantAll && !data.customerId) {
+      throw new BadRequestException('Für Sammelkontrolle bitte einen Kunden wählen');
+    }
+
+    let shipments = await this.prisma.shipment.findMany({
       where: {
         organizationId: user.organizationId,
         mandantId,
         ...(data.customerId ? { customerId: data.customerId } : {}),
         createdAt: { gte: start, lt: end },
-        OR: [
-          { soloplanRef: externalRef },
-          { reference: `WE-${externalRef}` },
-          { reference: { equals: externalRef, mode: 'insensitive' } },
-          { soloplanRef: { equals: externalRef, mode: 'insensitive' } },
+        AND: [
+          weClause,
+          ...(wantAll
+            ? []
+            : [
+                {
+                  OR: [
+                    { soloplanRef: externalRefRaw },
+                    { reference: `WE-${externalRefRaw}` },
+                    { reference: { equals: externalRefRaw, mode: 'insensitive' as const } },
+                    { soloplanRef: { equals: externalRefRaw, mode: 'insensitive' as const } },
+                  ],
+                },
+              ]),
         ],
       },
       include: {
@@ -192,18 +251,40 @@ export class GoodsReceiptService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Kunden-Auftragsnr. (z. B. RPK…) steckt oft nicht in Soloplan-WE → bei Kunde+Tag auf Sammel fallen
+    if (!shipments.length && data.customerId && !wantAll) {
+      shipments = await this.prisma.shipment.findMany({
+        where: {
+          organizationId: user.organizationId,
+          mandantId,
+          customerId: data.customerId,
+          createdAt: { gte: start, lt: end },
+          AND: [weClause],
+        },
+        include: {
+          customer: { select: { id: true, name: true, customerNumber: true } },
+          colli: { orderBy: { itemNumber: 'asc' } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
     if (!shipments.length) {
       throw new NotFoundException(
-        `Keine Wareneingangs-Sendungen für Auftrag ${externalRef} am ${data.date}`,
+        `Keine Wareneingangs-Sendungen${data.customerId ? ' für diesen Kunden' : ''} am ${data.date}`,
       );
     }
 
     const customerId = data.customerId || shipments[0].customerId;
+    const sessionKey = normalizeExternalRef(
+      data.sessionLabel || data.externalRef || (wantAll ? 'ALLE' : externalRefRaw),
+    ) || 'ALLE';
+
     let session = await this.prisma.goodsReceiptSession.findFirst({
       where: {
         organizationId: user.organizationId,
         customerId: customerId || undefined,
-        externalRef,
+        externalRef: sessionKey,
         sessionDate: start,
         status: 'OPEN',
       },
@@ -215,7 +296,7 @@ export class GoodsReceiptService {
           organizationId: user.organizationId,
           mandantId,
           customerId: customerId || undefined,
-          externalRef,
+          externalRef: sessionKey,
           sessionDate: start,
           createdById: user.id,
           status: 'OPEN',

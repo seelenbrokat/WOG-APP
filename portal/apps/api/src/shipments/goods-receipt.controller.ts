@@ -15,6 +15,15 @@ class OpenSessionDto {
 
   @IsString()
   externalRef!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  allCustomerShipments?: boolean;
+
+  /** z. B. Kunden-Auftragsnummer RPK1002343 */
+  @IsOptional()
+  @IsString()
+  sessionLabel?: string;
 }
 
 class ScanDto {
