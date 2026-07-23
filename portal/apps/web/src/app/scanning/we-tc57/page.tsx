@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { api } from '@/lib/api';
 
@@ -53,7 +53,8 @@ function todayIso() {
 
 /** Rohscan (Zebra DataWedge) → SSCC-Kandidat. */
 function extractSsccCandidate(raw: string): string | null {
-  let digits = String(raw || '')
+  const stripped = String(raw || '').replace(/[\r\n\t]+/g, '');
+  let digits = stripped
     .replace(/^\s*\]C1/i, '')
     .replace(/^\s*\(00\)/, '')
     .replace(/\D/g, '');
@@ -63,7 +64,7 @@ function extractSsccCandidate(raw: string): string | null {
     if (digits.length === 18) return digits;
     if (digits.length === 17 && digits.startsWith('9')) return `0${digits}`;
   }
-  const cleaned = String(raw || '')
+  const cleaned = stripped
     .trim()
     .replace(/^\]C1/i, '')
     .replace(/^\(00\)/, '')
@@ -71,6 +72,16 @@ function extractSsccCandidate(raw: string): string | null {
     .toUpperCase();
   if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;
   return null;
+}
+
+/** GS1-SSCC fertig (18 bzw. AI+18 = 20 Ziffern) – ohne Enter vom Scanner. */
+function isGs1SsccComplete(raw: string): boolean {
+  const digits = String(raw || '')
+    .replace(/[\r\n\t]+/g, '')
+    .replace(/\D/g, '');
+  if (digits.length === 20 && digits.startsWith('00')) return true;
+  if (digits.length === 18) return true;
+  return false;
 }
 
 function vibrate(pattern: number | number[]) {
@@ -89,6 +100,8 @@ export default function WeTc57Page() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   /** Zeichenpuffer für DataWedge (zuverlässiger als React-State). */
   const bufferRef = useRef('');
+  /** Auto-Bestätigen ohne Enter (DataWedge oft ohne Suffix). */
+  const autoTimerRef = useRef<number | null>(null);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -99,7 +112,9 @@ export default function WeTc57Page() {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<FlashKind>(null);
   const [headline, setHeadline] = useState('Lieferung wählen');
-  const [detail, setDetail] = useState('Danach Barcode mit dem TC57 scannen – Enter bestätigt automatisch.');
+  const [detail, setDetail] = useState(
+    'Danach Barcode mit dem TC57 scannen – bei vollständiger SSCC wird automatisch bestätigt.',
+  );
 
   sessionRef.current = session;
 
@@ -332,27 +347,97 @@ export default function WeTc57Page() {
     }
   }
 
-  /** DataWedge: Zeichen + Enter/Tab. Wert aus Input/Buffer lesen (nicht React-State). */
-  function onScannerKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-      e.stopPropagation();
-      const fromInput = inputRef.current?.value || '';
-      const raw = (fromInput || bufferRef.current).trim();
-      bufferRef.current = '';
-      if (inputRef.current) inputRef.current.value = '';
-      void processScan(raw);
+  function clearAutoTimer() {
+    if (autoTimerRef.current != null) {
+      window.clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
+  }
+
+  function readScannerRaw(): string {
+    const fromInput = inputRef.current?.value || '';
+    return (fromInput || bufferRef.current).replace(/[\r\n\t]+/g, '').trim();
+  }
+
+  function clearScannerField() {
+    bufferRef.current = '';
+    clearAutoTimer();
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  function commitScan(raw: string) {
+    const cleaned = String(raw || '')
+      .replace(/[\r\n\t]+/g, '')
+      .trim();
+    clearScannerField();
+    if (!cleaned) {
+      focusScanner();
       return;
     }
-    // Steuerzeichen nicht puffern
+    void processScan(cleaned);
+  }
+
+  /** Ohne Enter: sobald SSCC vollständig → nach kurzer Pause buchen. */
+  function scheduleAutoConfirm(raw: string) {
+    clearAutoTimer();
+    const cleaned = String(raw || '')
+      .replace(/[\r\n\t]+/g, '')
+      .trim();
+    if (!cleaned || busyRef.current) return;
+
+    // Terminator im Wert (manche Profile hängen \n an statt Key-Enter)
+    if (/[\r\n]/.test(String(raw || ''))) {
+      commitScan(cleaned);
+      return;
+    }
+
+    if (isGs1SsccComplete(cleaned)) {
+      // Kurz warten falls noch 1–2 Zeichen nachkommen
+      autoTimerRef.current = window.setTimeout(() => {
+        autoTimerRef.current = null;
+        commitScan(readScannerRaw() || cleaned);
+      }, 80);
+      return;
+    }
+
+    // Andere Codes (z. B. alphanumerisch): nach Scan-Pause bestätigen
+    const candidate = extractSsccCandidate(cleaned);
+    if (candidate && cleaned.length >= 12) {
+      autoTimerRef.current = window.setTimeout(() => {
+        autoTimerRef.current = null;
+        const latest = readScannerRaw();
+        if (latest.length >= cleaned.length) commitScan(latest);
+      }, 160);
+    }
+  }
+
+  function isConfirmKey(e: KeyboardEvent<HTMLInputElement>): boolean {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Go' || e.key === 'Done') return true;
+    // Android / DataWedge oft nur keyCode
+    const code = e.keyCode || (e as unknown as { which?: number }).which || 0;
+    if (code === 13 || code === 66) return true; // Enter / KEYCODE_ENTER
+    if (code === 9) return true; // Tab
+    return false;
+  }
+
+  /** DataWedge: Zeichen; Enter optional. Auto-Confirm bei voller SSCC. */
+  function onScannerKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (isConfirmKey(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      commitScan(readScannerRaw());
+      return;
+    }
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      bufferRef.current += e.key;
+      // Wert kommt zusätzlich über onInput – hier nur Timer anstoßen nach Tick
+      window.setTimeout(() => scheduleAutoConfirm(readScannerRaw()), 0);
     }
   }
 
   function onScannerInput() {
-    // Sync Buffer mit dem, was der Browser wirklich im Feld hat
-    bufferRef.current = inputRef.current?.value || '';
+    const raw = inputRef.current?.value || '';
+    bufferRef.current = raw;
+    scheduleAutoConfirm(raw);
   }
 
   async function closeSession() {
