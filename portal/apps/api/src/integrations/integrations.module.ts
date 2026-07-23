@@ -9,6 +9,7 @@ import { BusinessPartnerService } from './business-partner.service';
 import { MasterDataService } from './master-data.service';
 import { TourService } from './tour.service';
 import { TelematicsService } from './telematics.service';
+import { TelematicsOutboundService } from './telematics-outbound.service';
 import { IntouchService } from './intouch.service';
 import { ShippingNetService } from './shippingnet.service';
 import { LoadingUnitService } from './loading-unit.service';
@@ -26,6 +27,7 @@ import { WareneingangService } from './wareneingang.service';
     TourService,
     LoadingUnitService,
     TelematicsService,
+    TelematicsOutboundService,
     IntouchService,
     WareneingangService,
     ShippingNetService,
@@ -42,6 +44,7 @@ import { WareneingangService } from './wareneingang.service';
     TourService,
     LoadingUnitService,
     TelematicsService,
+    TelematicsOutboundService,
     IntouchService,
     WareneingangService,
     ShippingNetService,
