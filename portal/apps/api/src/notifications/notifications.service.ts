@@ -1,0 +1,139 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
+import { NotificationEvent } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class NotificationsService {
+  private transporter: nodemailer.Transporter | null = null;
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {
+    const host = this.config.get('SMTP_HOST');
+    if (host) {
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: Number(this.config.get('SMTP_PORT') || 587),
+        secure: false,
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 12_000,
+        auth: this.config.get('SMTP_USER')
+          ? {
+              user: this.config.get('SMTP_USER'),
+              pass: this.config.get('SMTP_PASS'),
+            }
+          : undefined,
+      });
+    }
+  }
+
+  async sendRaw(
+    toEmail: string,
+    subject: string,
+    body: string,
+    event?: NotificationEvent,
+    attachments?: Array<{ filename: string; path?: string; content?: Buffer; contentType?: string }>,
+  ) {
+    const outbox = await this.prisma.emailOutbox.create({
+      data: { toEmail, subject, body, event },
+    });
+    try {
+      if (this.transporter) {
+        await this.transporter.sendMail({
+          from:
+            this.config.get('SMTP_FROM') ||
+            this.config.get('SMTP_USER') ||
+            'info@logistikberater.at',
+          to: toEmail,
+          subject,
+          text: body,
+          attachments: attachments?.map((a) => ({
+            filename: a.filename,
+            path: a.path,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+        });
+      } else {
+        this.logger.log(`[DEV-MAIL] to=${toEmail} subject=${subject}`);
+      }
+      await this.prisma.emailOutbox.update({
+        where: { id: outbox.id },
+        data: { sentAt: new Date() },
+      });
+    } catch (err: any) {
+      await this.prisma.emailOutbox.update({
+        where: { id: outbox.id },
+        data: { error: err?.message || String(err) },
+      });
+      this.logger.error(`Mail failed: ${err?.message}`);
+    }
+  }
+
+  async notifyShipmentUsers(
+    shipmentId: string,
+    event: NotificationEvent,
+    payload: Record<string, unknown>,
+  ) {
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id: shipmentId },
+      include: {
+        customer: { include: { users: { include: { notificationPrefs: true } } } },
+        mandant: true,
+      },
+    });
+    if (!shipment) return;
+
+    // Wareneingang (Intouch/Soloplan oder manuell) erzeugt viele Sendungen –
+    // keine „Neuer Auftrag“-Mails dafür.
+    if (event === NotificationEvent.SHIPMENT_CREATED && this.isWareneingangShipment(shipment)) {
+      this.logger.debug(
+        `Skip SHIPMENT_CREATED mail for Wareneingang ${shipment.trackingNumber} (${shipment.reference})`,
+      );
+      return;
+    }
+
+    const subjectMap: Record<NotificationEvent, string> = {
+      SHIPMENT_CREATED: `Neuer Auftrag ${shipment.trackingNumber}`,
+      STATUS_CHANGED: `Statusupdate ${shipment.trackingNumber}`,
+      POD_AVAILABLE: `POD verfügbar ${shipment.trackingNumber}`,
+      DOCUMENT_RECEIVED: `Neues Dokument ${shipment.trackingNumber}`,
+      PARTNER_FILE_IMPORTED: `Partnerdatei verarbeitet`,
+    };
+
+    const body = [
+      `Sendung: ${shipment.trackingNumber}`,
+      `Mandant: ${shipment.mandant.name}`,
+      `Event: ${event}`,
+      ...Object.entries(payload).map(([k, v]) => `${k}: ${v}`),
+      '',
+      `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
+    ].join('\n');
+
+    for (const user of shipment.customer.users) {
+      const pref = user.notificationPrefs.find((p) => p.event === event);
+      if (pref && !pref.email) continue;
+      if (!user.active) continue;
+      await this.sendRaw(user.email, subjectMap[event], `Hallo ${user.firstName},\n\n${body}\n`, event);
+    }
+  }
+
+  /** Wareneingang-Sendungen: Referenz WE-* oder Warenbeschreibung. */
+  private isWareneingangShipment(shipment: {
+    reference: string | null;
+    goodsDescription: string | null;
+  }): boolean {
+    const ref = shipment.reference || '';
+    const goods = shipment.goodsDescription || '';
+    return (
+      /^WE-/i.test(ref) ||
+      /wareneingang/i.test(ref) ||
+      /wareneingang/i.test(goods)
+    );
+  }
+}
