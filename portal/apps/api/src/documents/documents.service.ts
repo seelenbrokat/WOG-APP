@@ -112,24 +112,28 @@ export class DocumentsService {
       type: doc.type,
     });
 
-    // Soloplan: Dokument ablegen – Erstexport (Verzollung/Rechnung) oder Update nur mit Nummern+Dokument
+    // Soloplan: Dokumente erst mit Create (noch im Pickup) oder nach Import/Abholung.
+    // Nie blind exportShipment – das würde Create durch Update ersetzen bevor Soloplan importiert.
     const soloplanDocTypes: DocumentType[] = [
       DocumentType.INVOICE,
       DocumentType.ABLIEFERBELEG,
       DocumentType.POD,
+      DocumentType.CMR,
+      DocumentType.CUSTOMER_UPLOAD,
     ];
     const shouldExportForVerzollung =
       docType === DocumentType.INVOICE &&
       shipmentStatus === ShipmentStatus.SUBMITTED &&
       shipmentExtras?.verzollung === true;
-    const shouldExportDocumentUpdate =
-      alreadyExportedToSoloplan && soloplanDocTypes.includes(docType);
+    const shouldExportDocument =
+      soloplanDocTypes.includes(docType) &&
+      (shouldExportForVerzollung || alreadyExportedToSoloplan);
 
-    if (shipmentId && (shouldExportForVerzollung || shouldExportDocumentUpdate)) {
+    if (shipmentId && shouldExportDocument) {
       try {
-        await this.soloplan.exportShipment(shipmentId);
+        const res = await this.soloplan.exportDocumentsIfReady(shipmentId);
         this.logger.log(
-          `Soloplan-Export nach Dokument-Upload (${docType}${alreadyExportedToSoloplan ? ', update' : ''}) für Sendung ${shipmentId}`,
+          `Soloplan-Dokument nach Upload (${docType}, mode=${res.mode}${res.reason ? `, ${res.reason}` : ''}) für Sendung ${shipmentId}`,
         );
       } catch (err: any) {
         this.logger.warn(
@@ -210,11 +214,13 @@ export class DocumentsService {
       trackingNumber: shipment.trackingNumber,
     });
 
-    // Bereits in Soloplan → Update mit externen Nummern + Ablieferbeleg
+    // Ablieferbeleg nur an Soloplan wenn Create noch offen oder Auftrag bereits abgeholt/importiert
     if (shipment.soloplanRef || shipment.order?.soloplanRef) {
       try {
-        await this.soloplan.exportShipment(shipment.id);
-        this.logger.log(`Soloplan-Update nach Ablieferbeleg für Sendung ${shipment.id}`);
+        const res = await this.soloplan.exportDocumentsIfReady(shipment.id);
+        this.logger.log(
+          `Soloplan nach Ablieferbeleg (mode=${res.mode}${res.reason ? `, ${res.reason}` : ''}) für Sendung ${shipment.id}`,
+        );
       } catch (err: any) {
         this.logger.warn(
           `Soloplan-Update nach Ablieferbeleg fehlgeschlagen: ${err?.message || err}`,

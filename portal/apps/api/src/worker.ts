@@ -43,6 +43,12 @@ async function bootstrap() {
       const archived = soloplan.archiveDownloadedOrders();
       if (archived.archived > 0) {
         console.log(`Soloplan: ${archived.archived} Order-Datei(en) nach Download archiviert`);
+        const flushed = await soloplan.flushDocumentsAfterPickup(archived.files);
+        if (flushed.flushed.length) {
+          console.log(
+            `Soloplan: Dokumente nach Abholung nachgereicht für ${flushed.flushed.join(', ')}`,
+          );
+        }
       }
       await hub.processInboundQueues();
 

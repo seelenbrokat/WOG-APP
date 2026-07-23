@@ -99,6 +99,7 @@ export class SoloplanService implements TransportIntegration {
   /**
    * Verschiebt abgeholt Dateien aus dem Soloplan-Pickup-Ordner nach archive/processed.
    * Erkennung: atime > mtime (Datei wurde nach dem Schreiben gelesen / per SFTP geöffnet).
+   * Danach: ausstehende Dokumente als Update nachschieben.
    */
   archiveDownloadedOrders() {
     if (!existsSync(this.ordersOutDir)) return { archived: 0 as const, files: [] as string[] };
@@ -153,6 +154,38 @@ export class SoloplanService implements TransportIntegration {
     return { archived: archived.length, files: archived };
   }
 
+  /**
+   * Nach Soloplan-Abholung der Create-Datei: Dokumente nachreichen (Update).
+   * Wird vom Worker nach archiveDownloadedOrders aufgerufen.
+   */
+  async flushDocumentsAfterPickup(archivedFiles: string[]) {
+    const flushed: string[] = [];
+    for (const fileName of archivedFiles) {
+      // order-VLB230700057.json oder order-VLB…-update-….json
+      const m = fileName.match(/^order-(VLB[\w.-]+?)(?:-update-|\.json)/i);
+      if (!m) continue;
+      const externalNumber = m[1].replace(/-update.*$/i, '');
+      const order = await this.prisma.transportOrder.findFirst({
+        where: { externalNumber },
+        include: { shipments: { select: { id: true } } },
+      });
+      if (!order?.shipments?.length) continue;
+      for (const s of order.shipments) {
+        try {
+          const res = await this.exportDocumentsIfReady(s.id);
+          if (res.mode === 'update' || res.mode === 'rewrite-create') {
+            flushed.push(externalNumber);
+          }
+        } catch (err: any) {
+          this.logger.warn(
+            `Soloplan Dokument-Flush ${externalNumber}: ${err?.message || err}`,
+          );
+        }
+      }
+    }
+    return { flushed: [...new Set(flushed)] };
+  }
+
   openOutboundFile(fileName: string) {
     const safe = fileName.replace(/[/\\]/g, '');
     if (!safe.endsWith('.json')) throw new BadRequestException('Nur .json Dateien');
@@ -165,17 +198,68 @@ export class SoloplanService implements TransportIntegration {
     this.pendingCreates.add(shipmentId);
   }
 
-  /** Update = Auftrag wurde schon einmal nach Soloplan exportiert. */
-  private isSoloplanOrderUpdate(order: { soloplanRef?: string | null; externalNumber?: string | null }) {
-    if (order.soloplanRef) return true;
-    const base = String(order.externalNumber || '').replace(/[^\w.\-]+/g, '_');
+  /** Echte Soloplan-ID (nicht FILE:/STUB). */
+  isSoloplanImported(ref?: string | null): boolean {
+    if (!ref) return false;
+    if (ref.startsWith('FILE:') || ref.startsWith('SP-STUB-')) return false;
+    return true;
+  }
+
+  private orderBaseName(externalNumber?: string | null): string {
+    return String(externalNumber || '').replace(/[^\w.\-]+/g, '_');
+  }
+
+  /** Create-JSON liegt noch im SFTP-Pickup (Soloplan hat noch nicht abgeholt). */
+  private pendingCreatePath(externalNumber?: string | null): string | null {
+    const base = this.orderBaseName(externalNumber);
+    if (!base) return null;
+    const primary = join(this.ordersOutDir, `order-${base}.json`);
+    return existsSync(primary) ? primary : null;
+  }
+
+  /**
+   * Create wurde von Soloplan abgeholt (= archiviert ohne -superseded-).
+   * -superseded- Dateien zählen nicht: die hat das Portal selbst weggeräumt,
+   * bevor Soloplan den Auftrag importieren konnte.
+   */
+  private wasCreatePickedUp(externalNumber?: string | null): boolean {
+    const base = this.orderBaseName(externalNumber);
     if (!base) return false;
-    const candidates = [
-      join(this.ordersOutDir, `order-${base}.json`),
-      join(this.sftpOutboundRoot, 'soloplan', 'archive', `order-${base}.json`),
-      join(dirname(this.integrationOrdersOutDir), 'processed', `order-${base}.json`),
+    const dirs = [
+      join(this.sftpOutboundRoot, 'soloplan', 'archive'),
+      join(dirname(this.integrationOrdersOutDir), 'processed'),
     ];
-    return candidates.some((p) => existsSync(p));
+    const createName = `order-${base}.json`;
+    for (const dir of dirs) {
+      if (!existsSync(dir)) continue;
+      if (existsSync(join(dir, createName))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Update nur wenn Soloplan den Auftrag schon hat:
+   * - echte Soloplan-ID, oder
+   * - Create-Datei wurde abgeholt (nicht mehr im Pickup).
+   * Solange order-VLB….json noch im Pickup liegt → Create neu schreiben (mit Dokumenten).
+   */
+  private isSoloplanOrderUpdate(order: {
+    soloplanRef?: string | null;
+    externalNumber?: string | null;
+  }) {
+    if (this.pendingCreatePath(order.externalNumber)) return false;
+    if (this.isSoloplanImported(order.soloplanRef)) return true;
+    if (order.soloplanRef?.startsWith('FILE:') && this.wasCreatePickedUp(order.externalNumber)) {
+      return true;
+    }
+    // Kein Ref / nur Stub / Create noch nie geschrieben → Create
+    if (!order.soloplanRef || order.soloplanRef.startsWith('SP-STUB-')) return false;
+    if (order.soloplanRef.startsWith('FILE:')) {
+      // FILE: aber weder pending noch archiviert (z. B. manuell gelöscht) → Update riskant;
+      // lieber Create erneut schreiben.
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -183,8 +267,39 @@ export class SoloplanService implements TransportIntegration {
    * nach archive verschieben, damit Updates nicht die Erstdatei überschreiben.
    */
   private retirePendingOutboundForOrder(
-    shipment: { order?: { externalNumber?: string | null } | null; reference?: string | null; trackingNumber?: string; id: string },
+    shipment: {
+      order?: { externalNumber?: string | null } | null;
+      reference?: string | null;
+      trackingNumber?: string;
+      id: string;
+    },
     format: SoloplanFileFormat,
+  ) {
+    this.retireOutboundMatching(shipment, format, { includeCreate: true });
+  }
+
+  /** Nur hängengebliebene -update- Dateien entfernen (Create bleibt für Rewrite). */
+  private retireStaleUpdatesOnly(
+    shipment: {
+      order?: { externalNumber?: string | null } | null;
+      reference?: string | null;
+      trackingNumber?: string;
+      id: string;
+    },
+    format: SoloplanFileFormat,
+  ) {
+    this.retireOutboundMatching(shipment, format, { includeCreate: false });
+  }
+
+  private retireOutboundMatching(
+    shipment: {
+      order?: { externalNumber?: string | null } | null;
+      reference?: string | null;
+      trackingNumber?: string;
+      id: string;
+    },
+    format: SoloplanFileFormat,
+    opts: { includeCreate: boolean },
   ) {
     const base = soloplanOrderBaseName(shipment as any, format);
     const prefix = format === 'order' ? `order-${base}` : base;
@@ -194,8 +309,15 @@ export class SoloplanService implements TransportIntegration {
 
     for (const fileName of readdirSync(this.ordersOutDir)) {
       if (!fileName.endsWith('.json')) continue;
-      // order-VLB…json sowie frühere order-VLB…-update-….json
-      if (fileName !== `${prefix}.json` && !fileName.startsWith(`${prefix}-update-`)) continue;
+      const isCreate = fileName === `${prefix}.json`;
+      const isUpdate = fileName.startsWith(`${prefix}-update-`);
+      if (isUpdate) {
+        /* always retire stale updates when rewriting */
+      } else if (isCreate && opts.includeCreate) {
+        /* retire create only for true Soloplan updates */
+      } else {
+        continue;
+      }
       const primary = join(this.ordersOutDir, fileName);
       const stamp = Date.now();
       const targetName = fileName.replace(/\.json$/i, `-superseded-${stamp}.json`);
@@ -218,17 +340,24 @@ export class SoloplanService implements TransportIntegration {
     }
   }
 
+  /** Dokumenttypen, die an Soloplan (documentData) gehen dürfen. */
+  private static readonly SOLOPLAN_DOC_TYPES: DocumentType[] = [
+    DocumentType.ABLIEFERBELEG,
+    DocumentType.POD,
+    DocumentType.INVOICE,
+    DocumentType.CMR,
+    DocumentType.CUSTOMER_UPLOAD,
+  ];
+
   /** Portal-Dokumente als Soloplan documentData vorbereiten. */
   private async loadSoloplanDocuments(shipmentId: string) {
     const docs = await this.prisma.document.findMany({
       where: {
         shipmentId,
-        type: {
-          in: [DocumentType.ABLIEFERBELEG, DocumentType.POD, DocumentType.INVOICE],
-        },
+        type: { in: SoloplanService.SOLOPLAN_DOC_TYPES },
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 15,
     });
     const out: Array<{ fileName: string; category: string; contentBase64: string }> = [];
     for (const doc of docs) {
@@ -245,6 +374,59 @@ export class SoloplanService implements TransportIntegration {
       }
     }
     return out;
+  }
+
+  /**
+   * Dokumente an Soloplan:
+   * - Create noch im Pickup → Create mit Docs neu schreiben (kein Update)
+   * - Auftrag abgeholt/importiert → Update mit documentData
+   * - Create nur supersediert (nie abgeholt) → Create erneut mit Docs legen
+   * - sonst warten (kein vorzeitiges Update ohne existierenden Auftrag)
+   */
+  async exportDocumentsIfReady(shipmentId: string) {
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id: shipmentId },
+      include: { order: { select: { id: true, externalNumber: true, soloplanRef: true } } },
+    });
+    if (!shipment?.order) {
+      return { ok: false, mode: 'skip' as const, reason: 'no-order' };
+    }
+
+    const ext = shipment.order.externalNumber;
+    const docs = await this.loadSoloplanDocuments(shipmentId);
+    if (!docs.length) {
+      return { ok: true, mode: 'skip' as const, reason: 'no-documents' };
+    }
+
+    const pendingCreate = this.pendingCreatePath(ext);
+    if (pendingCreate) {
+      this.logger.log(
+        `Soloplan: Dokumente in Create ${ext} einfügen (Pickup noch nicht abgeholt)`,
+      );
+      await this.createOrder(shipmentId);
+      return { ok: true, mode: 'rewrite-create' as const, externalNumber: ext, documents: docs.length };
+    }
+
+    const ref = shipment.soloplanRef || shipment.order.soloplanRef;
+    if (this.isSoloplanImported(ref) || this.wasCreatePickedUp(ext)) {
+      this.logger.log(`Soloplan: Dokument-Update für ${ext} (${docs.length} Datei(en))`);
+      await this.createOrder(shipmentId);
+      return { ok: true, mode: 'update' as const, externalNumber: ext, documents: docs.length };
+    }
+
+    // FILE:/Stub aber Create nie von Soloplan abgeholt (z. B. verfrühtes Update) → Create wiederherstellen
+    if (!ref || ref.startsWith('FILE:') || ref.startsWith('SP-STUB-')) {
+      this.logger.log(
+        `Soloplan: Create für ${ext} mit ${docs.length} Dokument(en) erneut schreiben (noch nicht importiert)`,
+      );
+      await this.createOrder(shipmentId);
+      return { ok: true, mode: 'rewrite-create' as const, externalNumber: ext, documents: docs.length };
+    }
+
+    this.logger.log(
+      `Soloplan: Dokumente für ${ext} warten – Auftrag noch nicht von Soloplan abgeholt/importiert`,
+    );
+    return { ok: true, mode: 'wait' as const, externalNumber: ext, documents: docs.length };
   }
 
   /** Exportiert eine Sendung sofort als Soloplan File-API JSON (auch wenn Worker noch nicht gelaufen ist). */
@@ -349,9 +531,12 @@ export class SoloplanService implements TransportIntegration {
     }
 
     if (mode === 'file') {
-      // Noch liegende Erstdatei nicht überschreiben – bei Update umbenennen/wegarchivieren
+      // Noch liegende Update-Dateien wegräumen; Create nur bei echtem Update retiren
       if (isUpdate) {
         this.retirePendingOutboundForOrder(shipment, format);
+      } else {
+        // Create (neu oder Docs nachgeladen): alte -update- Dateien aus Pickup entfernen
+        this.retireStaleUpdatesOnly(shipment, format);
       }
       const fileName = soloplanOutboundFileName(shipment, format, {
         update: isUpdate,
@@ -375,17 +560,22 @@ export class SoloplanService implements TransportIntegration {
       } catch {
         /* ignore */
       }
-      const fileRef = `FILE:soloplan/orders/${fileName}`;
-      await this.prisma.shipment.updateMany({
-        where: { orderId: shipment.order.id },
-        data: { soloplanRef: fileRef },
-      });
-      await this.prisma.transportOrder.update({
-        where: { id: shipment.order.id },
-        data: { soloplanRef: fileRef },
-      });
+      // Echte Soloplan-IDs nicht mit FILE: überschreiben
+      const currentRef = shipment.order.soloplanRef || shipment.soloplanRef;
+      if (!this.isSoloplanImported(currentRef)) {
+        const fileRef = `FILE:soloplan/orders/${fileName}`;
+        await this.prisma.shipment.updateMany({
+          where: { orderId: shipment.order.id },
+          data: { soloplanRef: fileRef },
+        });
+        await this.prisma.transportOrder.update({
+          where: { id: shipment.order.id },
+          data: { soloplanRef: fileRef },
+        });
+      }
+      const docCount = (shipmentWithDocs.documents || []).length;
       this.logger.log(
-        `Soloplan PORTAL-v6 order export ${primary} (${orderShipments.length} consignments${isUpdate ? ', update' : ''})`,
+        `Soloplan PORTAL-v6 order export ${primary} (${orderShipments.length} consignments${isUpdate ? ', update' : ', create'}${docCount ? `, ${docCount} docs` : ''})`,
       );
       return;
     }
