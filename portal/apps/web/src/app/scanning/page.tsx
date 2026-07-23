@@ -403,7 +403,10 @@ export default function ScanningPage() {
       >
         <p className="muted" style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.35 }}>
           SSCC scannen (Kamera) oder tippen. Vibration + Ton bei Treffer.
-          Nur Aufträge von Organisation/Mandant 2 (WOG Logistics AG).
+          Nur Aufträge von Organisation/Mandant 2 (WOG Logistics AG).{' '}
+          <Link href="/scanning/we-tc57" style={{ fontWeight: 600 }}>
+            WE TC57 (Barcodescanner, ohne Kamera)
+          </Link>
         </p>
 
         <div className="row" style={{ gap: '0.4rem' }}>
