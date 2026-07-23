@@ -269,6 +269,24 @@ export class OrdersService {
     ]);
   }
 
+  /**
+   * Abhol-/Zustelltermine werden als UTC-Kalenderzeit gespeichert (00:00 = 00:00).
+   * Deshalb hier UTC formatieren, nicht Europe/Vienna.
+   */
+  private formatScheduleDateTime(value?: Date | string | null): string | null {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString('de-CH', {
+      timeZone: 'UTC',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
   private writeLoadingListPdf(orders: any[], storagePath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const multi = orders.length > 1;
@@ -445,6 +463,14 @@ export class OrdersService {
             `${shipment.pickupZip || ''} ${shipment.pickupCity || ''}  ${shipment.pickupCountry || ''}`.trim(),
             { width: addrW },
           );
+          const pickupWhen = this.formatScheduleDateTime(shipment.pickupDate);
+          if (pickupWhen) {
+            doc
+              .font('Helvetica-Bold')
+              .fillColor(WOG_PDF.ink)
+              .text(`Termin: ${pickupWhen}`, left, doc.y, { width: addrW });
+            doc.font('Helvetica');
+          }
           const leftBottom = doc.y;
 
           doc.y = addrY;
@@ -458,6 +484,19 @@ export class OrdersService {
             doc.y,
             { width: addrW },
           );
+          const deliveryFrom = this.formatScheduleDateTime(shipment.deliveryDate);
+          const deliveryTo = this.formatScheduleDateTime(shipment.deliveryDateEnd);
+          if (deliveryFrom) {
+            const deliveryLabel =
+              deliveryTo && deliveryTo !== deliveryFrom
+                ? `Termin: ${deliveryFrom} – ${deliveryTo}`
+                : `Termin: ${deliveryFrom}`;
+            doc
+              .font('Helvetica-Bold')
+              .fillColor(WOG_PDF.ink)
+              .text(deliveryLabel, col2, doc.y, { width: addrW });
+            doc.font('Helvetica');
+          }
           if (shipment.deliveryAvisPhone) {
             doc.fillColor(WOG_PDF.muted).text(`Avis: ${shipment.deliveryAvisPhone}`, col2, doc.y, {
               width: addrW,
