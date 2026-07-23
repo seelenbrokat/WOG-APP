@@ -1008,6 +1008,21 @@ export class GoodsReceiptService {
       .filter(Boolean);
   }
 
+  /** Geschlossenen ETB neu erzeugen und erneut mailen. */
+  async resendEntladebericht(user: AuthUser, sessionId: string) {
+    this.assertWarehouseRole(user);
+    const session = await this.prisma.goodsReceiptSession.findFirst({
+      where: { id: sessionId, organizationId: user.organizationId },
+      select: { id: true, status: true },
+    });
+    if (!session) throw new NotFoundException('Sitzung nicht gefunden');
+    if (session.status !== 'CLOSED') {
+      throw new BadRequestException('ETB erst nach Abschluss der Kontrolle möglich');
+    }
+    const doc = await this.generateAndSendEntladebericht(user, sessionId);
+    return { ok: true, documentId: doc.id, fileName: doc.fileName };
+  }
+
   /** Geschlossene ETBs der letzten 30 Tage. */
   async listEntladeberichte(user: AuthUser, opts?: { take?: number }) {
     this.assertWarehouseRole(user);
