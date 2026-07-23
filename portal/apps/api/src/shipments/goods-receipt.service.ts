@@ -624,22 +624,93 @@ export class GoodsReceiptService {
     ]);
 
     // Sendung nur stornieren, wenn alle Colli storniert sind → nicht andrucken
+    await this.maybeCancelShipment(check.collo.shipmentId, stornoNote);
+
+    return this.getSession(user, sessionId);
+  }
+
+  /**
+   * Ganzen Auftrag stornieren: alle noch offenen/fehlenden Colli der Sendung in der Sitzung.
+   * Empfangene/beschädigte bleiben unberührt.
+   */
+  async cancelMissingShipment(
+    user: AuthUser,
+    sessionId: string,
+    shipmentId: string,
+    note?: string,
+  ) {
+    this.assertWarehouseRole(user);
+    const session = await this.prisma.goodsReceiptSession.findFirst({
+      where: { id: sessionId, organizationId: user.organizationId },
+      select: { id: true, status: true },
+    });
+    if (!session) throw new NotFoundException('Sitzung nicht gefunden');
+    if (session.status !== 'OPEN') throw new BadRequestException('Sitzung ist geschlossen');
+
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { id: shipmentId, organizationId: user.organizationId },
+      select: { id: true, reference: true, trackingNumber: true },
+    });
+    if (!shipment) throw new NotFoundException('Auftrag nicht gefunden');
+
+    const openChecks = await this.prisma.goodsReceiptColloCheck.findMany({
+      where: {
+        sessionId,
+        status: { in: ['PENDING', 'MISSING'] },
+        collo: { shipmentId },
+      },
+      select: { id: true, colloId: true },
+    });
+    if (!openChecks.length) {
+      throw new BadRequestException('Keine offenen Packstücke zum Stornieren in diesem Auftrag');
+    }
+
+    const stornoNote =
+      note ||
+      `Storno WE Auftrag ${shipment.reference || shipment.trackingNumber} – nicht entladen / nicht andrucken`;
+    const colloIds = openChecks.map((c) => c.colloId);
+    const checkIds = openChecks.map((c) => c.id);
+
+    await this.prisma.$transaction([
+      this.prisma.goodsReceiptColloCheck.updateMany({
+        where: { id: { in: checkIds } },
+        data: {
+          status: 'CANCELLED',
+          scannedById: user.id,
+          note: stornoNote,
+        },
+      }),
+      this.prisma.shipmentCollo.updateMany({
+        where: { id: { in: colloIds } },
+        data: {
+          warehouseStatus: 'CANCELLED',
+          warehouseNote: stornoNote,
+        },
+      }),
+    ]);
+
+    await this.maybeCancelShipment(shipmentId, stornoNote);
+
+    return this.getSession(user, sessionId);
+  }
+
+  /** Sendung CANCELLED setzen, wenn alle Colli storniert sind. */
+  private async maybeCancelShipment(shipmentId: string, stornoNote: string) {
     const siblingColli = await this.prisma.shipmentCollo.findMany({
-      where: { shipmentId: check.collo.shipmentId },
+      where: { shipmentId },
       select: { warehouseStatus: true },
     });
-    const allCancelled = siblingColli.every((c) => c.warehouseStatus === 'CANCELLED');
+    const allCancelled =
+      siblingColli.length > 0 && siblingColli.every((c) => c.warehouseStatus === 'CANCELLED');
     if (allCancelled) {
       await this.prisma.shipment.update({
-        where: { id: check.collo.shipmentId },
+        where: { id: shipmentId },
         data: {
           status: 'CANCELLED',
           notes: stornoNote,
         },
       });
     }
-
-    return this.getSession(user, sessionId);
   }
 
   async markDamaged(

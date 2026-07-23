@@ -151,6 +151,17 @@ export class GoodsReceiptController {
     return this.service.cancelMissingCollo(user, id, colloId, dto.note);
   }
 
+  /** Ganzen Auftrag (alle offenen Colli der Sendung) stornieren. */
+  @Post('sessions/:id/shipments/:shipmentId/cancel')
+  cancelMissingShipment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('shipmentId') shipmentId: string,
+    @Body() dto: DamageDto,
+  ) {
+    return this.service.cancelMissingShipment(user, id, shipmentId, dto.note);
+  }
+
   @Patch('sessions/:id/colli/:colloId/dimensions')
   updateDimensions(
     @CurrentUser() user: AuthUser,

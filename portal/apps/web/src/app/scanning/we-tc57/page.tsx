@@ -48,6 +48,7 @@ type Session = {
     deliveryCity?: string | null;
     shipmentId?: string;
     reference?: string | null;
+    trackingNumber?: string | null;
   }>;
   surplus?: Array<{
     id: string;
@@ -624,7 +625,7 @@ export default function WeTc57Page() {
 
   async function cancelCollo(colloId: string, sscc: string) {
     if (!session) return;
-    if (!confirm(`Sendung ${sscc} stornieren? Wird nicht angedruckt.`)) return;
+    if (!confirm(`Packstück ${sscc} stornieren? Wird nicht angedruckt.`)) return;
     setLoading(true);
     try {
       const s = await api<Session>(`/goods-receipt/sessions/${session.id}/colli/${colloId}/cancel`, {
@@ -639,6 +640,44 @@ export default function WeTc57Page() {
     } catch (e: unknown) {
       setFlash('err');
       setHeadline('Storno fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      focusScanner();
+    }
+  }
+
+  async function cancelShipment(
+    shipmentId: string,
+    label: string,
+    openCount: number,
+  ) {
+    if (!session) return;
+    if (
+      !confirm(
+        `Ganzen Auftrag ${label} stornieren (${openCount} offene Positionen)? Wird nicht angedruckt.`,
+      )
+    )
+      return;
+    setLoading(true);
+    try {
+      const s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/shipments/${shipmentId}/cancel`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            note: `Storno WE Auftrag ${label} – nicht entladen / nicht andrucken`,
+          }),
+        },
+      );
+      setSession(s);
+      setFlash('dup');
+      setHeadline('Auftrag storniert');
+      setDetail(`${label} · ${openCount} Positionen · nicht andrucken`);
+      playTone(false);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Auftrags-Storno fehlgeschlagen');
       setDetail(e instanceof Error ? e.message : 'Fehler');
     } finally {
       setLoading(false);
@@ -1179,47 +1218,129 @@ export default function WeTc57Page() {
             <details className="panel" open={session.status === 'OPEN'}>
               <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
                 Fehlend / Offen (
-                {session.expectedColli.filter((c) => c.status === 'PENDING' || c.status === 'MISSING').length}
+                {
+                  session.expectedColli.filter(
+                    (c) => c.status === 'PENDING' || c.status === 'MISSING',
+                  ).length
+                }
                 )
               </summary>
               <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
-                Fehlende Sendungen stornieren → werden nicht angedruckt.
+                Einzelnes Packstück oder ganzen Auftrag stornieren → wird nicht angedruckt.
               </p>
-              <ul style={{ listStyle: 'none', margin: '0.4rem 0 0', padding: 0 }}>
-                {session.expectedColli
-                  .filter((c) => c.status === 'PENDING' || c.status === 'MISSING')
-                  .slice(0, 60)
-                  .map((c) => (
-                    <li
-                      key={c.checkId}
+              <div style={{ marginTop: '0.4rem' }}>
+                {(() => {
+                  const open = session.expectedColli.filter(
+                    (c) => c.status === 'PENDING' || c.status === 'MISSING',
+                  );
+                  const byShipment = new Map<
+                    string,
+                    {
+                      shipmentId: string;
+                      label: string;
+                      dest: string;
+                      colli: typeof open;
+                    }
+                  >();
+                  for (const c of open) {
+                    const sid = c.shipmentId || c.checkId;
+                    const label = c.reference || c.trackingNumber || sid.slice(-8);
+                    const dest = [c.deliveryZip, c.deliveryCompany].filter(Boolean).join(' · ');
+                    let g = byShipment.get(sid);
+                    if (!g) {
+                      g = { shipmentId: sid, label, dest, colli: [] };
+                      byShipment.set(sid, g);
+                    }
+                    g.colli.push(c);
+                  }
+                  const groups = Array.from(byShipment.values()).sort(
+                    (a, b) => b.colli.length - a.colli.length || a.label.localeCompare(b.label),
+                  );
+                  return groups.map((g) => (
+                    <div
+                      key={g.shipmentId}
                       style={{
                         borderTop: '1px solid var(--border, #d8e0db)',
-                        padding: '0.45rem 0',
-                        fontSize: '0.85rem',
+                        padding: '0.55rem 0',
                       }}
                     >
-                      <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                      <div
+                        className="row"
+                        style={{
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          alignItems: 'flex-start',
+                          marginBottom: 4,
+                        }}
+                      >
                         <div style={{ minWidth: 0 }}>
-                          <code>{c.sscc}</code>
-                          <div className="muted">
-                            {[c.packaging, c.deliveryZip, c.deliveryCompany].filter(Boolean).join(' · ')}
+                          <strong style={{ fontSize: '0.92rem' }}>
+                            Auftrag {g.label}
+                          </strong>
+                          <div className="muted" style={{ fontSize: '0.8rem' }}>
+                            {g.colli.length} offen
+                            {g.dest ? ` · ${g.dest}` : ''}
                           </div>
                         </div>
                         {session.status === 'OPEN' ? (
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ minHeight: 40, fontSize: '0.8rem', flexShrink: 0 }}
+                            style={{ minHeight: 44, fontSize: '0.82rem', flexShrink: 0 }}
                             disabled={loading}
-                            onClick={() => void cancelCollo(c.colloId, c.sscc)}
+                            onClick={() =>
+                              void cancelShipment(g.shipmentId, g.label, g.colli.length)
+                            }
                           >
-                            Storno
+                            Storno Auftrag
                           </button>
                         ) : null}
                       </div>
-                    </li>
-                  ))}
-              </ul>
+                      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                        {g.colli.map((c) => (
+                          <li
+                            key={c.checkId}
+                            style={{
+                              padding: '0.35rem 0 0.35rem 0.15rem',
+                              fontSize: '0.82rem',
+                              borderTop: '1px dashed color-mix(in srgb, var(--border, #d8e0db) 70%, transparent)',
+                            }}
+                          >
+                            <div
+                              className="row"
+                              style={{
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <code style={{ fontSize: '0.78rem' }}>{c.sscc}</code>
+                                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                                  {[c.packaging, c.deliveryZip, c.deliveryCompany]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </div>
+                              </div>
+                              {session.status === 'OPEN' && g.colli.length > 1 ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  style={{ minHeight: 36, fontSize: '0.75rem', flexShrink: 0 }}
+                                  disabled={loading}
+                                  onClick={() => void cancelCollo(c.colloId, c.sscc)}
+                                >
+                                  Storno
+                                </button>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ));
+                })()}
+              </div>
             </details>
 
             {(session.surplus?.length || 0) > 0 ? (

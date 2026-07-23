@@ -241,7 +241,7 @@ export function GoodsReceiptControl(props: {
 
   async function cancelCollo(colloId: string, sscc: string) {
     if (!session) return;
-    if (!confirm(`Sendung ${sscc} stornieren? Wird nicht angedruckt.`)) return;
+    if (!confirm(`Packstück ${sscc} stornieren? Wird nicht angedruckt.`)) return;
     setLoading(true);
     setError('');
     try {
@@ -251,6 +251,35 @@ export function GoodsReceiptControl(props: {
       });
       setSession(s);
       setInfo(`Storniert: ${sscc} · nicht andrucken`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelShipment(shipmentId: string, label: string, openCount: number) {
+    if (!session) return;
+    if (
+      !confirm(
+        `Ganzen Auftrag ${label} stornieren (${openCount} offene Positionen)? Wird nicht angedruckt.`,
+      )
+    )
+      return;
+    setLoading(true);
+    setError('');
+    try {
+      const s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/shipments/${shipmentId}/cancel`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            note: `Storno WE Auftrag ${label} – nicht entladen / nicht andrucken`,
+          }),
+        },
+      );
+      setSession(s);
+      setInfo(`Auftrag storniert: ${label} · ${openCount} Positionen · nicht andrucken`);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -604,6 +633,68 @@ export function GoodsReceiptControl(props: {
                 ETB per Mail an info@worldofgreen.ch und mb@logistikberater.at · Speicherung 30 Tage
               </p>
             </div>
+          ) : null}
+
+          {session.status === 'OPEN' ? (
+            <details className="panel" open>
+              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+                Offene Aufträge stornieren
+              </summary>
+              <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}>
+                Ganzen Auftrag mit einem Klick stornieren (z. B. 20+ Positionen).
+              </p>
+              <ul style={{ listStyle: 'none', margin: '0.45rem 0 0', padding: 0 }}>
+                {(() => {
+                  const open = session.expectedColli.filter(
+                    (c) => c.status === 'PENDING' || c.status === 'MISSING',
+                  );
+                  const map = new Map<
+                    string,
+                    { shipmentId: string; label: string; dest: string; count: number }
+                  >();
+                  for (const c of open) {
+                    const sid = c.shipmentId;
+                    const label = c.reference || c.trackingNumber || sid.slice(-8);
+                    const dest = [c.deliveryZip, c.deliveryCompany].filter(Boolean).join(' · ');
+                    const prev = map.get(sid);
+                    if (prev) prev.count += 1;
+                    else map.set(sid, { shipmentId: sid, label, dest, count: 1 });
+                  }
+                  return Array.from(map.values())
+                    .sort((a, b) => b.count - a.count)
+                    .map((g) => (
+                      <li
+                        key={g.shipmentId}
+                        style={{
+                          borderTop: '1px solid var(--border, #d8e0db)',
+                          padding: '0.5rem 0',
+                        }}
+                      >
+                        <div
+                          className="row"
+                          style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}
+                        >
+                          <div>
+                            <strong>Auftrag {g.label}</strong>
+                            <div className="muted" style={{ fontSize: '0.82rem' }}>
+                              {g.count} offen{g.dest ? ` · ${g.dest}` : ''}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ minHeight: 42, fontSize: '0.85rem' }}
+                            disabled={loading}
+                            onClick={() => void cancelShipment(g.shipmentId, g.label, g.count)}
+                          >
+                            Storno Auftrag
+                          </button>
+                        </div>
+                      </li>
+                    ));
+                })()}
+              </ul>
+            </details>
           ) : null}
 
           <details className="panel" open>
