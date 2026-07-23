@@ -143,6 +143,11 @@ class CreateShipmentDto {
   @IsDateString()
   deliveryDate?: string;
 
+  /** Zustellung bis (Ende) */
+  @IsOptional()
+  @IsDateString()
+  deliveryDateEnd?: string;
+
   /** Telefon für Zustell-Aviso */
   @IsOptional()
   @IsString()

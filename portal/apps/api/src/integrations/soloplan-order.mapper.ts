@@ -67,6 +67,7 @@ export type PortalShipmentForSoloplan = {
   deliveryCity?: string | null;
   deliveryCountry?: string | null;
   deliveryDate?: Date | string | null;
+  deliveryDateEnd?: Date | string | null;
   notes?: string | null;
   deliveryAvisPhone?: string | null;
   extras?: unknown;
@@ -420,10 +421,12 @@ function buildConsignment(
         };
 
   const loadingDate = formatSoloplanDateTime(shipment.pickupDate) || formatSoloplanDateTime(new Date());
-  const deliveryDate =
+  const deliveryDateStart =
     formatSoloplanDateTime(shipment.deliveryDate) ||
     formatSoloplanDateTime(shipment.pickupDate) ||
     loadingDate;
+  const deliveryDateEnd =
+    formatSoloplanDateTime(shipment.deliveryDateEnd) || deliveryDateStart;
 
   const consignmentItems = buildConsignmentItems(shipment);
   const totalWeight =
@@ -448,8 +451,8 @@ function buildConsignment(
     times: {
       loadingDateStart: loadingDate,
       loadingDateEnd: loadingDate,
-      deliveryDateStart: deliveryDate,
-      deliveryDateEnd: deliveryDate,
+      deliveryDateStart,
+      deliveryDateEnd,
     },
     flatRateCustomer: {},
     flatRateReceiver: {},
