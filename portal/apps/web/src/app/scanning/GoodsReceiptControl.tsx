@@ -179,11 +179,14 @@ export function GoodsReceiptControl(props: {
       setLastKind(res.kind);
       setDamagedNext(false);
       const shown = res.sscc || sscc;
+      const dest = [res.shipment?.deliveryZip, res.shipment?.deliveryCompany]
+        .filter(Boolean)
+        .join(' · ');
       if (res.kind === 'expected') {
         setInfo(
           res.alreadyScanned
-            ? `Bereits gescannt: ${shown}${res.status === 'DAMAGED' ? ' (beschädigt)' : ''}`
-            : `Soll ✓ ${shown}${res.status === 'DAMAGED' ? ' – beschädigt' : ''}`,
+            ? `Bereits gescannt: ${shown}${res.status === 'DAMAGED' ? ' (beschädigt)' : ''}${dest ? ` – ${dest}` : ''}`
+            : `Soll ✓ ${shown}${res.status === 'DAMAGED' ? ' – beschädigt' : ''}${dest ? ` – ${dest}` : ''}`,
         );
       } else {
         setInfo(`Überzählig: ${shown}${res.knownShipment ? ` (gehört zu ${res.knownShipment.reference || res.knownShipment.trackingNumber})` : ''}`);

@@ -441,7 +441,16 @@ export class GoodsReceiptService {
       include: {
         collo: {
           include: {
-            shipment: { select: { id: true, trackingNumber: true, reference: true } },
+            shipment: {
+              select: {
+                id: true,
+                trackingNumber: true,
+                reference: true,
+                deliveryCompany: true,
+                deliveryZip: true,
+                deliveryCity: true,
+              },
+            },
           },
         },
       },
