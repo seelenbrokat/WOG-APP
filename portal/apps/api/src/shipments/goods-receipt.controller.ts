@@ -74,6 +74,11 @@ class CloseDto {
 export class GoodsReceiptController {
   constructor(private service: GoodsReceiptService) {}
 
+  @Get('entladeberichte')
+  listEntladeberichte(@CurrentUser() user: AuthUser) {
+    return this.service.listEntladeberichte(user);
+  }
+
   @Get('groups')
   listGroups(
     @CurrentUser() user: AuthUser,

@@ -37,6 +37,7 @@ enum DocumentType {
   LABEL
   LOADING_LIST
   WAREHOUSE_PHOTO
+  ENTLADEBERICHT
   OTHER
 }
 
@@ -684,6 +685,8 @@ model GoodsReceiptSession {
   createdById    String?
   closedAt       DateTime?
   notes          String?
+  /// PDF Entladebericht (ETB), 30 Tage aufbewahrt
+  documentId     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -694,6 +697,7 @@ model GoodsReceiptSession {
   @@index([organizationId, sessionDate])
   @@index([customerId, externalRef])
   @@index([organizationId, externalRef, sessionDate])
+  @@index([documentId])
 }
 
 model GoodsReceiptColloCheck {

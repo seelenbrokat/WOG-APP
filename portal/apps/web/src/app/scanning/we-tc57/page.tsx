@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 
 type Group = {
   externalRef: string;
@@ -22,6 +22,7 @@ type Session = {
   status: string;
   externalRef: string;
   sessionDate: string;
+  documentId?: string | null;
   customer: { id: string; name: string; customerNumber: string } | null;
   summary: {
     expected: number;
@@ -278,8 +279,7 @@ export default function WeTc57Page() {
 
     busyRef.current = true;
     setLoading(true);
-    bufferRef.current = '';
-    if (inputRef.current) inputRef.current.value = '';
+    clearScannerField();
 
     try {
       const res = await api<{
@@ -442,7 +442,12 @@ export default function WeTc57Page() {
 
   async function closeSession() {
     if (!session) return;
-    if (!confirm('Kontrolle abschließen? Offene Packstücke werden als fehlend markiert.')) return;
+    if (
+      !confirm(
+        'Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. ETB wird per E-Mail versendet.',
+      )
+    )
+      return;
     setLoading(true);
     try {
       const s = await api<Session>(`/goods-receipt/sessions/${session.id}/close`, {
@@ -450,9 +455,14 @@ export default function WeTc57Page() {
         body: JSON.stringify({}),
       });
       setSession(s);
-      setFlash(null);
+      setFlash('ok');
       setHeadline('Kontrolle abgeschlossen');
-      setDetail(`OK ${s.summary.received} · Fehlend ${s.summary.missing} · Überzählig ${s.summary.surplus}`);
+      setDetail(
+        `OK ${s.summary.received} · Fehlend ${s.summary.missing} · Überzählig ${s.summary.surplus}` +
+          (s.documentId
+            ? ' · ETB an info@worldofgreen.ch / mb@logistikberater.at gesendet'
+            : ''),
+      );
     } catch (e: unknown) {
       setFlash('err');
       setHeadline('Abschluss fehlgeschlagen');
@@ -460,6 +470,22 @@ export default function WeTc57Page() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function downloadEtb() {
+    if (!session?.documentId) return;
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${session.documentId}/download`,
+      { headers: { Authorization: `Bearer ${getToken()}` } },
+    );
+    if (!res.ok) throw new Error('ETB-Download fehlgeschlagen');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ETB-${session.externalRef}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const flashBg =
@@ -485,8 +511,8 @@ export default function WeTc57Page() {
         onPointerDown={() => void unlockAudio()}
       >
         <p className="muted" style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.35 }}>
-          Wareneingangskontrolle für Zebra TC57 – Hardware-Scanner, ohne Kamera. Scan + Enter
-          bestätigt sofort.
+          Wareneingangskontrolle für Zebra TC57 – Hardware-Scanner, ohne Kamera. Vollständige SSCC
+          wird automatisch bestätigt (kein Enter nötig).
         </p>
 
         {!session ? (
@@ -658,7 +684,8 @@ export default function WeTc57Page() {
                 }}
               />
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                Zebra: SSCC + Enter → sofort buchen. Feld wird nie deaktiviert.
+                Automatisch: sobald 18/20 Ziffern da sind, wird gebucht – Enter vom Scanner nicht
+                nötig.
               </p>
               <button
                 type="button"
@@ -683,7 +710,9 @@ export default function WeTc57Page() {
                   setFlash(null);
                   bufferRef.current = '';
                   setHeadline('Lieferung wählen');
-                  setDetail('Danach Barcode mit dem TC57 scannen – Enter bestätigt automatisch.');
+                  setDetail(
+                    'Danach Barcode mit dem TC57 scannen – bei vollständiger SSCC wird automatisch bestätigt.',
+                  );
                   void loadGroups();
                 }}
               >
@@ -698,6 +727,21 @@ export default function WeTc57Page() {
                   onClick={() => void closeSession()}
                 >
                   Abschließen
+                </button>
+              ) : session.documentId ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ flex: 1, minHeight: 48 }}
+                  onClick={() =>
+                    void downloadEtb().catch((e) => {
+                      setFlash('err');
+                      setHeadline('Download fehlgeschlagen');
+                      setDetail(e instanceof Error ? e.message : 'Fehler');
+                    })
+                  }
+                >
+                  ETB laden
                 </button>
               ) : null}
             </div>

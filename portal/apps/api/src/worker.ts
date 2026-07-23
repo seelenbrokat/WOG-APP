@@ -8,6 +8,7 @@ import { TourService } from './integrations/tour.service';
 import { TelematicsService } from './integrations/telematics.service';
 import { IntouchService } from './integrations/intouch.service';
 import { WareneingangService } from './integrations/wareneingang.service';
+import { GoodsReceiptService } from './shipments/goods-receipt.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -20,10 +21,13 @@ async function bootstrap() {
   const telematics = app.get(TelematicsService);
   const intouch = app.get(IntouchService);
   const wareneingang = app.get(WareneingangService);
+  const goodsReceipt = app.get(GoodsReceiptService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub + ETB-Retention)',
   );
+
+  let lastEtbPurgeAt = 0;
 
   const tick = async () => {
     try {
@@ -41,6 +45,15 @@ async function bootstrap() {
         console.log(`Soloplan: ${archived.archived} Order-Datei(en) nach Download archiviert`);
       }
       await hub.processInboundQueues();
+
+      // ETB-Retention max. 1× / Stunde
+      if (Date.now() - lastEtbPurgeAt > 60 * 60 * 1000) {
+        lastEtbPurgeAt = Date.now();
+        const purged = await goodsReceipt.purgeExpiredEntladeberichte(30);
+        if (purged.deleted) {
+          console.log(`ETB-Retention: ${purged.deleted} Entladebericht(e) entfernt`);
+        }
+      }
     } catch (err) {
       console.error('Worker tick failed', err);
     }

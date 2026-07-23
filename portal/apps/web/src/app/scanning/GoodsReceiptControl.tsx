@@ -22,6 +22,7 @@ type Session = {
   status: string;
   externalRef: string;
   sessionDate: string;
+  documentId?: string | null;
   customer: { id: string; name: string; customerNumber: string } | null;
   summary: {
     expected: number;
@@ -276,7 +277,8 @@ export function GoodsReceiptControl(props: {
 
   async function closeSession() {
     if (!session) return;
-    if (!confirm('Kontrolle abschließen? Offene Packstücke werden als fehlend markiert.')) return;
+    if (!confirm('Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. ETB wird per E-Mail versendet.'))
+      return;
     setLoading(true);
     try {
       const s = await api<Session>(`/goods-receipt/sessions/${session.id}/close`, {
@@ -284,12 +286,32 @@ export function GoodsReceiptControl(props: {
         body: JSON.stringify({}),
       });
       setSession(s);
-      setInfo('Kontrolle abgeschlossen');
+      setInfo(
+        s.documentId
+          ? 'Kontrolle abgeschlossen · Entladebericht (ETB) erzeugt und an info@worldofgreen.ch / mb@logistikberater.at gesendet'
+          : 'Kontrolle abgeschlossen',
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function downloadEtb() {
+    if (!session?.documentId) return;
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${session.documentId}/download`,
+      { headers: { Authorization: `Bearer ${getToken()}` } },
+    );
+    if (!res.ok) throw new Error('ETB-Download fehlgeschlagen');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ETB-${session.externalRef}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const pending = session?.expectedColli.filter((c) => c.status === 'PENDING') || [];
@@ -525,6 +547,19 @@ export function GoodsReceiptControl(props: {
               <div>
                 OK: <strong>{received.length}</strong>
               </div>
+              {session.documentId ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ minHeight: 44 }}
+                  onClick={() => void downloadEtb().catch((e) => setError(e.message))}
+                >
+                  Entladebericht (ETB) herunterladen
+                </button>
+              ) : null}
+              <p className="muted" style={{ margin: 0, fontSize: '0.82rem' }}>
+                ETB per Mail an info@worldofgreen.ch und mb@logistikberater.at · Speicherung 30 Tage
+              </p>
             </div>
           ) : null}
 

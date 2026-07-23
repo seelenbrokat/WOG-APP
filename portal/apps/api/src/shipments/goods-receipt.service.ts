@@ -2,13 +2,18 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
+import { existsSync, mkdirSync, statSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
+import { NotificationsService } from '../notifications/notifications.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
+import { writeEntladeberichtPdf } from './entladebericht-pdf';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   // dateStr YYYY-MM-DD (lokal als UTC-Tag)
@@ -30,10 +35,16 @@ function normalizeExternalRef(raw: string): string {
 
 @Injectable()
 export class GoodsReceiptService {
+  private readonly logger = new Logger(GoodsReceiptService.name);
+  private readonly uploadDir: string;
+
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
-  ) {}
+    private notifications: NotificationsService,
+  ) {
+    this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
+  }
 
   private assertWarehouseRole(user: AuthUser) {
     if (user.role === UserRole.CUSTOMER_USER) {
@@ -381,6 +392,7 @@ export class GoodsReceiptService {
       customer: session.customer,
       notes: session.notes,
       closedAt: session.closedAt,
+          documentId: session.documentId ?? null,
       summary: {
         expected,
         received,
@@ -627,7 +639,7 @@ export class GoodsReceiptService {
     return this.getSession(user, sessionId);
   }
 
-  /** Sitzung abschließen → fehlende Packstücke markieren, Soll/Ist-Bericht. */
+  /** Sitzung abschließen → fehlende Packstücke markieren, ETB-PDF + E-Mail. */
   async closeSession(user: AuthUser, sessionId: string, notes?: string) {
     this.assertWarehouseRole(user);
     const session = await this.prisma.goodsReceiptSession.findFirst({
@@ -645,15 +657,240 @@ export class GoodsReceiptService {
       });
     }
 
+    const closedAt = new Date();
     await this.prisma.goodsReceiptSession.update({
       where: { id: sessionId },
       data: {
         status: 'CLOSED',
-        closedAt: new Date(),
+        closedAt,
         notes: notes || session.notes,
       },
     });
 
+    try {
+      await this.generateAndSendEntladebericht(user, sessionId);
+    } catch (err: any) {
+      this.logger.error(`ETB für Session ${sessionId} fehlgeschlagen: ${err?.message || err}`);
+    }
+
     return this.getSession(user, sessionId);
+  }
+
+  /** ETB-PDF erzeugen, speichern (30 Tage), an festgelegte Empfänger mailen. */
+  async generateAndSendEntladebericht(user: AuthUser, sessionId: string) {
+    const session = await this.prisma.goodsReceiptSession.findFirst({
+      where: { id: sessionId, organizationId: user.organizationId },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+        checks: {
+          include: {
+            collo: {
+              include: {
+                shipment: {
+                  select: {
+                    reference: true,
+                    trackingNumber: true,
+                    deliveryCompany: true,
+                    deliveryZip: true,
+                    deliveryCity: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        surplus: { orderBy: { scannedAt: 'asc' } },
+      },
+    });
+    if (!session) throw new NotFoundException('Sitzung nicht gefunden');
+
+    const received = session.checks.filter((c) => c.status === 'RECEIVED' || c.status === 'DAMAGED')
+      .length;
+    const damaged = session.checks.filter((c) => c.status === 'DAMAGED').length;
+    const missing = session.checks.filter((c) => c.status === 'MISSING' || c.status === 'PENDING')
+      .length;
+
+    const dateStr = session.sessionDate.toISOString().slice(0, 10);
+    const safeRef = String(session.externalRef || 'ALLE').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `ETB-${safeRef}-${dateStr}-${session.id.slice(-6)}.pdf`;
+    const dir = join(this.uploadDir, 'entladeberichte');
+    mkdirSync(dir, { recursive: true });
+    const storagePath = join(dir, fileName);
+
+    const closer = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { firstName: true, lastName: true, email: true },
+    });
+
+    await writeEntladeberichtPdf(
+      {
+        externalRef: session.externalRef,
+        sessionDate: dateStr,
+        customerName: session.customer?.name,
+        customerNumber: session.customer?.customerNumber,
+        closedAt: session.closedAt || new Date(),
+        closedByName: closer
+          ? `${closer.firstName} ${closer.lastName}`.trim() || closer.email
+          : user.email,
+        notes: session.notes,
+        summary: {
+          expected: session.checks.length,
+          received,
+          damaged,
+          missing,
+          surplus: session.surplus.length,
+        },
+        colli: session.checks.map((c) => ({
+          sscc: c.collo.sscc,
+          status: c.status,
+          itemNumber: c.collo.itemNumber,
+          packaging: c.collo.packaging,
+          content: c.collo.content,
+          weightKg: c.collo.weightKg,
+          reference: c.collo.shipment.reference,
+          deliveryCompany: c.collo.shipment.deliveryCompany,
+          deliveryZip: c.collo.shipment.deliveryZip,
+          deliveryCity: c.collo.shipment.deliveryCity,
+          scannedAt: c.scannedAt,
+          note: c.note,
+        })),
+        surplus: session.surplus.map((s) => ({
+          sscc: s.sscc,
+          scannedAt: s.scannedAt,
+          note: s.note,
+        })),
+      },
+      storagePath,
+    );
+
+    const doc = await this.prisma.document.create({
+      data: {
+        organizationId: session.organizationId,
+        customerId: session.customerId || undefined,
+        type: DocumentType.ENTLADEBERICHT,
+        fileName,
+        mimeType: 'application/pdf',
+        storagePath,
+        sizeBytes: statSync(storagePath).size,
+        uploadedById: user.id,
+      },
+    });
+
+    await this.prisma.goodsReceiptSession.update({
+      where: { id: sessionId },
+      data: { documentId: doc.id },
+    });
+
+    const recipients = this.etbNotifyEmails();
+    const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
+    const subject = `Entladebericht ${session.externalRef} · ${session.customer?.name || 'WE'} · ${dateStr}`;
+    const body = [
+      `Entladebericht (ETB) Wareneingangskontrolle`,
+      ``,
+      `Kunde: ${session.customer?.name || '–'} (${session.customer?.customerNumber || '–'})`,
+      `Referenz: ${session.externalRef}`,
+      `Datum: ${dateStr}`,
+      `Soll ${session.checks.length} · OK ${received} · Beschädigt ${damaged} · Fehlend ${missing} · Überzählig ${session.surplus.length}`,
+      ``,
+      `PDF liegt bei. Aufbewahrung im Portal: 30 Tage.`,
+      `Download: ${appUrl}/api/documents/${doc.id}/download`,
+      ``,
+      `WOG Portal`,
+    ].join('\n');
+
+    for (const to of recipients) {
+      await this.notifications.sendRaw(to, subject, body, undefined, [
+        { filename: fileName, path: storagePath, contentType: 'application/pdf' },
+      ]);
+    }
+
+    this.logger.log(`ETB ${doc.id} erzeugt und an ${recipients.join(', ')} gesendet`);
+    return doc;
+  }
+
+  private etbNotifyEmails(): string[] {
+    const raw =
+      this.config.get<string>('GOODS_RECEIPT_ETB_NOTIFY_EMAILS') ||
+      'info@worldofgreen.ch,mb@logistikberater.at';
+    return raw
+      .split(/[,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  /** Geschlossene ETBs der letzten 30 Tage. */
+  async listEntladeberichte(user: AuthUser, opts?: { take?: number }) {
+    this.assertWarehouseRole(user);
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const sessions = await this.prisma.goodsReceiptSession.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: 'CLOSED',
+        documentId: { not: null },
+        closedAt: { gte: since },
+      },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+      },
+      orderBy: { closedAt: 'desc' },
+      take: Math.min(opts?.take || 100, 200),
+    });
+
+    const docIds = sessions.map((s) => s.documentId!).filter(Boolean);
+    const docs = docIds.length
+      ? await this.prisma.document.findMany({
+          where: { id: { in: docIds }, organizationId: user.organizationId },
+        })
+      : [];
+    const byId = new Map(docs.map((d) => [d.id, d]));
+
+    return sessions.map((s) => {
+      const d = s.documentId ? byId.get(s.documentId) : undefined;
+      return {
+        sessionId: s.id,
+        externalRef: s.externalRef,
+        sessionDate: s.sessionDate.toISOString().slice(0, 10),
+        closedAt: s.closedAt,
+        customer: s.customer,
+        documentId: s.documentId,
+        fileName: d?.fileName || null,
+        sizeBytes: d?.sizeBytes || null,
+        createdAt: d?.createdAt || s.closedAt,
+      };
+    });
+  }
+
+  /** ETBs älter als 30 Tage löschen (Datei + Document + Session-Verweis). */
+  async purgeExpiredEntladeberichte(olderThanDays = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - olderThanDays);
+    const docs = await this.prisma.document.findMany({
+      where: {
+        type: DocumentType.ENTLADEBERICHT,
+        createdAt: { lt: cutoff },
+      },
+      select: { id: true, storagePath: true },
+      take: 200,
+    });
+    let deleted = 0;
+    for (const d of docs) {
+      await this.prisma.goodsReceiptSession.updateMany({
+        where: { documentId: d.id },
+        data: { documentId: null },
+      });
+      if (d.storagePath && existsSync(d.storagePath)) {
+        try {
+          unlinkSync(d.storagePath);
+        } catch (err: any) {
+          this.logger.warn(`ETB-Datei nicht löschbar ${d.storagePath}: ${err?.message || err}`);
+        }
+      }
+      await this.prisma.document.delete({ where: { id: d.id } });
+      deleted += 1;
+    }
+    if (deleted) this.logger.log(`ETB-Retention: ${deleted} Dokument(e) älter als ${olderThanDays} Tage entfernt`);
+    return { deleted };
   }
 }
