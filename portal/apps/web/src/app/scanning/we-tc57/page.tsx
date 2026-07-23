@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { api } from '@/lib/api';
 
@@ -81,46 +81,14 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
-function playTone(ok: boolean) {
-  try {
-    const AC =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const now = ctx.currentTime;
-    gain.gain.setValueAtTime(0.0001, now);
-    if (ok) {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.setValueAtTime(1320, now + 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } else {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.setValueAtTime(140, now + 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
-      osc.start(now);
-      osc.stop(now + 0.32);
-    }
-    window.setTimeout(() => void ctx.close(), 400);
-  } catch {
-    /* ignore */
-  }
-}
-
 export default function WeTc57Page() {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const sessionRef = useRef<Session | null>(null);
   const busyRef = useRef(false);
   const lastScanRef = useRef({ code: '', at: 0 });
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  /** Zeichenpuffer für DataWedge (zuverlässiger als React-State). */
+  const bufferRef = useRef('');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -128,14 +96,75 @@ export default function WeTc57Page() {
   const [customerOrderNo, setCustomerOrderNo] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [session, setSession] = useState<Session | null>(null);
-  const [scanValue, setScanValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<FlashKind>(null);
   const [headline, setHeadline] = useState('Lieferung wählen');
   const [detail, setDetail] = useState('Danach Barcode mit dem TC57 scannen – Enter bestätigt automatisch.');
 
+  sessionRef.current = session;
+
+  async function unlockAudio() {
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function playTone(ok: boolean) {
+    void (async () => {
+      try {
+        await unlockAudio();
+        const ctx = audioCtxRef.current;
+        if (!ctx) return;
+        if (ctx.state === 'suspended') await ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, now);
+        if (ok) {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(980, now);
+          osc.frequency.setValueAtTime(1400, now + 0.07);
+          gain.gain.exponentialRampToValueAtTime(0.28, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+          osc.start(now);
+          osc.stop(now + 0.24);
+        } else {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(240, now);
+          osc.frequency.setValueAtTime(160, now + 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.36);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }
+
   function focusScanner() {
-    window.setTimeout(() => inputRef.current?.focus(), 50);
+    const el = inputRef.current;
+    if (!el) return;
+    try {
+      el.focus({ preventScroll: true });
+      // Cursor ans Ende – DataWedge tippt dann weiter
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    } catch {
+      el.focus();
+    }
   }
 
   async function loadGroups() {
@@ -161,12 +190,27 @@ export default function WeTc57Page() {
     focusScanner();
     const id = window.setInterval(() => {
       if (document.activeElement !== inputRef.current) focusScanner();
-    }, 800);
-    return () => window.clearInterval(id);
+    }, 400);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') focusScanner();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [session?.id, session?.status]);
+
+  useEffect(() => {
+    return () => {
+      void audioCtxRef.current?.close().catch(() => undefined);
+      audioCtxRef.current = null;
+    };
+  }, []);
 
   async function startSession(g: Group) {
     setLoading(true);
+    void unlockAudio();
     try {
       const label = customerOrderNo.trim() || undefined;
       const all = !!g.allCustomerShipments || (g.shipmentCount != null && g.shipmentCount > 1);
@@ -181,12 +225,15 @@ export default function WeTc57Page() {
         }),
       });
       setSession(s);
+      bufferRef.current = '';
+      if (inputRef.current) inputRef.current.value = '';
       setFlash(null);
       setHeadline('Bereit zum Scannen');
       setDetail(
         `${s.customer?.name || 'Kunde'} · ${s.externalRef} · ${s.summary.received}/${s.summary.expected} Colli`,
       );
-      focusScanner();
+      window.setTimeout(() => focusScanner(), 80);
+      window.setTimeout(() => focusScanner(), 300);
     } catch (e: unknown) {
       setFlash('err');
       setHeadline('Start fehlgeschlagen');
@@ -197,20 +244,28 @@ export default function WeTc57Page() {
   }
 
   async function processScan(raw: string) {
-    if (!session || session.status !== 'OPEN' || busyRef.current) return;
+    const current = sessionRef.current;
+    if (!current || current.status !== 'OPEN' || busyRef.current) return;
+
     const candidate = extractSsccCandidate(raw) || String(raw || '').trim();
-    if (!candidate) return;
+    if (!candidate) {
+      focusScanner();
+      return;
+    }
 
     const now = Date.now();
-    // Doppelter Keil-Scan innerhalb 1,5 s ignorieren (Hardware sendet oft 2×)
-    if (candidate === lastScanRef.current.code && now - lastScanRef.current.at < 1500) {
+    // Hardware sendet oft 2× denselben Code – nur sehr kurze Sperre
+    if (candidate === lastScanRef.current.code && now - lastScanRef.current.at < 900) {
+      focusScanner();
       return;
     }
     lastScanRef.current = { code: candidate, at: now };
 
     busyRef.current = true;
     setLoading(true);
-    setScanValue('');
+    bufferRef.current = '';
+    if (inputRef.current) inputRef.current.value = '';
+
     try {
       const res = await api<{
         kind: 'expected' | 'surplus';
@@ -225,7 +280,7 @@ export default function WeTc57Page() {
         };
         knownShipment?: { reference?: string | null; trackingNumber?: string | null } | null;
         session: Session;
-      }>(`/goods-receipt/sessions/${session.id}/scan`, {
+      }>(`/goods-receipt/sessions/${current.id}/scan`, {
         method: 'POST',
         body: JSON.stringify({ sscc: candidate }),
       });
@@ -248,7 +303,6 @@ export default function WeTc57Page() {
         vibrate([25, 30, 50]);
         playTone(true);
       } else {
-        // Nicht in Soll-Liste dieser Kontrolle
         setFlash('miss');
         setHeadline('SSCC nicht gefunden');
         setDetail(
@@ -270,13 +324,35 @@ export default function WeTc57Page() {
     } finally {
       busyRef.current = false;
       setLoading(false);
+      // Fokus mehrfach – Android/Chrome verliert ihn sonst nach API-Antwort
       focusScanner();
+      window.setTimeout(() => focusScanner(), 50);
+      window.setTimeout(() => focusScanner(), 200);
+      window.setTimeout(() => focusScanner(), 500);
     }
   }
 
-  function onScanSubmit(e: FormEvent) {
-    e.preventDefault();
-    void processScan(scanValue);
+  /** DataWedge: Zeichen + Enter/Tab. Wert aus Input/Buffer lesen (nicht React-State). */
+  function onScannerKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      const fromInput = inputRef.current?.value || '';
+      const raw = (fromInput || bufferRef.current).trim();
+      bufferRef.current = '';
+      if (inputRef.current) inputRef.current.value = '';
+      void processScan(raw);
+      return;
+    }
+    // Steuerzeichen nicht puffern
+    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      bufferRef.current += e.key;
+    }
+  }
+
+  function onScannerInput() {
+    // Sync Buffer mit dem, was der Browser wirklich im Feld hat
+    bufferRef.current = inputRef.current?.value || '';
   }
 
   async function closeSession() {
@@ -321,6 +397,7 @@ export default function WeTc57Page() {
           gap: '0.65rem',
           paddingBottom: '1.25rem',
         }}
+        onPointerDown={() => void unlockAudio()}
       >
         <p className="muted" style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.35 }}>
           Wareneingangskontrolle für Zebra TC57 – Hardware-Scanner, ohne Kamera. Scan + Enter
@@ -414,9 +491,13 @@ export default function WeTc57Page() {
                 justifyContent: 'center',
                 gap: 4,
               }}
+              onClick={() => focusScanner()}
             >
               <div style={{ fontSize: '1.35rem', fontWeight: 700, lineHeight: 1.2 }}>{headline}</div>
               <div style={{ fontSize: '0.95rem', opacity: 0.95, wordBreak: 'break-word' }}>{detail}</div>
+              {loading ? (
+                <div style={{ fontSize: '0.85rem', opacity: 0.85, marginTop: 4 }}>Verarbeite…</div>
+              ) : null}
             </div>
 
             <div
@@ -461,41 +542,51 @@ export default function WeTc57Page() {
               </div>
             </div>
 
-            <form onSubmit={onScanSubmit} className="panel stack" style={{ gap: '0.45rem' }}>
+            <div className="panel stack" style={{ gap: '0.45rem' }}>
               <label style={{ fontWeight: 600 }}>Barcode scannen</label>
+              {/* Uncontrolled: DataWedge tippt schneller als React-State */}
               <input
                 ref={inputRef}
-                value={scanValue}
-                onChange={(e) => setScanValue(e.target.value)}
-                inputMode="none"
+                defaultValue=""
+                onKeyDown={onScannerKeyDown}
+                onInput={onScannerInput}
+                onBlur={() => {
+                  if (sessionRef.current?.status === 'OPEN') {
+                    window.setTimeout(() => focusScanner(), 30);
+                  }
+                }}
+                inputMode="numeric"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
                 enterKeyHint="done"
-                placeholder="Scanner bereit…"
-                disabled={loading || session.status !== 'OPEN'}
+                placeholder="Scanner bereit – hier tippt der TC57…"
+                // Nie disabled: sonst verliert DataWedge den Fokus nach dem 1. Scan
+                readOnly={false}
                 style={{
                   minHeight: 56,
                   fontSize: '1.15rem',
                   letterSpacing: '0.02em',
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  background: loading ? '#f3f6f4' : undefined,
                 }}
               />
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                Zebra sendet SSCC + Enter → sofort buchen. Feld bleibt fokussiert.
+                Zebra: SSCC + Enter → sofort buchen. Feld wird nie deaktiviert.
               </p>
-              {session.status === 'OPEN' ? (
-                <button
-                  type="submit"
-                  className="btn btn-secondary"
-                  style={{ minHeight: 44 }}
-                  disabled={loading || !scanValue.trim()}
-                >
-                  Manuell bestätigen
-                </button>
-              ) : null}
-            </form>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ minHeight: 40, fontSize: '0.9rem' }}
+                onClick={() => {
+                  void unlockAudio();
+                  focusScanner();
+                }}
+              >
+                Fokus + Ton freischalten
+              </button>
+            </div>
 
             <div className="row" style={{ gap: '0.45rem' }}>
               <button
@@ -505,6 +596,7 @@ export default function WeTc57Page() {
                 onClick={() => {
                   setSession(null);
                   setFlash(null);
+                  bufferRef.current = '';
                   setHeadline('Lieferung wählen');
                   setDetail('Danach Barcode mit dem TC57 scannen – Enter bestätigt automatisch.');
                   void loadGroups();
