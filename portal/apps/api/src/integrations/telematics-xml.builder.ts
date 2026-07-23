@@ -3,12 +3,14 @@
  * Namespace und Felder entsprechen den Soloplan-Beispielen (TourStatus,
  * TourStopStatus, TransportOrderStatus, Document, SsccStatus, …).
  *
- * VehicleId „VLBPortal“ = Identität der WOG-Zustell-App gegenüber Soloplan.
+ * Telematikkonfiguration der Zustell-App: „VLBPortal“ (Soloplan-Partner/Interface).
+ * VehicleId in den XMLs bleibt die echte Soloplan-Fahrzeug-ID (z. B. 103).
  */
 
 export const TELEMATTICS_NS = 'http://www.soloplan.de/StdTelematics';
-/** Virtuelle Fahrzeug-ID der Fahrer-Zustellapp (Portal → Soloplan) */
-export const VLB_PORTAL_VEHICLE_ID = 'VLBPortal';
+
+/** Name der Soloplan-Telematikkonfiguration (kein Fahrzeug) */
+export const VLB_PORTAL_TELEMATICS_CONFIG = 'VLBPortal';
 
 function esc(v: string | number | null | undefined): string {
   return String(v ?? '')
@@ -20,6 +22,19 @@ function esc(v: string | number | null | undefined): string {
 
 function iso(d: Date = new Date()): string {
   return d.toISOString();
+}
+
+function requireVehicleId(vehicleId: string | undefined | null): string {
+  const id = String(vehicleId || '').trim();
+  if (!id) {
+    throw new Error('VehicleId fehlt – jedes Fahrzeug behält seine Soloplan-ID');
+  }
+  if (id === VLB_PORTAL_TELEMATICS_CONFIG) {
+    throw new Error(
+      'VLBPortal ist die Telematikkonfiguration, keine Fahrzeug-ID – bitte echte VehicleId setzen',
+    );
+  }
+  return id;
 }
 
 function geoXml(loc?: { latitude: number; longitude: number; information?: string; at?: Date }) {
@@ -36,7 +51,8 @@ function geoXml(loc?: { latitude: number; longitude: number; information?: strin
 }
 
 export type OutTourStatus = {
-  vehicleId?: string;
+  /** Echte Soloplan-Fahrzeug-ID (z. B. 103) – nicht VLBPortal */
+  vehicleId: string;
   driverId?: string | null;
   tourNumber: string;
   status: 'Started' | 'Finished' | 'TourBreak' | 'TourBreakEnd' | string;
@@ -48,7 +64,7 @@ export type OutTourStatus = {
 
 /** TourStatus – z. B. Tour starten/beenden */
 export function buildTourStatusXml(input: OutTourStatus): string {
-  const vehicleId = input.vehicleId || VLB_PORTAL_VEHICLE_ID;
+  const vehicleId = requireVehicleId(input.vehicleId);
   const statusDate = input.statusDate || new Date();
   const sendDate = input.sendDate || new Date();
   const driver =
@@ -70,7 +86,7 @@ ${geoXml(input.location)}
 }
 
 export type OutTourStopStatus = {
-  vehicleId?: string;
+  vehicleId: string;
   driverId?: string | null;
   tourStopId: string;
   tourNumber: string;
@@ -83,7 +99,7 @@ export type OutTourStopStatus = {
 
 /** TourStopStatus – Ankunft / Abfahrt an Station */
 export function buildTourStopStatusXml(input: OutTourStopStatus): string {
-  const vehicleId = input.vehicleId || VLB_PORTAL_VEHICLE_ID;
+  const vehicleId = requireVehicleId(input.vehicleId);
   const statusDate = input.statusDate || new Date();
   const sendDate = input.sendDate || new Date();
   const driver =
@@ -106,7 +122,7 @@ ${geoXml(input.location)}
 }
 
 export type OutTransportOrderStatus = {
-  vehicleId?: string;
+  vehicleId: string;
   driverId?: string | null;
   transportOrderNumber: string;
   status:
@@ -127,7 +143,7 @@ export type OutTransportOrderStatus = {
 
 /** TransportOrderStatus – Belade-/Entlade-Status je Auftrag */
 export function buildTransportOrderStatusXml(input: OutTransportOrderStatus): string {
-  const vehicleId = input.vehicleId || VLB_PORTAL_VEHICLE_ID;
+  const vehicleId = requireVehicleId(input.vehicleId);
   const statusDate = input.statusDate || new Date();
   const sendDate = input.sendDate || new Date();
   const driver =
@@ -149,7 +165,7 @@ ${geoXml(input.location)}
 }
 
 export type OutDocument = {
-  vehicleId?: string;
+  vehicleId: string;
   tourNumber?: string;
   transportOrderNumber?: string;
   tourStopId?: string;
@@ -161,7 +177,7 @@ export type OutDocument = {
 
 /** Document – POD / Foto / Unterschrift zurück an Soloplan */
 export function buildDocumentXml(input: OutDocument): string {
-  const vehicleId = input.vehicleId || VLB_PORTAL_VEHICLE_ID;
+  const vehicleId = requireVehicleId(input.vehicleId);
   return `<?xml version="1.0" encoding="utf-8"?>
 <Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}

@@ -68,12 +68,13 @@ export default function FahrerPrepPage() {
     try {
       const res = await api<{
         vehicle103: { soloplanVehicleId: string; licensePlate: string | null };
-        vlbPortal: { soloplanVehicleId: string };
+        telematicsConfig: string;
         driver: { telematicsId: string; firstName: string | null; lastName: string | null };
       }>('/drivers/bootstrap-telematics', { method: 'POST' });
       setInfo(
         `Angelegt/aktualisiert: Fahrzeug ${res.vehicle103.soloplanVehicleId} (${res.vehicle103.licensePlate || '—'}), ` +
-          `VLBPortal, Fahrer ${res.driver.telematicsId} (${res.driver.firstName || ''} ${res.driver.lastName || ''}).`,
+          `Fahrer ${res.driver.telematicsId} (${res.driver.firstName || ''} ${res.driver.lastName || ''}). ` +
+          `Telematikkonfiguration: ${res.telematicsConfig}.`,
       );
       await load();
     } catch (e: any) {
@@ -96,8 +97,8 @@ export default function FahrerPrepPage() {
       <div style={{ display: 'grid', gap: 24, maxWidth: 1100 }}>
         <header>
           <p style={{ margin: 0, color: 'var(--muted, #666)', maxWidth: 720 }}>
-            Vorbereitung der Fahrer-Zustellapp (Web / iOS / Android). Rückmeldungen an Soloplan
-            laufen unter der virtuellen Fahrzeug-ID <strong>VLBPortal</strong>.
+            Vorbereitung der Fahrer-Zustellapp (Web / iOS / Android). Jedes Fahrzeug behält seine
+            Soloplan-ID; die Telematikkonfiguration heißt <strong>VLBPortal</strong>.
           </p>
         </header>
 
@@ -110,7 +111,7 @@ export default function FahrerPrepPage() {
           }}
         >
           <button type="button" onClick={() => void bootstrap()} disabled={bootstrapping}>
-            {bootstrapping ? 'Lege an…' : 'Fahrzeug 103 + Fahrer THNE + VLBPortal anlegen'}
+            {bootstrapping ? 'Lege an…' : 'Fahrzeug 103 + Fahrer THNE anlegen'}
           </button>
           <button type="button" onClick={() => void load()} disabled={loading}>
             Aktualisieren
@@ -185,7 +186,6 @@ export default function FahrerPrepPage() {
                   <tr key={v.id}>
                     <td>
                       <code>{v.soloplanVehicleId}</code>
-                      {v.soloplanVehicleId === 'VLBPortal' ? ' (App)' : ''}
                     </td>
                     <td>{v.number || '—'}</td>
                     <td>{v.licensePlate || '—'}</td>
