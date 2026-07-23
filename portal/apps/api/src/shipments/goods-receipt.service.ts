@@ -806,24 +806,32 @@ export class GoodsReceiptService {
         data: patch,
       });
       if (dimsChanged) {
-        const parts = [
-          check.note?.includes(ETB_DIMS_CHANGED_MARKER)
-            ? check.note
-            : [check.note, ETB_DIMS_CHANGED_MARKER].filter(Boolean).join(' '),
+        const baseNote = String(check.note || '')
+          .replace(ETB_DIMS_CHANGED_MARKER, '')
+          .replace(/Abmessungen angepasst:[^·]*/gi, '')
+          .replace(/Gewicht:\s*[\d.,]+\s*kg[^·]*/gi, '')
+          .replace(/[·]+/g, '·')
+          .replace(/\s{2,}/g, ' ')
+          .replace(/^[·\s]+|[·\s]+$/g, '')
+          .trim();
+        const note = [
+          baseNote,
+          ETB_DIMS_CHANGED_MARKER,
           nextDims
-            ? `Abmessungen angepasst: ${nextDims}${prevDims ? ` (vorher ${prevDims})` : ''}`
+            ? `Abmessungen angepasst: ${nextDims}${
+                prevDims && prevDims !== nextDims ? ` (vorher ${prevDims})` : ''
+              }`
             : null,
-          nextWgt != null && nextWgt !== prev.weightKg
-            ? `Gewicht: ${nextWgt} kg${prev.weightKg != null ? ` (vorher ${prev.weightKg} kg)` : ''}`
+          nextWgt != null
+            ? `Gewicht: ${nextWgt} kg${
+                prev.weightKg != null && prev.weightKg !== nextWgt
+                  ? ` (vorher ${prev.weightKg} kg)`
+                  : ''
+              }`
             : null,
-        ].filter(Boolean);
-        // Doppelte „Abmessungen angepasst“-Zeilen vermeiden
-        const note = parts
-          .join(' · ')
-          .replace(
-            /(Abmessungen angepasst:[^·]+)( · Abmessungen angepasst:[^·]+)+/g,
-            '$1',
-          );
+        ]
+          .filter(Boolean)
+          .join(' · ');
         await tx.goodsReceiptColloCheck.update({
           where: { id: check.id },
           data: { note },
