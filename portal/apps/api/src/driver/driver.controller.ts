@@ -25,7 +25,7 @@ export class DriverController {
     return this.drivers.getDriverByTelematicsId(user, telematicsId);
   }
 
-  /** Einmalig: Fahrzeug 103, Fahrer THNE und VLBPortal aus Telematik-Sample anlegen */
+  /** Einmalig: Fahrzeug 103 + Fahrer THNE anlegen (Telematikconfig: VLBPortal) */
   @Post('bootstrap-telematics')
   bootstrap(@CurrentUser() user: AuthUser) {
     return this.drivers.bootstrapFromTelematicsSample(user.organizationId);

@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
-import { VLB_PORTAL_VEHICLE_ID } from '../integrations/telematics-xml.builder';
+import { VLB_PORTAL_TELEMATICS_CONFIG } from '../integrations/telematics-xml.builder';
 
 export type UpsertDriverInput = {
   telematicsId: string;
@@ -50,7 +50,12 @@ export class DriverService {
 
   async listVehicles(user: AuthUser) {
     return this.prisma.vehicle.findMany({
-      where: { organizationId: user.organizationId, active: true },
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        // VLBPortal ist Telematikkonfiguration, kein Fahrzeug
+        soloplanVehicleId: { not: VLB_PORTAL_TELEMATICS_CONFIG },
+      },
       orderBy: [{ number: 'asc' }, { licensePlate: 'asc' }],
     });
   }
@@ -117,10 +122,10 @@ export class DriverService {
 
   /**
    * Stammdaten aus den empfangenen InTouch-/Tour-Dateien anlegen:
-   * - Fahrzeug 103 (SG432203/SG408255), PIN 1234
+   * - Fahrzeug 103 (SG432203/SG408255), PIN 1234 – behält seine Soloplan-ID
    * - Alias 10301 (Tour VehicleParam1)
    * - Fahrer Thomas Nerat (THNE)
-   * - Virtuelles Fahrzeug VLBPortal für die Zustell-App (Outbound-Identität)
+   * Telematikkonfiguration der App: VLBPortal (kein Fahrzeug)
    */
   async bootstrapFromTelematicsSample(organizationId: string, mandantId?: string | null) {
     let resolvedMandantId = mandantId ?? null;
@@ -153,13 +158,13 @@ export class DriverService {
       lastDriverId: 'THNE',
     });
 
-    const vlbPortal = await this.upsertVehicle(organizationId, {
-      soloplanVehicleId: VLB_PORTAL_VEHICLE_ID,
-      number: 'VLB',
-      matchcode: 'VLBPortal',
-      licensePlate: 'VLB-PORTAL',
-      mandantId: resolvedMandantId,
-      lastDriverId: 'THNE',
+    // Früher fälschlich als Fahrzeug angelegt – deaktivieren (VLBPortal = Config, keine VehicleId)
+    await this.prisma.vehicle.updateMany({
+      where: {
+        organizationId,
+        soloplanVehicleId: VLB_PORTAL_TELEMATICS_CONFIG,
+      },
+      data: { active: false },
     });
 
     const driver = await this.upsertDriver(organizationId, {
@@ -171,10 +176,15 @@ export class DriverService {
     });
 
     this.logger.log(
-      `Bootstrap Fahrer-App: Fahrzeug ${vehicle103.soloplanVehicleId} + ${vlbPortal.soloplanVehicleId}, Fahrer ${driver.telematicsId}`,
+      `Bootstrap Fahrer-App: Fahrzeug ${vehicle103.soloplanVehicleId}, Fahrer ${driver.telematicsId}, Config ${VLB_PORTAL_TELEMATICS_CONFIG}`,
     );
 
-    return { vehicle103, vlbPortal, driver, mandantId: resolvedMandantId };
+    return {
+      vehicle103,
+      driver,
+      telematicsConfig: VLB_PORTAL_TELEMATICS_CONFIG,
+      mandantId: resolvedMandantId,
+    };
   }
 
   async getDriverByTelematicsId(user: AuthUser, telematicsId: string) {
