@@ -123,15 +123,22 @@ const STATUS_LABEL: Record<string, string> = {
 
 /** Rohscan → GS1-18 oder Soloplan-Code (Wareneingang / Intouch). */
 function extractSsccCandidate(raw: string): string | null {
-  let digits = String(raw || '').replace(/\D/g, '');
+  // Etikett: AI (00) oft als führende 00 / "(00)" im Human Readable
+  let digits = String(raw || '')
+    .replace(/^\s*\]C1/i, '')
+    .replace(/^\s*\(00\)/, '')
+    .replace(/\D/g, '');
   if (digits) {
     if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
     if (digits.length > 18 && digits.startsWith('00')) digits = digits.slice(-18);
     if (digits.length === 18) return digits;
+    // Soloplan-WE manchmal ohne Extension-0 (17 statt 18)
+    if (digits.length === 17 && digits.startsWith('9')) return `0${digits}`;
   }
   const cleaned = String(raw || '')
     .trim()
     .replace(/^\]C1/i, '')
+    .replace(/^\(00\)/, '')
     .replace(/\s+/g, '')
     .toUpperCase();
   if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;

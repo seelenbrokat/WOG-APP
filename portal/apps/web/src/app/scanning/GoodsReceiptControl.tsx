@@ -158,7 +158,11 @@ export function GoodsReceiptControl(props: {
       setError('Sitzung ist abgeschlossen.');
       return;
     }
-    const sscc = String(raw || '').trim();
+    // Rohscan inkl. führender GS1-AI „00“ – API normalisiert/matcht Varianten
+    const sscc = String(raw || '')
+      .trim()
+      .replace(/^\]C1/i, '')
+      .replace(/^\(00\)/, '');
     if (!sscc) return;
     setLoading(true);
     setError('');
@@ -170,14 +174,15 @@ export function GoodsReceiptControl(props: {
       setSession(res.session);
       setLastKind(res.kind);
       setDamagedNext(false);
+      const shown = res.sscc || sscc;
       if (res.kind === 'expected') {
         setInfo(
           res.alreadyScanned
-            ? `Bereits gescannt: ${sscc}${res.status === 'DAMAGED' ? ' (beschädigt)' : ''}`
-            : `Soll ✓ ${sscc}${res.status === 'DAMAGED' ? ' – beschädigt' : ''}`,
+            ? `Bereits gescannt: ${shown}${res.status === 'DAMAGED' ? ' (beschädigt)' : ''}`
+            : `Soll ✓ ${shown}${res.status === 'DAMAGED' ? ' – beschädigt' : ''}`,
         );
       } else {
-        setInfo(`Überzählig: ${sscc}${res.knownShipment ? ` (gehört zu ${res.knownShipment.reference || res.knownShipment.trackingNumber})` : ''}`);
+        setInfo(`Überzählig: ${shown}${res.knownShipment ? ` (gehört zu ${res.knownShipment.reference || res.knownShipment.trackingNumber})` : ''}`);
       }
       setManual('');
     } catch (e: any) {

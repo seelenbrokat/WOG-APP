@@ -14,7 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { LabelsService } from '../labels/labels.service';
-import { normalizeScanCode, parseSsccFromScan } from '../labels/sscc';
+import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
 import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
@@ -159,8 +159,10 @@ export class ShipmentsService {
     if (user.role === UserRole.CUSTOMER_USER) {
       throw new ForbiddenException('Scanning nur für Lager / Disposition');
     }
-    // GS1-18 oder Soloplan-Code (z. B. IKU… / Wareneingang)
-    const sscc = normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
+    // GS1-18 oder Soloplan-Code (z. B. IKU… / Wareneingang).
+    // Etikett oft mit AI (00) → führende 00 im Scan; DB ggf. 17/18/20 Stellen.
+    const candidates = ssccMatchCandidates(rawSscc);
+    const sscc = candidates[0] || normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
     if (!sscc) {
       throw new BadRequestException('Ungültige SSCC (GS1-18 oder Soloplan-Code erwartet)');
     }
@@ -169,7 +171,7 @@ export class ShipmentsService {
 
     const collo = await this.prisma.shipmentCollo.findFirst({
       where: {
-        sscc,
+        sscc: { in: candidates },
         shipment: {
           organizationId: user.organizationId,
           mandantId: scanningMandantId,
@@ -198,7 +200,7 @@ export class ShipmentsService {
       shipment.reference?.includes('2291');
 
     return {
-      sscc,
+      sscc: collo.sscc || sscc,
       scannedAt: new Date().toISOString(),
       collo: {
         id: collo.id,

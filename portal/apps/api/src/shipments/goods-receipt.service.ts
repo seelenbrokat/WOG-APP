@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
-import { normalizeScanCode, parseSsccFromScan } from '../labels/sscc';
+import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   // dateStr YYYY-MM-DD (lokal als UTC-Tag)
@@ -418,7 +418,8 @@ export class GoodsReceiptService {
     opts?: { damaged?: boolean; note?: string },
   ) {
     this.assertWarehouseRole(user);
-    const sscc = normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
+    const candidates = ssccMatchCandidates(rawSscc);
+    const sscc = candidates[0] || normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
     if (!sscc) throw new BadRequestException('Ungültige SSCC');
 
     const session = await this.prisma.goodsReceiptSession.findFirst({
@@ -428,7 +429,7 @@ export class GoodsReceiptService {
     if (session.status !== 'OPEN') throw new BadRequestException('Sitzung ist geschlossen');
 
     const check = await this.prisma.goodsReceiptColloCheck.findFirst({
-      where: { sessionId, collo: { sscc } },
+      where: { sessionId, collo: { sscc: { in: candidates } } },
       include: {
         collo: {
           include: {
@@ -464,7 +465,7 @@ export class GoodsReceiptService {
       return {
         kind: 'expected' as const,
         status,
-        sscc,
+        sscc: check.collo.sscc || sscc,
         alreadyScanned: check.status === 'RECEIVED' || check.status === 'DAMAGED',
         collo: {
           id: check.collo.id,
@@ -477,9 +478,9 @@ export class GoodsReceiptService {
       };
     }
 
-    // Überzählig (nicht in Soll-Liste)
+    // Überzählig (nicht in Soll-Liste) – kanonische SSCC ohne AI-00 speichern
     const existingSurplus = await this.prisma.goodsReceiptSurplus.findFirst({
-      where: { sessionId, sscc },
+      where: { sessionId, sscc: { in: candidates } },
     });
     if (!existingSurplus) {
       await this.prisma.goodsReceiptSurplus.create({
@@ -495,7 +496,7 @@ export class GoodsReceiptService {
     // Falls SSCC irgendwo im System existiert – Info mitgeben
     const known = await this.prisma.shipmentCollo.findFirst({
       where: {
-        sscc,
+        sscc: { in: candidates },
         shipment: { organizationId: user.organizationId },
       },
       include: {
