@@ -13,15 +13,12 @@ export type BookAddress = {
   usage: string;
 };
 
-function addressHaystack(a: BookAddress) {
-  return [a.label, a.company, a.street, a.zip, a.city, a.country]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+function nameHaystack(a: BookAddress) {
+  return [a.company, a.label].filter(Boolean).join(' ').toLowerCase();
 }
 
 function addressTitle(a: BookAddress) {
-  return a.label || a.company || a.street;
+  return a.company || a.label || a.street;
 }
 
 function addressMeta(a: BookAddress) {
@@ -35,7 +32,7 @@ type Props = {
   emptyHint?: string;
 };
 
-/** Durchsuchbare Adressbuch-Auswahl für Auftragserfassung. */
+/** Durchsuchbare Adressbuch-Auswahl für Auftragserfassung (Suche nach Kundenname/Firma). */
 export function AddressBookPicker({
   addresses,
   selectedId,
@@ -48,7 +45,7 @@ export function AddressBookPicker({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return addresses.slice(0, 40);
-    return addresses.filter((a) => addressHaystack(a).includes(q)).slice(0, 40);
+    return addresses.filter((a) => nameHaystack(a).includes(q)).slice(0, 40);
   }, [addresses, query]);
 
   const selected = addresses.find((a) => a.id === selectedId);
@@ -93,7 +90,7 @@ export function AddressBookPicker({
       ) : null}
       <input
         type="search"
-        placeholder="Suchen: Firma, Straße, PLZ, Ort…"
+        placeholder="Kundenname / Firma suchen…"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -118,7 +115,7 @@ export function AddressBookPicker({
             </p>
           ) : filtered.length === 0 ? (
             <p className="muted" style={{ margin: '0.6rem', fontSize: '0.85rem' }}>
-              Keine Treffer für „{query.trim()}“.
+              Kein Kundenname „{query.trim()}“ gefunden.
             </p>
           ) : (
             filtered.map((a) => (
@@ -166,39 +163,23 @@ export function AddressBookPicker({
 type SuggestProps = {
   addresses: BookAddress[];
   company: string;
-  street: string;
-  zip: string;
-  city: string;
   onPick: (addressId: string) => void;
   excludeId?: string;
 };
 
-/** Vorschläge während der Eingabe (Firma/Straße/Ort). */
+/** Vorschläge beim Tippen des Kundennamens / der Firma. */
 export function AddressTypingSuggestions({
   addresses,
   company,
-  street,
-  zip,
-  city,
   onPick,
   excludeId,
 }: SuggestProps) {
-  const needle = [company, street, zip, city].map((s) => s.trim()).filter(Boolean);
-  if (needle.length === 0 || addresses.length === 0) return null;
-
-  const q = needle.join(' ').toLowerCase();
-  const tokens = needle.map((s) => s.toLowerCase()).filter((t) => t.length >= 2);
-  if (tokens.length === 0) return null;
+  const q = company.trim().toLowerCase();
+  if (q.length < 2 || addresses.length === 0) return null;
 
   const hits = addresses
     .filter((a) => a.id !== excludeId)
-    .filter((a) => {
-      const hay = addressHaystack(a);
-      // mind. ein Token muss matchen; bei längerer Eingabe stärker filtern
-      const matched = tokens.filter((t) => hay.includes(t)).length;
-      if (tokens.length === 1) return matched >= 1;
-      return matched >= Math.min(2, tokens.length) || hay.includes(q);
-    })
+    .filter((a) => nameHaystack(a).includes(q))
     .slice(0, 5);
 
   if (!hits.length) return null;
@@ -206,7 +187,7 @@ export function AddressTypingSuggestions({
   return (
     <div className="stack" style={{ gap: '0.25rem' }}>
       <span className="muted" style={{ fontSize: '0.8rem' }}>
-        Vorschläge aus dem Adressbuch
+        Vorschläge nach Kundenname
       </span>
       {hits.map((a) => (
         <button
@@ -222,3 +203,4 @@ export function AddressTypingSuggestions({
     </div>
   );
 }
+

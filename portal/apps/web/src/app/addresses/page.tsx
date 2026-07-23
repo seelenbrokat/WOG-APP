@@ -65,7 +65,7 @@ export default function AddressBookPage() {
     const q = addressFilter.trim().toLowerCase();
     if (!q) return addresses;
     return addresses.filter((a) =>
-      [a.label, a.company, a.street, a.zip, a.city, a.country, a.usage]
+      [a.company, a.label]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -283,7 +283,7 @@ export default function AddressBookPage() {
             <strong>Adressbuch</strong>
             <input
               type="search"
-              placeholder="Suchen: Firma, Straße, PLZ, Ort…"
+              placeholder="Kundenname / Firma suchen…"
               value={addressFilter}
               onChange={(e) => setAddressFilter(e.target.value)}
               style={{ margin: '0.5rem 0', width: '100%' }}

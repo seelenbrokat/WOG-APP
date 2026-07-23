@@ -788,9 +788,6 @@ function NewShipmentInner() {
               <AddressTypingSuggestions
                 addresses={pickupAddresses}
                 company={form.pickupCompany}
-                street={form.pickupStreet}
-                zip={form.pickupZip}
-                city={form.pickupCity}
                 onPick={(id) => applyAddress('pickup', id)}
               />
             ) : null}
@@ -953,9 +950,6 @@ function NewShipmentInner() {
               <AddressTypingSuggestions
                 addresses={deliveryAddresses}
                 company={form.deliveryCompany}
-                street={form.deliveryStreet}
-                zip={form.deliveryZip}
-                city={form.deliveryCity}
                 onPick={(id) => applyAddress('delivery', id)}
               />
             ) : null}
