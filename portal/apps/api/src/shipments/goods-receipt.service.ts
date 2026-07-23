@@ -392,7 +392,7 @@ export class GoodsReceiptService {
       customer: session.customer,
       notes: session.notes,
       closedAt: session.closedAt,
-          documentId: session.documentId ?? null,
+      documentId: session.documentId ?? null,
       summary: {
         expected,
         received,
@@ -412,6 +412,9 @@ export class GoodsReceiptService {
         content: c.collo.content,
         packaging: c.collo.packaging,
         weightKg: c.collo.weightKg,
+        lengthCm: c.collo.lengthCm,
+        widthCm: c.collo.widthCm,
+        heightCm: c.collo.heightCm,
         shipmentId: c.collo.shipment.id,
         trackingNumber: c.collo.shipment.trackingNumber,
         reference: c.collo.shipment.reference,
@@ -501,6 +504,10 @@ export class GoodsReceiptService {
           itemNumber: check.collo.itemNumber,
           content: check.collo.content,
           packaging: check.collo.packaging,
+          weightKg: check.collo.weightKg,
+          lengthCm: check.collo.lengthCm,
+          widthCm: check.collo.widthCm,
+          heightCm: check.collo.heightCm,
         },
         shipment: check.collo.shipment,
         session: await this.getSession(user, sessionId),
@@ -592,6 +599,44 @@ export class GoodsReceiptService {
         },
       }),
     ]);
+    return this.getSession(user, sessionId);
+  }
+
+  /** Abmessungen / Gewicht eines Colli nach dem Scan korrigieren. */
+  async updateColloDimensions(
+    user: AuthUser,
+    sessionId: string,
+    colloId: string,
+    data: {
+      lengthCm?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      weightKg?: number | null;
+    },
+  ) {
+    this.assertWarehouseRole(user);
+    const check = await this.prisma.goodsReceiptColloCheck.findFirst({
+      where: { sessionId, colloId, session: { organizationId: user.organizationId } },
+      include: { collo: true },
+    });
+    if (!check) throw new NotFoundException('Packstück nicht in dieser Sitzung');
+
+    const patch: {
+      lengthCm?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      weightKg?: number | null;
+    } = {};
+    if (data.lengthCm !== undefined) patch.lengthCm = data.lengthCm;
+    if (data.widthCm !== undefined) patch.widthCm = data.widthCm;
+    if (data.heightCm !== undefined) patch.heightCm = data.heightCm;
+    if (data.weightKg !== undefined) patch.weightKg = data.weightKg;
+
+    await this.prisma.shipmentCollo.update({
+      where: { id: colloId },
+      data: patch,
+    });
+
     return this.getSession(user, sessionId);
   }
 

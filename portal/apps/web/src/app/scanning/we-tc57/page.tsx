@@ -34,13 +34,29 @@ type Session = {
   };
   expectedColli: Array<{
     checkId: string;
+    colloId: string;
     status: string;
     sscc: string;
     packaging?: string | null;
+    weightKg?: number | null;
+    lengthCm?: number | null;
+    widthCm?: number | null;
+    heightCm?: number | null;
     deliveryCompany?: string | null;
     deliveryZip?: string | null;
     deliveryCity?: string | null;
+    shipmentId?: string;
   }>;
+};
+
+type LastScan = {
+  colloId: string;
+  shipmentId: string;
+  sscc: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
+  weightKg: string;
 };
 
 type Customer = { id: string; name: string; customerNumber: string };
@@ -95,6 +111,7 @@ function vibrate(pattern: number | number[]) {
 
 export default function WeTc57Page() {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   const busyRef = useRef(false);
   const lastScanRef = useRef({ code: '', at: 0 });
@@ -103,6 +120,8 @@ export default function WeTc57Page() {
   const bufferRef = useRef('');
   /** Auto-Bestätigen ohne Enter (DataWedge oft ohne Suffix). */
   const autoTimerRef = useRef<number | null>(null);
+  /** Während Abmessungen tippen: Scanner-Fokus nicht stehlen. */
+  const editingRef = useRef(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -116,6 +135,8 @@ export default function WeTc57Page() {
   const [detail, setDetail] = useState(
     'Danach Barcode mit dem TC57 scannen – bei vollständiger SSCC wird automatisch bestätigt.',
   );
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [showDims, setShowDims] = useState(false);
 
   sessionRef.current = session;
 
@@ -205,10 +226,11 @@ export default function WeTc57Page() {
     if (!session || session.status !== 'OPEN') return;
     focusScanner();
     const id = window.setInterval(() => {
+      if (editingRef.current) return;
       if (document.activeElement !== inputRef.current) focusScanner();
     }, 400);
     const onVis = () => {
-      if (document.visibilityState === 'visible') focusScanner();
+      if (document.visibilityState === 'visible' && !editingRef.current) focusScanner();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
@@ -287,7 +309,18 @@ export default function WeTc57Page() {
         status: string;
         sscc: string;
         alreadyScanned?: boolean;
+        collo?: {
+          id: string;
+          itemNumber: number;
+          content?: string | null;
+          packaging?: string | null;
+          weightKg?: number | null;
+          lengthCm?: number | null;
+          widthCm?: number | null;
+          heightCm?: number | null;
+        };
         shipment?: {
+          id?: string;
           reference?: string | null;
           deliveryCompany?: string | null;
           deliveryZip?: string | null;
@@ -304,6 +337,24 @@ export default function WeTc57Page() {
       const shown = res.sscc || candidate;
       const dest = [res.shipment?.deliveryZip, res.shipment?.deliveryCompany].filter(Boolean).join(' · ');
       const sum = res.session.summary;
+
+      if (res.kind === 'expected' && res.collo) {
+        const fromSession = res.session.expectedColli.find((c) => c.colloId === res.collo!.id);
+        setLastScan({
+          colloId: res.collo.id,
+          shipmentId: fromSession?.shipmentId || res.shipment?.id || '',
+          sscc: shown,
+          lengthCm: res.collo.lengthCm != null ? String(res.collo.lengthCm) : '',
+          widthCm: res.collo.widthCm != null ? String(res.collo.widthCm) : '',
+          heightCm: res.collo.heightCm != null ? String(res.collo.heightCm) : '',
+          weightKg: res.collo.weightKg != null ? String(res.collo.weightKg) : '',
+        });
+        setShowDims(false);
+        editingRef.current = false;
+      } else if (res.kind !== 'expected') {
+        setLastScan(null);
+        setShowDims(false);
+      }
 
       if (res.kind === 'expected' && res.alreadyScanned) {
         setFlash('dup');
@@ -488,6 +539,117 @@ export default function WeTc57Page() {
     URL.revokeObjectURL(url);
   }
 
+  async function markLastDamaged() {
+    if (!session || !lastScan) return;
+    setLoading(true);
+    try {
+      const s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/damage`,
+        { method: 'POST', body: JSON.stringify({ note: 'Beschädigt' }) },
+      );
+      setSession(s);
+      setFlash('dup');
+      setHeadline('Als beschädigt markiert');
+      setDetail(lastScan.sscc);
+      playTone(false);
+      vibrate([50, 40, 50]);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Beschädigt fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      editingRef.current = false;
+      focusScanner();
+    }
+  }
+
+  async function saveDimensions() {
+    if (!session || !lastScan) return;
+    const toNum = (v: string) => {
+      const n = Number(String(v).replace(',', '.'));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    setLoading(true);
+    try {
+      const s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/dimensions`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            lengthCm: toNum(lastScan.lengthCm),
+            widthCm: toNum(lastScan.widthCm),
+            heightCm: toNum(lastScan.heightCm),
+            weightKg: toNum(lastScan.weightKg),
+          }),
+        },
+      );
+      setSession(s);
+      setShowDims(false);
+      editingRef.current = false;
+      setFlash('ok');
+      setHeadline('Abmessungen gespeichert');
+      setDetail(
+        `${lastScan.sscc} · ${lastScan.lengthCm || '–'}×${lastScan.widthCm || '–'}×${lastScan.heightCm || '–'} cm`,
+      );
+      playTone(true);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Abmessungen fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      focusScanner();
+    }
+  }
+
+  async function onPhotoSelected(file: File | null) {
+    if (!file || !session || !lastScan) return;
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const q = new URLSearchParams();
+      if (lastScan.shipmentId) q.set('shipmentId', lastScan.shipmentId);
+      q.set('type', 'WAREHOUSE_PHOTO');
+      const uploadRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/upload?${q.toString()}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body: fd,
+        },
+      );
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.message || 'Foto-Upload fehlgeschlagen');
+      }
+      const doc = await uploadRes.json();
+      const s = await api<Session>(`/goods-receipt/sessions/${session.id}/photo`, {
+        method: 'POST',
+        body: JSON.stringify({
+          documentId: doc.id,
+          colloId: lastScan.colloId,
+          note: 'Foto Wareneingang',
+        }),
+      });
+      setSession(s);
+      setFlash('ok');
+      setHeadline('Foto gespeichert');
+      setDetail(lastScan.sscc);
+      playTone(true);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Foto fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      editingRef.current = false;
+      focusScanner();
+    }
+  }
+
   const flashBg =
     flash === 'ok'
       ? '#1f7a4a'
@@ -590,6 +752,14 @@ export default function WeTc57Page() {
           </div>
         ) : (
           <>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={(e) => void onPhotoSelected(e.target.files?.[0] || null)}
+            />
             <div
               style={{
                 background: flashBg,
@@ -602,7 +772,9 @@ export default function WeTc57Page() {
                 justifyContent: 'center',
                 gap: 4,
               }}
-              onClick={() => focusScanner()}
+              onClick={() => {
+                if (!editingRef.current) focusScanner();
+              }}
             >
               <div style={{ fontSize: '1.35rem', fontWeight: 700, lineHeight: 1.2 }}>{headline}</div>
               <div style={{ fontSize: '0.95rem', opacity: 0.95, wordBreak: 'break-word' }}>{detail}</div>
@@ -610,6 +782,120 @@ export default function WeTc57Page() {
                 <div style={{ fontSize: '0.85rem', opacity: 0.85, marginTop: 4 }}>Verarbeite…</div>
               ) : null}
             </div>
+
+            {lastScan && session.status === 'OPEN' ? (
+              <div className="panel stack" style={{ gap: '0.5rem' }}>
+                <strong>Nachbearbeitung · {lastScan.sscc}</strong>
+                <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                  Optional nach dem Scan – dann weiter scannen.
+                </p>
+                <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ flex: 1, minHeight: 48 }}
+                    disabled={loading}
+                    onClick={() => void markLastDamaged()}
+                  >
+                    Beschädigt
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ flex: 1, minHeight: 48 }}
+                    disabled={loading}
+                    onClick={() => {
+                      editingRef.current = true;
+                      photoInputRef.current?.click();
+                    }}
+                  >
+                    Foto
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ flex: 1, minHeight: 48 }}
+                    disabled={loading}
+                    onClick={() => {
+                      setShowDims((v) => !v);
+                      editingRef.current = !showDims;
+                    }}
+                  >
+                    Abmessungen
+                  </button>
+                </div>
+                {showDims ? (
+                  <div className="stack" style={{ gap: '0.4rem' }}>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      {(
+                        [
+                          ['lengthCm', 'L cm'],
+                          ['widthCm', 'B cm'],
+                          ['heightCm', 'H cm'],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div className="field" key={key}>
+                          <label>{label}</label>
+                          <input
+                            inputMode="decimal"
+                            value={lastScan[key]}
+                            onFocus={() => {
+                              editingRef.current = true;
+                            }}
+                            onBlur={() => {
+                              /* bleiben im Edit-Modus bis Speichern */
+                            }}
+                            onChange={(e) => setLastScan({ ...lastScan, [key]: e.target.value })}
+                            style={{ minHeight: 48, fontSize: '1rem' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="field">
+                      <label>Gewicht kg</label>
+                      <input
+                        inputMode="decimal"
+                        value={lastScan.weightKg}
+                        onFocus={() => {
+                          editingRef.current = true;
+                        }}
+                        onChange={(e) => setLastScan({ ...lastScan, weightKg: e.target.value })}
+                        style={{ minHeight: 48, fontSize: '1rem' }}
+                      />
+                    </div>
+                    <div className="row" style={{ gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => void saveDimensions()}
+                      >
+                        Speichern
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ flex: 1, minHeight: 48 }}
+                        onClick={() => {
+                          setShowDims(false);
+                          editingRef.current = false;
+                          focusScanner();
+                        }}
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div
               className="panel"

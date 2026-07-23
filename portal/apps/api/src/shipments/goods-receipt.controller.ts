@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { IsBoolean, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
@@ -62,6 +63,32 @@ class PhotoMetaDto {
   note?: string;
 }
 
+class DimensionsDto {
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  lengthCm?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  widthCm?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  heightCm?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  weightKg?: number | null;
+}
+
 class CloseDto {
   @IsOptional()
   @IsString()
@@ -112,6 +139,16 @@ export class GoodsReceiptController {
     @Body() dto: DamageDto,
   ) {
     return this.service.markDamaged(user, id, colloId, dto.note);
+  }
+
+  @Patch('sessions/:id/colli/:colloId/dimensions')
+  updateDimensions(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('colloId') colloId: string,
+    @Body() dto: DimensionsDto,
+  ) {
+    return this.service.updateColloDimensions(user, id, colloId, dto);
   }
 
   @Post('sessions/:id/photo')
