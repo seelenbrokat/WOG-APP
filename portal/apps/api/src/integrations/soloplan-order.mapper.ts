@@ -97,7 +97,41 @@ export type PortalShipmentForSoloplan = {
     widthCm?: number | null;
     heightCm?: number | null;
   }>;
+  /** Dokumente für Soloplan documentData (content bereits Base64). */
+  documents?: Array<{
+    fileName: string;
+    /** Soloplan DocumentCategory Matchcode, z. B. ABL */
+    category: string;
+    contentBase64: string;
+  }>;
 };
+
+/** Portal DocumentType → Soloplan DocumentCategory Matchcode */
+export function soloplanDocumentCategory(type: string): string {
+  const map: Record<string, string> = {
+    ABLIEFERBELEG: 'ABL',
+    POD: 'UNTER',
+    LOADING_LIST: 'AUFTRAG',
+    CMR: 'TDOK',
+    CUSTOMS_PAPER: 'CHBEL',
+    INVOICE: 'RG',
+    LABEL: 'INFO',
+    CUSTOMER_UPLOAD: 'INFO',
+  };
+  return map[type] || 'INFO';
+}
+
+export function toSoloplanDocumentData(
+  documents?: PortalShipmentForSoloplan['documents'],
+): Array<{ name: string; category: string; content: string }> {
+  return (documents || [])
+    .filter((d) => d?.fileName && d?.contentBase64)
+    .map((d) => ({
+      name: d.fileName,
+      category: d.category || 'INFO',
+      content: d.contentBase64,
+    }));
+}
 
 function customerToBp(customer: CustomerLike): BusinessPartnerLike {
   // Soloplan BP-Nummer: bevorzugt soloplanBusinessPartnerId, sonst numerische customerNumber
@@ -453,21 +487,32 @@ function buildConsignment(
       customBool10: true,
     },
     isHeavyDutyTransport: false,
-    information: {
-      ...(shipment.notes ? { senderInfo1: shipment.notes } : {}),
-      senderInfo2: [
-        shipment.deliveryCompany,
-        shipment.deliveryCountry,
-        shipment.deliveryZip,
-        shipment.deliveryCity,
-      ]
-        .filter(Boolean)
-        .join('-'),
-      ...(shipment.deliveryAvisPhone
-        ? { receiverInfo1: `Avis-Tel: ${shipment.deliveryAvisPhone}` }
-        : {}),
-      ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
-    },
+    information: (() => {
+      const extras =
+        shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+          ? (shipment.extras as Record<string, unknown>)
+          : {};
+      const pickupNote = String(extras.pickupNote || '').trim();
+      const deliveryNote = String(extras.deliveryNote || '').trim();
+      const senderInfo1 = pickupNote || (shipment.notes ? String(shipment.notes) : '');
+      const receiverParts = [
+        shipment.deliveryAvisPhone ? `Avis-Tel: ${shipment.deliveryAvisPhone}` : '',
+        deliveryNote,
+      ].filter(Boolean);
+      return {
+        ...(senderInfo1 ? { senderInfo1 } : {}),
+        senderInfo2: [
+          shipment.deliveryCompany,
+          shipment.deliveryCountry,
+          shipment.deliveryZip,
+          shipment.deliveryCity,
+        ]
+          .filter(Boolean)
+          .join('-'),
+        ...(receiverParts.length ? { receiverInfo1: receiverParts.join(' | ') } : {}),
+        ...(opts.trackingUrl ? { info14: opts.trackingUrl } : {}),
+      };
+    })(),
     airAndSea: {
       isShipperSecure: false,
       transportWay: 0,
@@ -476,7 +521,75 @@ function buildConsignment(
     },
     additionalTimes: {},
     loadType: 0,
-    documentData: [],
+    documentData: toSoloplanDocumentData(shipment.documents),
+  };
+}
+
+function soloplanHeader() {
+  return {
+    sendDate: formatSoloplanDateTime(new Date())!,
+    exportItemReference: randomUUID(),
+  };
+}
+
+function consignmentExternalNumber(shipment: PortalShipmentForSoloplan): string {
+  return shipment.reference || shipment.trackingNumber;
+}
+
+function orderExternalNumber(shipment: PortalShipmentForSoloplan): string {
+  return shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
+}
+
+/**
+ * Update-Export: keine Sendungsinfos erneut senden.
+ * Nur externe Auftrags-/Sendungsnummer (+ documentData zum Ablegen in Soloplan).
+ */
+export function buildSoloplanUpdatePayload(
+  shipment: PortalShipmentForSoloplan,
+  opts: {
+    format?: SoloplanFileFormat;
+    objectOwnerId?: number;
+    orderShipments?: PortalShipmentForSoloplan[];
+  } = {},
+) {
+  const format: SoloplanFileFormat = opts.format || 'order';
+  const header = soloplanHeader();
+  const siblings =
+    opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
+
+  const consignments = siblings.map((s, idx) => {
+    const documentData = toSoloplanDocumentData(s.documents);
+    return {
+      itemNumber: idx + 1,
+      actionAttribute: 'update',
+      externalNumber: consignmentExternalNumber(s),
+      ...(documentData.length ? { documentData } : {}),
+    };
+  });
+
+  if (format === 'order') {
+    const orderDocuments = toSoloplanDocumentData(
+      siblings
+        .flatMap((s) => s.documents || [])
+        .filter((d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG'),
+    );
+    return {
+      header,
+      order: [
+        {
+          actionAttribute: 'update',
+          externalNumber: orderExternalNumber(shipment),
+          ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
+          consignments,
+          ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
+        },
+      ],
+    };
+  }
+
+  return {
+    header,
+    consignment: consignments,
   };
 }
 
@@ -489,14 +602,17 @@ export function buildSoloplanFilePayload(
     objectOwnerId?: number;
     /** Alle Sendungen desselben Auftrags (1:n) → kumulierte consignments */
     orderShipments?: PortalShipmentForSoloplan[];
+    /** true = nur externe Nummern, keine Sendungsinfos */
+    update?: boolean;
   } = {},
 ) {
+  if (opts.update) {
+    return buildSoloplanUpdatePayload(shipment, opts);
+  }
+
   // Soloplan braucht mindestens einen Auftrag mit Sendung – Default: order
   const format: SoloplanFileFormat = opts.format || 'order';
-  const header = {
-    sendDate: formatSoloplanDateTime(new Date())!,
-    exportItemReference: randomUUID(),
-  };
+  const header = soloplanHeader();
 
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
@@ -514,8 +630,11 @@ export function buildSoloplanFilePayload(
 
   if (format === 'order') {
     const freightPayer = shipment.order?.freightPayer || shipment.customer;
-    const externalNumber =
-      shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
+    const externalNumber = orderExternalNumber(shipment);
+    // Auftragsweite Dokumente (z. B. Ablieferbeleg) zusätzlich auf Order-Ebene
+    const orderDocuments = toSoloplanDocumentData(
+      siblings.flatMap((s) => s.documents || []).filter((d) => d.category === 'ABL' || d.category === 'AUFABL'),
+    );
     return {
       header,
       order: [
@@ -528,6 +647,7 @@ export function buildSoloplanFilePayload(
           // Frachtzahler = eingeloggter Kunde / order.freightPayer
           customer: toMasterDataBp(customerToBp(freightPayer)),
           consignments,
+          documentData: orderDocuments,
         },
       ],
     };
@@ -539,12 +659,37 @@ export function buildSoloplanFilePayload(
   };
 }
 
-export function soloplanOutboundFileName(shipment: PortalShipmentForSoloplan, format: SoloplanFileFormat) {
-  const base = (
+/** Basisnummer ohne Präfix/Suffix, z. B. VLB210700003 */
+export function soloplanOrderBaseName(
+  shipment: PortalShipmentForSoloplan,
+  format: SoloplanFileFormat = 'order',
+): string {
+  return (
     (format === 'order' ? shipment.order?.externalNumber : null) ||
     shipment.reference ||
     shipment.trackingNumber ||
     shipment.id
   ).replace(/[^\w.\-]+/g, '_');
-  return format === 'order' ? `order-${base}.json` : `${base}.json`;
+}
+
+/**
+ * Outbound-Dateiname.
+ * Erstexport: order-VLB210700003.json
+ * Update:     order-VLB210700003-update-20260721T193024.json
+ */
+export function soloplanOutboundFileName(
+  shipment: PortalShipmentForSoloplan,
+  format: SoloplanFileFormat,
+  opts?: { update?: boolean; at?: Date },
+) {
+  const base = soloplanOrderBaseName(shipment, format);
+  if (!opts?.update) {
+    return format === 'order' ? `order-${base}.json` : `${base}.json`;
+  }
+  const d = opts.at || new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return format === 'order'
+    ? `order-${base}-update-${stamp}.json`
+    : `${base}-update-${stamp}.json`;
 }

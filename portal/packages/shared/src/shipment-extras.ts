@@ -27,8 +27,12 @@ export type ShipmentExtraCode = (typeof SHIPMENT_EXTRA_OPTIONS)[number]['code'];
 export type ShipmentExtras = Partial<Record<ShipmentExtraCode, boolean>> & {
   /** Warenwert in EUR (bei Versicherung) */
   goodsValueEur?: number | null;
-  /** Freitext zu Zusatzinfos */
+  /** Freitext zu Zusatzinfos (Register) */
   extrasNote?: string | null;
+  /** Hinweis direkt unter der Ladestellen-Adresse */
+  pickupNote?: string | null;
+  /** Hinweis direkt unter der Entladestellen-Adresse */
+  deliveryNote?: string | null;
 };
 
 export function shipmentExtrasLabels(extras?: ShipmentExtras | null): string[] {

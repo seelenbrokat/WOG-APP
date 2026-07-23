@@ -27,6 +27,8 @@ export enum DocumentType {
   CUSTOMS_PAPER = 'CUSTOMS_PAPER',
   LABEL = 'LABEL',
   LOADING_LIST = 'LOADING_LIST',
+  WAREHOUSE_PHOTO = 'WAREHOUSE_PHOTO',
+  ENTLADEBERICHT = 'ENTLADEBERICHT',
   OTHER = 'OTHER',
 }
 
@@ -78,3 +80,11 @@ export type { PackagingCode } from './packaging';
 
 export { SHIPMENT_EXTRA_OPTIONS, shipmentExtrasLabels } from './shipment-extras';
 export type { ShipmentExtraCode, ShipmentExtras } from './shipment-extras';
+
+export {
+  COUNTRIES,
+  countryLabel,
+  zipPatternForCountry,
+  isValidZipForCountry,
+} from './countries';
+export type { CountryCode } from './countries';

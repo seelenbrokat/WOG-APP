@@ -217,6 +217,18 @@ export class CustomersController {
     return this.service.addAddress(user, customerId || user.customerId || undefined, dto);
   }
 
+  @Post('me/addresses/import-from-shipments')
+  @Roles(UserRole.CUSTOMER_USER, UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  importAddressesFromShipments(
+    @CurrentUser() user: AuthUser,
+    @Query('customerId') customerId?: string,
+  ) {
+    return this.service.importAddressesFromShipments(
+      user,
+      customerId || user.customerId || undefined,
+    );
+  }
+
   @Post('me/templates')
   @Roles(UserRole.CUSTOMER_USER, UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   createMyTemplate(

@@ -4,8 +4,9 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
-import { NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
+import { DocumentType, NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { mandantFilter, customerFilter, assertMandantAccess } from '../common/access';
@@ -13,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { LabelsService } from '../labels/labels.service';
+import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
 import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
 
 function trackingNumber() {
@@ -68,6 +70,7 @@ export function expandPositionsToColli(positions: PositionInput[]): PositionInpu
 export class ShipmentsService {
   constructor(
     private prisma: PrismaService,
+    private config: ConfigService,
     private audit: AuditService,
     private notifications: NotificationsService,
     private soloplan: SoloplanService,
@@ -80,6 +83,32 @@ export class ShipmentsService {
       ...mandantFilter(user),
       ...customerFilter(user),
     };
+  }
+
+  /**
+   * Scanning nur Mandant Soloplan-OrgaNumber 2 (= Code AG / WOG Logistics AG).
+   * Übersteuerbar via SCANNING_MANDANT_CODE.
+   */
+  private async resolveScanningMandantId(user: AuthUser): Promise<string> {
+    const code = this.config.get<string>('SCANNING_MANDANT_CODE') || 'AG';
+    const mandant = await this.prisma.mandant.findFirst({
+      where: { organizationId: user.organizationId, code, active: true },
+      select: { id: true, code: true, name: true },
+    });
+    if (!mandant) {
+      throw new BadRequestException(
+        `Scanning-Mandant „${code}“ (Soloplan-Organisation/Mandant 2) nicht gefunden`,
+      );
+    }
+    if (
+      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+      !user.mandantIds.includes(mandant.id)
+    ) {
+      throw new ForbiddenException(
+        `Kein Zugriff auf Scanning-Mandant ${mandant.code} (Organisation/Mandant 2)`,
+      );
+    }
+    return mandant.id;
   }
 
   list(user: AuthUser, mandantId?: string) {
@@ -123,6 +152,187 @@ export class ShipmentsService {
       throw new ForbiddenException();
     }
     return shipment;
+  }
+
+  /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */
+  async findBySscc(user: AuthUser, rawSscc: string) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      throw new ForbiddenException('Scanning nur für Lager / Disposition');
+    }
+    // GS1-18 oder Soloplan-Code (z. B. IKU… / Wareneingang).
+    // Etikett oft mit AI (00) → führende 00 im Scan; DB ggf. 17/18/20 Stellen.
+    const candidates = ssccMatchCandidates(rawSscc);
+    const sscc = candidates[0] || normalizeScanCode(rawSscc) || parseSsccFromScan(rawSscc);
+    if (!sscc) {
+      throw new BadRequestException('Ungültige SSCC (GS1-18 oder Soloplan-Code erwartet)');
+    }
+
+    const scanningMandantId = await this.resolveScanningMandantId(user);
+
+    const collo = await this.prisma.shipmentCollo.findFirst({
+      where: {
+        sscc: { in: candidates },
+        shipment: {
+          organizationId: user.organizationId,
+          mandantId: scanningMandantId,
+          ...customerFilter(user),
+        },
+      },
+      include: {
+        shipment: {
+          include: {
+            mandant: { select: { id: true, code: true, name: true } },
+            customer: { select: { id: true, name: true, customerNumber: true } },
+            order: { select: { id: true, externalNumber: true } },
+            colli: { orderBy: { itemNumber: 'asc' }, select: { id: true, itemNumber: true, sscc: true } },
+          },
+        },
+      },
+    });
+    if (!collo) throw new NotFoundException(`Kein Collo mit SSCC ${sscc} gefunden`);
+
+    const shipment = collo.shipment;
+
+    const isWareneingang =
+      /wareneingang/i.test(shipment.goodsDescription || '') ||
+      /wareneingang/i.test(shipment.reference || '') ||
+      /^2291\b/i.test(shipment.reference || '') ||
+      shipment.reference?.includes('2291');
+
+    return {
+      sscc: collo.sscc || sscc,
+      scannedAt: new Date().toISOString(),
+      collo: {
+        id: collo.id,
+        itemNumber: collo.itemNumber,
+        sscc: collo.sscc,
+        content: collo.content,
+        packaging: collo.packaging,
+        quantity: collo.quantity,
+        weightKg: collo.weightKg,
+        lengthCm: collo.lengthCm,
+        widthCm: collo.widthCm,
+        heightCm: collo.heightCm,
+      },
+      shipment: {
+        id: shipment.id,
+        trackingNumber: shipment.trackingNumber,
+        reference: shipment.reference,
+        status: shipment.status,
+        goodsDescription: shipment.goodsDescription,
+        packageCount: shipment.packageCount,
+        weightKg: shipment.weightKg,
+        pickupCompany: shipment.pickupCompany,
+        pickupStreet: shipment.pickupStreet,
+        pickupCity: shipment.pickupCity,
+        pickupZip: shipment.pickupZip,
+        pickupCountry: shipment.pickupCountry,
+        deliveryCompany: shipment.deliveryCompany,
+        deliveryStreet: shipment.deliveryStreet,
+        deliveryCity: shipment.deliveryCity,
+        deliveryZip: shipment.deliveryZip,
+        deliveryCountry: shipment.deliveryCountry,
+        mandant: shipment.mandant,
+        customer: shipment.customer,
+        order: shipment.order,
+        colloCount: shipment.colli.length,
+        isWareneingang: !!isWareneingang,
+      },
+    };
+  }
+
+  /**
+   * Labels für Lager-Scanning (nur Mandant 2 / AG):
+   * - SCAN-TEST-* (Übung)
+   * - Auftrag 2291 / Bezeichnung Wareneingang
+   */
+  async listScanTestLabels(user: AuthUser) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      throw new ForbiddenException('Scanning nur für Lager / Disposition');
+    }
+
+    const scanningMandantId = await this.resolveScanningMandantId(user);
+
+    const scope = {
+      organizationId: user.organizationId,
+      mandantId: scanningMandantId,
+      ...customerFilter(user),
+    };
+
+    const shipments = await this.prisma.shipment.findMany({
+      where: {
+        ...scope,
+        status: { not: 'CANCELLED' },
+        OR: [
+          { reference: { startsWith: 'SCAN-TEST-' } },
+          { reference: { startsWith: 'WE-' } },
+          { reference: { contains: '2291', mode: 'insensitive' } },
+          { reference: { contains: 'Wareneingang', mode: 'insensitive' } },
+          { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        reference: true,
+        trackingNumber: true,
+        status: true,
+        goodsDescription: true,
+        pickupCompany: true,
+        pickupStreet: true,
+        pickupZip: true,
+        pickupCity: true,
+        pickupCountry: true,
+        deliveryCompany: true,
+        deliveryStreet: true,
+        deliveryZip: true,
+        deliveryCity: true,
+        deliveryCountry: true,
+        customer: { select: { id: true, name: true, customerNumber: true } },
+        colli: {
+          orderBy: { itemNumber: 'asc' },
+          select: { id: true, itemNumber: true, sscc: true },
+        },
+        documents: {
+          where: { type: DocumentType.LABEL },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, fileName: true, createdAt: true },
+        },
+      },
+      orderBy: [{ reference: 'asc' }, { createdAt: 'desc' }],
+      take: 50,
+    });
+
+    return shipments.map((s) => {
+      const printDocument =
+        s.documents.find((d) => d.fileName.startsWith('Etiketten-')) || s.documents[0] || null;
+      const isWareneingang =
+        /wareneingang/i.test(s.goodsDescription || '') ||
+        /wareneingang/i.test(s.reference || '') ||
+        (s.reference || '').includes('2291');
+      const isTest = (s.reference || '').startsWith('SCAN-TEST-');
+      return {
+        id: s.id,
+        reference: s.reference,
+        trackingNumber: s.trackingNumber,
+        status: s.status,
+        goodsDescription: s.goodsDescription,
+        pickupCompany: s.pickupCompany,
+        pickupStreet: s.pickupStreet,
+        pickupZip: s.pickupZip,
+        pickupCity: s.pickupCity,
+        pickupCountry: s.pickupCountry,
+        deliveryCompany: s.deliveryCompany,
+        deliveryStreet: s.deliveryStreet,
+        deliveryZip: s.deliveryZip,
+        deliveryCity: s.deliveryCity,
+        deliveryCountry: s.deliveryCountry,
+        customer: s.customer,
+        kind: isWareneingang ? 'wareneingang' : isTest ? 'test' : 'other',
+        colli: s.colli,
+        documents: s.documents,
+        printDocument,
+      };
+    });
   }
 
   async create(
@@ -323,32 +533,27 @@ export class ShipmentsService {
       },
     });
 
-    if (data.savePickupAddress && pickupStreet && pickupZip && pickupCity) {
-      await this.prisma.address.create({
-        data: {
-          customerId,
-          label: pickupCompany || 'Abholung',
-          company: pickupCompany,
-          street: pickupStreet,
-          zip: pickupZip,
-          city: pickupCity,
-          country: pickupCountry,
-          usage: 'PICKUP',
-        },
+    // Adressen standardmäßig ins Adressbuch (außer explizit abgewählt)
+    if (data.savePickupAddress !== false && pickupStreet && pickupZip && pickupCity) {
+      await this.ensureCustomerAddress(customerId, {
+        label: pickupCompany || 'Abholung',
+        company: pickupCompany,
+        street: pickupStreet,
+        zip: pickupZip,
+        city: pickupCity,
+        country: pickupCountry,
+        usage: 'PICKUP',
       });
     }
-    if (data.saveDeliveryAddress && deliveryStreet && deliveryZip && deliveryCity) {
-      await this.prisma.address.create({
-        data: {
-          customerId,
-          label: deliveryCompany || 'Zustellung',
-          company: deliveryCompany,
-          street: deliveryStreet,
-          zip: deliveryZip,
-          city: deliveryCity,
-          country: deliveryCountry,
-          usage: 'DELIVERY',
-        },
+    if (data.saveDeliveryAddress !== false && deliveryStreet && deliveryZip && deliveryCity) {
+      await this.ensureCustomerAddress(customerId, {
+        label: deliveryCompany || 'Zustellung',
+        company: deliveryCompany,
+        street: deliveryStreet,
+        zip: deliveryZip,
+        city: deliveryCity,
+        country: deliveryCountry,
+        usage: 'DELIVERY',
       });
     }
     if (data.saveAsTemplateName) {
@@ -396,16 +601,27 @@ export class ShipmentsService {
       positions: shipment.positions,
     });
 
+    const needsCustomsInvoice = Boolean(
+      data.extras && typeof data.extras === 'object' && (data.extras as any).verzollung === true,
+    );
+
     if (status === ShipmentStatus.SUBMITTED) {
       await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.SHIPMENT_CREATED, {
         trackingNumber: shipment.trackingNumber,
         mandant: mandant.name,
       });
-      // Sofort exportieren – Worker hat eine eigene In-Memory-Queue und sähe enqueue nicht.
-      await this.soloplan.exportShipment(shipment.id);
+      // Bei Verzollung erst nach Rechnung (INVOICE) nach Soloplan exportieren
+      if (!needsCustomsInvoice) {
+        await this.soloplan.exportShipment(shipment.id);
+      }
     }
 
-    return this.get(user, shipment.id);
+    const created = await this.get(user, shipment.id);
+    return {
+      ...created,
+      pendingSoloplanExport: needsCustomsInvoice && status === ShipmentStatus.SUBMITTED,
+      requiresInvoice: needsCustomsInvoice,
+    };
   }
 
   /** Neuer Portal-Auftrag mit externer Nummer VLB{TT}{MM}{#####}. */
@@ -483,5 +699,70 @@ export class ShipmentsService {
 
     await this.audit.log(user.id, 'shipment.status', 'Shipment', id, { status, message });
     return updated;
+  }
+
+  /**
+   * Adresse im Kunden-Adressbuch anlegen bzw. wiederverwenden (ohne Duplikate).
+   * Gleiche Straße/PLZ/Ort/Land → bestehender Eintrag; Usage ggf. auf BOTH erweitern.
+   */
+  private async ensureCustomerAddress(
+    customerId: string,
+    data: {
+      label?: string | null;
+      company?: string | null;
+      street: string;
+      zip: string;
+      city: string;
+      country?: string | null;
+      usage: 'PICKUP' | 'DELIVERY' | 'BOTH';
+    },
+  ) {
+    const street = data.street.trim();
+    const zip = data.zip.trim();
+    const city = data.city.trim();
+    const country = (data.country || 'AT').trim().toUpperCase() || 'AT';
+    if (!street || !zip || !city) return null;
+
+    const existing = await this.prisma.address.findFirst({
+      where: {
+        customerId,
+        zip,
+        country,
+        street: { equals: street, mode: 'insensitive' },
+        city: { equals: city, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      const nextUsage =
+        existing.usage === 'BOTH' || existing.usage === data.usage
+          ? existing.usage
+          : 'BOTH';
+      const patch: {
+        usage?: string;
+        company?: string;
+        label?: string;
+      } = {};
+      if (nextUsage !== existing.usage) patch.usage = nextUsage;
+      if (data.company && !existing.company) patch.company = data.company;
+      if (data.label && !existing.label) patch.label = data.label;
+      if (Object.keys(patch).length) {
+        return this.prisma.address.update({ where: { id: existing.id }, data: patch });
+      }
+      return existing;
+    }
+
+    return this.prisma.address.create({
+      data: {
+        customerId,
+        label: data.label || data.company || (data.usage === 'PICKUP' ? 'Abholung' : 'Zustellung'),
+        company: data.company || undefined,
+        street,
+        zip,
+        city,
+        country,
+        usage: data.usage,
+      },
+    });
   }
 }

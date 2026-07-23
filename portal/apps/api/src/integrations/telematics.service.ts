@@ -1,6 +1,15 @@
 import { Injectable, Logger, NotFoundException, StreamableFile } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
 import { basename, join } from 'path';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,6 +19,13 @@ import {
   mimeFromFileName,
   parseTelematicsXml,
 } from './telematics-xml.parser';
+import { LoadingUnitService } from './loading-unit.service';
+import {
+  buildZustellTimeline,
+  deliveryStatusFromEvents,
+  isSignatureDocumentName,
+  writeZustellnachweisPdf,
+} from './zustellnachweis-pdf';
 
 const TOUR_STATUS_MAP: Record<string, string> = {
   Started: 'ACTIVE',
@@ -25,12 +41,15 @@ export class TelematicsService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private loadingUnits: LoadingUnitService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
     this.inboundDirs = [
       join(sftpInbound, 'soloplan', 'tours'),
       join(sftpInbound, 'soloplan', 'business-partners'),
+      // Intouch Retour/Telematics (Status, GPS, POD)
+      join(sftpInbound, 'intouch', 'dokumente'),
     ];
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
@@ -45,15 +64,30 @@ export class TelematicsService {
         : null) ||
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
     if (!org) {
-      return { processed: 0, tourStatus: 0, orderStatus: 0, locations: 0, documents: 0, failed: 0 };
+      return {
+        processed: 0,
+        tourStatus: 0,
+        orderStatus: 0,
+        stopStatus: 0,
+        locations: 0,
+        documents: 0,
+        ssccStatus: 0,
+        receipts: 0,
+        driverActivities: 0,
+        failed: 0,
+      };
     }
 
     const counts = {
       processed: 0,
       tourStatus: 0,
       orderStatus: 0,
+      stopStatus: 0,
       locations: 0,
       documents: 0,
+      ssccStatus: 0,
+      receipts: 0,
+      driverActivities: 0,
       failed: 0,
     };
 
@@ -71,8 +105,12 @@ export class TelematicsService {
     const rank: Record<string, number> = {
       TourStatus: 0,
       TransportOrderStatus: 1,
-      VehicleLocations: 2,
-      Document: 3,
+      TourStopStatus: 2,
+      SsccStatus: 3,
+      VehicleLocations: 4,
+      Document: 5,
+      Receipt: 6,
+      DriverActivities: 7,
     };
     files.sort((a, b) => rank[a.kind] - rank[b.kind] || a.fileName.localeCompare(b.fileName));
 
@@ -98,7 +136,14 @@ export class TelematicsService {
                 select: { id: true },
               })
             : null;
-        if (already || alreadyDoc) {
+        const alreadyLu =
+          kind === 'TourStopStatus'
+            ? await this.prisma.loadingUnitPosting.findFirst({
+                where: { organizationId: org.id, sourceFile: fileName },
+                select: { id: true },
+              })
+            : null;
+        if (already || alreadyDoc || alreadyLu) {
           renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
           continue;
         }
@@ -109,8 +154,12 @@ export class TelematicsService {
         remaining -= 1;
         if (result.kind === 'TourStatus') counts.tourStatus += 1;
         else if (result.kind === 'TransportOrderStatus') counts.orderStatus += 1;
+        else if (result.kind === 'TourStopStatus') counts.stopStatus += 1;
         else if (result.kind === 'VehicleLocations') counts.locations += 1;
         else if (result.kind === 'Document') counts.documents += 1;
+        else if (result.kind === 'SsccStatus') counts.ssccStatus += 1;
+        else if (result.kind === 'Receipt') counts.receipts += 1;
+        else if (result.kind === 'DriverActivities') counts.driverActivities += 1;
         renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
       } catch (err: any) {
         counts.failed += 1;
@@ -120,10 +169,78 @@ export class TelematicsService {
 
     if (counts.processed) {
       this.logger.log(
-        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Loc=${counts.locations}, Doc=${counts.documents}, fail=${counts.failed})`,
+        `Telematics: ${counts.processed} Dateien (Tour=${counts.tourStatus}, TO=${counts.orderStatus}, Stop=${counts.stopStatus}, SSCC=${counts.ssccStatus}, Loc=${counts.locations}, Doc=${counts.documents}, Receipt=${counts.receipts}, Driver=${counts.driverActivities}, fail=${counts.failed})`,
       );
     }
     return counts;
+  }
+
+  /**
+   * Einmaliger/manueller Backfill: zuvor als „sonstige“ archivierte
+   * SsccStatus/Receipt/DriverActivities aus processed/ nachziehen.
+   */
+  async reimportUnrecognizedFromProcessed(organizationId?: string, limit = 400) {
+    const org =
+      (organizationId
+        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
+        : null) ||
+      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
+    if (!org) return { processed: 0, failed: 0, skipped: 0 };
+
+    let processed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const dir of this.inboundDirs) {
+      const processedDir = join(dir, 'processed');
+      if (!existsSync(processedDir)) continue;
+      const files = readdirSync(processedDir)
+        .filter((f) => {
+          const kind = detectTelematicsKind(f);
+          return (
+            !!kind &&
+            (kind === 'SsccStatus' || kind === 'Receipt' || kind === 'DriverActivities')
+          );
+        })
+        .sort()
+        .reverse();
+
+      for (const storedName of files) {
+        if (processed >= limit) break;
+        const originalName = storedName.replace(/^\d{10,}_/, '');
+        const already = await this.prisma.telematicsEvent.findFirst({
+          where: {
+            organizationId: org.id,
+            OR: [{ sourceFile: originalName }, { sourceFile: storedName }],
+          },
+          select: { id: true },
+        });
+        if (already) {
+          skipped += 1;
+          continue;
+        }
+
+        const full = join(processedDir, storedName);
+        try {
+          const xml = readFileSync(full, 'utf8');
+          await this.importXml(org.id, xml, originalName);
+          processed += 1;
+        } catch (err: any) {
+          failed += 1;
+          this.logger.error(
+            `Telematics reimport failed ${storedName}`,
+            err?.message || err,
+          );
+        }
+      }
+    }
+
+    if (processed || failed) {
+      this.logger.log(
+        `Telematics Reimport: ${processed} nachgezogen, ${failed} fehlgeschlagen, ${skipped} übersprungen`,
+      );
+    }
+    return { processed, failed, skipped };
   }
 
   async importXml(organizationId: string, xml: string, fileName?: string) {
@@ -242,6 +359,11 @@ export class TelematicsService {
       return parsed;
     }
 
+    if (parsed.kind === 'TourStopStatus') {
+      await this.loadingUnits.bookTourStopStatus(organizationId, parsed, fileName);
+      return parsed;
+    }
+
     if (parsed.kind === 'VehicleLocations') {
       const vehicle = await this.resolveVehicle(
         organizationId,
@@ -279,7 +401,109 @@ export class TelematicsService {
       return parsed;
     }
 
-    // Document
+    if (parsed.kind === 'SsccStatus') {
+      const primary = parsed.ssccs[0];
+      const eventAt = primary?.statusTimestamp || new Date();
+      const consignments = await this.prisma.tourConsignment.findMany({
+        where: {
+          soloplanOrderNumber: parsed.transportOrderNumber,
+          tour: { organizationId },
+        },
+        include: { tour: true },
+        take: 4,
+      });
+      consignments.sort(
+        (a, b) => (b.tour.updatedAt?.getTime() || 0) - (a.tour.updatedAt?.getTime() || 0),
+      );
+      const primaryConsignment = consignments[0];
+      const statusText = parsed.ssccs
+        .slice(0, 8)
+        .map((s) =>
+          [s.code, s.scanPoint, s.status, s.transportStatus].filter(Boolean).join(':'),
+        )
+        .join('; ');
+
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'SsccStatus',
+          tourId: primaryConsignment?.tourId,
+          tourNumber: primaryConsignment?.tour.tourNumber,
+          transportOrderNumber: parsed.transportOrderNumber,
+          status: primary?.status || primary?.scanPoint || 'SsccStatus',
+          statusText: statusText || undefined,
+          eventAt,
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind === 'Receipt') {
+      const vehicle = parsed.vehicleId
+        ? await this.resolveVehicle(organizationId, parsed.vehicleId)
+        : null;
+      const tour =
+        parsed.referenceType === 'Tour' && parsed.referenceId
+          ? await this.resolveTour(organizationId, parsed.referenceId)
+          : null;
+      const eventAt = parsed.sendDate || new Date();
+      if (tour && parsed.receiptType) {
+        // Receipt = Geräte-ACK (Pending/Sent/Arrived), kein TourStatus Started/Finished
+        await this.prisma.tour.update({
+          where: { id: tour.id },
+          data: {
+            telematicsStatus: parsed.receiptType,
+            lastStatusAt: eventAt,
+            ...(vehicle ? { vehicleId: vehicle.id } : {}),
+          },
+        });
+      }
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'Receipt',
+          vehicleId: vehicle?.id,
+          tourId: tour?.id,
+          tourNumber: tour?.tourNumber || parsed.referenceId,
+          status: parsed.receiptType || 'Receipt',
+          statusText: [parsed.referenceType, parsed.referenceId].filter(Boolean).join(' '),
+          eventAt,
+          sendDate: parsed.sendDate,
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind === 'DriverActivities') {
+      const vehicle = parsed.vehicleId
+        ? await this.resolveVehicle(organizationId, parsed.vehicleId, parsed.driverId)
+        : null;
+      const primary = parsed.activities[0];
+      const statusText = parsed.activities
+        .slice(0, 6)
+        .map((a) => a.activity || 'Activity')
+        .join(', ');
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'DriverActivities',
+          vehicleId: vehicle?.id,
+          status: primary?.activity || 'DriverActivities',
+          statusText:
+            [parsed.vehicleLicensePlate, statusText].filter(Boolean).join(' · ') || undefined,
+          eventAt: primary?.end || primary?.start || new Date(),
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind !== 'Document') {
+      throw new Error(`Unbekannter Telematics-Typ: ${(parsed as { kind: string }).kind}`);
+    }
+
     const buffer = Buffer.from(parsed.contentBase64.replace(/\s/g, ''), 'base64');
     const safe = `${Date.now()}_${parsed.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, 'telematics', safe);
@@ -366,14 +590,92 @@ export class TelematicsService {
     });
   }
 
-  private async resolveTour(organizationId: string, tourNumber: string) {
+  /**
+   * Soloplan referenziert Touren mal als TourNumber (z.B. 184200),
+   * mal als interne TourId / soloplanTourId (z.B. 166702935 in Receipt.Reference.Id).
+   */
+  private async resolveTour(organizationId: string, tourRef: string) {
     return this.prisma.tour.findFirst({
-      where: { organizationId, tourNumber },
+      where: {
+        organizationId,
+        OR: [{ tourNumber: tourRef }, { soloplanTourId: tourRef }],
+      },
       orderBy: [{ updatedAt: 'desc' }],
     });
   }
 
-  async fleetMap(user: AuthUser) {
+  /** Receipts/Events nachziehen, die nur die Soloplan-TourId statt tourNumber hatten. */
+  async relinkOrphanTourRefs(organizationId?: string, limit = 2000) {
+    const org =
+      (organizationId
+        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
+        : null) ||
+      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
+    if (!org) return { linked: 0, toursUpdated: 0 };
+
+    const orphans = await this.prisma.telematicsEvent.findMany({
+      where: {
+        organizationId: org.id,
+        tourId: null,
+        tourNumber: { not: null },
+      },
+      select: { id: true, tourNumber: true, kind: true, status: true, eventAt: true, vehicleId: true },
+      orderBy: { eventAt: 'asc' },
+      take: limit,
+    });
+
+    let linked = 0;
+    const latestByTour = new Map<
+      string,
+      { status: string; eventAt: Date; vehicleId?: string | null }
+    >();
+
+    for (const ev of orphans) {
+      if (!ev.tourNumber) continue;
+      const tour = await this.resolveTour(org.id, ev.tourNumber);
+      if (!tour) continue;
+      await this.prisma.telematicsEvent.update({
+        where: { id: ev.id },
+        data: {
+          tourId: tour.id,
+          tourNumber: tour.tourNumber,
+        },
+      });
+      linked += 1;
+      if (ev.kind === 'Receipt' && ev.status && ev.eventAt) {
+        const prev = latestByTour.get(tour.id);
+        if (!prev || ev.eventAt > prev.eventAt) {
+          latestByTour.set(tour.id, {
+            status: ev.status,
+            eventAt: ev.eventAt,
+            vehicleId: ev.vehicleId,
+          });
+        }
+      }
+    }
+
+    let toursUpdated = 0;
+    for (const [tourId, info] of latestByTour) {
+      await this.prisma.tour.update({
+        where: { id: tourId },
+        data: {
+          telematicsStatus: info.status,
+          lastStatusAt: info.eventAt,
+          ...(info.vehicleId ? { vehicleId: info.vehicleId } : {}),
+        },
+      });
+      toursUpdated += 1;
+    }
+
+    if (linked) {
+      this.logger.log(
+        `Telematics Relink: ${linked} Events an Touren gebunden, ${toursUpdated} Tour-Status aktualisiert`,
+      );
+    }
+    return { linked, toursUpdated };
+  }
+
+  async fleetMap(user: AuthUser, opts?: { mandantId?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
@@ -381,10 +683,15 @@ export class TelematicsService {
         active: true,
         lastLatitude: { not: null },
         lastLongitude: { not: null },
+        ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
       },
       include: {
+        mandant: { select: { id: true, code: true, name: true } },
         tours: {
-          where: { status: { in: ['PLANNED', 'ACTIVE'] } },
+          where: {
+            status: { in: ['PLANNED', 'ACTIVE'] },
+            ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
+          },
           orderBy: [{ lastStatusAt: 'desc' }, { targetStart: 'desc' }],
           take: 1,
           select: {
@@ -406,6 +713,7 @@ export class TelematicsService {
       number: v.number,
       licensePlate: v.licensePlate,
       matchcode: v.matchcode,
+      mandant: v.mandant,
       latitude: v.lastLatitude,
       longitude: v.lastLongitude,
       locationAt: v.lastLocationAt,
@@ -470,6 +778,214 @@ export class TelematicsService {
       file: new StreamableFile(stream),
       fileName: basename(doc.fileName),
       mimeType: doc.mimeType,
+    };
+  }
+
+  /**
+   * Erzeugt einen digitalen Zustellnachweis (PDF) aus einem Soloplan-Unterschriftsdokument
+   * inkl. Empfänger, Zustellstatus und Tracking-Verlauf der zugehörigen Tour/TO.
+   */
+  async generateZustellnachweis(user: AuthUser, docId: string) {
+    if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
+
+    const signatureDoc = await this.prisma.tourDocument.findFirst({
+      where: { id: docId, organizationId: user.organizationId },
+    });
+    if (!signatureDoc || !existsSync(signatureDoc.storagePath)) {
+      throw new NotFoundException('Unterschriftsdokument nicht gefunden');
+    }
+
+    const toNumber = signatureDoc.transportOrderNumber || undefined;
+    const tour =
+      (signatureDoc.tourId
+        ? await this.prisma.tour.findFirst({
+            where: { id: signatureDoc.tourId, organizationId: user.organizationId },
+            include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
+          })
+        : null) ||
+      (signatureDoc.tourNumber
+        ? await this.prisma.tour.findFirst({
+            where: {
+              organizationId: user.organizationId,
+              tourNumber: signatureDoc.tourNumber,
+            },
+            include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
+          })
+        : null);
+
+    const consignment =
+      (toNumber && tour?.consignments.find((c) => c.soloplanOrderNumber === toNumber)) ||
+      tour?.consignments[0] ||
+      null;
+
+    const stopKind = (s: { stopType?: string | null }) => {
+      const t = (s.stopType || '').toLowerCase();
+      if (
+        t.includes('receiver') ||
+        t.includes('unload') ||
+        t.includes('entlad') ||
+        t.includes('zustell') ||
+        t.includes('delivery')
+      ) {
+        return 'receiver';
+      }
+      if (
+        t.includes('sender') ||
+        t.includes('load') ||
+        t.includes('belad') ||
+        t.includes('pickup') ||
+        t.includes('abhol')
+      ) {
+        return 'sender';
+      }
+      return 'other';
+    };
+
+    const unloadStop =
+      (toNumber &&
+        tour?.stops.find((s) => s.transportOrderNumber === toNumber && stopKind(s) === 'receiver')) ||
+      tour?.stops.find((s) => stopKind(s) === 'receiver') ||
+      (toNumber && tour?.stops.find((s) => s.transportOrderNumber === toNumber)) ||
+      tour?.stops[tour.stops.length - 1] ||
+      null;
+
+    const loadStop =
+      (toNumber &&
+        tour?.stops.find((s) => s.transportOrderNumber === toNumber && stopKind(s) === 'sender')) ||
+      tour?.stops.find((s) => stopKind(s) === 'sender') ||
+      null;
+
+    const eventOr = [
+      ...(toNumber ? [{ transportOrderNumber: toNumber }] : []),
+      ...(tour ? [{ tourId: tour.id }] : []),
+    ];
+    const events = eventOr.length
+      ? await this.prisma.telematicsEvent.findMany({
+          where: {
+            organizationId: user.organizationId,
+            kind: { in: ['TransportOrderStatus', 'TourStatus', 'Document'] },
+            OR: eventOr,
+          },
+          orderBy: { eventAt: 'asc' },
+          take: 80,
+        })
+      : [];
+
+    // Für Status/Datum alle TO-Events nutzen; im PDF nur Ankunft + Zugestellt
+    const toEvents = events.filter(
+      (e) =>
+        e.kind === 'TransportOrderStatus' &&
+        (!toNumber || !e.transportOrderNumber || e.transportOrderNumber === toNumber),
+    );
+    const timeline = buildZustellTimeline(toEvents, toNumber);
+
+    const deliveryMeta = deliveryStatusFromEvents([
+      consignment?.status,
+      ...toEvents.map((e) => e.status),
+    ]);
+    const deliveryAt =
+      consignment?.lastStatusAt ||
+      toEvents
+        .filter((e) =>
+          ['UnloadingFinished', 'UnloadingPlaceLeft'].includes(e.status || ''),
+        )
+        .map((e) => e.eventAt)
+        .filter(Boolean)
+        .pop() ||
+      signatureDoc.createdAt;
+
+    const receiverName = consignment?.receiverName || unloadStop?.name || null;
+    const receiverAddress = unloadStop
+      ? [unloadStop.street, [unloadStop.zip, unloadStop.city].filter(Boolean).join(' '), unloadStop.country]
+          .filter(Boolean)
+          .join(', ')
+      : consignment?.statusText || null;
+    const senderName = consignment?.senderName || loadStop?.name || null;
+    const senderAddress = loadStop
+      ? [loadStop.street, [loadStop.zip, loadStop.city].filter(Boolean).join(' '), loadStop.country]
+          .filter(Boolean)
+          .join(', ')
+      : null;
+
+    const loadingUnitExchange = await this.loadingUnits.resolveExchangeNote({
+      organizationId: user.organizationId,
+      tourStopId: unloadStop?.id,
+      tourStopExternalId: unloadStop?.soloplanTourStopId,
+      tourId: tour?.id,
+      tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+      partnerName: receiverName,
+      transportOrderNumber: toNumber,
+    });
+
+    const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
+    if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+    const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `Zustellnachweis-${safeTo}.pdf`;
+    const storagePath = join(outDir, fileName);
+
+    await writeZustellnachweisPdf(
+      {
+        tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+        transportOrderNumber: toNumber || consignment?.soloplanOrderNumber,
+        externalConsignmentNumber: consignment?.externalConsignmentNumber,
+        receiverName,
+        receiverAddress,
+        senderName,
+        senderAddress,
+        deliveryStatus: deliveryMeta.status,
+        deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
+        signaturePath: isSignatureDocumentName(signatureDoc.fileName)
+          ? signatureDoc.storagePath
+          : signatureDoc.mimeType.startsWith('image/')
+            ? signatureDoc.storagePath
+            : null,
+        signatureFileName: signatureDoc.fileName,
+        loadingUnitExchange,
+        events: timeline,
+      },
+      storagePath,
+    );
+
+    // Als TourDocument speichern (oder aktualisieren), damit es in der Tour sichtbar ist
+    const existing = await this.prisma.tourDocument.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        tourId: tour?.id || signatureDoc.tourId || undefined,
+        fileName,
+        mimeType: 'application/pdf',
+      },
+    });
+    const pdfDoc = existing
+      ? await this.prisma.tourDocument.update({
+          where: { id: existing.id },
+          data: {
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            transportOrderNumber: toNumber,
+            tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+          },
+        })
+      : await this.prisma.tourDocument.create({
+          data: {
+            organizationId: user.organizationId,
+            tourId: tour?.id || signatureDoc.tourId,
+            tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
+            transportOrderNumber: toNumber,
+            fileName,
+            mimeType: 'application/pdf',
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+          },
+        });
+
+    const stream = createReadStream(storagePath);
+    return {
+      file: new StreamableFile(stream),
+      fileName,
+      mimeType: 'application/pdf',
+      documentId: pdfDoc.id,
     };
   }
 }

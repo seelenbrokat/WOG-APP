@@ -3,9 +3,33 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { PACKAGING_TYPES, SHIPMENT_EXTRA_OPTIONS, type ShipmentExtras } from '@wog/shared';
+import {
+  COUNTRIES,
+  PACKAGING_TYPES,
+  SHIPMENT_EXTRA_OPTIONS,
+  isValidZipForCountry,
+  type ShipmentExtras,
+} from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
+import {
+  AddressBookPicker,
+  AddressTypingSuggestions,
+} from '@/components/AddressBookPicker';
 import { api, getUser } from '@/lib/api';
+
+type AddressCheck = {
+  status: 'idle' | 'loading' | 'VALID' | 'AMBIGUOUS' | 'INVALID' | 'FORMAT_ERROR';
+  message?: string;
+  suggestions?: Array<{
+    street: string;
+    zip: string;
+    city: string;
+    country: string;
+    displayName: string;
+  }>;
+};
+
+const idleCheck: AddressCheck = { status: 'idle' };
 
 type TabId = 'allgemein' | 'zusatz';
 
@@ -91,6 +115,27 @@ function splitColli(opts: {
 
 type PackagingOption = { code: string; label: string };
 
+type UploadDocType = 'INVOICE' | 'CUSTOMER_UPLOAD' | 'CMR' | 'OTHER';
+
+type PendingDoc = {
+  id: string;
+  file: File;
+  type: UploadDocType;
+};
+
+const DOC_TYPE_OPTIONS: { value: UploadDocType; label: string }[] = [
+  { value: 'INVOICE', label: 'Rechnung' },
+  { value: 'CMR', label: 'CMR / Frachtbrief' },
+  { value: 'CUSTOMER_UPLOAD', label: 'Sonstiges Dokument' },
+  { value: 'OTHER', label: 'Andere' },
+];
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function NewShipmentInner() {
   const router = useRouter();
   const search = useSearchParams();
@@ -112,6 +157,8 @@ function NewShipmentInner() {
     heightCm: '',
   });
   const [extras, setExtras] = useState<ShipmentExtras>({});
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     mandantId: '',
     customerId: '',
@@ -126,17 +173,26 @@ function NewShipmentInner() {
     pickupStreet: '',
     pickupZip: '',
     pickupCity: '',
+    pickupCountry: 'AT',
     deliveryCompany: '',
     deliveryStreet: '',
     deliveryZip: '',
     deliveryCity: '',
+    deliveryCountry: 'AT',
     deliveryAvisPhone: '',
+    pickupNotes: '',
+    deliveryNotes: '',
     notes: '',
     submit: true,
-    savePickupAddress: false,
-    saveDeliveryAddress: false,
+    savePickupAddress: true,
+    saveDeliveryAddress: true,
     saveAsTemplateName: '',
   });
+  const [pickupCheck, setPickupCheck] = useState<AddressCheck>(idleCheck);
+  const [deliveryCheck, setDeliveryCheck] = useState<AddressCheck>(idleCheck);
+  /** Nicht in OSM gefunden / Formatwarnung – trotzdem übernehmen (z. B. Baustelle). */
+  const [pickupOverride, setPickupOverride] = useState(false);
+  const [deliveryOverride, setDeliveryOverride] = useState(false);
 
   function toggleExtra(code: keyof ShipmentExtras, checked: boolean) {
     setExtras((prev) => {
@@ -146,6 +202,9 @@ function NewShipmentInner() {
       }
       return next;
     });
+    if (code === 'verzollung' && !checked) {
+      setInvoiceFile(null);
+    }
   }
 
   const customerQuery =
@@ -211,8 +270,13 @@ function NewShipmentInner() {
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
     if (!addr) {
-      if (kind === 'pickup') setForm((f) => ({ ...f, pickupAddressId: '' }));
-      else setForm((f) => ({ ...f, deliveryAddressId: '' }));
+      if (kind === 'pickup') {
+        setForm((f) => ({ ...f, pickupAddressId: '' }));
+        setPickupOverride(false);
+      } else {
+        setForm((f) => ({ ...f, deliveryAddressId: '' }));
+        setDeliveryOverride(false);
+      }
       return;
     }
     if (kind === 'pickup') {
@@ -223,7 +287,10 @@ function NewShipmentInner() {
         pickupStreet: addr.street,
         pickupZip: addr.zip,
         pickupCity: addr.city,
+        pickupCountry: addr.country || 'AT',
       }));
+      setPickupCheck(idleCheck);
+      setPickupOverride(false);
     } else {
       setForm((f) => ({
         ...f,
@@ -232,7 +299,83 @@ function NewShipmentInner() {
         deliveryStreet: addr.street,
         deliveryZip: addr.zip,
         deliveryCity: addr.city,
+        deliveryCountry: addr.country || 'AT',
       }));
+      setDeliveryCheck(idleCheck);
+      setDeliveryOverride(false);
+    }
+  }
+
+  async function validateAddress(kind: 'pickup' | 'delivery') {
+    const street = kind === 'pickup' ? form.pickupStreet : form.deliveryStreet;
+    const zip = kind === 'pickup' ? form.pickupZip : form.deliveryZip;
+    const city = kind === 'pickup' ? form.pickupCity : form.deliveryCity;
+    const country = kind === 'pickup' ? form.pickupCountry : form.deliveryCountry;
+    const company = kind === 'pickup' ? form.pickupCompany : form.deliveryCompany;
+    const setCheck = kind === 'pickup' ? setPickupCheck : setDeliveryCheck;
+
+    if (!street.trim() || !zip.trim() || !city.trim() || !country.trim()) {
+      setCheck({
+        status: 'FORMAT_ERROR',
+        message: 'Bitte Straße, PLZ, Ort und Land ausfüllen.',
+      });
+      return;
+    }
+    if (!isValidZipForCountry(zip, country)) {
+      setCheck({
+        status: 'FORMAT_ERROR',
+        message: `PLZ-Format für ${country} ungültig.`,
+      });
+      return;
+    }
+
+    setCheck({ status: 'loading', message: 'Adresse wird geprüft…' });
+    if (kind === 'pickup') setPickupOverride(false);
+    else setDeliveryOverride(false);
+    try {
+      const res = await api<{
+        ok: boolean;
+        status: AddressCheck['status'];
+        message: string;
+        suggestions?: AddressCheck['suggestions'];
+      }>('/shipments/validate-address', {
+        method: 'POST',
+        body: JSON.stringify({ street, zip, city, country, company }),
+      });
+      setCheck({
+        status: res.status || (res.ok ? 'VALID' : 'INVALID'),
+        message: res.message,
+        suggestions: res.suggestions || [],
+      });
+    } catch (err: any) {
+      setCheck({ status: 'INVALID', message: err.message || 'Prüfung fehlgeschlagen' });
+    }
+  }
+
+  function applySuggestion(
+    kind: 'pickup' | 'delivery',
+    s: { street: string; zip: string; city: string; country: string },
+  ) {
+    if (kind === 'pickup') {
+      setForm((f) => ({
+        ...f,
+        pickupAddressId: '',
+        pickupStreet: s.street,
+        pickupZip: s.zip,
+        pickupCity: s.city,
+        pickupCountry: s.country || f.pickupCountry,
+      }));
+      setPickupCheck({ status: 'VALID', message: 'Vorschlag übernommen.' });
+    } else {
+      setForm((f) => ({
+        ...f,
+        deliveryAddressId: '',
+        deliveryStreet: s.street,
+        deliveryZip: s.zip,
+        deliveryCity: s.city,
+        deliveryCountry: s.country || f.deliveryCountry,
+      }));
+      setDeliveryCheck({ status: 'VALID', message: 'Vorschlag übernommen.' });
     }
   }
 
@@ -254,12 +397,16 @@ function NewShipmentInner() {
       pickupStreet: t.pickupStreet || '',
       pickupZip: t.pickupZip || '',
       pickupCity: t.pickupCity || '',
+      pickupCountry: t.pickupCountry || 'AT',
       deliveryCompany: t.deliveryCompany || '',
       deliveryStreet: t.deliveryStreet || '',
       deliveryZip: t.deliveryZip || '',
       deliveryCity: t.deliveryCity || '',
+      deliveryCountry: t.deliveryCountry || 'AT',
       notes: t.notes || '',
     }));
+    setPickupCheck(idleCheck);
+    setDeliveryCheck(idleCheck);
     const next = splitColli({
       count,
       packaging: quick.packaging,
@@ -312,10 +459,65 @@ function NewShipmentInner() {
     });
   }
 
+  function addPendingDocs(files: FileList | null, defaultType: UploadDocType = 'CUSTOMER_UPLOAD') {
+    if (!files?.length) return;
+    const next: PendingDoc[] = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
+      file,
+      type: defaultType,
+    }));
+    setPendingDocs((prev) => [...prev, ...next]);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     try {
+      if (extras.verzollung && !invoiceFile) {
+        setTab('zusatz');
+        throw new Error('Bei Verzollung muss eine Rechnung hochgeladen werden.');
+      }
+      if (!form.pickupCountry || !form.deliveryCountry) {
+        setTab('allgemein');
+        throw new Error('Bitte Land für Abholung und Zustellung wählen.');
+      }
+      if (!form.pickupStreet.trim() || !form.pickupZip.trim() || !form.pickupCity.trim()) {
+        setTab('allgemein');
+        throw new Error('Abholadresse unvollständig (Straße, PLZ, Ort, Land).');
+      }
+      if (!form.deliveryStreet.trim() || !form.deliveryZip.trim() || !form.deliveryCity.trim()) {
+        setTab('allgemein');
+        throw new Error('Zustelladresse unvollständig (Straße, PLZ, Ort, Land).');
+      }
+      if (!isValidZipForCountry(form.pickupZip, form.pickupCountry)) {
+        setTab('allgemein');
+        throw new Error(`Abholung: PLZ-Format für ${form.pickupCountry} ungültig.`);
+      }
+      if (!isValidZipForCountry(form.deliveryZip, form.deliveryCountry)) {
+        setTab('allgemein');
+        throw new Error(`Zustellung: PLZ-Format für ${form.deliveryCountry} ungültig.`);
+      }
+      if (
+        (pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR') &&
+        !pickupOverride
+      ) {
+        setTab('allgemein');
+        throw new Error(
+          'Abholadresse prüfen oder „Adresse trotzdem verwenden“ wählen: ' +
+            (pickupCheck.message || 'ungültig'),
+        );
+      }
+      if (
+        (deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR') &&
+        !deliveryOverride
+      ) {
+        setTab('allgemein');
+        throw new Error(
+          'Zustelladresse prüfen oder „Adresse trotzdem verwenden“ wählen: ' +
+            (deliveryCheck.message || 'ungültig'),
+        );
+      }
+
       // Wenn nur Schnellfassung gesetzt und Colli leer/unbearbeitet: vor Submit aufteilen
       let rows = colli;
       const quickCount = Math.max(1, Number(quick.count) || 1);
@@ -371,6 +573,8 @@ function NewShipmentInner() {
       if (form.notes.trim()) {
         extrasPayload.extrasNote = form.notes.trim();
       }
+      if (form.pickupNotes.trim()) extrasPayload.pickupNote = form.pickupNotes.trim();
+      if (form.deliveryNotes.trim()) extrasPayload.deliveryNote = form.deliveryNotes.trim();
       // leere Flags entfernen
       Object.keys(extrasPayload).forEach((k) => {
         const key = k as keyof ShipmentExtras;
@@ -379,10 +583,16 @@ function NewShipmentInner() {
         }
       });
 
+      const {
+        pickupNotes: _pickupNotes,
+        deliveryNotes: _deliveryNotes,
+        ...formFields
+      } = form;
+
       const created = await api<any>('/shipments', {
         method: 'POST',
         body: JSON.stringify({
-          ...form,
+          ...formFields,
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
@@ -394,13 +604,39 @@ function NewShipmentInner() {
           notes: form.notes.trim() || undefined,
           extras: Object.keys(extrasPayload).length ? extrasPayload : undefined,
           saveAsTemplateName: form.saveAsTemplateName || undefined,
+          savePickupAddress: form.savePickupAddress !== false,
+          saveDeliveryAddress: form.saveDeliveryAddress !== false,
           positions,
         }),
       });
+
+      // Dokumente nach Create hochladen (Rechnung zuerst bei Verzollung)
+      const uploads: Array<{ file: File; type: UploadDocType }> = [];
+      if (invoiceFile) uploads.push({ file: invoiceFile, type: 'INVOICE' });
+      for (const d of pendingDocs) {
+        // Rechnung nicht doppelt, wenn separat gewählt
+        if (invoiceFile && d.file === invoiceFile) continue;
+        if (invoiceFile && d.type === 'INVOICE' && d.file.name === invoiceFile.name) continue;
+        uploads.push({ file: d.file, type: d.type });
+      }
+      for (const u of uploads) {
+        const fd = new FormData();
+        fd.append('file', u.file);
+        await api(`/documents/upload?shipmentId=${created.id}&type=${u.type}`, {
+          method: 'POST',
+          body: fd,
+        });
+      }
+
       router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);
-      setTab('allgemein');
+      if (String(err.message || '').toLowerCase().includes('rechnung') ||
+          String(err.message || '').toLowerCase().includes('verzoll')) {
+        setTab('zusatz');
+      } else {
+        setTab('allgemein');
+      }
     }
   }
 
@@ -483,47 +719,311 @@ function NewShipmentInner() {
         <div className="grid-2">
           <div className="stack">
             <strong>Abholung</strong>
-            <select
-              value={form.pickupAddressId}
-              onChange={(e) => applyAddress('pickup', e.target.value)}
-            >
-              <option value="">– aus Adressbuch oder neu –</option>
-              {pickupAddresses.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city}
-                </option>
-              ))}
-            </select>
-            <input placeholder="Firma" value={form.pickupCompany} onChange={(e) => setForm({ ...form, pickupCompany: e.target.value, pickupAddressId: '' })} />
-            <input placeholder="Straße" value={form.pickupStreet} onChange={(e) => setForm({ ...form, pickupStreet: e.target.value, pickupAddressId: '' })} />
+            <AddressBookPicker
+              addresses={pickupAddresses}
+              selectedId={form.pickupAddressId}
+              onSelect={(id) => applyAddress('pickup', id)}
+              emptyHint="Noch keine Abholadressen gespeichert – nach dem ersten Auftrag erscheinen sie hier."
+            />
+            <input
+              placeholder="Firma"
+              value={form.pickupCompany}
+              onChange={(e) => {
+                setForm({ ...form, pickupCompany: e.target.value, pickupAddressId: '' });
+                setPickupCheck(idleCheck);
+                setPickupOverride(false);
+              }}
+            />
+            <input
+              required
+              placeholder="Straße"
+              value={form.pickupStreet}
+              onChange={(e) => {
+                setForm({ ...form, pickupStreet: e.target.value, pickupAddressId: '' });
+                setPickupCheck(idleCheck);
+                setPickupOverride(false);
+              }}
+            />
             <div className="row">
-              <input placeholder="PLZ" value={form.pickupZip} onChange={(e) => setForm({ ...form, pickupZip: e.target.value, pickupAddressId: '' })} />
-              <input placeholder="Ort" value={form.pickupCity} onChange={(e) => setForm({ ...form, pickupCity: e.target.value, pickupAddressId: '' })} />
+              <input
+                required
+                placeholder="PLZ"
+                value={form.pickupZip}
+                onChange={(e) => {
+                  setForm({ ...form, pickupZip: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                  setPickupOverride(false);
+                }}
+              />
+              <input
+                required
+                placeholder="Ort"
+                value={form.pickupCity}
+                onChange={(e) => {
+                  setForm({ ...form, pickupCity: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                  setPickupOverride(false);
+                }}
+              />
+            </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.pickupCountry}
+                onChange={(e) => {
+                  setForm({ ...form, pickupCountry: e.target.value, pickupAddressId: '' });
+                  setPickupCheck(idleCheck);
+                  setPickupOverride(false);
+                }}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!form.pickupAddressId ? (
+              <AddressTypingSuggestions
+                addresses={pickupAddresses}
+                company={form.pickupCompany}
+                onPick={(id) => applyAddress('pickup', id)}
+              />
+            ) : null}
+            <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pickupCheck.status === 'loading'}
+                onClick={() => void validateAddress('pickup')}
+              >
+                {pickupCheck.status === 'loading' ? 'Prüfe…' : 'Adresse prüfen'}
+              </button>
+              {pickupCheck.status === 'VALID' && (
+                <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
+              )}
+              {pickupOverride && (
+                <span style={{ color: 'var(--warn, #b78103)', fontSize: '0.9rem' }}>
+                  manuell übernommen
+                </span>
+              )}
+            </div>
+            {pickupCheck.message && pickupCheck.status !== 'idle' && pickupCheck.status !== 'loading' ? (
+              <p
+                className={
+                  pickupCheck.status === 'VALID'
+                    ? 'success'
+                    : pickupCheck.status === 'AMBIGUOUS' || pickupOverride
+                      ? 'muted'
+                      : 'error'
+                }
+                style={{
+                  margin: 0,
+                  fontSize: '0.85rem',
+                  color:
+                    pickupCheck.status === 'VALID'
+                      ? 'var(--ok, #2f9e62)'
+                      : pickupCheck.status === 'AMBIGUOUS' || pickupOverride
+                        ? 'var(--warn, #b78103)'
+                        : undefined,
+                }}
+              >
+                {pickupCheck.message}
+              </p>
+            ) : null}
+            {pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR' ? (
+              <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={pickupOverride}
+                  onChange={(e) => setPickupOverride(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.85rem' }}>
+                  Adresse trotzdem verwenden (z.&nbsp;B. neue Baustelle / nicht in Karte gefunden)
+                </span>
+              </label>
+            ) : null}
+            {pickupCheck.suggestions && pickupCheck.suggestions.length > 0 ? (
+              <div className="stack" style={{ gap: '0.35rem' }}>
+                {pickupCheck.suggestions.slice(0, 3).map((s, i) => (
+                  <button
+                    key={`${s.displayName}-${i}`}
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ textAlign: 'left', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      applySuggestion('pickup', s);
+                      setPickupOverride(false);
+                    }}
+                  >
+                    Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="field">
+              <label>Info Ladestelle</label>
+              <textarea
+                rows={2}
+                value={form.pickupNotes}
+                onChange={(e) => setForm({ ...form, pickupNotes: e.target.value })}
+                placeholder="z. B. Tor 3, Öffnungszeiten, Ansprechpartner"
+              />
             </div>
             <label className="row">
               <input type="checkbox" checked={form.savePickupAddress} onChange={(e) => setForm({ ...form, savePickupAddress: e.target.checked })} />
               Abholung im Adressbuch speichern
             </label>
+            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Suche.
+            </p>
           </div>
           <div className="stack">
             <strong>Zustellung</strong>
-            <select
-              value={form.deliveryAddressId}
-              onChange={(e) => applyAddress('delivery', e.target.value)}
-            >
-              <option value="">– aus Adressbuch oder neu –</option>
-              {deliveryAddresses.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city}
-                </option>
-              ))}
-            </select>
-            <input placeholder="Firma" value={form.deliveryCompany} onChange={(e) => setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' })} />
-            <input placeholder="Straße" value={form.deliveryStreet} onChange={(e) => setForm({ ...form, deliveryStreet: e.target.value, deliveryAddressId: '' })} />
+            <AddressBookPicker
+              addresses={deliveryAddresses}
+              selectedId={form.deliveryAddressId}
+              onSelect={(id) => applyAddress('delivery', id)}
+              emptyHint="Noch keine Zustelladressen gespeichert – nach dem ersten Auftrag erscheinen sie hier."
+            />
+            <input
+              placeholder="Firma"
+              value={form.deliveryCompany}
+              onChange={(e) => {
+                setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' });
+                setDeliveryCheck(idleCheck);
+                setDeliveryOverride(false);
+              }}
+            />
+            <input
+              required
+              placeholder="Straße"
+              value={form.deliveryStreet}
+              onChange={(e) => {
+                setForm({ ...form, deliveryStreet: e.target.value, deliveryAddressId: '' });
+                setDeliveryCheck(idleCheck);
+                setDeliveryOverride(false);
+              }}
+            />
             <div className="row">
-              <input placeholder="PLZ" value={form.deliveryZip} onChange={(e) => setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' })} />
-              <input placeholder="Ort" value={form.deliveryCity} onChange={(e) => setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' })} />
+              <input
+                required
+                placeholder="PLZ"
+                value={form.deliveryZip}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
+                }}
+              />
+              <input
+                required
+                placeholder="Ort"
+                value={form.deliveryCity}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
+                }}
+              />
             </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.deliveryCountry}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryCountry: e.target.value, deliveryAddressId: '' });
+                  setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
+                }}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!form.deliveryAddressId ? (
+              <AddressTypingSuggestions
+                addresses={deliveryAddresses}
+                company={form.deliveryCompany}
+                onPick={(id) => applyAddress('delivery', id)}
+              />
+            ) : null}
+            <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={deliveryCheck.status === 'loading'}
+                onClick={() => void validateAddress('delivery')}
+              >
+                {deliveryCheck.status === 'loading' ? 'Prüfe…' : 'Adresse prüfen'}
+              </button>
+              {deliveryCheck.status === 'VALID' && (
+                <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
+              )}
+              {deliveryOverride && (
+                <span style={{ color: 'var(--warn, #b78103)', fontSize: '0.9rem' }}>
+                  manuell übernommen
+                </span>
+              )}
+            </div>
+            {deliveryCheck.message && deliveryCheck.status !== 'idle' && deliveryCheck.status !== 'loading' ? (
+              <p
+                className={
+                  deliveryCheck.status === 'VALID'
+                    ? 'success'
+                    : deliveryCheck.status === 'AMBIGUOUS' || deliveryOverride
+                      ? 'muted'
+                      : 'error'
+                }
+                style={{
+                  margin: 0,
+                  fontSize: '0.85rem',
+                  color:
+                    deliveryCheck.status === 'VALID'
+                      ? 'var(--ok, #2f9e62)'
+                      : deliveryCheck.status === 'AMBIGUOUS' || deliveryOverride
+                        ? 'var(--warn, #b78103)'
+                        : undefined,
+                }}
+              >
+                {deliveryCheck.message}
+              </p>
+            ) : null}
+            {deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR' ? (
+              <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={deliveryOverride}
+                  onChange={(e) => setDeliveryOverride(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.85rem' }}>
+                  Adresse trotzdem verwenden (z.&nbsp;B. neue Baustelle / nicht in Karte gefunden)
+                </span>
+              </label>
+            ) : null}
+            {deliveryCheck.suggestions && deliveryCheck.suggestions.length > 0 ? (
+              <div className="stack" style={{ gap: '0.35rem' }}>
+                {deliveryCheck.suggestions.slice(0, 3).map((s, i) => (
+                  <button
+                    key={`${s.displayName}-${i}`}
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ textAlign: 'left', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      applySuggestion('delivery', s);
+                      setDeliveryOverride(false);
+                    }}
+                  >
+                    Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="field">
               <label>Avis-Telefon Zustellung</label>
               <input
@@ -536,10 +1036,26 @@ function NewShipmentInner() {
                 Nummer, unter der die Zustellung avisiert werden kann.
               </p>
             </div>
+            <div className="field">
+              <label>Info Entladestelle</label>
+              <textarea
+                rows={2}
+                value={form.deliveryNotes}
+                onChange={(e) => setForm({ ...form, deliveryNotes: e.target.value })}
+                placeholder="z. B. Hintereingang, Gabelstapler nötig"
+              />
+            </div>
             <label className="row">
-              <input type="checkbox" checked={form.saveDeliveryAddress} onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={form.saveDeliveryAddress}
+                onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })}
+              />
               Zustellung im Adressbuch speichern
             </label>
+            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Suche.
+            </p>
           </div>
         </div>
 
@@ -772,6 +1288,105 @@ function NewShipmentInner() {
                 />
               </div>
             )}
+
+            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
+              <strong style={{ fontSize: '0.95rem' }}>Dokumente</strong>
+              <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+                Laden Sie Begleitpapiere zum Auftrag hoch (PDF, Bilder). Bei Verzollung ist eine Rechnung Pflicht.
+              </p>
+
+              {extras.verzollung && (
+                <div
+                  className="field"
+                  style={{
+                    padding: '0.85rem 1rem',
+                    border: '1px solid var(--line)',
+                    borderRadius: 8,
+                    background: 'var(--soft, #f4f7f5)',
+                  }}
+                >
+                  <label>
+                    Rechnung <span style={{ color: 'var(--danger, #b42318)' }}>*</span>
+                  </label>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                    Verzollung erfordert eine Rechnung (Dokumenttyp Rechnung).
+                  </p>
+                  <input
+                    type="file"
+                    required={Boolean(extras.verzollung)}
+                    accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
+                    onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                  />
+                  {invoiceFile && (
+                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      Ausgewählt: {invoiceFile.name} ({formatBytes(invoiceFile.size)})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="field">
+                <label>Weitere Dokumente (optional)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
+                  onChange={(e) => {
+                    addPendingDocs(e.target.files, 'CUSTOMER_UPLOAD');
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              {pendingDocs.length > 0 && (
+                <div className="stack" style={{ gap: '0.5rem' }}>
+                  {pendingDocs.map((d) => (
+                    <div
+                      key={d.id}
+                      className="row"
+                      style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap',
+                        padding: '0.5rem 0',
+                        borderBottom: '1px solid var(--line)',
+                      }}
+                    >
+                      <span style={{ flex: '1 1 12rem' }}>
+                        {d.file.name}{' '}
+                        <span className="muted">({formatBytes(d.file.size)})</span>
+                      </span>
+                      <select
+                        value={d.type}
+                        onChange={(e) =>
+                          setPendingDocs((prev) =>
+                            prev.map((x) =>
+                              x.id === d.id ? { ...x, type: e.target.value as UploadDocType } : x,
+                            ),
+                          )
+                        }
+                        style={{ minWidth: '10rem' }}
+                      >
+                        {DOC_TYPE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => setPendingDocs((prev) => prev.filter((x) => x.id !== d.id))}
+                      >
+                        Entfernen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="field">
               <label>Hinweise / Bemerkungen</label>
               <textarea

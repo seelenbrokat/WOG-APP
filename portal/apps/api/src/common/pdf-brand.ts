@@ -206,3 +206,72 @@ export function drawDesignedByCredit(doc: PdfDoc, opts?: { left?: number; width?
   doc.x = savedX;
   doc.y = savedY;
 }
+
+export type PdfLoadingUnitExchangeNote = {
+  status: 'EXCHANGED' | 'NOT_EXCHANGED' | 'MIXED' | 'UNKNOWN';
+  headline: string;
+  detail: string;
+  lines: Array<{
+    matchcode: string;
+    label?: string | null;
+    given: number;
+    taken: number;
+    owedQuantity?: number;
+  }>;
+};
+
+/**
+ * Lademitteltausch-Hinweis auf Ablieferbeleg / Zustellnachweis.
+ * Bei Nicht-Tausch besonders hervorgehoben.
+ */
+export function drawLoadingUnitExchangeBox(
+  doc: PdfDoc,
+  note: PdfLoadingUnitExchangeNote | null | undefined,
+): void {
+  if (!note || note.status === 'UNKNOWN') return;
+
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const contentW = right - left;
+  const emphasize = note.status === 'NOT_EXCHANGED' || note.status === 'MIXED';
+  const lineText = note.lines
+    .map((l) => {
+      const owed =
+        l.owedQuantity && l.owedQuantity > 0 ? ` · Anzahl ${l.owedQuantity}` : '';
+      return `${l.matchcode}: Given ${l.given} / Taken ${l.taken}${owed}`;
+    })
+    .join('   ');
+  const body = [note.detail, lineText].filter(Boolean).join('\n');
+  const boxH = emphasize ? 64 : 48;
+  const y = doc.y;
+
+  doc
+    .roundedRect(left, y, contentW, boxH, 6)
+    .lineWidth(emphasize ? 1.6 : 1)
+    .strokeColor(emphasize ? '#9a4d0f' : WOG_PDF.line)
+    .fillColor(emphasize ? '#fff7ed' : WOG_PDF.soft)
+    .fillAndStroke();
+
+  doc
+    .fillColor(emphasize ? '#9a4d0f' : WOG_PDF.muted)
+    .font('Helvetica')
+    .fontSize(8)
+    .text('Lademitteltausch', left + 12, y + 8, { width: contentW - 24 });
+
+  doc
+    .fillColor(emphasize ? '#9a4d0f' : WOG_PDF.green)
+    .font('Helvetica-Bold')
+    .fontSize(emphasize ? 13 : 11)
+    .text(note.headline, left + 12, y + 22, { width: contentW - 24 });
+
+  if (body) {
+    doc
+      .fillColor(WOG_PDF.ink)
+      .font('Helvetica')
+      .fontSize(8)
+      .text(body, left + 12, y + 38, { width: contentW - 24, lineBreak: false });
+  }
+
+  doc.y = y + boxH + 12;
+  doc.x = left;
+}

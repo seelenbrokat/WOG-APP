@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { COUNTRIES, isValidZipForCountry } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
 
@@ -57,6 +58,20 @@ export default function AddressBookPage() {
   const [templateName, setTemplateName] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [forceSaveAddress, setForceSaveAddress] = useState(false);
+  const [addressFilter, setAddressFilter] = useState('');
+
+  const filteredAddresses = useMemo(() => {
+    const q = addressFilter.trim().toLowerCase();
+    if (!q) return addresses;
+    return addresses.filter((a) =>
+      [a.company, a.label]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [addresses, addressFilter]);
 
   const query = useMemo(() => {
     if (user?.role === 'CUSTOMER_USER') return '';
@@ -95,12 +110,41 @@ export default function AddressBookPage() {
     setError('');
     setMessage('');
     try {
+      if (!form.country) throw new Error('Bitte Land wählen.');
+      if (!isValidZipForCountry(form.zip, form.country)) {
+        throw new Error(`PLZ-Format für ${form.country} ungültig.`);
+      }
+      const check = await api<{
+        ok: boolean;
+        status: string;
+        message: string;
+      }>('/shipments/validate-address', {
+        method: 'POST',
+        body: JSON.stringify({
+          street: form.street,
+          zip: form.zip,
+          city: form.city,
+          country: form.country,
+          company: form.company,
+        }),
+      });
+      if ((check.status === 'FORMAT_ERROR' || check.status === 'INVALID') && !forceSaveAddress) {
+        throw new Error(
+          (check.message || 'Adresse ungültig') +
+            ' – oder unten „Trotzdem speichern“ wählen (z. B. Baustelle).',
+        );
+      }
       await api(`/customers/me/addresses${query}`, {
         method: 'POST',
         body: JSON.stringify(form),
       });
       setForm(emptyAddress);
-      setMessage('Adresse gespeichert');
+      setForceSaveAddress(false);
+      setMessage(
+        check.status === 'AMBIGUOUS' || check.status === 'INVALID' || check.status === 'FORMAT_ERROR'
+          ? 'Adresse gespeichert (Prüfung ungenau/nicht gefunden – bitte Eintrag kontrollieren).'
+          : 'Adresse gespeichert und geprüft',
+      );
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -137,6 +181,7 @@ export default function AddressBookPage() {
     <AppShell title="Adressbuch & Vorlagen">
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Gespeicherte Adressen und Auftragsvorlagen – beim nächsten Auftrag einfach auswählen statt neu tippen.
+        Neue Aufträge speichern Abhol- und Zustelladressen automatisch im Adressbuch.
       </p>
 
       {user?.role !== 'CUSTOMER_USER' && (
@@ -155,6 +200,38 @@ export default function AddressBookPage() {
       {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {message && <div className="success" style={{ marginBottom: '1rem' }}>{message}</div>}
 
+      <div className="panel row" style={{ marginBottom: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <strong>Aus bisherigen Sendungen übernehmen</strong>
+          <div className="muted" style={{ fontSize: '0.88rem' }}>
+            Einmalig Abhol- und Zustelladressen aus erfassten Aufträgen ins Adressbuch laden.
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={user?.role !== 'CUSTOMER_USER' && !customerId}
+          onClick={async () => {
+            setError('');
+            setMessage('');
+            try {
+              const res = await api<{ created: number; updated: number; skipped: number }>(
+                `/customers/me/addresses/import-from-shipments${query}`,
+                { method: 'POST' },
+              );
+              setMessage(
+                `${res.created} Adressen neu, ${res.updated} aktualisiert, ${res.skipped} bereits vorhanden.`,
+              );
+              await load();
+            } catch (err: any) {
+              setError(err.message);
+            }
+          }}
+        >
+          Adressen importieren
+        </button>
+      </div>
+
       <div className="grid-2">
         <div className="stack">
           <form className="panel stack" onSubmit={onCreateAddress}>
@@ -166,6 +243,20 @@ export default function AddressBookPage() {
               <input required placeholder="PLZ" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} />
               <input required placeholder="Ort" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
             </div>
+            <div className="field">
+              <label>Land</label>
+              <select
+                required
+                value={form.country}
+                onChange={(e) => setForm({ ...form, country: e.target.value })}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
             <select value={form.usage} onChange={(e) => setForm({ ...form, usage: e.target.value })}>
               <option value="BOTH">Abholung & Zustellung</option>
               <option value="PICKUP">Nur Abholung</option>
@@ -175,11 +266,28 @@ export default function AddressBookPage() {
               <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} />
               Als Standardadresse
             </label>
+            <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={forceSaveAddress}
+                onChange={(e) => setForceSaveAddress(e.target.checked)}
+              />
+              <span style={{ fontSize: '0.85rem' }}>
+                Trotzdem speichern, falls Adresse in der Karte nicht gefunden wird (z.&nbsp;B. Baustelle)
+              </span>
+            </label>
             <button className="btn btn-primary" type="submit">Adresse speichern</button>
           </form>
 
           <div className="panel">
             <strong>Adressbuch</strong>
+            <input
+              type="search"
+              placeholder="Kundenname / Firma suchen…"
+              value={addressFilter}
+              onChange={(e) => setAddressFilter(e.target.value)}
+              style={{ margin: '0.5rem 0', width: '100%' }}
+            />
             <table className="table">
               <thead>
                 <tr>
@@ -190,10 +298,10 @@ export default function AddressBookPage() {
                 </tr>
               </thead>
               <tbody>
-                {addresses.map((a) => (
+                {filteredAddresses.map((a) => (
                   <tr key={a.id}>
                     <td>{a.label || a.company || '–'}{a.isDefault ? ' ★' : ''}</td>
-                    <td>{a.street}, {a.zip} {a.city}</td>
+                    <td>{a.street}, {a.zip} {a.city} ({a.country})</td>
                     <td><span className="badge">{a.usage}</span></td>
                     <td>
                       <button

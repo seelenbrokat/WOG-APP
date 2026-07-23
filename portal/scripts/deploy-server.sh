@@ -153,6 +153,10 @@ fi
 
 mkdir -p data/uploads \
   data/sftp/inbound/soloplan \
+  data/sftp/inbound/soloplan/business-partners \
+  data/sftp/inbound/soloplan/tours \
+  data/sftp/inbound/intouch/meldungen \
+  data/sftp/inbound/intouch/dokumente \
   data/sftp/outbound/soloplan/orders \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
@@ -165,17 +169,39 @@ docker compose up -d --build postgres redis
 sleep 5
 docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
   docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npm run prisma:seed"
-docker compose up -d --build api worker web
+# Kernstack inkl. SFTPGo (restart: unless-stopped) – nach Docker-Crash wieder hoch
+docker compose up -d --build api worker web sftpgo
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
   # Primär: OpenSSH internal-sftp auf Port 22 (Soloplan-Firewall oft nur 22)
   # Optional zusätzlich: SFTPGo auf 12022
   log "Soloplan-SFTP auf Port 22 (OpenSSH internal-sftp)"
   SFTP_ROOT="${APP_DIR}/portal/data/sftp"
+  mkdir -p \
+    "$SFTP_ROOT/inbound/soloplan/business-partners" \
+    "$SFTP_ROOT/inbound/soloplan/tours" \
+    "$SFTP_ROOT/inbound/intouch/meldungen/processed" \
+    "$SFTP_ROOT/inbound/intouch/dokumente/processed" \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive"
   chown root:root "$SFTP_ROOT"
   chmod 755 "$SFTP_ROOT"
   find "$SFTP_ROOT" -type d -exec chmod 755 {} \;
   find "$SFTP_ROOT" -type f -exec chmod 644 {} \; 2>/dev/null || true
+  # Upload- und Pickup-Ordner beschreibbar für SFTP-User soloplan
+  # (Outbound muss löschbar sein – Soloplan entfernt Dateien nach Import)
+  if id soloplan >/dev/null 2>&1; then
+    chown -R soloplan:soloplan \
+      "$SFTP_ROOT/inbound/soloplan" \
+      "$SFTP_ROOT/inbound/intouch" \
+      "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/archive" \
+      2>/dev/null || true
+    chmod 775 \
+      "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/archive" \
+      2>/dev/null || true
+  fi
 
   if [[ ! -f /root/wog-soloplan-sftp.txt ]]; then
     SOLOPLAN_SFTP_PW="$(openssl rand -base64 14 | tr -d '\n=/+')"
@@ -204,6 +230,16 @@ EOF
       --comment "WOG Soloplan SFTP" soloplan
   fi
   echo "soloplan:${SOLOPLAN_SFTP_PW}" | chpasswd
+  chown -R soloplan:soloplan \
+    "$SFTP_ROOT/inbound/soloplan" \
+    "$SFTP_ROOT/inbound/intouch" \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive" \
+    2>/dev/null || true
+  chmod 775 \
+    "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/archive" \
+    2>/dev/null || true
 
   if ! grep -q '^Match User soloplan$' /etc/ssh/sshd_config; then
     cat >> /etc/ssh/sshd_config <<'EOF'
@@ -222,7 +258,7 @@ EOF
   systemctl reload ssh 2>/dev/null || systemctl reload sshd
   log "SFTP-User soloplan auf Port 22 bereit (Credentials: /root/wog-soloplan-sftp.txt)"
 
-  log "SFTPGo-Profil zusätzlich (Port 12022, optional)"
+  log "SFTPGo User/Admin absichern (Port 12022, läuft bereits mit Kernstack)"
   if [[ ! -f /root/wog-sftpgo-admin-password.txt ]]; then
     openssl rand -base64 18 | tr -d '\n' > /root/wog-sftpgo-admin-password.txt
     chmod 600 /root/wog-sftpgo-admin-password.txt
@@ -234,7 +270,7 @@ EOF
   else
     echo "SFTPGO_ADMIN_PASSWORD=$SFTPGO_ADMIN_PASSWORD" >> .env
   fi
-  docker compose --profile sftp up -d sftpgo
+  docker compose up -d sftpgo
   sleep 5
   TOKEN="$(curl -sS -u "admin:${SFTPGO_ADMIN_PASSWORD}" \
     'http://127.0.0.1:18080/api/v2/token' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true)"

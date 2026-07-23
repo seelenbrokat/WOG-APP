@@ -19,6 +19,9 @@ export class NotificationsService {
         host,
         port: Number(this.config.get('SMTP_PORT') || 587),
         secure: false,
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 12_000,
         auth: this.config.get('SMTP_USER')
           ? {
               user: this.config.get('SMTP_USER'),
@@ -86,6 +89,15 @@ export class NotificationsService {
     });
     if (!shipment) return;
 
+    // Wareneingang (Intouch/Soloplan oder manuell) erzeugt viele Sendungen –
+    // keine „Neuer Auftrag“-Mails dafür.
+    if (event === NotificationEvent.SHIPMENT_CREATED && this.isWareneingangShipment(shipment)) {
+      this.logger.debug(
+        `Skip SHIPMENT_CREATED mail for Wareneingang ${shipment.trackingNumber} (${shipment.reference})`,
+      );
+      return;
+    }
+
     const subjectMap: Record<NotificationEvent, string> = {
       SHIPMENT_CREATED: `Neuer Auftrag ${shipment.trackingNumber}`,
       STATUS_CHANGED: `Statusupdate ${shipment.trackingNumber}`,
@@ -109,5 +121,19 @@ export class NotificationsService {
       if (!user.active) continue;
       await this.sendRaw(user.email, subjectMap[event], `Hallo ${user.firstName},\n\n${body}\n`, event);
     }
+  }
+
+  /** Wareneingang-Sendungen: Referenz WE-* oder Warenbeschreibung. */
+  private isWareneingangShipment(shipment: {
+    reference: string | null;
+    goodsDescription: string | null;
+  }): boolean {
+    const ref = shipment.reference || '';
+    const goods = shipment.goodsDescription || '';
+    return (
+      /^WE-/i.test(ref) ||
+      /wareneingang/i.test(ref) ||
+      /wareneingang/i.test(goods)
+    );
   }
 }

@@ -46,11 +46,138 @@ export function ssccAiData(sscc: string): string {
 
 /** True wenn 18 Ziffern und GS1-Prüfziffer korrekt. */
 export function isValidSscc(sscc: string | null | undefined): boolean {
-  const digits = String(sscc || '').replace(/\D/g, '');
-  if (digits.length !== 18) return false;
+  const digits = normalizeSsccDigits(sscc);
+  if (!digits) return false;
   try {
     return gs1CheckDigit(digits.slice(0, 17)) === Number(digits[17]);
   } catch {
     return false;
   }
+}
+
+/**
+ * Normalisiert Scan-/Eingabewerte auf 18 SSCC-Ziffern.
+ * Akzeptiert z. B. "(00)0912…", "000912…", "91…" mit Leerzeichen.
+ */
+export function normalizeSsccDigits(raw: string | null | undefined): string | null {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return null;
+  // GS1 Application Identifier (00) oft als führende 00 im Rohscan
+  if (digits.length === 20 && digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > 18 && digits.startsWith('00')) {
+    digits = digits.slice(-18);
+  }
+  if (digits.length !== 18) return null;
+  return digits;
+}
+
+/** Scan-Rohwert → gültige GS1-SSCC oder null. */
+export function parseSsccFromScan(raw: string | null | undefined): string | null {
+  const digits = normalizeSsccDigits(raw);
+  if (!digits || !isValidSscc(digits)) return null;
+  return digits;
+}
+
+/**
+ * Soloplan/Intouch-SSCC (z. B. IKU516494298) oder GS1-18.
+ * Für Lager-Scan wenn kein reines GS1-Barcode vorliegt.
+ *
+ * Wichtig: Etiketten drucken oft AI (00) als führende „00“ (20 Ziffern).
+ * In der DB liegen SSCCs manchmal ohne führende 0 (17) oder mit AI (20).
+ */
+export function normalizeScanCode(raw: string | null | undefined): string | null {
+  const gs1 = parseSsccFromScan(raw);
+  if (gs1) return gs1;
+
+  let digits = String(raw || '').replace(/\D/g, '');
+  // GS1 AI (00) + 18 Nutzdaten
+  if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.length > 18 && digits.startsWith('00')) digits = digits.slice(-18);
+  // Wareneingang liefert oft 18 Ziffern ohne gültige Prüfziffer – trotzdem suchen
+  if (digits.length === 18) return digits;
+  // Fehlende Extension-0 (WOG/GS1 oft 0912… → in XML als 912…)
+  if (digits.length === 17 && digits.startsWith('9')) return `0${digits}`;
+  if (digits.length >= 12 && digits.length <= 22 && /^\d+$/.test(digits)) return digits;
+
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^\]C1/i, '')
+    .replace(/^\(00\)/, '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+  if (!cleaned) return null;
+  if (/^[A-Z0-9-]{6,32}$/i.test(cleaned)) return cleaned;
+  return null;
+}
+
+/**
+ * Alle plausiblen SSCC-Varianten für DB-Lookup (exakter Match auf `ShipmentCollo.sscc`).
+ * Reihenfolge: kanonische Form zuerst.
+ */
+export function ssccMatchCandidates(raw: string | null | undefined): string[] {
+  const out: string[] = [];
+  const push = (v: string | null | undefined) => {
+    const s = String(v || '').trim();
+    if (!s || out.includes(s)) return;
+    out.push(s);
+  };
+
+  const primary = normalizeScanCode(raw) || parseSsccFromScan(raw);
+  push(primary);
+
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^\]C1/i, '')
+    .replace(/^\(00\)/, '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+  push(cleaned);
+
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 20 && digits.startsWith('00')) {
+    push(digits);
+    push(digits.slice(2));
+    digits = digits.slice(2);
+  } else if (digits.length > 18 && digits.startsWith('00')) {
+    push(digits.slice(-18));
+    digits = digits.slice(-18);
+  }
+  push(digits);
+
+  if (digits.length === 18) {
+    push(digits);
+    push(`00${digits}`); // falls mit AI gespeichert
+    if (digits.startsWith('0')) push(digits.slice(1)); // 17-stellig ohne Extension-0
+  }
+  if (digits.length === 17) {
+    push(digits);
+    push(`0${digits}`);
+    push(`00${digits}`);
+  }
+  if (primary && primary.length === 18) {
+    push(`00${primary}`);
+    if (primary.startsWith('0')) push(primary.slice(1));
+  }
+
+  return out;
+}
+
+/** Wareneingang-/Soloplan-Code für Speicherung (Barcode auf Collo). */
+export function normalizeIncomingSscc(raw: string | null | undefined): string | null {
+  const cleaned = String(raw || '').trim();
+  if (!cleaned) return null;
+  let digits = cleaned.replace(/\D/g, '');
+  // AI (00) nicht mitspeichern
+  if (digits.length === 20 && digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.length > 18 && digits.startsWith('00')) digits = digits.slice(-18);
+  if (digits.length === 18) return digits;
+  // WOG-SSCC oft ohne führende Extension-0 in Soloplan-XML
+  if (digits.length === 17 && digits.startsWith('9')) return `0${digits}`;
+  if (/^[A-Z0-9-]{6,32}$/i.test(cleaned.replace(/\s+/g, ''))) {
+    return cleaned.replace(/\s+/g, '').toUpperCase();
+  }
+  if (digits.length >= 12) return digits;
+  return cleaned;
 }

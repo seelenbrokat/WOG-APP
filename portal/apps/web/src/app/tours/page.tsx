@@ -20,6 +20,8 @@ type Vehicle = {
   _count: { tours: number };
 };
 
+type Mandant = { id: string; code: string; name: string };
+
 type Tour = {
   id: string;
   tourNumber: string;
@@ -33,6 +35,7 @@ type Tour = {
   targetEnd: string | null;
   stopCount: number;
   orderCount: number;
+  mandant?: Mandant | null;
   vehicle: {
     id: string;
     number: string | null;
@@ -60,6 +63,10 @@ function fmt(value?: string | null) {
   });
 }
 
+function todayLocal(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' });
+}
+
 export default function ToursPage() {
   const user = getUser();
   const canPoll = user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER';
@@ -68,29 +75,46 @@ export default function ToursPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [q, setQ] = useState('');
   const [vehicleId, setVehicleId] = useState('');
+  const [mandantId, setMandantId] = useState('');
+  const [mandanten, setMandanten] = useState<Mandant[]>([]);
+  const [date, setDate] = useState(todayLocal);
   const [includeCancelled, setIncludeCancelled] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
 
-  async function load(next?: { q?: string; vehicleId?: string; includeCancelled?: boolean }) {
+  async function load(next?: {
+    q?: string;
+    vehicleId?: string;
+    mandantId?: string;
+    date?: string;
+    includeCancelled?: boolean;
+  }) {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
       const qq = next?.q ?? q;
       const vid = next?.vehicleId ?? vehicleId;
+      const mid = next?.mandantId ?? mandantId;
+      const day = next?.date ?? date;
       const cancelled = next?.includeCancelled ?? includeCancelled;
       if (qq.trim()) params.set('q', qq.trim());
       if (vid) params.set('vehicleId', vid);
+      if (mid) params.set('mandantId', mid);
+      if (day) params.set('date', day);
       if (cancelled) params.set('includeCancelled', '1');
-      const [tourRows, vehicleRows] = await Promise.all([
+      const vParams = mid ? `?mandantId=${mid}` : '';
+      const [tourRows, vehicleRows, mandantRows] = await Promise.all([
         api<Tour[]>(`/tours?${params.toString()}`),
-        api<Vehicle[]>('/tours/vehicles'),
+        api<Vehicle[]>(`/tours/vehicles${vParams}`),
+        api<Mandant[]>('/mandanten'),
       ]);
       setTours(tourRows);
       setVehicles(vehicleRows);
+      setMandanten(mandantRows);
+      if (!mid && mandantRows.length === 1) setMandantId(mandantRows[0].id);
     } catch (e: any) {
       setError(e.message || 'Laden fehlgeschlagen');
     } finally {
@@ -101,7 +125,7 @@ export default function ToursPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [date]);
 
   async function onFilter(e: FormEvent) {
     e.preventDefault();
@@ -156,7 +180,9 @@ export default function ToursPage() {
   return (
     <AppShell title="Touren & Fahrzeuge">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Soloplan-Touren und Telematics-Rückmeldungen.{' '}
+        Soloplan-Touren für WOG Logistics AG – Standardfilter <strong>Startdatum heute</strong>.{' '}
+        <Link href="/tours/dashboard">Dispo-Dashboard</Link>
+        {' · '}
         <Link href="/tours/map">Kartenmonitor</Link>
       </p>
 
@@ -189,6 +215,28 @@ export default function ToursPage() {
         <div className="stack">
           <form className="panel stack" onSubmit={onFilter}>
             <div className="row" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'end' }}>
+              <label>
+                Mandant
+                <select value={mandantId} onChange={(e) => setMandantId(e.target.value)}>
+                  <option value="">Alle aktiven</option>
+                  {mandanten.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Startdatum
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDate(todayLocal())}
+              >
+                Heute
+              </button>
               <label>
                 Suche
                 <input
@@ -246,8 +294,8 @@ export default function ToursPage() {
                 ) : tours.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="muted">
-                      Keine Touren. XMLs nach <code>inbound/soloplan/tours</code> oder{' '}
-                      <code>business-partners</code> legen und importieren.
+                      Keine Touren für dieses Startdatum. Anderen Tag wählen oder XMLs nach{' '}
+                      <code>inbound/soloplan/tours</code> importieren.
                     </td>
                   </tr>
                 ) : (

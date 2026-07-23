@@ -374,9 +374,6 @@ export class OrdersService {
         metaLine(col2, my, 'Status', order.status, 55);
         my += 14;
         metaLine(col1, my, 'Frachtzahler', order.freightPayer?.name || '–');
-        if (order.soloplanRef) {
-          metaLine(col2, my, 'TMS', String(order.soloplanRef), 55);
-        }
         my += 14;
         metaLine(col1, my, 'Sendung', String(allShipments.length));
         metaLine(col2, my, 'Colli / kg', `${totalColli}  ·  ${totalWeight || '–'} kg`, 55);

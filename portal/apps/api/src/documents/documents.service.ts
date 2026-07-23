@@ -1,19 +1,33 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createWriteStream, existsSync, mkdirSync, createReadStream, statSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import PDFDocument from 'pdfkit';
-import { DocumentType, NotificationEvent, UserRole } from '@prisma/client';
+import { DocumentType, NotificationEvent, ShipmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
-import { drawA4BrandHeader, drawA4Footer } from '../common/pdf-brand';
+import { drawA4BrandHeader, drawA4Footer, drawLoadingUnitExchangeBox } from '../common/pdf-brand';
+import { SoloplanService } from '../integrations/soloplan.service';
+import {
+  LoadingUnitExchangeNote,
+  LoadingUnitService,
+} from '../integrations/loading-unit.service';
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
   private uploadDir: string;
 
   constructor(
@@ -21,6 +35,8 @@ export class DocumentsService {
     private config: ConfigService,
     private notifications: NotificationsService,
     private audit: AuditService,
+    @Inject(forwardRef(() => SoloplanService)) private soloplan: SoloplanService,
+    @Inject(forwardRef(() => LoadingUnitService)) private loadingUnits: LoadingUnitService,
   ) {
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     if (!existsSync(this.uploadDir)) mkdirSync(this.uploadDir, { recursive: true });
@@ -34,7 +50,10 @@ export class DocumentsService {
     let shipmentId = opts.shipmentId;
     let customerId = opts.customerId || user.customerId || undefined;
     let organizationId = user.organizationId;
+    let shipmentExtras: Record<string, unknown> | null = null;
+    let shipmentStatus: ShipmentStatus | null = null;
 
+    let alreadyExportedToSoloplan = false;
     if (shipmentId) {
       const shipment = await this.prisma.shipment.findFirst({
         where: {
@@ -44,6 +63,7 @@ export class DocumentsService {
             ? { customerId: user.customerId }
             : {}),
         },
+        include: { order: { select: { soloplanRef: true } } },
       });
       if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
       if (
@@ -54,8 +74,15 @@ export class DocumentsService {
       }
       customerId = shipment.customerId;
       organizationId = shipment.organizationId;
+      shipmentExtras =
+        shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+          ? (shipment.extras as Record<string, unknown>)
+          : null;
+      shipmentStatus = shipment.status;
+      alreadyExportedToSoloplan = Boolean(shipment.soloplanRef || shipment.order?.soloplanRef);
     }
 
+    const docType = opts.type || DocumentType.CUSTOMER_UPLOAD;
     const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, safeName);
     await pipeline(Readable.from(file.buffer), createWriteStream(storagePath));
@@ -65,7 +92,7 @@ export class DocumentsService {
         organizationId,
         shipmentId,
         customerId,
-        type: opts.type || DocumentType.CUSTOMER_UPLOAD,
+        type: docType,
         fileName: file.originalname,
         mimeType: file.mimetype,
         storagePath,
@@ -84,6 +111,33 @@ export class DocumentsService {
       fileName: doc.fileName,
       type: doc.type,
     });
+
+    // Soloplan: Dokument ablegen – Erstexport (Verzollung/Rechnung) oder Update nur mit Nummern+Dokument
+    const soloplanDocTypes: DocumentType[] = [
+      DocumentType.INVOICE,
+      DocumentType.ABLIEFERBELEG,
+      DocumentType.POD,
+    ];
+    const shouldExportForVerzollung =
+      docType === DocumentType.INVOICE &&
+      shipmentStatus === ShipmentStatus.SUBMITTED &&
+      shipmentExtras?.verzollung === true;
+    const shouldExportDocumentUpdate =
+      alreadyExportedToSoloplan && soloplanDocTypes.includes(docType);
+
+    if (shipmentId && (shouldExportForVerzollung || shouldExportDocumentUpdate)) {
+      try {
+        await this.soloplan.exportShipment(shipmentId);
+        this.logger.log(
+          `Soloplan-Export nach Dokument-Upload (${docType}${alreadyExportedToSoloplan ? ', update' : ''}) für Sendung ${shipmentId}`,
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          `Soloplan-Export nach Dokument fehlgeschlagen: ${err?.message || err}`,
+        );
+      }
+    }
+
     return doc;
   }
 
@@ -114,7 +168,12 @@ export class DocumentsService {
           ? { customerId: user.customerId }
           : {}),
       },
-      include: { mandant: true, customer: true, positions: true },
+      include: {
+        mandant: true,
+        customer: true,
+        positions: true,
+        order: { select: { soloplanRef: true } },
+      },
     });
     if (!shipment) throw new NotFoundException();
     if (
@@ -124,9 +183,14 @@ export class DocumentsService {
       throw new ForbiddenException();
     }
 
+    const exchangeNote = await this.loadingUnits.resolveExchangeNoteForShipment(
+      shipment.organizationId,
+      shipment,
+    );
+
     const fileName = `Ablieferbeleg-${shipment.trackingNumber}.pdf`;
     const storagePath = join(this.uploadDir, fileName);
-    await this.writeAblieferbelegPdf(shipment, storagePath);
+    await this.writeAblieferbelegPdf(shipment, storagePath, exchangeNote);
 
     const doc = await this.prisma.document.create({
       data: {
@@ -145,10 +209,27 @@ export class DocumentsService {
     await this.audit.log(user.id, 'document.ablieferbeleg', 'Document', doc.id, {
       trackingNumber: shipment.trackingNumber,
     });
+
+    // Bereits in Soloplan → Update mit externen Nummern + Ablieferbeleg
+    if (shipment.soloplanRef || shipment.order?.soloplanRef) {
+      try {
+        await this.soloplan.exportShipment(shipment.id);
+        this.logger.log(`Soloplan-Update nach Ablieferbeleg für Sendung ${shipment.id}`);
+      } catch (err: any) {
+        this.logger.warn(
+          `Soloplan-Update nach Ablieferbeleg fehlgeschlagen: ${err?.message || err}`,
+        );
+      }
+    }
+
     return doc;
   }
 
-  private writeAblieferbelegPdf(shipment: any, storagePath: string): Promise<void> {
+  private writeAblieferbelegPdf(
+    shipment: any,
+    storagePath: string,
+    exchangeNote?: LoadingUnitExchangeNote | null,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const stream = createWriteStream(storagePath);
@@ -182,8 +263,11 @@ export class DocumentsService {
           doc.text(`- ${p.quantity}x ${p.description}${p.sscc ? ` (SSCC ${p.sscc})` : ''}`);
         }
       }
-      doc.moveDown(2);
-      doc.text('Empfangsbestätigung: ________________________  Datum: __________');
+      doc.moveDown();
+      // Nicht-Tausch (Given/Taken=0) muss auf dem Ablieferbeleg klar ersichtlich sein
+      drawLoadingUnitExchangeBox(doc, exchangeNote);
+      doc.moveDown();
+      doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);

@@ -1,20 +1,38 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api, getUser } from '@/lib/api';
+import { ApiError, api, getUser } from '@/lib/api';
+
+type ContactFeedback = { type: 'ok' | 'err'; text: string };
 
 export default function CustomersPage() {
   const user = getUser();
   const [customers, setCustomers] = useState<any[]>([]);
+  const [portalUsers, setPortalUsers] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [kind, setKind] = useState<'CUSTOMER' | 'PARTNER'>('CUSTOMER');
+  const [busyContactId, setBusyContactId] = useState<string | null>(null);
+  const [contactFeedback, setContactFeedback] = useState<Record<string, ContactFeedback>>({});
   const canEdit = user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER';
   const isAdmin = user?.role === 'ORG_ADMIN';
 
+  const usersByEmail = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const u of portalUsers) {
+      if (u.email) map.set(String(u.email).toLowerCase(), u);
+    }
+    return map;
+  }, [portalUsers]);
+
   async function load() {
-    setCustomers(await api('/customers'));
+    const [cust, users] = await Promise.all([
+      api<any[]>('/customers'),
+      isAdmin ? api<any[]>('/users').catch(() => []) : Promise.resolve([]),
+    ]);
+    setCustomers(cust);
+    setPortalUsers(users);
   }
 
   useEffect(() => {
@@ -48,17 +66,57 @@ export default function CustomersPage() {
     }
   }
 
+  function setFeedback(contactId: string, fb: ContactFeedback) {
+    setContactFeedback((prev) => ({ ...prev, [contactId]: fb }));
+  }
+
   async function inviteContact(contactId: string) {
     setError('');
     setMessage('');
+    setBusyContactId(contactId);
+    setFeedback(contactId, { type: 'ok', text: 'Wird angelegt…' });
     try {
       const res = await api<any>('/users/invite-from-contact', {
         method: 'POST',
         body: JSON.stringify({ contactId, role: 'CUSTOMER_USER' }),
       });
-      setMessage(`User angelegt: ${res.email} (Standardpasswort per E-Mail)`);
+      const pwd = res.temporaryPassword ? ` · Passwort: ${res.temporaryPassword}` : '';
+      const text = `User angelegt: ${res.email}${pwd}`;
+      setFeedback(contactId, { type: 'ok', text });
+      setMessage(text);
+      await load();
     } catch (err: any) {
-      setError(err.message);
+      if (err instanceof ApiError && err.status === 409 && err.body?.existingUserId) {
+        const text = `${err.message}. Passwort kann zurückgesetzt werden.`;
+        setFeedback(contactId, { type: 'err', text });
+        setError(text);
+        await load();
+      } else {
+        const text = err?.message || 'Anlegen fehlgeschlagen';
+        setFeedback(contactId, { type: 'err', text });
+        setError(text);
+      }
+    } finally {
+      setBusyContactId(null);
+    }
+  }
+
+  async function resetContactUser(contactId: string, userId: string, email: string) {
+    setBusyContactId(contactId);
+    setFeedback(contactId, { type: 'ok', text: 'Passwort wird zurückgesetzt…' });
+    try {
+      const res = await api<any>(`/users/${userId}/reset-password`, { method: 'POST' });
+      const pwd = res.temporaryPassword ? ` · Passwort: ${res.temporaryPassword}` : '';
+      const text = `Passwort für ${email} zurückgesetzt${pwd}`;
+      setFeedback(contactId, { type: 'ok', text });
+      setMessage(text);
+      await load();
+    } catch (err: any) {
+      const text = err?.message || 'Zurücksetzen fehlgeschlagen';
+      setFeedback(contactId, { type: 'err', text });
+      setError(text);
+    } finally {
+      setBusyContactId(null);
     }
   }
 
@@ -115,24 +173,59 @@ export default function CustomersPage() {
                     <th>Ansprechpartner</th>
                     <th>E-Mail</th>
                     <th>Telefon</th>
-                    <th></th>
+                    <th>Portal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {c.contacts.map((ct: any) => (
-                    <tr key={ct.id}>
-                      <td>{ct.name}{ct.department ? ` (${ct.department})` : ''}</td>
-                      <td>{ct.email || '–'}</td>
-                      <td>{ct.phone || '–'}</td>
-                      <td>
-                        {isAdmin && ct.email && (
-                          <button className="btn btn-secondary" type="button" onClick={() => inviteContact(ct.id)}>
-                            User anlegen
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {c.contacts.map((ct: any) => {
+                    const existing = ct.email
+                      ? usersByEmail.get(String(ct.email).toLowerCase())
+                      : null;
+                    const fb = contactFeedback[ct.id];
+                    const busy = busyContactId === ct.id;
+                    return (
+                      <tr key={ct.id}>
+                        <td>{ct.name}{ct.department ? ` (${ct.department})` : ''}</td>
+                        <td>{ct.email || '–'}</td>
+                        <td>{ct.phone || '–'}</td>
+                        <td>
+                          <div className="stack" style={{ gap: '0.35rem', alignItems: 'flex-start' }}>
+                            {isAdmin && ct.email && !existing && (
+                              <button
+                                className="btn btn-secondary"
+                                type="button"
+                                disabled={busy}
+                                onClick={() => inviteContact(ct.id)}
+                              >
+                                {busy ? 'Bitte warten…' : 'User anlegen'}
+                              </button>
+                            )}
+                            {isAdmin && ct.email && existing && (
+                              <>
+                                <span className="badge ok">User vorhanden</span>
+                                <button
+                                  className="btn btn-secondary"
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => resetContactUser(ct.id, existing.id, existing.email)}
+                                >
+                                  {busy ? 'Bitte warten…' : 'Passwort zurücksetzen'}
+                                </button>
+                              </>
+                            )}
+                            {fb ? (
+                              <div
+                                className={fb.type === 'ok' ? 'success' : 'error'}
+                                style={{ fontSize: '0.85rem', maxWidth: 280 }}
+                              >
+                                {fb.text}
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

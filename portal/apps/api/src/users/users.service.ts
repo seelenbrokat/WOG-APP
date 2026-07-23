@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { NotificationEvent, UserRole } from '@prisma/client';
@@ -131,7 +136,14 @@ export class UsersService {
     },
   ) {
     const existing = await this.prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
-    if (existing) throw new BadRequestException('E-Mail bereits vorhanden');
+    if (existing) {
+      throw new ConflictException({
+        message: `Portal-User für ${existing.email} existiert bereits`,
+        existingUserId: existing.id,
+        email: existing.email,
+        mustChangePassword: existing.mustChangePassword,
+      });
+    }
 
     const tempPassword = this.defaultPassword();
     const user = await this.prisma.user.create({

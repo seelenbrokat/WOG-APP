@@ -36,6 +36,8 @@ enum DocumentType {
   CUSTOMS_PAPER
   LABEL
   LOADING_LIST
+  WAREHOUSE_PHOTO
+  ENTLADEBERICHT
   OTHER
 }
 
@@ -87,12 +89,15 @@ model Organization {
   tours             Tour[]
   telematicsEvents  TelematicsEvent[]
   tourDocuments     TourDocument[]
+  intouchFiles      IntouchFile[]
+  loadingUnitPostings LoadingUnitPosting[]
 }
 
 /// Soloplan-Fahrzeug (aus Tour-Header / Truck)
 model Vehicle {
   id                 String    @id @default(cuid())
   organizationId     String
+  mandantId          String?
   soloplanVehicleId  String
   number             String?
   matchcode          String?
@@ -106,18 +111,22 @@ model Vehicle {
   updatedAt          DateTime  @updatedAt
 
   organization Organization     @relation(fields: [organizationId], references: [id])
+  mandant      Mandant?         @relation(fields: [mandantId], references: [id], onDelete: SetNull)
   tours        Tour[]
   events       TelematicsEvent[]
 
   @@unique([organizationId, soloplanVehicleId])
   @@index([organizationId, licensePlate])
   @@index([organizationId, lastLocationAt])
+  @@index([mandantId])
 }
 
 /// Soloplan StdTelematics-Tour (GP-Export *_Tour_*.xml)
 model Tour {
   id                 String    @id @default(cuid())
   organizationId     String
+  /// Mandant (z. B. WOG Logistics AG)
+  mandantId          String?
   /// Internes Soloplan TourId
   soloplanTourId     String
   /// Sichtbare Tournummer (z. B. 183434)
@@ -152,15 +161,18 @@ model Tour {
   updatedAt          DateTime  @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id])
+  mandant      Mandant?          @relation(fields: [mandantId], references: [id], onDelete: SetNull)
   vehicle      Vehicle?          @relation(fields: [vehicleId], references: [id])
   stops        TourStop[]
   consignments TourConsignment[]
   events       TelematicsEvent[]
   documents    TourDocument[]
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@unique([organizationId, soloplanTourId])
   @@index([organizationId, tourNumber])
   @@index([organizationId, status, targetStart])
+  @@index([mandantId, status])
   @@index([vehicleId])
 }
 
@@ -184,9 +196,11 @@ model TourStop {
   phone                String?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@index([tourId, sequence])
   @@index([transportOrderNumber])
+  @@index([soloplanTourStopId])
 }
 
 model TourConsignment {
@@ -278,9 +292,55 @@ model PackagingType {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  loadingUnitPostings LoadingUnitPosting[]
 
   @@unique([organizationId, soloplanNumber])
   @@index([organizationId, matchcode])
+}
+
+/// Lademitteltausch aus TourStopStatus / LoadingUnitExchange (nur CSV-PackagingTypes)
+model LoadingUnitPosting {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  packagingTypeId     String?
+  packagingMatchcode  String
+  packagingLabel      String?
+  /// An Partner abgegeben
+  given               Int      @default(0)
+  /// Vom Partner übernommen
+  taken               Int      @default(0)
+  /// Partner-Schuld gegenüber WOG: Given − Taken (bzw. Sendungsmenge bei Nicht-Tausch)
+  balanceDelta        Int      @default(0)
+  /// Anzahl schuldender Lademittel (max(0, Given−Taken) bzw. Sendungs-Colli bei Nicht-Tausch)
+  owedQuantity        Int      @default(0)
+  tourId              String?
+  tourNumber          String?
+  tourStopId          String?
+  tourStopExternalId  String?
+  partnerNumber       String?
+  partnerName         String?
+  partnerCity         String?
+  customerId          String?
+  vehicleSoloplanId   String?
+  /// BOOKED | SKIPPED_ZERO | SKIPPED_UNKNOWN_TYPE
+  status              String   @default("BOOKED")
+  skipReason          String?
+  occurredAt          DateTime?
+  sendDate            DateTime?
+  sourceFile          String
+  createdAt           DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  packagingType PackagingType? @relation(fields: [packagingTypeId], references: [id], onDelete: SetNull)
+  tour          Tour?          @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  tourStop      TourStop?      @relation(fields: [tourStopId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, sourceFile, packagingMatchcode])
+  @@index([organizationId, partnerName, packagingMatchcode])
+  @@index([organizationId, partnerNumber, packagingMatchcode])
+  @@index([organizationId, occurredAt])
+  @@index([tourId])
+  @@index([sourceFile])
 }
 
 /// Soloplan-Dokumentenkategorien (GP-Export dokumentenkategorieren.csv)
@@ -317,8 +377,29 @@ model Mandant {
   addresses    Address[]
   customsOrders CustomsOrder[]
   transportOrders TransportOrder[]
+  tours        Tour[]
+  vehicles     Vehicle[]
 
   @@unique([organizationId, code])
+}
+
+/// Intouch-Upload (SFTP inbound/intouch/{meldungen|dokumente})
+model IntouchFile {
+  id             String   @id @default(cuid())
+  organizationId String
+  channel        String
+  fileName       String
+  storagePath    String
+  sizeBytes      Int      @default(0)
+  status         String   @default("RECEIVED")
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, channel, createdAt])
+  @@index([status])
 }
 
 model Customer {
@@ -344,6 +425,7 @@ model Customer {
   templates    ShipmentTemplate[]
   customsOrders CustomsOrder[]
   freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
+  goodsReceiptSessions GoodsReceiptSession[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -573,13 +655,83 @@ model ShipmentCollo {
   lengthCm    Float?
   widthCm     Float?
   heightCm    Float?
+  /// Wareneingang-Kontrolle: PENDING | RECEIVED | DAMAGED
+  warehouseStatus String    @default("PENDING")
+  receivedAt      DateTime?
+  receivedById    String?
+  warehouseNote   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  goodsReceiptChecks GoodsReceiptColloCheck[]
 
   @@unique([shipmentId, itemNumber])
   @@index([shipmentId])
+  @@index([warehouseStatus])
+}
+
+/// Wareneingangs-Kontrollsitzung (Kunde + Datum + externe Auftragsnr.)
+model GoodsReceiptSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  mandantId      String?
+  customerId     String?
+  /// Soloplan-OrderNumber / WE-Referenz (externe Auftragsnummer)
+  externalRef    String
+  /// Entlade-/Kontrolldatum (Tag)
+  sessionDate    DateTime
+  status         String   @default("OPEN") // OPEN | CLOSED
+  createdById    String?
+  closedAt       DateTime?
+  notes          String?
+  /// PDF Entladebericht (ETB), 30 Tage aufbewahrt
+  documentId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  customer Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  checks   GoodsReceiptColloCheck[]
+  surplus  GoodsReceiptSurplus[]
+
+  @@index([organizationId, sessionDate])
+  @@index([customerId, externalRef])
+  @@index([organizationId, externalRef, sessionDate])
+  @@index([documentId])
+}
+
+model GoodsReceiptColloCheck {
+  id          String    @id @default(cuid())
+  sessionId   String
+  colloId     String
+  /// PENDING | RECEIVED | DAMAGED | MISSING | CANCELLED
+  status      String    @default("PENDING")
+  scannedAt   DateTime?
+  scannedById String?
+  note        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  session GoodsReceiptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  collo   ShipmentCollo       @relation(fields: [colloId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, colloId])
+  @@index([sessionId, status])
+}
+
+model GoodsReceiptSurplus {
+  id          String   @id @default(cuid())
+  sessionId   String
+  sscc        String
+  scannedAt   DateTime @default(now())
+  scannedById String?
+  note        String?
+  documentId  String?
+
+  session GoodsReceiptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sscc])
 }
 
 /// Sequenz für SSCC-Seriennummern (pro Organisation / Tag optional global)

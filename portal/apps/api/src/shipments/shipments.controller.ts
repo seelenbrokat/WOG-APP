@@ -17,6 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { AddressValidationService } from '../common/address-validation.service';
 
 class PositionDto {
   @IsString()
@@ -201,14 +202,55 @@ class StatusDto {
   location?: string;
 }
 
+class ValidateAddressDto {
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @IsString()
+  street!: string;
+
+  @IsString()
+  zip!: string;
+
+  @IsString()
+  city!: string;
+
+  @IsString()
+  country!: string;
+}
+
 @Controller('shipments')
 @UseGuards(RolesGuard)
 export class ShipmentsController {
-  constructor(private service: ShipmentsService) {}
+  constructor(
+    private service: ShipmentsService,
+    private addressValidation: AddressValidationService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('mandantId') mandantId?: string) {
     return this.service.list(user, mandantId);
+  }
+
+  @Post('validate-address')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  validateAddress(@Body() dto: ValidateAddressDto) {
+    return this.addressValidation.validate(dto);
+  }
+
+  /** Lager-Scan: Sendung/Collo per SSCC (vor :id, damit „by-sscc“ nicht als ID gilt) */
+  @Get('by-sscc/:sscc')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  bySscc(@CurrentUser() user: AuthUser, @Param('sscc') sscc: string) {
+    return this.service.findBySscc(user, sscc);
+  }
+
+  /** Scan-Labels: SCAN-TEST + Wareneingang (Auftrag 2291) */
+  @Get('scan-test-labels')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  scanTestLabels(@CurrentUser() user: AuthUser) {
+    return this.service.listScanTestLabels(user);
   }
 
   @Get(':id')

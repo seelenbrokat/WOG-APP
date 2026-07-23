@@ -39,10 +39,27 @@ function ShipmentDetailInner() {
   const [status, setStatus] = useState('IN_TRANSIT');
   const [message, setMessage] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState('CUSTOMER_UPLOAD');
   const [banner, setBanner] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const user = getUser();
+
+  const DOC_TYPE_LABELS: Record<string, string> = {
+    INVOICE: 'Rechnung',
+    CUSTOMER_UPLOAD: 'Sonstiges',
+    CMR: 'CMR',
+    OTHER: 'Andere',
+    CUSTOMS_PAPER: 'Zollpapier',
+    LOADING_LIST: 'Ladeliste',
+    ABLIEFERBELEG: 'Ablieferbeleg',
+    POD: 'POD',
+    LABEL: 'Etikett',
+  };
+
+  const needsInvoice =
+    Boolean((shipment?.extras as ShipmentExtras | null)?.verzollung) &&
+    !(shipment?.documents || []).some((d: any) => d.type === 'INVOICE');
 
   async function load() {
     const s = await api<any>(`/shipments/${params.id}`);
@@ -92,7 +109,12 @@ function ShipmentDetailInner() {
             <div className="row" style={{ marginTop: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-primary"
-                disabled={busy === 'labels'}
+                disabled={busy === 'labels' || shipment.status === 'CANCELLED'}
+                title={
+                  shipment.status === 'CANCELLED'
+                    ? 'Stornierte Sendung – nicht andrucken'
+                    : undefined
+                }
                 onClick={async () => {
                   setError('');
                   setBusy('labels');
@@ -161,6 +183,11 @@ function ShipmentDetailInner() {
                 <div className="muted">{shipment.pickupCompany}</div>
                 <div className="muted">{shipment.pickupStreet}</div>
                 <div className="muted">{shipment.pickupZip} {shipment.pickupCity}</div>
+                {(shipment.extras as ShipmentExtras | null)?.pickupNote ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Info: {(shipment.extras as ShipmentExtras).pickupNote}
+                  </div>
+                ) : null}
               </div>
               <div>
                 <strong>Zustellung</strong>
@@ -170,6 +197,11 @@ function ShipmentDetailInner() {
                 {shipment.deliveryAvisPhone && (
                   <div className="muted">Avis-Tel: {shipment.deliveryAvisPhone}</div>
                 )}
+                {(shipment.extras as ShipmentExtras | null)?.deliveryNote ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Info: {(shipment.extras as ShipmentExtras).deliveryNote}
+                  </div>
+                ) : null}
               </div>
             </div>
             {shipment.extras && shipmentExtrasLabels(shipment.extras as ShipmentExtras).length > 0 && (
@@ -252,6 +284,11 @@ function ShipmentDetailInner() {
             </div>
             <div className="panel stack">
               <strong>Dokumente</strong>
+              {needsInvoice && (
+                <div className="error" style={{ margin: 0 }}>
+                  Verzollung aktiv: bitte eine <strong>Rechnung</strong> hochladen.
+                </div>
+              )}
               {[
                 ...(shipment.documents || []),
                 ...((orderDetail?.documents || []).filter(
@@ -259,7 +296,10 @@ function ShipmentDetailInner() {
                 )),
               ].map((d: any) => (
                 <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
-                  <span>{d.fileName} <span className="badge">{d.type}</span></span>
+                  <span>
+                    {d.fileName}{' '}
+                    <span className="badge">{DOC_TYPE_LABELS[d.type] || d.type}</span>
+                  </span>
                   <a
                     href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`}
                     onClick={(e) => {
@@ -271,20 +311,45 @@ function ShipmentDetailInner() {
                   </a>
                 </div>
               ))}
-              <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <div className="field">
+                <label>Dokumenttyp</label>
+                <select
+                  value={needsInvoice ? 'INVOICE' : docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                >
+                  <option value="INVOICE">Rechnung</option>
+                  <option value="CUSTOMER_UPLOAD">Sonstiges Dokument</option>
+                  <option value="CMR">CMR / Frachtbrief</option>
+                  <option value="OTHER">Andere</option>
+                </select>
+              </div>
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
               <button
                 className="btn btn-primary"
-                disabled={!file}
+                disabled={!file || busy === 'upload'}
                 onClick={async () => {
                   if (!file) return;
-                  const fd = new FormData();
-                  fd.append('file', file);
-                  await api(`/documents/upload?shipmentId=${shipment.id}`, {
-                    method: 'POST',
-                    body: fd,
-                  });
-                  setFile(null);
-                  await load();
+                  setBusy('upload');
+                  setError('');
+                  try {
+                    const type = needsInvoice ? 'INVOICE' : docType;
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    await api(`/documents/upload?shipmentId=${shipment.id}&type=${type}`, {
+                      method: 'POST',
+                      body: fd,
+                    });
+                    setFile(null);
+                    await load();
+                  } catch (e: any) {
+                    setError(e.message || 'Upload fehlgeschlagen');
+                  } finally {
+                    setBusy('');
+                  }
                 }}
               >
                 Dokument an WOG senden
