@@ -221,7 +221,7 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
       .fillColor(WOG_PDF.ink)
       .font('Helvetica')
       .text(
-        `  ·  Fehlend ${s.missing}  ·  Storniert ${s.cancelled}  ·  Überzählig ${s.surplus}`,
+        `  ·  Fehlend ${s.missing}  ·  Storniert ${s.cancelled} (nicht andrucken)  ·  Überzählig ${s.surplus}`,
       );
 
     const left = doc.page.margins.left;
@@ -230,7 +230,7 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
     const ok = input.colli.filter((c) => c.status === 'RECEIVED');
     const damaged = input.colli.filter((c) => c.status === 'DAMAGED');
     const missing = input.colli.filter((c) => c.status === 'MISSING' || c.status === 'PENDING');
-    const cancelled = input.colli.filter((c) => c.status === 'CANCELLED');
+    // CANCELLED bewusst nicht auflisten – nur Zähler in der Zusammenfassung („nicht andrucken“)
 
     if (ok.length) {
       drawSectionTitle(doc, 'OK / Empfangen', ok.length);
@@ -249,13 +249,6 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
         rule: '#c9a227',
       });
       for (const c of missing) drawColloBlock(doc, c, usable);
-    }
-    if (cancelled.length) {
-      drawSectionTitle(doc, 'Storniert (nicht andrucken)', cancelled.length, {
-        color: WOG_PDF.muted,
-        rule: WOG_PDF.line,
-      });
-      for (const c of cancelled) drawColloBlock(doc, c, usable);
     }
 
     if (input.surplus.length) {
