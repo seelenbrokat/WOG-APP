@@ -219,7 +219,6 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
             const y0 = doc.y;
             doc.image(s.photoPath, left, y0, {
               fit: [usable, imgH],
-              align: 'left',
             });
             doc.y = y0 + imgH + 10;
           } catch {

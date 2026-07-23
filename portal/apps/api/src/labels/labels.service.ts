@@ -51,7 +51,12 @@ export class LabelsService {
       await this.ensureColli(shipment),
     );
     // Stornierte Colli (WE-Storno) nicht andrucken
-    const colli = allColli.filter((c: { warehouseStatus?: string }) => c.warehouseStatus !== 'CANCELLED');
+    const cancelled = await this.prisma.shipmentCollo.findMany({
+      where: { shipmentId: shipment.id, warehouseStatus: 'CANCELLED' },
+      select: { id: true },
+    });
+    const cancelledIds = new Set(cancelled.map((c) => c.id));
+    const colli = allColli.filter((c) => !cancelledIds.has(c.id));
     if (!colli.length) {
       throw new ForbiddenException('Keine druckbaren Colli – alle Packstücke sind storniert');
     }
