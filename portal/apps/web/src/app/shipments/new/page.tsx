@@ -16,6 +16,11 @@ import {
   AddressTypingSuggestions,
 } from '@/components/AddressBookPicker';
 import { api, getUser } from '@/lib/api';
+import {
+  combineDateTimeIso,
+  defaultDeliveryWindow,
+  defaultShipmentSchedule,
+} from '@/lib/shipment-dates';
 
 type AddressCheck = {
   status: 'idle' | 'loading' | 'VALID' | 'AMBIGUOUS' | 'INVALID' | 'FORMAT_ERROR';
@@ -159,34 +164,43 @@ function NewShipmentInner() {
   const [extras, setExtras] = useState<ShipmentExtras>({});
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
-  const [form, setForm] = useState({
-    mandantId: '',
-    customerId: '',
-    reference: '',
-    transportMode: 'LKW',
-    goodsDescription: '',
-    packageCount: 1,
-    weightKg: 0,
-    pickupAddressId: '',
-    deliveryAddressId: '',
-    pickupCompany: '',
-    pickupStreet: '',
-    pickupZip: '',
-    pickupCity: '',
-    pickupCountry: 'AT',
-    deliveryCompany: '',
-    deliveryStreet: '',
-    deliveryZip: '',
-    deliveryCity: '',
-    deliveryCountry: 'AT',
-    deliveryAvisPhone: '',
-    pickupNotes: '',
-    deliveryNotes: '',
-    notes: '',
-    submit: true,
-    savePickupAddress: true,
-    saveDeliveryAddress: true,
-    saveAsTemplateName: '',
+  const [form, setForm] = useState(() => {
+    const schedule = defaultShipmentSchedule();
+    return {
+      mandantId: '',
+      customerId: '',
+      reference: '',
+      transportMode: 'LKW',
+      goodsDescription: '',
+      packageCount: 1,
+      weightKg: 0,
+      pickupAddressId: '',
+      deliveryAddressId: '',
+      pickupCompany: '',
+      pickupStreet: '',
+      pickupZip: '',
+      pickupCity: '',
+      pickupCountry: 'AT',
+      pickupDate: schedule.pickup.date,
+      pickupTime: schedule.pickup.time,
+      deliveryCompany: '',
+      deliveryStreet: '',
+      deliveryZip: '',
+      deliveryCity: '',
+      deliveryCountry: 'AT',
+      deliveryDate: schedule.deliveryStart.date,
+      deliveryTime: schedule.deliveryStart.time,
+      deliveryDateEnd: schedule.deliveryEnd.date,
+      deliveryTimeEnd: schedule.deliveryEnd.time,
+      deliveryAvisPhone: '',
+      pickupNotes: '',
+      deliveryNotes: '',
+      notes: '',
+      submit: true,
+      savePickupAddress: true,
+      saveDeliveryAddress: true,
+      saveAsTemplateName: '',
+    };
   });
   const [pickupCheck, setPickupCheck] = useState<AddressCheck>(idleCheck);
   const [deliveryCheck, setDeliveryCheck] = useState<AddressCheck>(idleCheck);
@@ -586,8 +600,15 @@ function NewShipmentInner() {
       const {
         pickupNotes: _pickupNotes,
         deliveryNotes: _deliveryNotes,
+        pickupTime: _pickupTime,
+        deliveryTime: _deliveryTime,
+        deliveryTimeEnd: _deliveryTimeEnd,
         ...formFields
       } = form;
+
+      if (!form.pickupDate || !form.deliveryDate) {
+        throw new Error('Bitte Abhol- und Zustelldatum angeben.');
+      }
 
       const created = await api<any>('/shipments', {
         method: 'POST',
@@ -596,6 +617,11 @@ function NewShipmentInner() {
           customerId: form.customerId || undefined,
           pickupAddressId: form.pickupAddressId || undefined,
           deliveryAddressId: form.deliveryAddressId || undefined,
+          pickupDate: combineDateTimeIso(form.pickupDate, form.pickupTime || '00:00'),
+          deliveryDate: combineDateTimeIso(form.deliveryDate, form.deliveryTime || '00:00'),
+          deliveryDateEnd: form.deliveryDateEnd
+            ? combineDateTimeIso(form.deliveryDateEnd, form.deliveryTimeEnd || '00:00')
+            : combineDateTimeIso(form.deliveryDate, form.deliveryTime || '00:00'),
           deliveryAvisPhone: form.deliveryAvisPhone.trim() || undefined,
           packageCount: positions.length,
           weightKg: totalWeight || Number(form.weightKg) || undefined,
@@ -784,6 +810,43 @@ function NewShipmentInner() {
                 ))}
               </select>
             </div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Abholdatum</label>
+                <input
+                  required
+                  type="date"
+                  value={form.pickupDate}
+                  onChange={(e) => {
+                    const pickupDate = e.target.value;
+                    const window = pickupDate
+                      ? defaultDeliveryWindow(pickupDate)
+                      : null;
+                    setForm({
+                      ...form,
+                      pickupDate,
+                      ...(window
+                        ? {
+                            deliveryDate: window.start.date,
+                            deliveryTime: window.start.time,
+                            deliveryDateEnd: window.end.date,
+                            deliveryTimeEnd: window.end.time,
+                          }
+                        : {}),
+                    });
+                  }}
+                />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Abholzeit</label>
+                <input
+                  required
+                  type="time"
+                  value={form.pickupTime}
+                  onChange={(e) => setForm({ ...form, pickupTime: e.target.value })}
+                />
+              </div>
+            </div>
             {!form.pickupAddressId ? (
               <AddressTypingSuggestions
                 addresses={pickupAddresses}
@@ -945,6 +1008,46 @@ function NewShipmentInner() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Zustelldatum (von)</label>
+                <input
+                  required
+                  type="date"
+                  value={form.deliveryDate}
+                  onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
+                />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Zustellzeit (von)</label>
+                <input
+                  required
+                  type="time"
+                  value={form.deliveryTime}
+                  onChange={(e) => setForm({ ...form, deliveryTime: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Zustelldatum (bis)</label>
+                <input
+                  required
+                  type="date"
+                  value={form.deliveryDateEnd}
+                  onChange={(e) => setForm({ ...form, deliveryDateEnd: e.target.value })}
+                />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Zustellzeit (bis)</label>
+                <input
+                  required
+                  type="time"
+                  value={form.deliveryTimeEnd}
+                  onChange={(e) => setForm({ ...form, deliveryTimeEnd: e.target.value })}
+                />
+              </div>
             </div>
             {!form.deliveryAddressId ? (
               <AddressTypingSuggestions

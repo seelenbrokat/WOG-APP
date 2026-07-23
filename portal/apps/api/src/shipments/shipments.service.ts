@@ -361,6 +361,7 @@ export class ShipmentsService {
       deliveryCity?: string;
       deliveryCountry?: string;
       deliveryDate?: string;
+      deliveryDateEnd?: string;
       deliveryAvisPhone?: string;
       notes?: string;
       extras?: Record<string, unknown>;
@@ -495,6 +496,7 @@ export class ShipmentsService {
         deliveryCity,
         deliveryCountry,
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : undefined,
+        deliveryDateEnd: data.deliveryDateEnd ? new Date(data.deliveryDateEnd) : undefined,
         deliveryAvisPhone: data.deliveryAvisPhone?.trim() || undefined,
         notes: data.notes,
         extras:

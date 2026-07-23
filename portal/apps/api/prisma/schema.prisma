@@ -631,7 +631,10 @@ model Shipment {
   deliveryZip      String?
   deliveryCity     String?
   deliveryCountry  String?        @default("AT")
+  /// Zustellung von (Start)
   deliveryDate     DateTime?
+  /// Zustellung bis (Ende, z. B. übernächster Werktag)
+  deliveryDateEnd  DateTime?
   /// Telefonnummer für Zustell-Aviso
   deliveryAvisPhone String?
   notes            String?
