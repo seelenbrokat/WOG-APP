@@ -313,6 +313,10 @@ export default function WeTc57Page() {
     }
     lastScanRef.current = { code: candidate, at: now };
 
+    // Nächster Scan hat Vorrang: Nachbearbeitung (Abmessungen) schließen
+    setShowDims(false);
+    editingRef.current = false;
+
     busyRef.current = true;
     setLoading(true);
     clearScannerField();
@@ -415,14 +419,16 @@ export default function WeTc57Page() {
         vibrate([25, 30, 50]);
         playTone(true);
       } else if (res.photoRequired) {
-        setFlash('miss');
-        setHeadline('Überzählig – Label-Foto nötig');
-        setDetail(`${shown} nicht im System · bitte Foto vom Etikett`);
+        setFlash('dup');
+        setHeadline('Überzählig – weiter scannen');
+        setDetail(
+          `${shown} nicht im System · Label-Foto später unter „Überzählig“ · Fremd ${sum.surplus}`,
+        );
         vibrate([80, 50, 80]);
         playTone(false);
       } else {
         setFlash('dup');
-        setHeadline('Überzählig erfasst');
+        setHeadline('Überzählig – weiter scannen');
         setDetail(
           `${shown}${
             res.knownShipment
@@ -680,7 +686,12 @@ export default function WeTc57Page() {
   }
 
   async function onPhotoSelected(file: File | null) {
-    if (!file || !session || !lastScan) return;
+    // Kamera/Galerie geschlossen → sofort wieder scannen (auch bei Abbruch)
+    editingRef.current = false;
+    if (!file || !session || !lastScan) {
+      focusScanner();
+      return;
+    }
     setLoading(true);
     try {
       const fd = new FormData();
@@ -714,7 +725,7 @@ export default function WeTc57Page() {
       setLastScan({ ...lastScan, hasPhoto: true, photoRequired: false });
       setFlash('ok');
       setHeadline(lastScan.kind === 'surplus' ? 'Label-Foto gespeichert' : 'Foto gespeichert');
-      setDetail(lastScan.sscc);
+      setDetail(`${lastScan.sscc} · weiter scannen`);
       playTone(true);
     } catch (e: unknown) {
       setFlash('err');
@@ -725,6 +736,7 @@ export default function WeTc57Page() {
       if (photoInputRef.current) photoInputRef.current.value = '';
       editingRef.current = false;
       focusScanner();
+      window.setTimeout(() => focusScanner(), 80);
     }
   }
 
@@ -861,150 +873,53 @@ export default function WeTc57Page() {
               ) : null}
             </div>
 
-            {lastScan && session.status === 'OPEN' ? (
-              <div className="panel stack" style={{ gap: '0.5rem' }}>
-                <strong>
-                  {lastScan.kind === 'surplus' ? 'Überzählig' : 'Nachbearbeitung'} · {lastScan.sscc}
-                </strong>
-                {lastScan.kind === 'surplus' ? (
-                  <>
-                    {lastScan.knownLabel ? (
-                      <p style={{ margin: 0, fontSize: '0.85rem' }}>
-                        Im System: {lastScan.knownLabel}
-                      </p>
-                    ) : (
-                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#a12622' }}>
-                        SSCC nicht im System – Label-Foto erforderlich (sonst kein Abschluss).
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{ minHeight: 52 }}
-                      disabled={loading || !!lastScan.hasPhoto}
-                      onClick={() => {
-                        editingRef.current = true;
-                        photoInputRef.current?.click();
-                      }}
-                    >
-                      {lastScan.hasPhoto
-                        ? 'Label-Foto gespeichert'
-                        : lastScan.photoRequired
-                          ? 'Label-Foto aufnehmen'
-                          : 'Foto (optional)'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                      Optional nach dem Scan – dann weiter scannen.
-                    </p>
-                    <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ flex: 1, minHeight: 48 }}
-                        disabled={loading}
-                        onClick={() => void markLastDamaged()}
-                      >
-                        Beschädigt
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ flex: 1, minHeight: 48 }}
-                        disabled={loading}
-                        onClick={() => {
-                          editingRef.current = true;
-                          photoInputRef.current?.click();
-                        }}
-                      >
-                        Foto
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ flex: 1, minHeight: 48 }}
-                        disabled={loading}
-                        onClick={() => {
-                          setShowDims((v) => !v);
-                          editingRef.current = !showDims;
-                        }}
-                      >
-                        Abmessungen
-                      </button>
-                    </div>
-                    {showDims ? (
-                      <div className="stack" style={{ gap: '0.4rem' }}>
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr 1fr',
-                            gap: '0.35rem',
-                          }}
-                        >
-                          {(
-                            [
-                              ['lengthCm', 'L cm'],
-                              ['widthCm', 'B cm'],
-                              ['heightCm', 'H cm'],
-                            ] as const
-                          ).map(([key, label]) => (
-                            <div className="field" key={key}>
-                              <label>{label}</label>
-                              <input
-                                inputMode="decimal"
-                                value={lastScan[key]}
-                                onFocus={() => {
-                                  editingRef.current = true;
-                                }}
-                                onChange={(e) => setLastScan({ ...lastScan, [key]: e.target.value })}
-                                style={{ minHeight: 48, fontSize: '1rem' }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="field">
-                          <label>Gewicht kg</label>
-                          <input
-                            inputMode="decimal"
-                            value={lastScan.weightKg}
-                            onFocus={() => {
-                              editingRef.current = true;
-                            }}
-                            onChange={(e) => setLastScan({ ...lastScan, weightKg: e.target.value })}
-                            style={{ minHeight: 48, fontSize: '1rem' }}
-                          />
-                        </div>
-                        <div className="row" style={{ gap: '0.4rem' }}>
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            style={{ flex: 1, minHeight: 48 }}
-                            disabled={loading}
-                            onClick={() => void saveDimensions()}
-                          >
-                            Speichern
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ flex: 1, minHeight: 48 }}
-                            onClick={() => {
-                              setShowDims(false);
-                              editingRef.current = false;
-                              focusScanner();
-                            }}
-                          >
-                            Abbrechen
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            ) : null}
+            {/* Scanner zuerst – Nachbearbeitung darf den Flow nicht unterbrechen */}
+            <div className="panel stack" style={{ gap: '0.45rem' }}>
+              <label style={{ fontWeight: 600 }}>Barcode scannen</label>
+              <input
+                ref={inputRef}
+                defaultValue=""
+                onKeyDown={onScannerKeyDown}
+                onInput={onScannerInput}
+                onBlur={() => {
+                  if (sessionRef.current?.status === 'OPEN' && !editingRef.current) {
+                    window.setTimeout(() => {
+                      if (!editingRef.current) focusScanner();
+                    }, 30);
+                  }
+                }}
+                inputMode="numeric"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                enterKeyHint="done"
+                placeholder="Scanner bereit – hier tippt der TC57…"
+                readOnly={false}
+                style={{
+                  minHeight: 56,
+                  fontSize: '1.15rem',
+                  letterSpacing: '0.02em',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  background: loading ? '#f3f6f4' : undefined,
+                }}
+              />
+              <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                Weiter scannen – Nachbearbeitung ist optional und unterbricht nicht.
+              </p>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ minHeight: 40, fontSize: '0.9rem' }}
+                onClick={() => {
+                  void unlockAudio();
+                  editingRef.current = false;
+                  focusScanner();
+                }}
+              >
+                Fokus + Ton freischalten
+              </button>
+            </div>
 
             <div
               className="panel"
@@ -1056,52 +971,161 @@ export default function WeTc57Page() {
               </div>
             </div>
 
-            <div className="panel stack" style={{ gap: '0.45rem' }}>
-              <label style={{ fontWeight: 600 }}>Barcode scannen</label>
-              {/* Uncontrolled: DataWedge tippt schneller als React-State */}
-              <input
-                ref={inputRef}
-                defaultValue=""
-                onKeyDown={onScannerKeyDown}
-                onInput={onScannerInput}
-                onBlur={() => {
-                  if (sessionRef.current?.status === 'OPEN') {
-                    window.setTimeout(() => focusScanner(), 30);
-                  }
-                }}
-                inputMode="numeric"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                enterKeyHint="done"
-                placeholder="Scanner bereit – hier tippt der TC57…"
-                // Nie disabled: sonst verliert DataWedge den Fokus nach dem 1. Scan
-                readOnly={false}
-                style={{
-                  minHeight: 56,
-                  fontSize: '1.15rem',
-                  letterSpacing: '0.02em',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  background: loading ? '#f3f6f4' : undefined,
-                }}
-              />
-              <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                Automatisch: sobald 18/20 Ziffern da sind, wird gebucht – Enter vom Scanner nicht
-                nötig. SSCC nicht in der Soll-Liste = Überzählig.
-              </p>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ minHeight: 40, fontSize: '0.9rem' }}
-                onClick={() => {
-                  void unlockAudio();
-                  focusScanner();
-                }}
-              >
-                Fokus + Ton freischalten
-              </button>
-            </div>
+            {lastScan && session.status === 'OPEN' ? (
+              <details className="panel" style={{ gap: '0.5rem' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
+                  Nachbearbeitung optional · {lastScan.sscc}
+                </summary>
+                <div className="stack" style={{ gap: '0.45rem', marginTop: '0.45rem' }}>
+                  {lastScan.kind === 'surplus' ? (
+                    <>
+                      {lastScan.knownLabel ? (
+                        <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                          Im System: {lastScan.knownLabel}
+                        </p>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#a12622' }}>
+                          Label-Foto vor Abschluss nötig (auch unter „Überzählig“).
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ minHeight: 48 }}
+                        disabled={loading || !!lastScan.hasPhoto}
+                        onClick={() => {
+                          photoInputRef.current?.click();
+                          window.setTimeout(() => {
+                            if (!editingRef.current) focusScanner();
+                          }, 400);
+                        }}
+                      >
+                        {lastScan.hasPhoto
+                          ? 'Label-Foto gespeichert'
+                          : lastScan.photoRequired
+                            ? 'Label-Foto aufnehmen'
+                            : 'Foto (optional)'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ flex: 1, minHeight: 48 }}
+                          disabled={loading}
+                          onClick={() => void markLastDamaged()}
+                        >
+                          Beschädigt
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ flex: 1, minHeight: 48 }}
+                          disabled={loading}
+                          onClick={() => {
+                            photoInputRef.current?.click();
+                            window.setTimeout(() => {
+                              if (!editingRef.current) focusScanner();
+                            }, 400);
+                          }}
+                        >
+                          Foto
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ flex: 1, minHeight: 48 }}
+                          disabled={loading}
+                          onClick={() => {
+                            setShowDims((v) => {
+                              const next = !v;
+                              editingRef.current = next;
+                              if (!next) focusScanner();
+                              return next;
+                            });
+                          }}
+                        >
+                          Abmessungen
+                        </button>
+                      </div>
+                      {showDims ? (
+                        <div className="stack" style={{ gap: '0.4rem' }}>
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr 1fr',
+                              gap: '0.35rem',
+                            }}
+                          >
+                            {(
+                              [
+                                ['lengthCm', 'L cm'],
+                                ['widthCm', 'B cm'],
+                                ['heightCm', 'H cm'],
+                              ] as const
+                            ).map(([key, label]) => (
+                              <div className="field" key={key}>
+                                <label>{label}</label>
+                                <input
+                                  inputMode="decimal"
+                                  value={lastScan[key]}
+                                  onFocus={() => {
+                                    editingRef.current = true;
+                                  }}
+                                  onChange={(e) =>
+                                    setLastScan({ ...lastScan, [key]: e.target.value })
+                                  }
+                                  style={{ minHeight: 48, fontSize: '1rem' }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="field">
+                            <label>Gewicht kg</label>
+                            <input
+                              inputMode="decimal"
+                              value={lastScan.weightKg}
+                              onFocus={() => {
+                                editingRef.current = true;
+                              }}
+                              onChange={(e) =>
+                                setLastScan({ ...lastScan, weightKg: e.target.value })
+                              }
+                              style={{ minHeight: 48, fontSize: '1rem' }}
+                            />
+                          </div>
+                          <div className="row" style={{ gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ flex: 1, minHeight: 48 }}
+                              disabled={loading}
+                              onClick={() => void saveDimensions()}
+                            >
+                              Speichern
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ flex: 1, minHeight: 48 }}
+                              onClick={() => {
+                                setShowDims(false);
+                                editingRef.current = false;
+                                focusScanner();
+                              }}
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </details>
+            ) : null}
 
             <div className="row" style={{ gap: '0.45rem' }}>
               <button
@@ -1238,8 +1262,10 @@ export default function WeTc57Page() {
                                 heightCm: '',
                                 weightKg: '',
                               });
-                              editingRef.current = true;
                               photoInputRef.current?.click();
+                              window.setTimeout(() => {
+                                if (!editingRef.current) focusScanner();
+                              }, 400);
                             }}
                           >
                             Label-Foto
