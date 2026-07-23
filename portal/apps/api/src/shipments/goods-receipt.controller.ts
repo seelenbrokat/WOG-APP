@@ -170,4 +170,10 @@ export class GoodsReceiptController {
   close(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: CloseDto) {
     return this.service.closeSession(user, id, dto.notes);
   }
+
+  /** ETB neu erzeugen und erneut an die Notify-Empfänger mailen. */
+  @Post('sessions/:id/resend-etb')
+  resendEtb(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.resendEntladebericht(user, id);
+  }
 }
