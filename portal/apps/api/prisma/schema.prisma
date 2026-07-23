@@ -86,6 +86,7 @@ model Organization {
   packagingTypes    PackagingType[]
   documentCategories DocumentCategory[]
   vehicles          Vehicle[]
+  drivers           Driver[]
   tours             Tour[]
   telematicsEvents  TelematicsEvent[]
   tourDocuments     TourDocument[]
@@ -93,7 +94,33 @@ model Organization {
   loadingUnitPostings LoadingUnitPosting[]
 }
 
-/// Soloplan-Fahrzeug (aus Tour-Header / Truck)
+/// Soloplan-/InTouch-Fahrer (INTOUCHFAHRER / Tour Driver1.TelematicsId)
+model Driver {
+  id             String   @id @default(cuid())
+  organizationId String
+  mandantId      String?
+  /// Soloplan/InTouch FAHRERID bzw. TelematicsId (z. B. THNE)
+  telematicsId   String
+  firstName      String?
+  lastName       String?
+  /// Optionaler Login-PIN für Zustell-App
+  pin            String?
+  active         Boolean  @default(true)
+  lastVehicleId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  mandant      Mandant?     @relation(fields: [mandantId], references: [id], onDelete: SetNull)
+  lastVehicle  Vehicle?     @relation(fields: [lastVehicleId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, telematicsId])
+  @@index([organizationId, lastName])
+  @@index([mandantId])
+  @@index([lastVehicleId])
+}
+
+/// Soloplan-Fahrzeug (aus Tour-Header / Truck / INTOUCHFAHRZEUGE)
 model Vehicle {
   id                 String    @id @default(cuid())
   organizationId     String
@@ -102,10 +129,13 @@ model Vehicle {
   number             String?
   matchcode          String?
   licensePlate       String?
+  /// Optionaler Fahrzeug-PIN (InTouch FAHRZEUGPIN)
+  pin                String?
   active             Boolean   @default(true)
   lastLatitude       Float?
   lastLongitude      Float?
   lastLocationAt     DateTime?
+  /// Letzte bekannte Fahrer-TelematicsId (z. B. THNE)
   lastDriverId       String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -114,6 +144,7 @@ model Vehicle {
   mandant      Mandant?         @relation(fields: [mandantId], references: [id], onDelete: SetNull)
   tours        Tour[]
   events       TelematicsEvent[]
+  drivers      Driver[]
 
   @@unique([organizationId, soloplanVehicleId])
   @@index([organizationId, licensePlate])
@@ -379,6 +410,7 @@ model Mandant {
   transportOrders TransportOrder[]
   tours        Tour[]
   vehicles     Vehicle[]
+  drivers      Driver[]
 
   @@unique([organizationId, code])
 }

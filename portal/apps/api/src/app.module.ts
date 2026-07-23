@@ -20,6 +20,7 @@ import { CustomsModule } from './customs/customs.module';
 import { LabelsModule } from './labels/labels.module';
 import { OrdersModule } from './orders/orders.module';
 import { ToursModule } from './tours/tours.module';
+import { DriverModule } from './driver/driver.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
@@ -37,6 +38,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
     ShipmentsModule,
     OrdersModule,
     ToursModule,
+    DriverModule,
     LabelsModule,
     DocumentsModule,
     NotificationsModule,
