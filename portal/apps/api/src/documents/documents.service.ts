@@ -187,34 +187,131 @@ export class DocumentsService {
       throw new ForbiddenException();
     }
 
-    const exchangeNote = await this.loadingUnits.resolveExchangeNoteForShipment(
-      shipment.organizationId,
+    return this.createAblieferbelegForShipment({
       shipment,
-    );
+      uploadedById: user.id,
+      auditUserId: user.id,
+    });
+  }
+
+  /**
+   * Sauberer Ablieferbeleg nach digitaler Unterschrift (VLB-Zustellapp):
+   * inkl. Lademittel und Signatur-Bild, Export an Soloplan wenn möglich.
+   */
+  async generateDeliveryReceiptFromSignature(opts: {
+    organizationId: string;
+    uploadedById?: string;
+    transportOrderNumber?: string | null;
+    tourNumber?: string | null;
+    tourStopId?: string | null;
+    signaturePath: string;
+    signatureFileName?: string;
+    signedByName?: string | null;
+    signedAt?: Date | null;
+  }) {
+    if (!opts.signaturePath || !existsSync(opts.signaturePath)) {
+      throw new BadRequestException('Unterschriftsdatei fehlt');
+    }
+
+    const shipment = await this.resolveShipmentForDelivery(opts.organizationId, {
+      transportOrderNumber: opts.transportOrderNumber,
+      tourNumber: opts.tourNumber,
+      tourStopId: opts.tourStopId,
+    });
+    if (!shipment) {
+      throw new NotFoundException(
+        `Keine Portal-Sendung zu TO=${opts.transportOrderNumber || '—'} / Tour=${opts.tourNumber || '—'}`,
+      );
+    }
+
+    const exchangeNote = await this.loadingUnits.resolveExchangeNote({
+      organizationId: opts.organizationId,
+      tourStopExternalId: opts.tourStopId || undefined,
+      tourNumber: opts.tourNumber || undefined,
+      transportOrderNumber: opts.transportOrderNumber || undefined,
+      partnerName: shipment.deliveryCompany,
+    });
+    // Fallback über Sendungs-Matching, falls Stop noch nicht verknüpft
+    const note =
+      exchangeNote.status !== 'UNKNOWN'
+        ? exchangeNote
+        : await this.loadingUnits.resolveExchangeNoteForShipment(opts.organizationId, shipment);
+
+    return this.createAblieferbelegForShipment({
+      shipment,
+      uploadedById: opts.uploadedById,
+      auditUserId: opts.uploadedById,
+      exchangeNote: note,
+      signature: {
+        path: opts.signaturePath,
+        fileName: opts.signatureFileName,
+        signedByName: opts.signedByName,
+        signedAt: opts.signedAt || new Date(),
+      },
+    });
+  }
+
+  private async createAblieferbelegForShipment(opts: {
+    shipment: any;
+    uploadedById?: string;
+    auditUserId?: string;
+    exchangeNote?: LoadingUnitExchangeNote | null;
+    signature?: {
+      path: string;
+      fileName?: string;
+      signedByName?: string | null;
+      signedAt?: Date | null;
+    } | null;
+  }) {
+    const shipment = opts.shipment;
+    const exchangeNote =
+      opts.exchangeNote ??
+      (await this.loadingUnits.resolveExchangeNoteForShipment(shipment.organizationId, shipment));
 
     const fileName = `Ablieferbeleg-${shipment.trackingNumber}.pdf`;
     const storagePath = join(this.uploadDir, fileName);
-    await this.writeAblieferbelegPdf(shipment, storagePath, exchangeNote);
+    await this.writeAblieferbelegPdf(shipment, storagePath, exchangeNote, opts.signature);
 
-    const doc = await this.prisma.document.create({
-      data: {
+    // Alten Ablieferbeleg gleichen Namens ersetzen (ein sauberer Beleg je Sendung)
+    const existing = await this.prisma.document.findFirst({
+      where: {
         organizationId: shipment.organizationId,
         shipmentId: shipment.id,
-        customerId: shipment.customerId,
         type: DocumentType.ABLIEFERBELEG,
         fileName,
-        mimeType: 'application/pdf',
-        storagePath,
-        sizeBytes: statSync(storagePath).size,
-        uploadedById: user.id,
       },
     });
+    const doc = existing
+      ? await this.prisma.document.update({
+          where: { id: existing.id },
+          data: {
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            uploadedById: opts.uploadedById || existing.uploadedById,
+          },
+        })
+      : await this.prisma.document.create({
+          data: {
+            organizationId: shipment.organizationId,
+            shipmentId: shipment.id,
+            customerId: shipment.customerId,
+            type: DocumentType.ABLIEFERBELEG,
+            fileName,
+            mimeType: 'application/pdf',
+            storagePath,
+            sizeBytes: statSync(storagePath).size,
+            uploadedById: opts.uploadedById,
+          },
+        });
 
-    await this.audit.log(user.id, 'document.ablieferbeleg', 'Document', doc.id, {
-      trackingNumber: shipment.trackingNumber,
-    });
+    if (opts.auditUserId) {
+      await this.audit.log(opts.auditUserId, 'document.ablieferbeleg', 'Document', doc.id, {
+        trackingNumber: shipment.trackingNumber,
+        withSignature: Boolean(opts.signature?.path),
+        loadingUnitStatus: exchangeNote?.status,
+      });
+    }
 
-    // Ablieferbeleg nur an Soloplan wenn Create noch offen oder Auftrag bereits abgeholt/importiert
     if (shipment.soloplanRef || shipment.order?.soloplanRef) {
       try {
         const res = await this.soloplan.exportDocumentsIfReady(shipment.id);
@@ -228,13 +325,93 @@ export class DocumentsService {
       }
     }
 
-    return doc;
+    return {
+      documentId: doc.id,
+      shipmentId: shipment.id,
+      trackingNumber: shipment.trackingNumber,
+      fileName: doc.fileName,
+      loadingUnitStatus: exchangeNote?.status,
+      withSignature: Boolean(opts.signature?.path),
+    };
+  }
+
+  private async resolveShipmentForDelivery(
+    organizationId: string,
+    refs: {
+      transportOrderNumber?: string | null;
+      tourNumber?: string | null;
+      tourStopId?: string | null;
+    },
+  ) {
+    const candidates = new Set<string>();
+    if (refs.transportOrderNumber?.trim()) candidates.add(refs.transportOrderNumber.trim());
+
+    if (refs.tourStopId) {
+      const stop = await this.prisma.tourStop.findFirst({
+        where: {
+          soloplanTourStopId: refs.tourStopId,
+          tour: { organizationId },
+        },
+        select: { transportOrderNumber: true },
+      });
+      if (stop?.transportOrderNumber) candidates.add(stop.transportOrderNumber);
+    }
+
+    if (refs.transportOrderNumber || refs.tourNumber) {
+      const cons = await this.prisma.tourConsignment.findFirst({
+        where: {
+          tour: {
+            organizationId,
+            ...(refs.tourNumber ? { tourNumber: refs.tourNumber } : {}),
+          },
+          ...(refs.transportOrderNumber
+            ? {
+                OR: [
+                  { soloplanOrderNumber: refs.transportOrderNumber },
+                  { externalConsignmentNumber: refs.transportOrderNumber },
+                ],
+              }
+            : {}),
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (cons?.soloplanOrderNumber) candidates.add(cons.soloplanOrderNumber);
+      if (cons?.externalConsignmentNumber) candidates.add(cons.externalConsignmentNumber);
+    }
+
+    const list = [...candidates].filter(Boolean);
+    if (!list.length) return null;
+
+    return this.prisma.shipment.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { trackingNumber: { in: list } },
+          { reference: { in: list } },
+          { soloplanRef: { in: list } },
+          { order: { externalNumber: { in: list } } },
+        ],
+      },
+      include: {
+        mandant: true,
+        customer: true,
+        positions: true,
+        order: { select: { soloplanRef: true, externalNumber: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   private writeAblieferbelegPdf(
     shipment: any,
     storagePath: string,
     exchangeNote?: LoadingUnitExchangeNote | null,
+    signature?: {
+      path: string;
+      fileName?: string;
+      signedByName?: string | null;
+      signedAt?: Date | null;
+    } | null,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
@@ -244,7 +421,7 @@ export class DocumentsService {
         title: 'Ablieferbeleg',
         subtitle: shipment.trackingNumber,
       });
-      doc.fontSize(12).text(`Mandant: ${shipment.mandant.name}`);
+      doc.fontSize(12).fillColor('#111').text(`Mandant: ${shipment.mandant.name}`);
       doc.text(`Sendungsnummer: ${shipment.trackingNumber}`);
       doc.text(`Referenz: ${shipment.reference || '-'}`);
       doc.text(`Kunde: ${shipment.customer.name}`);
@@ -270,10 +447,44 @@ export class DocumentsService {
         }
       }
       doc.moveDown();
-      // Nicht-Tausch (Given/Taken=0) muss auf dem Ablieferbeleg klar ersichtlich sein
+      // Lademittel (Tausch / Nicht-Tausch) – Pflicht auf Ablieferbeleg
       drawLoadingUnitExchangeBox(doc, exchangeNote);
       doc.moveDown();
-      doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
+
+      if (signature?.path && existsSync(signature.path)) {
+        doc.fontSize(12).fillColor('#111').text('Empfangsbestätigung (digital)');
+        if (signature.signedByName) doc.text(`Empfänger: ${signature.signedByName}`);
+        if (signature.signedAt) {
+          doc.text(`Datum: ${signature.signedAt.toLocaleString('de-CH')}`);
+        }
+        doc.moveDown(0.5);
+        const left = doc.page.margins.left;
+        const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const boxY = doc.y;
+        const boxH = 110;
+        doc
+          .roundedRect(left, boxY, width, boxH, 6)
+          .lineWidth(1)
+          .strokeColor('#c5d0c9')
+          .fillColor('#f7faf8')
+          .fillAndStroke();
+        try {
+          doc.image(signature.path, left + 12, boxY + 10, {
+            fit: [width - 24, boxH - 20],
+            align: 'center',
+            valign: 'center',
+          });
+        } catch {
+          doc
+            .fillColor('#333')
+            .fontSize(10)
+            .text(signature.fileName || 'Unterschrift', left + 16, boxY + 45);
+        }
+        doc.y = boxY + boxH + 12;
+      } else {
+        doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
+      }
+
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);

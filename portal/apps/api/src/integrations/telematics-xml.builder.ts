@@ -85,6 +85,12 @@ ${geoXml(input.location)}
 `;
 }
 
+export type OutLoadingUnitExchange = {
+  matchcode: string;
+  given: number;
+  taken: number;
+};
+
 export type OutTourStopStatus = {
   vehicleId: string;
   driverId?: string | null;
@@ -95,9 +101,29 @@ export type OutTourStopStatus = {
   statusDate?: Date;
   sendDate?: Date;
   location?: { latitude: number; longitude: number; information?: string; at?: Date };
+  /** Lademittel-Tausch für Soloplan (Given/Taken) */
+  loadingUnitExchanges?: OutLoadingUnitExchange[];
+  fileSignature?: string;
 };
 
-/** TourStopStatus – Ankunft / Abfahrt an Station */
+function loadingUnitExchangesXml(exchanges?: OutLoadingUnitExchange[]): string {
+  const list = (exchanges || []).filter((e) => e?.matchcode?.trim());
+  if (!list.length) return '';
+  const rows = list
+    .map(
+      (e) => `    <LoadingUnitExchange>
+      <LoadingUnitMatchcode>${esc(e.matchcode.trim())}</LoadingUnitMatchcode>
+      <Given>${esc(Math.max(0, Math.trunc(Number(e.given) || 0)))}</Given>
+      <Taken>${esc(Math.max(0, Math.trunc(Number(e.taken) || 0)))}</Taken>
+    </LoadingUnitExchange>`,
+    )
+    .join('\n');
+  return `  <LoadingUnitExchanges>
+${rows}
+  </LoadingUnitExchanges>`;
+}
+
+/** TourStopStatus – Ankunft / Abfahrt an Station (+ optional Lademittel) */
 export function buildTourStopStatusXml(input: OutTourStopStatus): string {
   const vehicleId = requireVehicleId(input.vehicleId);
   const statusDate = input.statusDate || new Date();
@@ -106,6 +132,7 @@ export function buildTourStopStatusXml(input: OutTourStopStatus): string {
     input.driverId == null
       ? '  <DriverId xsi:nil="true" />'
       : `  <DriverId>${esc(input.driverId)}</DriverId>`;
+  const luXml = loadingUnitExchangesXml(input.loadingUnitExchanges);
   return `<?xml version="1.0" encoding="utf-8"?>
 <TourStopStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   <TourStopId>${esc(input.tourStopId)}</TourStopId>
@@ -116,7 +143,9 @@ ${driver}
   <StatusDate>${esc(iso(statusDate))}</StatusDate>
   <Status>${esc(input.status)}</Status>
   ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
+${luXml}
 ${geoXml(input.location)}
+  ${input.fileSignature ? `<FileSignature>${esc(input.fileSignature)}</FileSignature>` : ''}
 </TourStopStatus>
 `;
 }

@@ -99,6 +99,9 @@ export default function FahrerPrepPage() {
           <p style={{ margin: 0, color: 'var(--muted, #666)', maxWidth: 720 }}>
             Vorbereitung der Fahrer-Zustellapp (Web / iOS / Android). Jedes Fahrzeug behält seine
             Soloplan-ID; die Telematikkonfiguration heißt <strong>VLBPortal</strong>.
+            Statusmeldungen der App landen im SFTP-Ordner{' '}
+            <code>outbound/soloplan/telematics</code> (Soloplan-Download) – inkl. Lademittel und
+            Ablieferbeleg bei Unterschrift.
           </p>
         </header>
 

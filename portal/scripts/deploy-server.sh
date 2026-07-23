@@ -158,6 +158,8 @@ mkdir -p data/uploads \
   data/sftp/inbound/intouch/meldungen \
   data/sftp/inbound/intouch/dokumente \
   data/sftp/outbound/soloplan/orders \
+  data/sftp/outbound/soloplan/telematics \
+  data/sftp/inbound/vlbportal/telematics \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
   data/integrations/soloplan/{in,out} \
@@ -182,7 +184,9 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
     "$SFTP_ROOT/inbound/soloplan/tours" \
     "$SFTP_ROOT/inbound/intouch/meldungen/processed" \
     "$SFTP_ROOT/inbound/intouch/dokumente/processed" \
+    "$SFTP_ROOT/inbound/vlbportal/telematics" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive"
   chown root:root "$SFTP_ROOT"
   chmod 755 "$SFTP_ROOT"
@@ -194,11 +198,14 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
     chown -R soloplan:soloplan \
       "$SFTP_ROOT/inbound/soloplan" \
       "$SFTP_ROOT/inbound/intouch" \
+      "$SFTP_ROOT/inbound/vlbportal" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
       2>/dev/null || true
     chmod 775 \
       "$SFTP_ROOT/outbound/soloplan/orders" \
+      "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
       2>/dev/null || true
   fi
@@ -233,11 +240,14 @@ EOF
   chown -R soloplan:soloplan \
     "$SFTP_ROOT/inbound/soloplan" \
     "$SFTP_ROOT/inbound/intouch" \
+    "$SFTP_ROOT/inbound/vlbportal" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \
     2>/dev/null || true
   chmod 775 \
     "$SFTP_ROOT/outbound/soloplan/orders" \
+    "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \
     2>/dev/null || true
 

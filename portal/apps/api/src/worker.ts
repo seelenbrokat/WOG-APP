@@ -9,6 +9,7 @@ import { TelematicsService } from './integrations/telematics.service';
 import { IntouchService } from './integrations/intouch.service';
 import { WareneingangService } from './integrations/wareneingang.service';
 import { GoodsReceiptService } from './shipments/goods-receipt.service';
+import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -22,6 +23,7 @@ async function bootstrap() {
   const intouch = app.get(IntouchService);
   const wareneingang = app.get(WareneingangService);
   const goodsReceipt = app.get(GoodsReceiptService);
+  const fahrerTelematics = app.get(FahrerTelematicsService);
 
   console.log(
     'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub + ETB-Retention)',
@@ -37,6 +39,13 @@ async function bootstrap() {
       // Intouch-Ordner werden von Tour/Telematics/Wareneingang mitgelesen; Intouch katalogisiert danach
       await tours.processInboundDir();
       await telematics.processInboundDir(undefined, 250);
+      // VLB-Zustellapp → Soloplan-FTP (outbound/soloplan/telematics) + Lademittel/Ablieferbeleg
+      const vlb = await fahrerTelematics.processAppInboundDir();
+      if (vlb.processed || vlb.failed) {
+        console.log(
+          `VLBPortal Telematics: ${vlb.processed} verarbeitet, ${vlb.failed} fehlgeschlagen`,
+        );
+      }
       await wareneingang.processInboundDir(undefined, 50);
       await intouch.processInboundDir(undefined, 200);
       await soloplan.syncPending();

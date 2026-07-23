@@ -64,8 +64,10 @@ export type ParsedTelematicsDocument = {
   tourNumber?: string;
   transportOrderNumber?: string;
   vehicleId?: string;
+  tourStopId?: string;
   fileName: string;
   contentBase64: string;
+  fileSignature?: string;
 };
 
 export type ParsedSsccLine = {
@@ -293,8 +295,10 @@ export function parseTelematicsXml(xml: string, fileName?: string): ParsedTelema
       tourNumber: str(n.TourNumber) || undefined,
       transportOrderNumber: str(n.TransportOrderNumber) || undefined,
       vehicleId: str(n.VehicleId) || undefined,
+      tourStopId: str(n.TourStopId) || undefined,
       fileName: fileNameDoc,
       contentBase64,
+      fileSignature: str(n.FileSignature) || undefined,
     };
   }
 
