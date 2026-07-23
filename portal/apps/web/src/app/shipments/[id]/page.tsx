@@ -183,6 +183,19 @@ function ShipmentDetailInner() {
                 <div className="muted">{shipment.pickupCompany}</div>
                 <div className="muted">{shipment.pickupStreet}</div>
                 <div className="muted">{shipment.pickupZip} {shipment.pickupCity}</div>
+                {shipment.pickupDate ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Datum:{' '}
+                    {new Date(shipment.pickupDate).toLocaleString('de-CH', {
+                      timeZone: 'UTC',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                ) : null}
                 {(shipment.extras as ShipmentExtras | null)?.pickupNote ? (
                   <div className="muted" style={{ marginTop: '0.35rem' }}>
                     Info: {(shipment.extras as ShipmentExtras).pickupNote}
@@ -194,6 +207,29 @@ function ShipmentDetailInner() {
                 <div className="muted">{shipment.deliveryCompany}</div>
                 <div className="muted">{shipment.deliveryStreet}</div>
                 <div className="muted">{shipment.deliveryZip} {shipment.deliveryCity}</div>
+                {shipment.deliveryDate ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    Von:{' '}
+                    {new Date(shipment.deliveryDate).toLocaleString('de-CH', {
+                      timeZone: 'UTC',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {shipment.deliveryDateEnd
+                      ? ` · Bis: ${new Date(shipment.deliveryDateEnd).toLocaleString('de-CH', {
+                          timeZone: 'UTC',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}`
+                      : ''}
+                  </div>
+                ) : null}
                 {shipment.deliveryAvisPhone && (
                   <div className="muted">Avis-Tel: {shipment.deliveryAvisPhone}</div>
                 )}
