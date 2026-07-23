@@ -11,6 +11,10 @@ import {
   type ShipmentExtras,
 } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
+import {
+  AddressBookPicker,
+  AddressTypingSuggestions,
+} from '@/components/AddressBookPicker';
 import { api, getUser } from '@/lib/api';
 
 type AddressCheck = {
@@ -186,6 +190,9 @@ function NewShipmentInner() {
   });
   const [pickupCheck, setPickupCheck] = useState<AddressCheck>(idleCheck);
   const [deliveryCheck, setDeliveryCheck] = useState<AddressCheck>(idleCheck);
+  /** Nicht in OSM gefunden / Formatwarnung – trotzdem übernehmen (z. B. Baustelle). */
+  const [pickupOverride, setPickupOverride] = useState(false);
+  const [deliveryOverride, setDeliveryOverride] = useState(false);
 
   function toggleExtra(code: keyof ShipmentExtras, checked: boolean) {
     setExtras((prev) => {
@@ -263,8 +270,13 @@ function NewShipmentInner() {
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
     if (!addr) {
-      if (kind === 'pickup') setForm((f) => ({ ...f, pickupAddressId: '' }));
-      else setForm((f) => ({ ...f, deliveryAddressId: '' }));
+      if (kind === 'pickup') {
+        setForm((f) => ({ ...f, pickupAddressId: '' }));
+        setPickupOverride(false);
+      } else {
+        setForm((f) => ({ ...f, deliveryAddressId: '' }));
+        setDeliveryOverride(false);
+      }
       return;
     }
     if (kind === 'pickup') {
@@ -278,6 +290,7 @@ function NewShipmentInner() {
         pickupCountry: addr.country || 'AT',
       }));
       setPickupCheck(idleCheck);
+      setPickupOverride(false);
     } else {
       setForm((f) => ({
         ...f,
@@ -289,6 +302,7 @@ function NewShipmentInner() {
         deliveryCountry: addr.country || 'AT',
       }));
       setDeliveryCheck(idleCheck);
+      setDeliveryOverride(false);
     }
   }
 
@@ -316,6 +330,8 @@ function NewShipmentInner() {
     }
 
     setCheck({ status: 'loading', message: 'Adresse wird geprüft…' });
+    if (kind === 'pickup') setPickupOverride(false);
+    else setDeliveryOverride(false);
     try {
       const res = await api<{
         ok: boolean;
@@ -481,13 +497,25 @@ function NewShipmentInner() {
         setTab('allgemein');
         throw new Error(`Zustellung: PLZ-Format für ${form.deliveryCountry} ungültig.`);
       }
-      if (pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR') {
+      if (
+        (pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR') &&
+        !pickupOverride
+      ) {
         setTab('allgemein');
-        throw new Error('Abholadresse prüfen: ' + (pickupCheck.message || 'ungültig'));
+        throw new Error(
+          'Abholadresse prüfen oder „Adresse trotzdem verwenden“ wählen: ' +
+            (pickupCheck.message || 'ungültig'),
+        );
       }
-      if (deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR') {
+      if (
+        (deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR') &&
+        !deliveryOverride
+      ) {
         setTab('allgemein');
-        throw new Error('Zustelladresse prüfen: ' + (deliveryCheck.message || 'ungültig'));
+        throw new Error(
+          'Zustelladresse prüfen oder „Adresse trotzdem verwenden“ wählen: ' +
+            (deliveryCheck.message || 'ungültig'),
+        );
       }
 
       // Wenn nur Schnellfassung gesetzt und Colli leer/unbearbeitet: vor Submit aufteilen
@@ -691,23 +719,19 @@ function NewShipmentInner() {
         <div className="grid-2">
           <div className="stack">
             <strong>Abholung</strong>
-            <select
-              value={form.pickupAddressId}
-              onChange={(e) => applyAddress('pickup', e.target.value)}
-            >
-              <option value="">– aus Adressbuch oder neu –</option>
-              {pickupAddresses.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city} ({a.country})
-                </option>
-              ))}
-            </select>
+            <AddressBookPicker
+              addresses={pickupAddresses}
+              selectedId={form.pickupAddressId}
+              onSelect={(id) => applyAddress('pickup', id)}
+              emptyHint="Noch keine Abholadressen gespeichert – nach dem ersten Auftrag erscheinen sie hier."
+            />
             <input
               placeholder="Firma"
               value={form.pickupCompany}
               onChange={(e) => {
                 setForm({ ...form, pickupCompany: e.target.value, pickupAddressId: '' });
                 setPickupCheck(idleCheck);
+                setPickupOverride(false);
               }}
             />
             <input
@@ -717,6 +741,7 @@ function NewShipmentInner() {
               onChange={(e) => {
                 setForm({ ...form, pickupStreet: e.target.value, pickupAddressId: '' });
                 setPickupCheck(idleCheck);
+                setPickupOverride(false);
               }}
             />
             <div className="row">
@@ -727,6 +752,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, pickupZip: e.target.value, pickupAddressId: '' });
                   setPickupCheck(idleCheck);
+                  setPickupOverride(false);
                 }}
               />
               <input
@@ -736,6 +762,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, pickupCity: e.target.value, pickupAddressId: '' });
                   setPickupCheck(idleCheck);
+                  setPickupOverride(false);
                 }}
               />
             </div>
@@ -747,6 +774,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, pickupCountry: e.target.value, pickupAddressId: '' });
                   setPickupCheck(idleCheck);
+                  setPickupOverride(false);
                 }}
               >
                 {COUNTRIES.map((c) => (
@@ -756,6 +784,16 @@ function NewShipmentInner() {
                 ))}
               </select>
             </div>
+            {!form.pickupAddressId ? (
+              <AddressTypingSuggestions
+                addresses={pickupAddresses}
+                company={form.pickupCompany}
+                street={form.pickupStreet}
+                zip={form.pickupZip}
+                city={form.pickupCity}
+                onPick={(id) => applyAddress('pickup', id)}
+              />
+            ) : null}
             <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
               <button
                 type="button"
@@ -768,13 +806,18 @@ function NewShipmentInner() {
               {pickupCheck.status === 'VALID' && (
                 <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
               )}
+              {pickupOverride && (
+                <span style={{ color: 'var(--warn, #b78103)', fontSize: '0.9rem' }}>
+                  manuell übernommen
+                </span>
+              )}
             </div>
             {pickupCheck.message && pickupCheck.status !== 'idle' && pickupCheck.status !== 'loading' ? (
               <p
                 className={
                   pickupCheck.status === 'VALID'
                     ? 'success'
-                    : pickupCheck.status === 'AMBIGUOUS'
+                    : pickupCheck.status === 'AMBIGUOUS' || pickupOverride
                       ? 'muted'
                       : 'error'
                 }
@@ -784,13 +827,25 @@ function NewShipmentInner() {
                   color:
                     pickupCheck.status === 'VALID'
                       ? 'var(--ok, #2f9e62)'
-                      : pickupCheck.status === 'AMBIGUOUS'
+                      : pickupCheck.status === 'AMBIGUOUS' || pickupOverride
                         ? 'var(--warn, #b78103)'
                         : undefined,
                 }}
               >
                 {pickupCheck.message}
               </p>
+            ) : null}
+            {pickupCheck.status === 'INVALID' || pickupCheck.status === 'FORMAT_ERROR' ? (
+              <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={pickupOverride}
+                  onChange={(e) => setPickupOverride(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.85rem' }}>
+                  Adresse trotzdem verwenden (z.&nbsp;B. neue Baustelle / nicht in Karte gefunden)
+                </span>
+              </label>
             ) : null}
             {pickupCheck.suggestions && pickupCheck.suggestions.length > 0 ? (
               <div className="stack" style={{ gap: '0.35rem' }}>
@@ -800,7 +855,10 @@ function NewShipmentInner() {
                     type="button"
                     className="btn btn-ghost"
                     style={{ textAlign: 'left', justifyContent: 'flex-start' }}
-                    onClick={() => applySuggestion('pickup', s)}
+                    onClick={() => {
+                      applySuggestion('pickup', s);
+                      setPickupOverride(false);
+                    }}
                   >
                     Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
                   </button>
@@ -821,28 +879,24 @@ function NewShipmentInner() {
               Abholung im Adressbuch speichern
             </label>
             <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Auswahl.
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Suche.
             </p>
           </div>
           <div className="stack">
             <strong>Zustellung</strong>
-            <select
-              value={form.deliveryAddressId}
-              onChange={(e) => applyAddress('delivery', e.target.value)}
-            >
-              <option value="">– aus Adressbuch oder neu –</option>
-              {deliveryAddresses.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {(a.label || a.company || a.street)} · {a.zip} {a.city} ({a.country})
-                </option>
-              ))}
-            </select>
+            <AddressBookPicker
+              addresses={deliveryAddresses}
+              selectedId={form.deliveryAddressId}
+              onSelect={(id) => applyAddress('delivery', id)}
+              emptyHint="Noch keine Zustelladressen gespeichert – nach dem ersten Auftrag erscheinen sie hier."
+            />
             <input
               placeholder="Firma"
               value={form.deliveryCompany}
               onChange={(e) => {
                 setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' });
                 setDeliveryCheck(idleCheck);
+                setDeliveryOverride(false);
               }}
             />
             <input
@@ -852,6 +906,7 @@ function NewShipmentInner() {
               onChange={(e) => {
                 setForm({ ...form, deliveryStreet: e.target.value, deliveryAddressId: '' });
                 setDeliveryCheck(idleCheck);
+                setDeliveryOverride(false);
               }}
             />
             <div className="row">
@@ -862,6 +917,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, deliveryZip: e.target.value, deliveryAddressId: '' });
                   setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
                 }}
               />
               <input
@@ -871,6 +927,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, deliveryCity: e.target.value, deliveryAddressId: '' });
                   setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
                 }}
               />
             </div>
@@ -882,6 +939,7 @@ function NewShipmentInner() {
                 onChange={(e) => {
                   setForm({ ...form, deliveryCountry: e.target.value, deliveryAddressId: '' });
                   setDeliveryCheck(idleCheck);
+                  setDeliveryOverride(false);
                 }}
               >
                 {COUNTRIES.map((c) => (
@@ -891,6 +949,16 @@ function NewShipmentInner() {
                 ))}
               </select>
             </div>
+            {!form.deliveryAddressId ? (
+              <AddressTypingSuggestions
+                addresses={deliveryAddresses}
+                company={form.deliveryCompany}
+                street={form.deliveryStreet}
+                zip={form.deliveryZip}
+                city={form.deliveryCity}
+                onPick={(id) => applyAddress('delivery', id)}
+              />
+            ) : null}
             <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
               <button
                 type="button"
@@ -903,13 +971,18 @@ function NewShipmentInner() {
               {deliveryCheck.status === 'VALID' && (
                 <span style={{ color: 'var(--ok)', fontSize: '0.9rem' }}>✓ geprüft</span>
               )}
+              {deliveryOverride && (
+                <span style={{ color: 'var(--warn, #b78103)', fontSize: '0.9rem' }}>
+                  manuell übernommen
+                </span>
+              )}
             </div>
             {deliveryCheck.message && deliveryCheck.status !== 'idle' && deliveryCheck.status !== 'loading' ? (
               <p
                 className={
                   deliveryCheck.status === 'VALID'
                     ? 'success'
-                    : deliveryCheck.status === 'AMBIGUOUS'
+                    : deliveryCheck.status === 'AMBIGUOUS' || deliveryOverride
                       ? 'muted'
                       : 'error'
                 }
@@ -919,13 +992,25 @@ function NewShipmentInner() {
                   color:
                     deliveryCheck.status === 'VALID'
                       ? 'var(--ok, #2f9e62)'
-                      : deliveryCheck.status === 'AMBIGUOUS'
+                      : deliveryCheck.status === 'AMBIGUOUS' || deliveryOverride
                         ? 'var(--warn, #b78103)'
                         : undefined,
                 }}
               >
                 {deliveryCheck.message}
               </p>
+            ) : null}
+            {deliveryCheck.status === 'INVALID' || deliveryCheck.status === 'FORMAT_ERROR' ? (
+              <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={deliveryOverride}
+                  onChange={(e) => setDeliveryOverride(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.85rem' }}>
+                  Adresse trotzdem verwenden (z.&nbsp;B. neue Baustelle / nicht in Karte gefunden)
+                </span>
+              </label>
             ) : null}
             {deliveryCheck.suggestions && deliveryCheck.suggestions.length > 0 ? (
               <div className="stack" style={{ gap: '0.35rem' }}>
@@ -935,7 +1020,10 @@ function NewShipmentInner() {
                     type="button"
                     className="btn btn-ghost"
                     style={{ textAlign: 'left', justifyContent: 'flex-start' }}
-                    onClick={() => applySuggestion('delivery', s)}
+                    onClick={() => {
+                      applySuggestion('delivery', s);
+                      setDeliveryOverride(false);
+                    }}
                   >
                     Übernehmen: {s.street}, {s.zip} {s.city} ({s.country})
                   </button>
@@ -960,15 +1048,19 @@ function NewShipmentInner() {
                 rows={2}
                 value={form.deliveryNotes}
                 onChange={(e) => setForm({ ...form, deliveryNotes: e.target.value })}
-                placeholder="z. B. Anfahrt, Rampe, Öffnungszeiten Empfang"
+                placeholder="z. B. Hintereingang, Gabelstapler nötig"
               />
             </div>
             <label className="row">
-              <input type="checkbox" checked={form.saveDeliveryAddress} onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={form.saveDeliveryAddress}
+                onChange={(e) => setForm({ ...form, saveDeliveryAddress: e.target.checked })}
+              />
               Zustellung im Adressbuch speichern
             </label>
             <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Auswahl.
+              Beim Anlegen wird die Adresse automatisch gespeichert und steht künftig in der Suche.
             </p>
           </div>
         </div>

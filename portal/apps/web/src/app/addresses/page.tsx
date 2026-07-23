@@ -58,6 +58,20 @@ export default function AddressBookPage() {
   const [templateName, setTemplateName] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [forceSaveAddress, setForceSaveAddress] = useState(false);
+  const [addressFilter, setAddressFilter] = useState('');
+
+  const filteredAddresses = useMemo(() => {
+    const q = addressFilter.trim().toLowerCase();
+    if (!q) return addresses;
+    return addresses.filter((a) =>
+      [a.label, a.company, a.street, a.zip, a.city, a.country, a.usage]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [addresses, addressFilter]);
 
   const query = useMemo(() => {
     if (user?.role === 'CUSTOMER_USER') return '';
@@ -114,17 +128,21 @@ export default function AddressBookPage() {
           company: form.company,
         }),
       });
-      if (check.status === 'FORMAT_ERROR' || check.status === 'INVALID') {
-        throw new Error(check.message || 'Adresse ungültig');
+      if ((check.status === 'FORMAT_ERROR' || check.status === 'INVALID') && !forceSaveAddress) {
+        throw new Error(
+          (check.message || 'Adresse ungültig') +
+            ' – oder unten „Trotzdem speichern“ wählen (z. B. Baustelle).',
+        );
       }
       await api(`/customers/me/addresses${query}`, {
         method: 'POST',
         body: JSON.stringify(form),
       });
       setForm(emptyAddress);
+      setForceSaveAddress(false);
       setMessage(
-        check.status === 'AMBIGUOUS'
-          ? 'Adresse gespeichert (Prüfung ungenau – bitte Eintrag kontrollieren).'
+        check.status === 'AMBIGUOUS' || check.status === 'INVALID' || check.status === 'FORMAT_ERROR'
+          ? 'Adresse gespeichert (Prüfung ungenau/nicht gefunden – bitte Eintrag kontrollieren).'
           : 'Adresse gespeichert und geprüft',
       );
       await load();
@@ -248,11 +266,28 @@ export default function AddressBookPage() {
               <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} />
               Als Standardadresse
             </label>
+            <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={forceSaveAddress}
+                onChange={(e) => setForceSaveAddress(e.target.checked)}
+              />
+              <span style={{ fontSize: '0.85rem' }}>
+                Trotzdem speichern, falls Adresse in der Karte nicht gefunden wird (z.&nbsp;B. Baustelle)
+              </span>
+            </label>
             <button className="btn btn-primary" type="submit">Adresse speichern</button>
           </form>
 
           <div className="panel">
             <strong>Adressbuch</strong>
+            <input
+              type="search"
+              placeholder="Suchen: Firma, Straße, PLZ, Ort…"
+              value={addressFilter}
+              onChange={(e) => setAddressFilter(e.target.value)}
+              style={{ margin: '0.5rem 0', width: '100%' }}
+            />
             <table className="table">
               <thead>
                 <tr>
@@ -263,7 +298,7 @@ export default function AddressBookPage() {
                 </tr>
               </thead>
               <tbody>
-                {addresses.map((a) => (
+                {filteredAddresses.map((a) => (
                   <tr key={a.id}>
                     <td>{a.label || a.company || '–'}{a.isDefault ? ' ★' : ''}</td>
                     <td>{a.street}, {a.zip} {a.city} ({a.country})</td>
