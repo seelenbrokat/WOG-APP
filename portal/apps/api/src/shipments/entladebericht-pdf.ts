@@ -3,6 +3,12 @@ import { dirname } from 'path';
 import PDFDocument from 'pdfkit';
 import { drawA4BrandHeader, drawA4Footer, formatPdfDateTime, WOG_PDF } from '../common/pdf-brand';
 
+/** Marker in GoodsReceiptColloCheck.note – Abmessungen während WE angepasst. */
+export const ETB_DIMS_CHANGED_MARKER = '[DIMS_CHANGED]';
+
+const COLOR_DAMAGE = '#a12622';
+const COLOR_DIMS = '#0b5e3b';
+
 export type EtbColloLine = {
   sscc: string;
   status: string;
@@ -20,6 +26,8 @@ export type EtbColloLine = {
   deliveryCity?: string | null;
   scannedAt?: Date | null;
   note?: string | null;
+  /** Abmessungen/Gewicht während der Kontrolle geändert */
+  dimensionsChanged?: boolean;
 };
 
 export type EtbSurplusLine = {
@@ -76,51 +84,97 @@ function statusDe(s: string): string {
   }
 }
 
+function formatDims(c: EtbColloLine): string | null {
+  if (c.lengthCm == null && c.widthCm == null && c.heightCm == null) return null;
+  return `${c.lengthCm ?? '–'}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'} cm`;
+}
+
+function cleanNote(note?: string | null): string | null {
+  if (!note) return null;
+  const cleaned = note
+    .replace(ETB_DIMS_CHANGED_MARKER, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[·\s]+|[·\s]+$/g, '')
+    .trim();
+  return cleaned || null;
+}
+
+function noteHasDimsChanged(note?: string | null): boolean {
+  return !!note && note.includes(ETB_DIMS_CHANGED_MARKER);
+}
+
 function ensureSpace(doc: PDFKit.PDFDocument, need: number) {
   if (doc.y > doc.page.height - need) doc.addPage();
 }
 
-function drawSectionTitle(doc: PDFKit.PDFDocument, title: string, count: number) {
+function drawSectionTitle(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  count: number,
+  opts?: { color?: string; rule?: string },
+) {
   ensureSpace(doc, 80);
+  const color = opts?.color || WOG_PDF.greenDeep;
+  const rule = opts?.rule || opts?.color || WOG_PDF.green;
   doc.moveDown(0.55);
-  doc.fillColor(WOG_PDF.greenDeep).font('Helvetica-Bold').fontSize(12).text(`${title} (${count})`);
+  doc.fillColor(color).font('Helvetica-Bold').fontSize(12).text(`${title} (${count})`);
   doc
     .moveTo(doc.page.margins.left, doc.y + 2)
     .lineTo(doc.page.width - doc.page.margins.right, doc.y + 2)
     .lineWidth(1)
-    .strokeColor(WOG_PDF.green)
+    .strokeColor(rule)
     .stroke();
   doc.moveDown(0.45);
   doc.font('Helvetica').fontSize(8).fillColor(WOG_PDF.ink);
 }
 
 function drawColloBlock(doc: PDFKit.PDFDocument, c: EtbColloLine, usable: number) {
-  ensureSpace(doc, 70);
+  const damaged = c.status === 'DAMAGED';
+  const dimsChanged = !!c.dimensionsChanged || noteHasDimsChanged(c.note);
+  ensureSpace(doc, dimsChanged ? 95 : 70);
   const left = doc.page.margins.left;
   const dest = [c.deliveryZip, c.deliveryCity, c.deliveryCompany].filter(Boolean).join(' ');
-  const dims =
-    c.lengthCm != null || c.widthCm != null || c.heightCm != null
-      ? `${c.lengthCm ?? '–'}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'} cm`
-      : null;
-  const line1 = [
+  const dims = formatDims(c);
+  const ink = damaged ? COLOR_DAMAGE : WOG_PDF.ink;
+  const muted = damaged ? '#b54a45' : WOG_PDF.muted;
+
+  const line1Parts = [
     c.sscc,
     statusDe(c.status),
     c.reference || c.trackingNumber,
     c.packaging,
-    c.weightKg != null ? `${c.weightKg} kg` : null,
-    dims,
-  ]
-    .filter(Boolean)
-    .join('  |  ');
-  doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(8).text(line1, left, doc.y, { width: usable });
-  const line2 = [dest, c.content, c.note].filter(Boolean).join(' · ');
-  if (line2) doc.fillColor(WOG_PDF.muted).text(line2, { width: usable });
+    c.weightKg != null && !dimsChanged ? `${c.weightKg} kg` : null,
+    dims && !dimsChanged ? dims : null,
+  ].filter(Boolean);
+
+  doc
+    .fillColor(ink)
+    .font(damaged ? 'Helvetica-Bold' : 'Helvetica')
+    .fontSize(8)
+    .text(line1Parts.join('  |  '), left, doc.y, { width: usable });
+
+  if (dimsChanged && (dims || c.weightKg != null)) {
+    const bits = [
+      dims ? `Abmessungen geändert: ${dims}` : null,
+      c.weightKg != null ? `Gewicht: ${c.weightKg} kg` : null,
+    ].filter(Boolean);
+    doc
+      .fillColor(COLOR_DIMS)
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text(bits.join('  ·  '), { width: usable });
+  }
+
+  const note = cleanNote(c.note);
+  const line2 = [dest, c.content, note].filter(Boolean).join(' · ');
+  if (line2) doc.fillColor(muted).font('Helvetica').fontSize(8).text(line2, { width: usable });
+
   doc.moveDown(0.12);
   doc
     .moveTo(left, doc.y)
     .lineTo(left + usable, doc.y)
     .lineWidth(0.4)
-    .strokeColor(WOG_PDF.line)
+    .strokeColor(damaged ? '#e0b4b2' : WOG_PDF.line)
     .stroke();
   doc.moveDown(0.22);
 }
@@ -156,9 +210,19 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
     doc.moveDown(0.45);
     doc.font('Helvetica-Bold').fontSize(11).fillColor(WOG_PDF.ink).text('Zusammenfassung');
     doc.font('Helvetica').fontSize(10);
-    doc.text(
-      `Soll ${input.summary.expected}  ·  OK ${input.summary.ok}  ·  Beschädigt ${input.summary.damaged}  ·  Fehlend ${input.summary.missing}  ·  Storniert ${input.summary.cancelled}  ·  Überzählig ${input.summary.surplus}`,
-    );
+    // Teile mit Farbe für Beschädigt
+    const s = input.summary;
+    doc.fillColor(WOG_PDF.ink).text(`Soll ${s.expected}  ·  OK ${s.ok}  ·  `, { continued: true });
+    doc
+      .fillColor(s.damaged > 0 ? COLOR_DAMAGE : WOG_PDF.ink)
+      .font(s.damaged > 0 ? 'Helvetica-Bold' : 'Helvetica')
+      .text(`Beschädigt ${s.damaged}`, { continued: true });
+    doc
+      .fillColor(WOG_PDF.ink)
+      .font('Helvetica')
+      .text(
+        `  ·  Fehlend ${s.missing}  ·  Storniert ${s.cancelled}  ·  Überzählig ${s.surplus}`,
+      );
 
     const left = doc.page.margins.left;
     const usable = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -173,33 +237,47 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
       for (const c of ok) drawColloBlock(doc, c, usable);
     }
     if (damaged.length) {
-      drawSectionTitle(doc, 'Beschädigt', damaged.length);
+      drawSectionTitle(doc, 'Beschädigt', damaged.length, {
+        color: COLOR_DAMAGE,
+        rule: COLOR_DAMAGE,
+      });
       for (const c of damaged) drawColloBlock(doc, c, usable);
     }
     if (missing.length) {
-      drawSectionTitle(doc, 'Fehlend', missing.length);
+      drawSectionTitle(doc, 'Fehlend', missing.length, {
+        color: '#8a5a00',
+        rule: '#c9a227',
+      });
       for (const c of missing) drawColloBlock(doc, c, usable);
     }
     if (cancelled.length) {
-      drawSectionTitle(doc, 'Storniert (nicht andrucken)', cancelled.length);
+      drawSectionTitle(doc, 'Storniert (nicht andrucken)', cancelled.length, {
+        color: WOG_PDF.muted,
+        rule: WOG_PDF.line,
+      });
       for (const c of cancelled) drawColloBlock(doc, c, usable);
     }
 
     if (input.surplus.length) {
-      drawSectionTitle(doc, 'Überzählig', input.surplus.length);
-      for (const s of input.surplus) {
-        ensureSpace(doc, s.photoPath && existsSync(s.photoPath) ? 220 : 80);
-        doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(9).text(s.sscc);
+      drawSectionTitle(doc, 'Überzählig', input.surplus.length, {
+        color: COLOR_DAMAGE,
+        rule: COLOR_DAMAGE,
+      });
+      for (const sLine of input.surplus) {
+        ensureSpace(doc, sLine.photoPath && existsSync(sLine.photoPath) ? 220 : 80);
+        doc.fillColor(COLOR_DAMAGE).font('Helvetica-Bold').fontSize(9).text(sLine.sscc);
         doc.font('Helvetica').fontSize(8).fillColor(WOG_PDF.muted);
-        doc.text(`Gescannt: ${formatPdfDateTime(s.scannedAt)}${s.note ? ` · ${s.note}` : ''}`);
-        if (s.known) {
+        doc.text(
+          `Gescannt: ${formatPdfDateTime(sLine.scannedAt)}${sLine.note ? ` · ${sLine.note}` : ''}`,
+        );
+        if (sLine.known) {
           doc.fillColor(WOG_PDF.ink).text(
             [
               'Im System gefunden:',
-              s.known.trackingNumber,
-              s.known.reference,
-              s.known.customerName,
-              [s.known.deliveryZip, s.known.deliveryCity, s.known.deliveryCompany]
+              sLine.known.trackingNumber,
+              sLine.known.reference,
+              sLine.known.customerName,
+              [sLine.known.deliveryZip, sLine.known.deliveryCity, sLine.known.deliveryCompany]
                 .filter(Boolean)
                 .join(' '),
             ]
@@ -208,16 +286,16 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
             { width: usable },
           );
         } else {
-          doc.fillColor('#a12622').text('SSCC nicht im System – Label-Foto erforderlich', {
+          doc.fillColor(COLOR_DAMAGE).text('SSCC nicht im System – Label-Foto erforderlich', {
             width: usable,
           });
         }
-        if (s.photoPath && existsSync(s.photoPath)) {
+        if (sLine.photoPath && existsSync(sLine.photoPath)) {
           try {
             doc.moveDown(0.2);
             const imgH = 160;
             const y0 = doc.y;
-            doc.image(s.photoPath, left, y0, {
+            doc.image(sLine.photoPath, left, y0, {
               fit: [usable, imgH],
             });
             doc.y = y0 + imgH + 10;
@@ -230,7 +308,7 @@ export function writeEntladeberichtPdf(input: EtbPdfInput, storagePath: string):
           .moveTo(left, doc.y)
           .lineTo(left + usable, doc.y)
           .lineWidth(0.4)
-          .strokeColor(WOG_PDF.line)
+          .strokeColor('#e0b4b2')
           .stroke();
         doc.moveDown(0.35);
       }

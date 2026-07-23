@@ -13,7 +13,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
-import { writeEntladeberichtPdf, type EtbSurplusLine } from './entladebericht-pdf';
+import {
+  ETB_DIMS_CHANGED_MARKER,
+  writeEntladeberichtPdf,
+  type EtbSurplusLine,
+} from './entladebericht-pdf';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   // dateStr YYYY-MM-DD (lokal als UTC-Tag)
@@ -768,6 +772,18 @@ export class GoodsReceiptService {
     });
     if (!check) throw new NotFoundException('Packstück nicht in dieser Sitzung');
 
+    const prev = check.collo;
+    const nextLen = data.lengthCm !== undefined ? data.lengthCm : prev.lengthCm;
+    const nextWid = data.widthCm !== undefined ? data.widthCm : prev.widthCm;
+    const nextHei = data.heightCm !== undefined ? data.heightCm : prev.heightCm;
+    const nextWgt = data.weightKg !== undefined ? data.weightKg : prev.weightKg;
+
+    const dimsChanged =
+      nextLen !== prev.lengthCm ||
+      nextWid !== prev.widthCm ||
+      nextHei !== prev.heightCm ||
+      nextWgt !== prev.weightKg;
+
     const patch: {
       lengthCm?: number | null;
       widthCm?: number | null;
@@ -779,9 +795,44 @@ export class GoodsReceiptService {
     if (data.heightCm !== undefined) patch.heightCm = data.heightCm;
     if (data.weightKg !== undefined) patch.weightKg = data.weightKg;
 
-    await this.prisma.shipmentCollo.update({
-      where: { id: colloId },
-      data: patch,
+    const fmt = (l: number | null, w: number | null, h: number | null) =>
+      l != null || w != null || h != null ? `${l ?? '–'}×${w ?? '–'}×${h ?? '–'} cm` : null;
+    const prevDims = fmt(prev.lengthCm, prev.widthCm, prev.heightCm);
+    const nextDims = fmt(nextLen ?? null, nextWid ?? null, nextHei ?? null);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.shipmentCollo.update({
+        where: { id: colloId },
+        data: patch,
+      });
+      if (dimsChanged) {
+        const parts = [
+          check.note?.includes(ETB_DIMS_CHANGED_MARKER)
+            ? check.note
+            : [check.note, ETB_DIMS_CHANGED_MARKER].filter(Boolean).join(' '),
+          nextDims
+            ? `Abmessungen angepasst: ${nextDims}${prevDims ? ` (vorher ${prevDims})` : ''}`
+            : null,
+          nextWgt != null && nextWgt !== prev.weightKg
+            ? `Gewicht: ${nextWgt} kg${prev.weightKg != null ? ` (vorher ${prev.weightKg} kg)` : ''}`
+            : null,
+        ].filter(Boolean);
+        // Doppelte „Abmessungen angepasst“-Zeilen vermeiden
+        const note = parts
+          .join(' · ')
+          .replace(
+            /(Abmessungen angepasst:[^·]+)( · Abmessungen angepasst:[^·]+)+/g,
+            '$1',
+          );
+        await tx.goodsReceiptColloCheck.update({
+          where: { id: check.id },
+          data: { note },
+        });
+        await tx.shipmentCollo.update({
+          where: { id: colloId },
+          data: { warehouseNote: note },
+        });
+      }
     });
 
     return this.getSession(user, sessionId);
@@ -1018,6 +1069,7 @@ export class GoodsReceiptService {
           deliveryCity: c.collo.shipment.deliveryCity,
           scannedAt: c.scannedAt,
           note: c.note,
+          dimensionsChanged: !!(c.note && c.note.includes(ETB_DIMS_CHANGED_MARKER)),
         })),
         surplus: surplusLines,
       },
