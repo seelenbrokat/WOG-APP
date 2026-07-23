@@ -704,7 +704,7 @@ model GoodsReceiptColloCheck {
   id          String    @id @default(cuid())
   sessionId   String
   colloId     String
-  /// PENDING | RECEIVED | DAMAGED | MISSING
+  /// PENDING | RECEIVED | DAMAGED | MISSING | CANCELLED
   status      String    @default("PENDING")
   scannedAt   DateTime?
   scannedById String?

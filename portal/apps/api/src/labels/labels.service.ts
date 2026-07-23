@@ -43,10 +43,18 @@ export class LabelsService {
    */
   async generateLabels(user: AuthUser, shipmentId: string) {
     const shipment = await this.getShipment(user, shipmentId);
-    const colli = await this.repairInvalidColliSscc(
+    if (shipment.status === 'CANCELLED') {
+      throw new ForbiddenException('Stornierte Sendung – Etiketten werden nicht erzeugt/angedruckt');
+    }
+    const allColli = await this.repairInvalidColliSscc(
       shipment.organizationId,
       await this.ensureColli(shipment),
     );
+    // Stornierte Colli (WE-Storno) nicht andrucken
+    const colli = allColli.filter((c: { warehouseStatus?: string }) => c.warehouseStatus !== 'CANCELLED');
+    if (!colli.length) {
+      throw new ForbiddenException('Keine druckbaren Colli – alle Packstücke sind storniert');
+    }
     const docs = [];
 
     const labelShipment = {

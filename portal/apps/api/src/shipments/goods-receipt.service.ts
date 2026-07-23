@@ -13,7 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
-import { writeEntladeberichtPdf } from './entladebericht-pdf';
+import { writeEntladeberichtPdf, type EtbSurplusLine } from './entladebericht-pdf';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   // dateStr YYYY-MM-DD (lokal als UTC-Tag)
@@ -378,6 +378,7 @@ export class GoodsReceiptService {
     const expected = session.checks.length;
     const received = session.checks.filter((c) => c.status === 'RECEIVED' || c.status === 'DAMAGED').length;
     const damaged = session.checks.filter((c) => c.status === 'DAMAGED').length;
+    const cancelled = session.checks.filter((c) => c.status === 'CANCELLED').length;
     const pending = session.checks.filter((c) => c.status === 'PENDING' || c.status === 'MISSING').length;
     const missing =
       session.status === 'CLOSED'
@@ -397,6 +398,7 @@ export class GoodsReceiptService {
         expected,
         received,
         damaged,
+        cancelled,
         pending: session.status === 'OPEN' ? pending : 0,
         missing: session.status === 'CLOSED' ? missing : session.checks.filter((c) => c.status === 'PENDING').length,
         surplus: session.surplus.length,
@@ -472,6 +474,11 @@ export class GoodsReceiptService {
     });
 
     if (check) {
+      if (check.status === 'CANCELLED') {
+        throw new BadRequestException(
+          `SSCC ${check.collo.sscc || sscc} ist storniert (nicht andrucken)`,
+        );
+      }
       const status = opts?.damaged ? 'DAMAGED' : 'RECEIVED';
       const now = new Date();
       await this.prisma.$transaction([
@@ -515,11 +522,12 @@ export class GoodsReceiptService {
     }
 
     // Überzählig (nicht in Soll-Liste) – kanonische SSCC ohne AI-00 speichern
-    const existingSurplus = await this.prisma.goodsReceiptSurplus.findFirst({
+    let surplusRow = await this.prisma.goodsReceiptSurplus.findFirst({
       where: { sessionId, sscc: { in: candidates } },
     });
-    if (!existingSurplus) {
-      await this.prisma.goodsReceiptSurplus.create({
+    const alreadySurplus = !!surplusRow;
+    if (!surplusRow) {
+      surplusRow = await this.prisma.goodsReceiptSurplus.create({
         data: {
           sessionId,
           sscc,
@@ -542,28 +550,96 @@ export class GoodsReceiptService {
             trackingNumber: true,
             reference: true,
             soloplanRef: true,
+            deliveryCompany: true,
+            deliveryZip: true,
+            deliveryCity: true,
             customer: { select: { name: true, customerNumber: true } },
           },
         },
       },
     });
 
+    const photoRequired = !known && !surplusRow.documentId;
+
     return {
       kind: 'surplus' as const,
       status: 'SURPLUS',
       sscc,
-      alreadyScanned: !!existingSurplus,
+      surplusId: surplusRow.id,
+      alreadyScanned: alreadySurplus,
+      photoRequired,
+      hasPhoto: !!surplusRow.documentId,
       knownShipment: known
         ? {
             id: known.shipment.id,
             trackingNumber: known.shipment.trackingNumber,
             reference: known.shipment.reference,
             soloplanRef: known.shipment.soloplanRef,
+            deliveryCompany: known.shipment.deliveryCompany,
+            deliveryZip: known.shipment.deliveryZip,
+            deliveryCity: known.shipment.deliveryCity,
             customer: known.shipment.customer,
           }
         : null,
       session: await this.getSession(user, sessionId),
     };
+  }
+
+  /**
+   * Fehlende/offene Sendung stornieren → nicht andrucken (Shipment CANCELLED).
+   */
+  async cancelMissingCollo(
+    user: AuthUser,
+    sessionId: string,
+    colloId: string,
+    note?: string,
+  ) {
+    this.assertWarehouseRole(user);
+    const check = await this.prisma.goodsReceiptColloCheck.findFirst({
+      where: { sessionId, colloId, session: { organizationId: user.organizationId } },
+      include: { collo: { select: { id: true, shipmentId: true, sscc: true } } },
+    });
+    if (!check) throw new NotFoundException('Packstück nicht in dieser Sitzung');
+    if (check.status === 'RECEIVED' || check.status === 'DAMAGED') {
+      throw new BadRequestException('Empfangene Packstücke können nicht storniert werden');
+    }
+
+    const stornoNote = note || 'Storno WE – nicht entladen / nicht andrucken';
+    await this.prisma.$transaction([
+      this.prisma.goodsReceiptColloCheck.update({
+        where: { id: check.id },
+        data: {
+          status: 'CANCELLED',
+          scannedById: user.id,
+          note: stornoNote,
+        },
+      }),
+      this.prisma.shipmentCollo.update({
+        where: { id: colloId },
+        data: {
+          warehouseStatus: 'CANCELLED',
+          warehouseNote: stornoNote,
+        },
+      }),
+    ]);
+
+    // Sendung nur stornieren, wenn alle Colli storniert sind → nicht andrucken
+    const siblingColli = await this.prisma.shipmentCollo.findMany({
+      where: { shipmentId: check.collo.shipmentId },
+      select: { warehouseStatus: true },
+    });
+    const allCancelled = siblingColli.every((c) => c.warehouseStatus === 'CANCELLED');
+    if (allCancelled) {
+      await this.prisma.shipment.update({
+        where: { id: check.collo.shipmentId },
+        data: {
+          status: 'CANCELLED',
+          notes: stornoNote,
+        },
+      });
+    }
+
+    return this.getSession(user, sessionId);
   }
 
   async markDamaged(
@@ -694,7 +770,27 @@ export class GoodsReceiptService {
     if (!session) throw new NotFoundException('Sitzung nicht gefunden');
     if (session.status === 'CLOSED') return this.getSession(user, sessionId);
 
-    const pendingIds = session.checks.filter((c) => c.status === 'PENDING').map((c) => c.id);
+    // Unbekannte Überzählige ohne Label-Foto blockieren
+    for (const s of session.surplus) {
+      if (s.documentId) continue;
+      const candidates = ssccMatchCandidates(s.sscc);
+      const known = await this.prisma.shipmentCollo.findFirst({
+        where: {
+          sscc: { in: candidates.length ? candidates : [s.sscc] },
+          shipment: { organizationId: user.organizationId },
+        },
+        select: { id: true },
+      });
+      if (!known) {
+        throw new BadRequestException(
+          `Überzähliger SSCC ${s.sscc} ist unbekannt – bitte zuerst Label-Foto aufnehmen`,
+        );
+      }
+    }
+
+    const pendingIds = session.checks
+      .filter((c) => c.status === 'PENDING')
+      .map((c) => c.id);
     if (pendingIds.length) {
       await this.prisma.goodsReceiptColloCheck.updateMany({
         where: { id: { in: pendingIds } },
@@ -750,11 +846,58 @@ export class GoodsReceiptService {
     });
     if (!session) throw new NotFoundException('Sitzung nicht gefunden');
 
-    const received = session.checks.filter((c) => c.status === 'RECEIVED' || c.status === 'DAMAGED')
-      .length;
+    const ok = session.checks.filter((c) => c.status === 'RECEIVED').length;
     const damaged = session.checks.filter((c) => c.status === 'DAMAGED').length;
     const missing = session.checks.filter((c) => c.status === 'MISSING' || c.status === 'PENDING')
       .length;
+    const cancelled = session.checks.filter((c) => c.status === 'CANCELLED').length;
+
+    const surplusLines: EtbSurplusLine[] = [];
+    for (const s of session.surplus) {
+      const candidates = ssccMatchCandidates(s.sscc);
+      const knownCollo = await this.prisma.shipmentCollo.findFirst({
+        where: {
+          sscc: { in: candidates.length ? candidates : [s.sscc] },
+          shipment: { organizationId: session.organizationId },
+        },
+        include: {
+          shipment: {
+            select: {
+              trackingNumber: true,
+              reference: true,
+              deliveryCompany: true,
+              deliveryZip: true,
+              deliveryCity: true,
+              customer: { select: { name: true } },
+            },
+          },
+        },
+      });
+      let photoPath: string | null = null;
+      if (s.documentId) {
+        const photoDoc = await this.prisma.document.findUnique({
+          where: { id: s.documentId },
+          select: { storagePath: true },
+        });
+        photoPath = photoDoc?.storagePath || null;
+      }
+      surplusLines.push({
+        sscc: s.sscc,
+        scannedAt: s.scannedAt,
+        note: s.note,
+        known: knownCollo
+          ? {
+              trackingNumber: knownCollo.shipment.trackingNumber,
+              reference: knownCollo.shipment.reference,
+              customerName: knownCollo.shipment.customer?.name,
+              deliveryCompany: knownCollo.shipment.deliveryCompany,
+              deliveryZip: knownCollo.shipment.deliveryZip,
+              deliveryCity: knownCollo.shipment.deliveryCity,
+            }
+          : null,
+        photoPath,
+      });
+    }
 
     const dateStr = session.sessionDate.toISOString().slice(0, 10);
     const safeRef = String(session.externalRef || 'ALLE').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -781,9 +924,10 @@ export class GoodsReceiptService {
         notes: session.notes,
         summary: {
           expected: session.checks.length,
-          received,
+          ok,
           damaged,
           missing,
+          cancelled,
           surplus: session.surplus.length,
         },
         colli: session.checks.map((c) => ({
@@ -793,18 +937,18 @@ export class GoodsReceiptService {
           packaging: c.collo.packaging,
           content: c.collo.content,
           weightKg: c.collo.weightKg,
+          lengthCm: c.collo.lengthCm,
+          widthCm: c.collo.widthCm,
+          heightCm: c.collo.heightCm,
           reference: c.collo.shipment.reference,
+          trackingNumber: c.collo.shipment.trackingNumber,
           deliveryCompany: c.collo.shipment.deliveryCompany,
           deliveryZip: c.collo.shipment.deliveryZip,
           deliveryCity: c.collo.shipment.deliveryCity,
           scannedAt: c.scannedAt,
           note: c.note,
         })),
-        surplus: session.surplus.map((s) => ({
-          sscc: s.sscc,
-          scannedAt: s.scannedAt,
-          note: s.note,
-        })),
+        surplus: surplusLines,
       },
       storagePath,
     );
@@ -836,7 +980,7 @@ export class GoodsReceiptService {
       `Kunde: ${session.customer?.name || '–'} (${session.customer?.customerNumber || '–'})`,
       `Referenz: ${session.externalRef}`,
       `Datum: ${dateStr}`,
-      `Soll ${session.checks.length} · OK ${received} · Beschädigt ${damaged} · Fehlend ${missing} · Überzählig ${session.surplus.length}`,
+      `Soll ${session.checks.length} · OK ${ok} · Beschädigt ${damaged} · Fehlend ${missing} · Storniert ${cancelled} · Überzählig ${session.surplus.length}`,
       ``,
       `PDF liegt bei. Aufbewahrung im Portal: 30 Tage.`,
       `Download: ${appUrl}/api/documents/${doc.id}/download`,

@@ -28,6 +28,7 @@ type Session = {
     expected: number;
     received: number;
     damaged: number;
+    cancelled?: number;
     pending: number;
     missing: number;
     surplus: number;
@@ -46,13 +47,26 @@ type Session = {
     deliveryZip?: string | null;
     deliveryCity?: string | null;
     shipmentId?: string;
+    reference?: string | null;
+  }>;
+  surplus?: Array<{
+    id: string;
+    sscc: string;
+    scannedAt: string;
+    note?: string | null;
+    documentId?: string | null;
   }>;
 };
 
 type LastScan = {
-  colloId: string;
-  shipmentId: string;
+  kind: 'expected' | 'surplus';
+  colloId?: string;
+  surplusId?: string;
+  shipmentId?: string;
   sscc: string;
+  photoRequired?: boolean;
+  hasPhoto?: boolean;
+  knownLabel?: string;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
@@ -309,6 +323,9 @@ export default function WeTc57Page() {
         status: string;
         sscc: string;
         alreadyScanned?: boolean;
+        surplusId?: string;
+        photoRequired?: boolean;
+        hasPhoto?: boolean;
         collo?: {
           id: string;
           itemNumber: number;
@@ -326,7 +343,13 @@ export default function WeTc57Page() {
           deliveryZip?: string | null;
           deliveryCity?: string | null;
         };
-        knownShipment?: { reference?: string | null; trackingNumber?: string | null } | null;
+        knownShipment?: {
+          reference?: string | null;
+          trackingNumber?: string | null;
+          deliveryZip?: string | null;
+          deliveryCompany?: string | null;
+          customer?: { name?: string } | null;
+        } | null;
         session: Session;
       }>(`/goods-receipt/sessions/${current.id}/scan`, {
         method: 'POST',
@@ -341,6 +364,7 @@ export default function WeTc57Page() {
       if (res.kind === 'expected' && res.collo) {
         const fromSession = res.session.expectedColli.find((c) => c.colloId === res.collo!.id);
         setLastScan({
+          kind: 'expected',
           colloId: res.collo.id,
           shipmentId: fromSession?.shipmentId || res.shipment?.id || '',
           sscc: shown,
@@ -351,8 +375,30 @@ export default function WeTc57Page() {
         });
         setShowDims(false);
         editingRef.current = false;
-      } else if (res.kind !== 'expected') {
-        setLastScan(null);
+      } else if (res.kind === 'surplus') {
+        const knownLabel = res.knownShipment
+          ? [
+              res.knownShipment.trackingNumber,
+              res.knownShipment.reference,
+              res.knownShipment.customer?.name,
+              res.knownShipment.deliveryZip,
+              res.knownShipment.deliveryCompany,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : undefined;
+        setLastScan({
+          kind: 'surplus',
+          surplusId: res.surplusId,
+          sscc: shown,
+          photoRequired: !!res.photoRequired,
+          hasPhoto: !!res.hasPhoto,
+          knownLabel,
+          lengthCm: '',
+          widthCm: '',
+          heightCm: '',
+          weightKg: '',
+        });
         setShowDims(false);
       }
 
@@ -368,17 +414,23 @@ export default function WeTc57Page() {
         setDetail(`${shown}${dest ? ` – ${dest}` : ''} · ${sum.received}/${sum.expected}`);
         vibrate([25, 30, 50]);
         playTone(true);
-      } else {
+      } else if (res.photoRequired) {
         setFlash('miss');
-        setHeadline('SSCC nicht gefunden');
-        setDetail(
-          `${shown} ist nicht in dieser Kontrolle` +
-            (res.knownShipment
-              ? ` (bekannt: ${res.knownShipment.reference || res.knownShipment.trackingNumber})`
-              : '') +
-            ` · ${sum.received}/${sum.expected}`,
-        );
+        setHeadline('Überzählig – Label-Foto nötig');
+        setDetail(`${shown} nicht im System · bitte Foto vom Etikett`);
         vibrate([80, 50, 80]);
+        playTone(false);
+      } else {
+        setFlash('dup');
+        setHeadline('Überzählig erfasst');
+        setDetail(
+          `${shown}${
+            res.knownShipment
+              ? ` · ${res.knownShipment.reference || res.knownShipment.trackingNumber || 'im System'}`
+              : ''
+          } · Fremd ${sum.surplus}`,
+        );
+        vibrate([40, 40, 40]);
         playTone(false);
       }
     } catch (e: unknown) {
@@ -495,7 +547,7 @@ export default function WeTc57Page() {
     if (!session) return;
     if (
       !confirm(
-        'Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. ETB wird per E-Mail versendet.',
+        'Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. Unbekannte Überzählige brauchen ein Label-Foto. ETB wird per E-Mail versendet.',
       )
     )
       return;
@@ -509,7 +561,7 @@ export default function WeTc57Page() {
       setFlash('ok');
       setHeadline('Kontrolle abgeschlossen');
       setDetail(
-        `OK ${s.summary.received} · Fehlend ${s.summary.missing} · Überzählig ${s.summary.surplus}` +
+        `OK ${s.summary.received} · Fehlend ${s.summary.missing} · Storno ${s.summary.cancelled ?? 0} · Überzählig ${s.summary.surplus}` +
           (s.documentId
             ? ' · ETB an info@worldofgreen.ch / mb@logistikberater.at gesendet'
             : ''),
@@ -540,7 +592,7 @@ export default function WeTc57Page() {
   }
 
   async function markLastDamaged() {
-    if (!session || !lastScan) return;
+    if (!session || !lastScan?.colloId) return;
     setLoading(true);
     try {
       const s = await api<Session>(
@@ -564,8 +616,32 @@ export default function WeTc57Page() {
     }
   }
 
+  async function cancelCollo(colloId: string, sscc: string) {
+    if (!session) return;
+    if (!confirm(`Sendung ${sscc} stornieren? Wird nicht angedruckt.`)) return;
+    setLoading(true);
+    try {
+      const s = await api<Session>(`/goods-receipt/sessions/${session.id}/colli/${colloId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ note: 'Storno WE – nicht entladen / nicht andrucken' }),
+      });
+      setSession(s);
+      setFlash('dup');
+      setHeadline('Storniert');
+      setDetail(`${sscc} · nicht andrucken`);
+      playTone(false);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Storno fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      focusScanner();
+    }
+  }
+
   async function saveDimensions() {
-    if (!session || !lastScan) return;
+    if (!session || !lastScan?.colloId) return;
     const toNum = (v: string) => {
       const n = Number(String(v).replace(',', '.'));
       return Number.isFinite(n) && n > 0 ? n : null;
@@ -630,12 +706,14 @@ export default function WeTc57Page() {
         body: JSON.stringify({
           documentId: doc.id,
           colloId: lastScan.colloId,
-          note: 'Foto Wareneingang',
+          surplusId: lastScan.surplusId,
+          note: lastScan.kind === 'surplus' ? 'Label-Foto Überzählig' : 'Foto Wareneingang',
         }),
       });
       setSession(s);
+      setLastScan({ ...lastScan, hasPhoto: true, photoRequired: false });
       setFlash('ok');
-      setHeadline('Foto gespeichert');
+      setHeadline(lastScan.kind === 'surplus' ? 'Label-Foto gespeichert' : 'Foto gespeichert');
       setDetail(lastScan.sscc);
       playTone(true);
     } catch (e: unknown) {
@@ -785,115 +863,146 @@ export default function WeTc57Page() {
 
             {lastScan && session.status === 'OPEN' ? (
               <div className="panel stack" style={{ gap: '0.5rem' }}>
-                <strong>Nachbearbeitung · {lastScan.sscc}</strong>
-                <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                  Optional nach dem Scan – dann weiter scannen.
-                </p>
-                <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ flex: 1, minHeight: 48 }}
-                    disabled={loading}
-                    onClick={() => void markLastDamaged()}
-                  >
-                    Beschädigt
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ flex: 1, minHeight: 48 }}
-                    disabled={loading}
-                    onClick={() => {
-                      editingRef.current = true;
-                      photoInputRef.current?.click();
-                    }}
-                  >
-                    Foto
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ flex: 1, minHeight: 48 }}
-                    disabled={loading}
-                    onClick={() => {
-                      setShowDims((v) => !v);
-                      editingRef.current = !showDims;
-                    }}
-                  >
-                    Abmessungen
-                  </button>
-                </div>
-                {showDims ? (
-                  <div className="stack" style={{ gap: '0.4rem' }}>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr 1fr',
-                        gap: '0.35rem',
+                <strong>
+                  {lastScan.kind === 'surplus' ? 'Überzählig' : 'Nachbearbeitung'} · {lastScan.sscc}
+                </strong>
+                {lastScan.kind === 'surplus' ? (
+                  <>
+                    {lastScan.knownLabel ? (
+                      <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                        Im System: {lastScan.knownLabel}
+                      </p>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#a12622' }}>
+                        SSCC nicht im System – Label-Foto erforderlich (sonst kein Abschluss).
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ minHeight: 52 }}
+                      disabled={loading || !!lastScan.hasPhoto}
+                      onClick={() => {
+                        editingRef.current = true;
+                        photoInputRef.current?.click();
                       }}
                     >
-                      {(
-                        [
-                          ['lengthCm', 'L cm'],
-                          ['widthCm', 'B cm'],
-                          ['heightCm', 'H cm'],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <div className="field" key={key}>
-                          <label>{label}</label>
+                      {lastScan.hasPhoto
+                        ? 'Label-Foto gespeichert'
+                        : lastScan.photoRequired
+                          ? 'Label-Foto aufnehmen'
+                          : 'Foto (optional)'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                      Optional nach dem Scan – dann weiter scannen.
+                    </p>
+                    <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => void markLastDamaged()}
+                      >
+                        Beschädigt
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => {
+                          editingRef.current = true;
+                          photoInputRef.current?.click();
+                        }}
+                      >
+                        Foto
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => {
+                          setShowDims((v) => !v);
+                          editingRef.current = !showDims;
+                        }}
+                      >
+                        Abmessungen
+                      </button>
+                    </div>
+                    {showDims ? (
+                      <div className="stack" style={{ gap: '0.4rem' }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr',
+                            gap: '0.35rem',
+                          }}
+                        >
+                          {(
+                            [
+                              ['lengthCm', 'L cm'],
+                              ['widthCm', 'B cm'],
+                              ['heightCm', 'H cm'],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <div className="field" key={key}>
+                              <label>{label}</label>
+                              <input
+                                inputMode="decimal"
+                                value={lastScan[key]}
+                                onFocus={() => {
+                                  editingRef.current = true;
+                                }}
+                                onChange={(e) => setLastScan({ ...lastScan, [key]: e.target.value })}
+                                style={{ minHeight: 48, fontSize: '1rem' }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="field">
+                          <label>Gewicht kg</label>
                           <input
                             inputMode="decimal"
-                            value={lastScan[key]}
+                            value={lastScan.weightKg}
                             onFocus={() => {
                               editingRef.current = true;
                             }}
-                            onBlur={() => {
-                              /* bleiben im Edit-Modus bis Speichern */
-                            }}
-                            onChange={(e) => setLastScan({ ...lastScan, [key]: e.target.value })}
+                            onChange={(e) => setLastScan({ ...lastScan, weightKg: e.target.value })}
                             style={{ minHeight: 48, fontSize: '1rem' }}
                           />
                         </div>
-                      ))}
-                    </div>
-                    <div className="field">
-                      <label>Gewicht kg</label>
-                      <input
-                        inputMode="decimal"
-                        value={lastScan.weightKg}
-                        onFocus={() => {
-                          editingRef.current = true;
-                        }}
-                        onChange={(e) => setLastScan({ ...lastScan, weightKg: e.target.value })}
-                        style={{ minHeight: 48, fontSize: '1rem' }}
-                      />
-                    </div>
-                    <div className="row" style={{ gap: '0.4rem' }}>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        style={{ flex: 1, minHeight: 48 }}
-                        disabled={loading}
-                        onClick={() => void saveDimensions()}
-                      >
-                        Speichern
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        style={{ flex: 1, minHeight: 48 }}
-                        onClick={() => {
-                          setShowDims(false);
-                          editingRef.current = false;
-                          focusScanner();
-                        }}
-                      >
-                        Abbrechen
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
+                        <div className="row" style={{ gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ flex: 1, minHeight: 48 }}
+                            disabled={loading}
+                            onClick={() => void saveDimensions()}
+                          >
+                            Speichern
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            style={{ flex: 1, minHeight: 48 }}
+                            onClick={() => {
+                              setShowDims(false);
+                              editingRef.current = false;
+                              focusScanner();
+                            }}
+                          >
+                            Abbrechen
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : null}
 
@@ -901,39 +1010,47 @@ export default function WeTc57Page() {
               className="panel"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateColumns: 'repeat(5, 1fr)',
                 gap: '0.35rem',
                 textAlign: 'center',
                 padding: '0.65rem 0.5rem',
               }}
             >
               <div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{session.summary.expected}</div>
-                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{session.summary.expected}</div>
+                <div className="muted" style={{ fontSize: '0.72rem' }}>
                   Soll
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1f7a4a' }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1f7a4a' }}>
                   {session.summary.received}
                 </div>
-                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                <div className="muted" style={{ fontSize: '0.72rem' }}>
                   OK
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
                   {session.summary.pending ?? session.summary.missing}
                 </div>
-                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                <div className="muted" style={{ fontSize: '0.72rem' }}>
                   Offen
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#a12622' }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                  {session.summary.cancelled ?? 0}
+                </div>
+                <div className="muted" style={{ fontSize: '0.72rem' }}>
+                  Storno
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#a12622' }}>
                   {session.summary.surplus}
                 </div>
-                <div className="muted" style={{ fontSize: '0.75rem' }}>
+                <div className="muted" style={{ fontSize: '0.72rem' }}>
                   Fremd
                 </div>
               </div>
@@ -971,7 +1088,7 @@ export default function WeTc57Page() {
               />
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                 Automatisch: sobald 18/20 Ziffern da sind, wird gebucht – Enter vom Scanner nicht
-                nötig.
+                nötig. SSCC nicht in der Soll-Liste = Überzählig.
               </p>
               <button
                 type="button"
@@ -994,6 +1111,9 @@ export default function WeTc57Page() {
                 onClick={() => {
                   setSession(null);
                   setFlash(null);
+                  setLastScan(null);
+                  setShowDims(false);
+                  editingRef.current = false;
                   bufferRef.current = '';
                   setHeadline('Lieferung wählen');
                   setDetail(
@@ -1032,32 +1152,132 @@ export default function WeTc57Page() {
               ) : null}
             </div>
 
-            <details className="panel">
+            <details className="panel" open={session.status === 'OPEN'}>
               <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
-                Offene Colli (
-                {session.expectedColli.filter((c) => c.status === 'PENDING').length})
+                Fehlend / Offen (
+                {session.expectedColli.filter((c) => c.status === 'PENDING' || c.status === 'MISSING').length}
+                )
               </summary>
+              <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
+                Fehlende Sendungen stornieren → werden nicht angedruckt.
+              </p>
               <ul style={{ listStyle: 'none', margin: '0.4rem 0 0', padding: 0 }}>
                 {session.expectedColli
-                  .filter((c) => c.status === 'PENDING')
-                  .slice(0, 40)
+                  .filter((c) => c.status === 'PENDING' || c.status === 'MISSING')
+                  .slice(0, 60)
                   .map((c) => (
                     <li
                       key={c.checkId}
                       style={{
                         borderTop: '1px solid var(--border, #d8e0db)',
-                        padding: '0.4rem 0',
+                        padding: '0.45rem 0',
                         fontSize: '0.85rem',
                       }}
                     >
-                      <code>{c.sscc}</code>
-                      <div className="muted">
-                        {[c.packaging, c.deliveryZip, c.deliveryCompany].filter(Boolean).join(' · ')}
+                      <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <code>{c.sscc}</code>
+                          <div className="muted">
+                            {[c.packaging, c.deliveryZip, c.deliveryCompany].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                        {session.status === 'OPEN' ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ minHeight: 40, fontSize: '0.8rem', flexShrink: 0 }}
+                            disabled={loading}
+                            onClick={() => void cancelCollo(c.colloId, c.sscc)}
+                          >
+                            Storno
+                          </button>
+                        ) : null}
                       </div>
                     </li>
                   ))}
               </ul>
             </details>
+
+            {(session.surplus?.length || 0) > 0 ? (
+              <details className="panel" open>
+                <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#a12622', minHeight: 40 }}>
+                  Überzählig ({session.surplus!.length})
+                </summary>
+                <ul style={{ listStyle: 'none', margin: '0.4rem 0 0', padding: 0 }}>
+                  {session.surplus!.map((s) => (
+                    <li
+                      key={s.id}
+                      style={{
+                        borderTop: '1px solid var(--border, #d8e0db)',
+                        padding: '0.45rem 0',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                        <div>
+                          <code>{s.sscc}</code>
+                          <div className="muted" style={{ fontSize: '0.78rem' }}>
+                            {s.documentId ? 'Label-Foto vorhanden' : 'ohne Foto'}
+                          </div>
+                        </div>
+                        {session.status === 'OPEN' && !s.documentId ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ minHeight: 40, fontSize: '0.8rem' }}
+                            disabled={loading}
+                            onClick={() => {
+                              setLastScan({
+                                kind: 'surplus',
+                                surplusId: s.id,
+                                sscc: s.sscc,
+                                photoRequired: true,
+                                hasPhoto: false,
+                                lengthCm: '',
+                                widthCm: '',
+                                heightCm: '',
+                                weightKg: '',
+                              });
+                              editingRef.current = true;
+                              photoInputRef.current?.click();
+                            }}
+                          >
+                            Label-Foto
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+
+            {session.expectedColli.some((c) => c.status === 'CANCELLED') ? (
+              <details className="panel">
+                <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
+                  Storniert (
+                  {session.expectedColli.filter((c) => c.status === 'CANCELLED').length})
+                </summary>
+                <ul style={{ listStyle: 'none', margin: '0.4rem 0 0', padding: 0 }}>
+                  {session.expectedColli
+                    .filter((c) => c.status === 'CANCELLED')
+                    .map((c) => (
+                      <li
+                        key={c.checkId}
+                        style={{
+                          borderTop: '1px solid var(--border, #d8e0db)',
+                          padding: '0.4rem 0',
+                          fontSize: '0.85rem',
+                          opacity: 0.8,
+                        }}
+                      >
+                        <code>{c.sscc}</code>
+                        <div className="muted">nicht andrucken</div>
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            ) : null}
           </>
         )}
       </div>

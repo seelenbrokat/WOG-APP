@@ -109,7 +109,12 @@ function ShipmentDetailInner() {
             <div className="row" style={{ marginTop: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-primary"
-                disabled={busy === 'labels'}
+                disabled={busy === 'labels' || shipment.status === 'CANCELLED'}
+                title={
+                  shipment.status === 'CANCELLED'
+                    ? 'Stornierte Sendung – nicht andrucken'
+                    : undefined
+                }
                 onClick={async () => {
                   setError('');
                   setBusy('labels');

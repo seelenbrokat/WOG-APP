@@ -28,6 +28,7 @@ type Session = {
     expected: number;
     received: number;
     damaged: number;
+    cancelled?: number;
     pending: number;
     missing: number;
     surplus: number;
@@ -76,6 +77,8 @@ function statusLabel(s: string) {
       return 'Beschädigt';
     case 'MISSING':
       return 'Fehlend';
+    case 'CANCELLED':
+      return 'Storniert';
     case 'PENDING':
       return 'Offen';
     default:
@@ -189,8 +192,18 @@ export function GoodsReceiptControl(props: {
             ? `Bereits gescannt: ${shown}${res.status === 'DAMAGED' ? ' (beschädigt)' : ''}${dest ? ` – ${dest}` : ''}`
             : `Soll ✓ ${shown}${res.status === 'DAMAGED' ? ' – beschädigt' : ''}${dest ? ` – ${dest}` : ''}`,
         );
+      } else if (res.photoRequired) {
+        setInfo(
+          `Überzählig: ${shown} – nicht im System. Bitte Label-Foto aufnehmen (sonst kein Abschluss).`,
+        );
       } else {
-        setInfo(`Überzählig: ${shown}${res.knownShipment ? ` (gehört zu ${res.knownShipment.reference || res.knownShipment.trackingNumber})` : ''}`);
+        setInfo(
+          `Überzählig: ${shown}${
+            res.knownShipment
+              ? ` (im System: ${res.knownShipment.reference || res.knownShipment.trackingNumber})`
+              : ''
+          }`,
+        );
       }
       setManual('');
     } catch (e: any) {
@@ -219,6 +232,25 @@ export function GoodsReceiptControl(props: {
       });
       setSession(s);
       setInfo('Als beschädigt markiert');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelCollo(colloId: string, sscc: string) {
+    if (!session) return;
+    if (!confirm(`Sendung ${sscc} stornieren? Wird nicht angedruckt.`)) return;
+    setLoading(true);
+    setError('');
+    try {
+      const s = await api<Session>(`/goods-receipt/sessions/${session.id}/colli/${colloId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ note: 'Storno WE – nicht entladen / nicht andrucken' }),
+      });
+      setSession(s);
+      setInfo(`Storniert: ${sscc} · nicht andrucken`);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -261,11 +293,11 @@ export function GoodsReceiptControl(props: {
           documentId: doc.id,
           colloId: target.colloId,
           surplusId: target.surplusId,
-          note: 'Foto Wareneingang',
+          note: target.surplusId ? 'Label-Foto Überzählig' : 'Foto Wareneingang',
         }),
       });
       setSession(s);
-      setInfo('Foto gespeichert');
+      setInfo(target.surplusId ? 'Label-Foto gespeichert' : 'Foto gespeichert');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -277,7 +309,11 @@ export function GoodsReceiptControl(props: {
 
   async function closeSession() {
     if (!session) return;
-    if (!confirm('Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. ETB wird per E-Mail versendet.'))
+    if (
+      !confirm(
+        'Kontrolle abschließen? Offene Packstücke werden als fehlend markiert. Unbekannte Überzählige brauchen ein Label-Foto. ETB wird per E-Mail versendet.',
+      )
+    )
       return;
     setLoading(true);
     try {
@@ -476,12 +512,16 @@ export function GoodsReceiptControl(props: {
                 <strong style={{ color: 'var(--ok, #2f9e62)' }}>{session.summary.received}</strong>
               </div>
               <div>
-                <div className="muted">Offen</div>
+                <div className="muted">Offen / Fehlend</div>
                 <strong>{session.summary.missing}</strong>
               </div>
               <div>
                 <div className="muted">Beschädigt</div>
                 <strong style={{ color: 'var(--warn, #b78103)' }}>{session.summary.damaged}</strong>
+              </div>
+              <div>
+                <div className="muted">Storniert</div>
+                <strong>{session.summary.cancelled ?? 0}</strong>
               </div>
               <div>
                 <div className="muted">Überzählig</div>
@@ -534,18 +574,21 @@ export function GoodsReceiptControl(props: {
 
           {session.status === 'CLOSED' ? (
             <div className="panel stack" style={{ gap: '0.5rem' }}>
-              <strong>Ergebnis</strong>
+              <strong>Ergebnis (wie ETB)</strong>
               <div>
-                Fehlend: <strong>{missing.length}</strong>
-              </div>
-              <div>
-                Überzählig: <strong>{session.surplus.length}</strong>
+                OK: <strong>{received.length}</strong>
               </div>
               <div>
                 Beschädigt: <strong>{damaged.length}</strong>
               </div>
               <div>
-                OK: <strong>{received.length}</strong>
+                Fehlend: <strong>{missing.length}</strong>
+              </div>
+              <div>
+                Storniert: <strong>{session.summary.cancelled ?? 0}</strong>
+              </div>
+              <div>
+                Überzählig: <strong>{session.surplus.length}</strong>
               </div>
               {session.documentId ? (
                 <button
@@ -605,14 +648,26 @@ export function GoodsReceiptControl(props: {
                               ? 'color-mix(in srgb, #b78103 25%, transparent)'
                               : c.status === 'MISSING'
                                 ? 'color-mix(in srgb, #c0392b 20%, transparent)'
-                                : undefined,
+                                : c.status === 'CANCELLED'
+                                  ? 'color-mix(in srgb, #666 18%, transparent)'
+                                  : undefined,
                       }}
                     >
                       {statusLabel(c.status)}
                     </span>
                   </div>
-                  {session.status === 'OPEN' ? (
+                  {session.status === 'OPEN' && c.status !== 'CANCELLED' ? (
                     <div className="row" style={{ marginTop: 6, gap: 6, flexWrap: 'wrap' }}>
+                      {c.status !== 'DAMAGED' && c.status !== 'RECEIVED' ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ minHeight: 40, fontSize: '0.85rem' }}
+                          onClick={() => void cancelCollo(c.colloId, c.sscc)}
+                        >
+                          Storno
+                        </button>
+                      ) : null}
                       {c.status !== 'DAMAGED' ? (
                         <button
                           type="button"
@@ -655,14 +710,19 @@ export function GoodsReceiptControl(props: {
                     style={{ borderTop: '1px solid var(--border, #d8e0db)', padding: '0.45rem 0' }}
                   >
                     <code>{s.sscc}</code>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ marginLeft: 8, minHeight: 36, fontSize: '0.8rem' }}
-                      onClick={() => requestPhoto({ surplusId: s.id })}
-                    >
-                      Foto
-                    </button>
+                    <span className="muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>
+                      {s.documentId ? 'Label-Foto ok' : 'Label-Foto nötig falls unbekannt'}
+                    </span>
+                    {!s.documentId ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ marginLeft: 8, minHeight: 36, fontSize: '0.8rem' }}
+                        onClick={() => requestPhoto({ surplusId: s.id })}
+                      >
+                        Label-Foto
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>

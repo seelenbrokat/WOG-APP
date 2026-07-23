@@ -141,6 +141,16 @@ export class GoodsReceiptController {
     return this.service.markDamaged(user, id, colloId, dto.note);
   }
 
+  @Post('sessions/:id/colli/:colloId/cancel')
+  cancelMissing(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('colloId') colloId: string,
+    @Body() dto: DamageDto,
+  ) {
+    return this.service.cancelMissingCollo(user, id, colloId, dto.note);
+  }
+
   @Patch('sessions/:id/colli/:colloId/dimensions')
   updateDimensions(
     @CurrentUser() user: AuthUser,

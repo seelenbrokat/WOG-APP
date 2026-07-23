@@ -262,6 +262,7 @@ export class ShipmentsService {
     const shipments = await this.prisma.shipment.findMany({
       where: {
         ...scope,
+        status: { not: 'CANCELLED' },
         OR: [
           { reference: { startsWith: 'SCAN-TEST-' } },
           { reference: { startsWith: 'WE-' } },
