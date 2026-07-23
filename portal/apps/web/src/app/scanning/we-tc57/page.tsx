@@ -1226,7 +1226,8 @@ export default function WeTc57Page() {
                 )
               </summary>
               <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>
-                Einzelnes Packstück oder ganzen Auftrag stornieren → wird nicht angedruckt.
+                Pro Position: Storno · zusätzlich pro Auftrag: Storno Auftrag (alle offenen) → nicht
+                andrucken.
               </p>
               <div style={{ marginTop: '0.4rem' }}>
                 {(() => {
@@ -1322,11 +1323,11 @@ export default function WeTc57Page() {
                                     .join(' · ')}
                                 </div>
                               </div>
-                              {session.status === 'OPEN' && g.colli.length > 1 ? (
+                              {session.status === 'OPEN' ? (
                                 <button
                                   type="button"
-                                  className="btn btn-ghost"
-                                  style={{ minHeight: 36, fontSize: '0.75rem', flexShrink: 0 }}
+                                  className="btn btn-secondary"
+                                  style={{ minHeight: 40, fontSize: '0.78rem', flexShrink: 0 }}
                                   disabled={loading}
                                   onClick={() => void cancelCollo(c.colloId, c.sscc)}
                                 >
