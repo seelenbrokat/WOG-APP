@@ -50,7 +50,12 @@ export class DriverService {
 
   async listVehicles(user: AuthUser) {
     return this.prisma.vehicle.findMany({
-      where: { organizationId: user.organizationId, active: true },
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        // VLBPortal ist Telematikkonfiguration, kein Fahrzeug
+        soloplanVehicleId: { not: VLB_PORTAL_TELEMATICS_CONFIG },
+      },
       orderBy: [{ number: 'asc' }, { licensePlate: 'asc' }],
     });
   }
