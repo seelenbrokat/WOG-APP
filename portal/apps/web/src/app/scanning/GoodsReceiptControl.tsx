@@ -43,6 +43,10 @@ type Session = {
     reference?: string | null;
     note?: string | null;
     shipmentId: string;
+    deliveryCompany?: string | null;
+    deliveryZip?: string | null;
+    deliveryCity?: string | null;
+    deliveryCountry?: string | null;
   }>;
   surplus: Array<{
     id: string;
@@ -543,6 +547,15 @@ export function GoodsReceiptControl(props: {
                         {c.content ? ` · ${c.content}` : ''}
                         {c.packaging ? ` · ${c.packaging}` : ''}
                       </div>
+                      {(c.deliveryCompany || c.deliveryZip || c.deliveryCity) && (
+                        <div style={{ fontSize: '0.85rem', marginTop: 2, lineHeight: 1.35 }}>
+                          {c.deliveryCompany ? <div>{c.deliveryCompany}</div> : null}
+                          <div className="muted">
+                            {[c.deliveryZip, c.deliveryCity].filter(Boolean).join(' ')}
+                            {c.deliveryCountry ? ` · ${c.deliveryCountry}` : ''}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <span
                       className="badge"
