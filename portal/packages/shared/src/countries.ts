@@ -73,6 +73,15 @@ export function zipPatternForCountry(country?: string | null): RegExp | null {
   }
 }
 
+/** CH / LI – auch Kennzeichen-Kürzel FL (Fürstentum Liechtenstein). */
+export function isSwitzerlandOrLiechtenstein(country?: string | null): boolean {
+  const c = String(country || '').trim().toUpperCase();
+  return c === 'CH' || c === 'LI' || c === 'FL';
+}
+
+/** Bevorzugte Mandanten-Codes für CH/LI-Verzollung („Mandant 2“ = GmbH). */
+export const CH_LI_CUSTOMS_MANDANT_CODES = ['GMBH', '2'] as const;
+
 export function isValidZipForCountry(zip?: string | null, country?: string | null): boolean {
   const z = String(zip || '').trim();
   if (!z) return false;

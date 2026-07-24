@@ -7,6 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { DocumentType, NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
+import {
+  CH_LI_CUSTOMS_MANDANT_CODES,
+  isSwitzerlandOrLiechtenstein,
+} from '@wog/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { mandantFilter, customerFilter, assertMandantAccess } from '../common/access';
@@ -397,11 +401,6 @@ export class ShipmentsService {
       positions?: PositionInput[];
     },
   ) {
-    const mandant = await this.prisma.mandant.findFirst({
-      where: { id: data.mandantId, organizationId: user.organizationId, active: true },
-    });
-    if (!mandant) throw new NotFoundException('Mandant nicht gefunden');
-
     const expandedPositions = data.positions?.length
       ? expandPositionsToColli(data.positions)
       : [];
@@ -447,6 +446,33 @@ export class ShipmentsService {
       deliveryCountry = addr.country;
     }
 
+    // CH / LI (FL): Verzollungsbelege + Mandant 2 (GmbH)
+    let mandantId = data.mandantId;
+    let extrasObj: Record<string, unknown> =
+      data.extras && typeof data.extras === 'object' && !Array.isArray(data.extras)
+        ? { ...(data.extras as Record<string, unknown>) }
+        : {};
+    if (isSwitzerlandOrLiechtenstein(deliveryCountry)) {
+      extrasObj = { ...extrasObj, verzollung: true, begleitpapiere: true };
+      const customsMandant = await this.prisma.mandant.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          active: true,
+          OR: [
+            { code: { in: [...CH_LI_CUSTOMS_MANDANT_CODES], mode: 'insensitive' } },
+            { name: { contains: 'GmbH', mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (customsMandant) mandantId = customsMandant.id;
+    }
+
+    const mandant = await this.prisma.mandant.findFirst({
+      where: { id: mandantId, organizationId: user.organizationId, active: true },
+    });
+    if (!mandant) throw new NotFoundException('Mandant nicht gefunden');
+
     const status = data.submit ? ShipmentStatus.SUBMITTED : ShipmentStatus.DRAFT;
 
     // Frachtzahler = eingeloggter Kunde; Fallback für Admin ohne Kundenkonto = Sendungskunde
@@ -459,7 +485,7 @@ export class ShipmentsService {
         where: {
           id: data.orderId,
           organizationId: user.organizationId,
-          mandantId: data.mandantId,
+          mandantId,
         },
         include: { _count: { select: { shipments: true } } },
       });
@@ -484,7 +510,7 @@ export class ShipmentsService {
       }
     } else {
       transportOrder = await this.createTransportOrder(user, {
-        mandantId: data.mandantId,
+        mandantId,
         freightPayerCustomerId,
       });
     }
@@ -492,7 +518,7 @@ export class ShipmentsService {
     const shipment = await this.prisma.shipment.create({
       data: {
         organizationId: user.organizationId,
-        mandantId: data.mandantId,
+        mandantId,
         customerId,
         orderId: transportOrder.id,
         trackingNumber: trackingNumber(),
@@ -525,8 +551,8 @@ export class ShipmentsService {
         deliveryAvisPhone: data.deliveryAvisPhone?.trim() || undefined,
         notes: data.notes,
         extras:
-          data.extras && Object.keys(data.extras).length
-            ? (data.extras as Prisma.InputJsonValue)
+          Object.keys(extrasObj).length
+            ? (extrasObj as Prisma.InputJsonValue)
             : undefined,
         createdById: user.id,
         positions: expandedPositions.length
@@ -628,9 +654,7 @@ export class ShipmentsService {
       positions: shipment.positions,
     });
 
-    const needsCustomsInvoice = Boolean(
-      data.extras && typeof data.extras === 'object' && (data.extras as any).verzollung === true,
-    );
+    const needsCustomsInvoice = Boolean(extrasObj.verzollung === true);
 
     if (status === ShipmentStatus.SUBMITTED) {
       await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.SHIPMENT_CREATED, {

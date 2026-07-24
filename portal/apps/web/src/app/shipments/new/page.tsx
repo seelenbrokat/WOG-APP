@@ -4,9 +4,11 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  CH_LI_CUSTOMS_MANDANT_CODES,
   COUNTRIES,
   PACKAGING_TYPES,
   SHIPMENT_EXTRA_OPTIONS,
+  isSwitzerlandOrLiechtenstein,
   isValidZipForCountry,
   type ShipmentExtras,
 } from '@wog/shared';
@@ -54,6 +56,7 @@ type Address = {
   city: string;
   country: string;
   usage: string;
+  isDefault?: boolean;
 };
 
 type Template = {
@@ -221,6 +224,34 @@ function NewShipmentInner() {
     }
   }
 
+  /** Mandant 2 für CH/LI-Verzollung: bevorzugt GMBH / Code „2“. */
+  function resolveChLiCustomsMandantId(
+    list: Array<{ id: string; code?: string; name?: string }>,
+  ): string | undefined {
+    if (!list.length) return undefined;
+    for (const code of CH_LI_CUSTOMS_MANDANT_CODES) {
+      const hit = list.find((m) => String(m.code || '').toUpperCase() === code);
+      if (hit) return hit.id;
+    }
+    const byName = list.find((m) => /gmbh|\b2\b/i.test(String(m.name || '')));
+    if (byName) return byName.id;
+    return list.length >= 2 ? list[1].id : list[0].id;
+  }
+
+  /** Zustellung CH/FL: Belege (Verzollung + Begleitpapiere) und Mandant 2 vorauswählen. */
+  function applyChLiBelegeDefaults(country: string, list = mandanten) {
+    if (!isSwitzerlandOrLiechtenstein(country)) return;
+    setExtras((prev) => ({
+      ...prev,
+      verzollung: true,
+      begleitpapiere: true,
+    }));
+    const mid = resolveChLiCustomsMandantId(list);
+    if (mid) {
+      setForm((f) => (f.mandantId === mid ? f : { ...f, mandantId: mid }));
+    }
+  }
+
   const customerQuery =
     user?.role === 'CUSTOMER_USER'
       ? ''
@@ -315,6 +346,11 @@ function NewShipmentInner() {
       loadAddressBook(form.customerId, { forcePickup: true });
     }
   }, [form.customerId]);
+
+  useEffect(() => {
+    applyChLiBelegeDefaults(form.deliveryCountry, mandanten);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.deliveryCountry, mandanten]);
 
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
@@ -744,16 +780,26 @@ function NewShipmentInner() {
         {tab === 'allgemein' && (
           <>
         <div className="grid-2">
-          <div className="field">
-            <label>Mandant</label>
-            <select
-              required
-              value={form.mandantId}
-              onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
-            >
-              {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </div>
+            <div className="field">
+              <label>Mandant</label>
+              <select
+                required
+                value={form.mandantId}
+                onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
+              >
+                {mandanten.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {String(m.code || '').toUpperCase() === 'GMBH' ? ' (Mandant 2)' : ''}
+                  </option>
+                ))}
+              </select>
+              {isSwitzerlandOrLiechtenstein(form.deliveryCountry) ? (
+                <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                  Zustellung CH/LI: Verzollungsbelege und Mandant 2 (GmbH) automatisch vorausgewählt.
+                </p>
+              ) : null}
+            </div>
           {user?.role !== 'CUSTOMER_USER' && (
             <div className="field">
               <label>Kunde</label>

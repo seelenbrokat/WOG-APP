@@ -86,5 +86,7 @@ export {
   countryLabel,
   zipPatternForCountry,
   isValidZipForCountry,
+  isSwitzerlandOrLiechtenstein,
+  CH_LI_CUSTOMS_MANDANT_CODES,
 } from './countries';
 export type { CountryCode } from './countries';
