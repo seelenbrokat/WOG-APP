@@ -126,6 +126,7 @@ export class ProformaWeService {
       reference: string | null;
     }> = [];
     const missing: ProformaShipmentLine[] = [];
+    let fallbackShipments: Array<{ id: string; reference: string | null }> = [];
 
     for (const line of parsed.lines) {
       const shipment = await this.findShipmentForBk(user.organizationId, line.bk, customer?.id);
@@ -162,9 +163,8 @@ export class ProformaWeService {
       }
     }
 
-    // Fallback: Soloplan exportiert oft einen Sammel-WE (Summe Colli/kg) ohne einzelne BKs
-    let fallbackShipments: Array<{ id: string; reference: string | null }> = [];
-    if (missing.length && customer && parsed.totalColli) {
+    // Sammel-WE nach Colli/kg (Soloplan exportiert oft einen WE für die ganze Proforma)
+    if (customer && parsed.totalColli) {
       const we = await this.findWeByTotals(
         user.organizationId,
         customer.id,
@@ -195,43 +195,29 @@ export class ProformaWeService {
       }
     }
 
-    // Mail nur wenn BKs fehlen und kein Sammel-WE (Colli/kg) die Proforma abdeckt
+    // Mail nur wenn keine passende WE gefunden (weder BK noch Sammel)
     const mailedMissing = missing.length > 0 && fallbackShipments.length === 0;
     if (mailedMissing) {
       await this.mailMissingShipments(parsed, missing, fileName);
     }
 
-    // WE-Session öffnen (WE-Referenz, Sammel-WE oder Kunden-Sammel heute)
+    // WE-Session: genau eine passende WE-Referenz (Sammel bevorzugt), nie alle Kunden-WEs
     let session: Awaited<ReturnType<GoodsReceiptService['openSession']>> | null = null;
     const sessionDate = new Date().toISOString().slice(0, 10);
-    const sessionLabel =
-      parsed.proformaNumber ||
-      (matched[0]?.reference ? `PROFORMA-${matched[0].reference}` : `PROFORMA-${sessionDate}`);
-    const weRefs = [
-      ...new Set(
-        [
-          ...matched.map((m) => m.reference),
-          ...fallbackShipments.map((s) => s.reference),
-        ]
-          .filter((r): r is string => !!r && /^WE-/i.test(r))
-          .map((r) => r.replace(/^WE-/i, '')),
-      ),
-    ];
+    const sessionLabel = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
+
+    const preferredRef =
+      fallbackShipments.find((s) => s.reference)?.reference ||
+      matched.find((m) => m.reference && /^WE-/i.test(m.reference))?.reference ||
+      null;
+    const weRef = preferredRef ? preferredRef.replace(/^WE-/i, '') : null;
 
     try {
-      if (weRefs.length === 1 && customer) {
+      if (weRef && customer) {
         session = await this.goodsReceipt.openSession(user, {
           customerId: customer.id,
           date: sessionDate,
-          externalRef: weRefs[0],
-          sessionLabel,
-        });
-      } else if (customer && (matched.length || fallbackShipments.length)) {
-        session = await this.goodsReceipt.openSession(user, {
-          customerId: customer.id,
-          date: sessionDate,
-          externalRef: 'ALLE',
-          allCustomerShipments: true,
+          externalRef: weRef,
           sessionLabel,
         });
       }
@@ -297,42 +283,57 @@ export class ProformaWeService {
   }
 
   private async findShipmentForBk(organizationId: string, bk: string, customerId?: string) {
-    const or = [
-      { notes: { contains: bk, mode: 'insensitive' as const } },
-      { reference: { equals: bk, mode: 'insensitive' as const } },
-      { reference: { contains: bk, mode: 'insensitive' as const } },
-      { goodsDescription: { contains: bk, mode: 'insensitive' as const } },
-    ];
+    const weFilter = {
+      OR: [
+        { reference: { startsWith: 'WE-' } },
+        { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' as const } },
+      ],
+    };
 
-    // extras.externalShipmentNumber via raw-ish contains on jsonb text
     const byExtras = await this.prisma.shipment.findFirst({
       where: {
         organizationId,
         ...(customerId ? { customerId } : {}),
-        extras: { path: ['externalShipmentNumber'], equals: bk },
+        AND: [weFilter, { extras: { path: ['externalShipmentNumber'], equals: bk } }],
       },
       orderBy: { createdAt: 'desc' },
     });
     if (byExtras) return byExtras;
 
+    const byNotes = await this.prisma.shipment.findFirst({
+      where: {
+        organizationId,
+        ...(customerId ? { customerId } : {}),
+        AND: [weFilter, { notes: { contains: bk, mode: 'insensitive' } }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (byNotes) return byNotes;
+
     const cons = await this.prisma.tourConsignment.findFirst({
       where: {
         tour: { organizationId },
         OR: [
-          { externalConsignmentNumber: { contains: bk, mode: 'insensitive' } },
+          { externalConsignmentNumber: { equals: bk, mode: 'insensitive' } },
           { soloplanOrderNumber: { equals: bk } },
         ],
       },
       orderBy: { id: 'desc' },
     });
-    if (cons?.externalConsignmentNumber || cons?.soloplanOrderNumber) {
+    if (cons) {
       const linked = await this.prisma.shipment.findFirst({
         where: {
           organizationId,
-          OR: [
-            { reference: cons.externalConsignmentNumber || undefined },
-            { reference: cons.soloplanOrderNumber || undefined },
-            { notes: { contains: cons.soloplanOrderNumber || bk, mode: 'insensitive' } },
+          ...(customerId ? { customerId } : {}),
+          AND: [
+            weFilter,
+            {
+              OR: [
+                { reference: cons.externalConsignmentNumber || undefined },
+                { reference: cons.soloplanOrderNumber || undefined },
+                { notes: { contains: cons.soloplanOrderNumber || bk, mode: 'insensitive' } },
+              ],
+            },
           ],
         },
         orderBy: { createdAt: 'desc' },
@@ -340,14 +341,7 @@ export class ProformaWeService {
       if (linked) return linked;
     }
 
-    return this.prisma.shipment.findFirst({
-      where: {
-        organizationId,
-        ...(customerId ? { customerId } : {}),
-        OR: or,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return null;
   }
 
   private async findWeByTotals(
