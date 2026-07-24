@@ -124,6 +124,7 @@ export class ProformaWeService {
       shipmentId: string;
       trackingNumber: string;
       reference: string | null;
+      packageCount: number;
     }> = [];
     const missing: ProformaShipmentLine[] = [];
     let fallbackShipments: Array<{ id: string; reference: string | null }> = [];
@@ -157,6 +158,7 @@ export class ProformaWeService {
           shipmentId: shipment.id,
           trackingNumber: shipment.trackingNumber,
           reference: shipment.reference,
+          packageCount: shipment.packageCount || 0,
         });
       } else {
         missing.push(line);
@@ -206,10 +208,19 @@ export class ProformaWeService {
     const sessionDate = new Date().toISOString().slice(0, 10);
     const sessionLabel = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
 
+    const preferredFromMatched = (() => {
+      const weMatched = matched.filter((m) => m.reference && /^WE-/i.test(m.reference));
+      if (!weMatched.length) return null;
+      if (parsed.totalColli) {
+        const exact = weMatched.find((m) => m.packageCount === parsed.totalColli);
+        if (exact) return exact.reference;
+      }
+      // größte WE-Sendung (Sammel), nicht die kleinste Teil-WE
+      return [...weMatched].sort((a, b) => b.packageCount - a.packageCount)[0]?.reference || null;
+    })();
+
     const preferredRef =
-      fallbackShipments.find((s) => s.reference)?.reference ||
-      matched.find((m) => m.reference && /^WE-/i.test(m.reference))?.reference ||
-      null;
+      fallbackShipments.find((s) => s.reference)?.reference || preferredFromMatched;
     const weRef = preferredRef ? preferredRef.replace(/^WE-/i, '') : null;
 
     try {
@@ -357,6 +368,7 @@ export class ProformaWeService {
         organizationId,
         customerId,
         createdAt: { gte: since },
+        packageCount: totalColli,
         AND: [
           {
             OR: [
@@ -368,24 +380,47 @@ export class ProformaWeService {
       },
       include: { _count: { select: { colli: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 30,
+      take: 20,
     });
 
-    const byColli = rows.filter(
+    // Fallback: Colli-Anzahl über Relation, falls packageCount abweicht
+    const rows2 =
+      rows.length > 0
+        ? rows
+        : await this.prisma.shipment.findMany({
+            where: {
+              organizationId,
+              customerId,
+              createdAt: { gte: since },
+              AND: [
+                {
+                  OR: [
+                    { reference: { startsWith: 'WE-' } },
+                    { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
+                  ],
+                },
+              ],
+            },
+            include: { _count: { select: { colli: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 200,
+          });
+
+    const byColli = rows2.filter(
       (s) => s.packageCount === totalColli || s._count.colli === totalColli,
     );
     if (!byColli.length) return [];
     if (!totalWeightKg) return byColli.slice(0, 1);
 
-    // Soloplan-WE oft mit Summengewicht; ältere Imports: Gewicht fälschlich * Colli
     const matched = byColli.filter((s) => {
       if (s.weightKg == null) return true;
       const w = Number(s.weightKg);
+      if (!Number.isFinite(w)) return true;
       const pkg = Math.max(1, s.packageCount || s._count.colli || 1);
       const candidates = [w, w / pkg];
-      return candidates.some((c) => Math.abs(c - totalWeightKg) <= totalWeightKg * 0.2);
+      return candidates.some((c) => Math.abs(c - totalWeightKg) <= totalWeightKg * 0.25);
     });
-    return matched.slice(0, 1);
+    return (matched.length ? matched : byColli).slice(0, 1);
   }
 
   private async mailMissingShipments(
