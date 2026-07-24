@@ -1,16 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from 'fs';
 import { join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { DocumentType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GoodsReceiptService } from './goods-receipt.service';
@@ -20,13 +23,18 @@ import {
   ParsedProformaInvoice,
   ProformaShipmentLine,
 } from './proforma-invoice.parser';
+import { writeEntladelistePdf } from './entladeliste-pdf';
 import { AuthUser } from '../auth/auth.types';
-import { UserRole } from '@prisma/client';
 
 const execFileAsync = promisify(execFile);
 
 const MISSING_SHIPMENT_MAIL_TO =
   process.env.PROFORMA_MISSING_MAIL_TO || 'info@worldofgreen.ch';
+
+/** Entladeliste nach Proforma-Upload */
+const ENTLADELISTE_MAIL_TO =
+  process.env.PROFORMA_ENTLADELISTE_MAIL_TO ||
+  'info@worldofgreen.ch,Lager@worldofgreen.ch';
 
 /**
  * Proforma-/Ausfuhr-Rechnung (PDF) per SFTP → Wareneingangs-Session für TC57.
@@ -37,6 +45,7 @@ const MISSING_SHIPMENT_MAIL_TO =
  *   inbound/proforma/                 ← Legacy-Alias (weiterhin gelesen)
  *
  * Fehlende BK-Sendungen → E-Mail an info@worldofgreen.ch.
+ * Nach Match → Entladeliste-PDF an info@ + Lager@worldofgreen.ch.
  */
 @Injectable()
 export class ProformaWeService {
@@ -47,6 +56,7 @@ export class ProformaWeService {
   private readonly listenDir: string;
   /** Alter Pfad, bleibt kompatibel */
   private readonly legacyInboundDir: string;
+  private readonly uploadDir: string;
 
   constructor(
     private prisma: PrismaService,
@@ -59,6 +69,7 @@ export class ProformaWeService {
     this.inboundDir = join(root, 'wareneingang', 'rechnungen');
     this.listenDir = join(root, 'wareneingang', 'listen');
     this.legacyInboundDir = join(root, 'proforma');
+    this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     for (const d of [
       this.inboundDir,
       join(this.inboundDir, 'processed'),
@@ -69,6 +80,7 @@ export class ProformaWeService {
       this.legacyInboundDir,
       join(this.legacyInboundDir, 'processed'),
       join(this.legacyInboundDir, 'failed'),
+      join(this.uploadDir, 'entladelisten'),
     ]) {
       if (!existsSync(d)) mkdirSync(d, { recursive: true });
     }
@@ -87,6 +99,7 @@ export class ProformaWeService {
         legacyProforma: 'inbound/proforma',
       },
       missingMailTo: MISSING_SHIPMENT_MAIL_TO,
+      entladelisteMailTo: this.entladelisteMailRecipients(),
       pending: countPdf(this.inboundDir) + countPdf(this.legacyInboundDir),
       pendingListen: countPdf(this.listenDir),
     };
@@ -263,21 +276,12 @@ export class ProformaWeService {
       : (customer?.name || 'Kunde').split(/\s+/)[0] || 'Kunde';
     const sessionLabel = `WE ${short} · ${pro}`;
 
-    // Bevorzugt alle per BK gematchten Einzel-WEs (echte Scan-Labels).
+    // Bevorzugt alle per BK gematchten Einzel-WEs (Referenz = BK…).
     // Sammel-WE (Totals) nur Fallback, wenn keine BK-WEs gefunden wurden.
-    const matchedShipmentIds = [
-      ...new Set(
-        matched
-          .filter((m) => m.reference && /^WE-/i.test(m.reference))
-          .map((m) => m.shipmentId),
-      ),
-    ];
+    const matchedShipmentIds = [...new Set(matched.map((m) => m.shipmentId))];
     const fallbackIds = fallbackShipments.map((s) => s.id);
     const shipmentIds = matchedShipmentIds.length ? matchedShipmentIds : fallbackIds;
-    const weRef =
-      (matched.find((m) => m.reference && /^WE-/i.test(m.reference))?.reference ||
-        fallbackShipments[0]?.reference ||
-        '')?.replace(/^WE-/i, '') || pro;
+    const weRef = pro;
 
     try {
       if (shipmentIds.length && customer) {
@@ -291,6 +295,27 @@ export class ProformaWeService {
       }
     } catch (err: any) {
       this.logger.warn(`WE-Session aus Proforma: ${err?.message || err}`);
+    }
+
+    let entladeliste: Awaited<ReturnType<ProformaWeService['generateAndSendEntladeliste']>> | null =
+      null;
+    try {
+      if (shipmentIds.length) {
+        entladeliste = await this.generateAndSendEntladeliste({
+          user,
+          proformaNumber: pro,
+          sessionLabel,
+          sessionDate,
+          customerId: customer?.id,
+          customerName: customer?.name,
+          customerNumber: customer?.customerNumber,
+          shipmentIds,
+          missing,
+          sourceFileName: fileName,
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`Entladeliste Proforma: ${err?.message || err}`);
     }
 
     const summary = {
@@ -307,11 +332,191 @@ export class ProformaWeService {
       sessionRef: session?.externalRef,
       expectedColli: session?.summary?.expected,
       pendingColli: session?.summary?.pending,
+      entladelisteDocumentId: entladeliste?.documentId,
+      entladelisteFileName: entladeliste?.fileName,
+      entladelisteMailedTo: entladeliste?.mailedTo,
+      packSummary: entladeliste?.packSummary,
     };
     this.logger.log(
-      `Proforma ${parsed.proformaNumber || fileName}: matched=${matched.length} missing=${missing.length} fallback=${fallbackShipments.length} session=${session?.externalRef || '—'}`,
+      `Proforma ${parsed.proformaNumber || fileName}: matched=${matched.length} missing=${missing.length} fallback=${fallbackShipments.length} session=${session?.externalRef || '—'} entladeliste=${entladeliste?.fileName || '—'}`,
     );
     return summary;
+  }
+
+  /**
+   * Entladeliste-PDF erzeugen, unter uploads + FTP listen/ ablegen,
+   * an info@ und Lager@worldofgreen.ch senden.
+   */
+  async generateAndSendEntladeliste(opts: {
+    user: AuthUser;
+    proformaNumber: string;
+    sessionLabel?: string | null;
+    sessionDate: string;
+    customerId?: string | null;
+    customerName?: string | null;
+    customerNumber?: string | null;
+    shipmentIds: string[];
+    missing?: ProformaShipmentLine[];
+    sourceFileName?: string | null;
+  }) {
+    const shipments = await this.prisma.shipment.findMany({
+      where: {
+        organizationId: opts.user.organizationId,
+        id: { in: opts.shipmentIds },
+      },
+      include: {
+        colli: { orderBy: { itemNumber: 'asc' } },
+      },
+      orderBy: { reference: 'asc' },
+    });
+
+    const colli = shipments.flatMap((s) =>
+      s.colli.map((c) => ({
+        reference: s.reference,
+        soloplanRef: s.soloplanRef,
+        sscc: c.sscc,
+        packaging: c.packaging,
+        content: c.content,
+        weightKg: c.weightKg,
+        deliveryCompany: s.deliveryCompany,
+        deliveryZip: s.deliveryZip,
+        deliveryCity: s.deliveryCity,
+      })),
+    );
+
+    const safePro = String(opts.proformaNumber || 'PROFORMA').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `Entladeliste-${safePro}-${opts.sessionDate}.pdf`;
+    const dir = join(this.uploadDir, 'entladelisten');
+    mkdirSync(dir, { recursive: true });
+    const storagePath = join(dir, fileName);
+
+    const packSummary = await writeEntladelistePdf(
+      {
+        proformaNumber: opts.proformaNumber,
+        sessionLabel: opts.sessionLabel,
+        sessionDate: opts.sessionDate,
+        customerName: opts.customerName,
+        customerNumber: opts.customerNumber,
+        sourceFileName: opts.sourceFileName,
+        colli,
+        missing: opts.missing?.map((m) => ({
+          bk: m.bk,
+          li: m.li,
+          colli: m.colli,
+          weightKg: m.weightKg,
+        })),
+      },
+      storagePath,
+    );
+
+    // Kopie in FTP-Listenordner (für Soloplan/Archiv)
+    try {
+      const listenCopy = join(this.listenDir, 'processed', `${Date.now()}_${fileName}`);
+      mkdirSync(join(this.listenDir, 'processed'), { recursive: true });
+      copyFileSync(storagePath, listenCopy);
+    } catch (err: any) {
+      this.logger.warn(`Entladeliste FTP-Kopie: ${err?.message || err}`);
+    }
+
+    const doc = await this.prisma.document.create({
+      data: {
+        organizationId: opts.user.organizationId,
+        customerId: opts.customerId || undefined,
+        type: DocumentType.OTHER,
+        fileName,
+        mimeType: 'application/pdf',
+        storagePath,
+        sizeBytes: statSync(storagePath).size,
+        uploadedById: opts.user.id,
+      },
+    });
+
+    const recipients = this.entladelisteMailRecipients();
+    const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
+    const subject = `Entladeliste ${opts.proformaNumber} · ${opts.customerName || 'WE'} · ${opts.sessionDate}`;
+    const body = [
+      `Entladeliste Wareneingang (nach Proforma-Upload)`,
+      ``,
+      `Kunde: ${opts.customerName || '–'} (${opts.customerNumber || '–'})`,
+      `Proforma: ${opts.proformaNumber}`,
+      opts.sessionLabel ? `Session: ${opts.sessionLabel}` : null,
+      `Datum: ${opts.sessionDate}`,
+      ``,
+      `Colli gesamt: ${packSummary.total}`,
+      `Isolationen: ${packSummary.isolation} (Isogroß ${packSummary.isogross} · Isoklein ${packSummary.isoklein})`,
+      `Speicher (EWP): ${packSummary.speicherEwp}`,
+      `Sonstige: ${packSummary.other}`,
+      opts.missing?.length ? `BK ohne WE: ${opts.missing.map((m) => m.bk).join(', ')}` : null,
+      ``,
+      `PDF liegt bei.`,
+      `Download: ${appUrl}/api/documents/${doc.id}/download`,
+      ``,
+      `WOG Portal`,
+    ]
+      .filter((l) => l != null)
+      .join('\n');
+
+    for (const to of recipients) {
+      await this.notifications.sendRaw(to, subject, body, undefined, [
+        { filename: fileName, path: storagePath, contentType: 'application/pdf' },
+      ]);
+    }
+
+    this.logger.log(
+      `Entladeliste ${doc.id} (${fileName}) an ${recipients.join(', ')} · Iso ${packSummary.isolation} / EWP ${packSummary.speicherEwp}`,
+    );
+
+    return {
+      documentId: doc.id,
+      fileName,
+      storagePath,
+      mailedTo: recipients,
+      packSummary,
+    };
+  }
+
+  /** Öffentlich: Entladeliste für bestehende Proforma-Session neu erzeugen/mailen. */
+  async resendEntladelisteForProforma(user: AuthUser, proformaNumber: string) {
+    const pro = proformaNumber.trim().toUpperCase();
+    const session = await this.prisma.goodsReceiptSession.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        OR: [
+          { externalRef: { contains: pro, mode: 'insensitive' } },
+          { notes: { contains: pro, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+        checks: { select: { colloId: true, collo: { select: { shipmentId: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new Error(`Keine WE-Session für ${pro}`);
+
+    const shipmentIds = [
+      ...new Set(session.checks.map((c) => c.collo.shipmentId).filter(Boolean)),
+    ] as string[];
+    if (!shipmentIds.length) throw new Error(`Keine Colli in Session ${pro}`);
+
+    const sessionDate = session.sessionDate.toISOString().slice(0, 10);
+    return this.generateAndSendEntladeliste({
+      user,
+      proformaNumber: pro,
+      sessionLabel: session.externalRef,
+      sessionDate,
+      customerId: session.customerId,
+      customerName: session.customer?.name,
+      customerNumber: session.customer?.customerNumber,
+      shipmentIds,
+      sourceFileName: `resend-${pro}`,
+    });
+  }
+
+  private entladelisteMailRecipients(): string[] {
+    return ENTLADELISTE_MAIL_TO.split(/[,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   private async readInvoiceText(fullPath: string): Promise<string> {

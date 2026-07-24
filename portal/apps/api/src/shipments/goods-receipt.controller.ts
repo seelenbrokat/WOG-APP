@@ -128,6 +128,15 @@ export class GoodsReceiptController {
     return this.proformaWe.processInboundDir(user.organizationId);
   }
 
+  /** Entladeliste für Proforma neu erzeugen und an info@/Lager@ senden */
+  @Post('proforma/:proformaNumber/entladeliste')
+  resendEntladeliste(
+    @CurrentUser() user: AuthUser,
+    @Param('proformaNumber') proformaNumber: string,
+  ) {
+    return this.proformaWe.resendEntladelisteForProforma(user, proformaNumber);
+  }
+
   @Get('groups')
   listGroups(
     @CurrentUser() user: AuthUser,
