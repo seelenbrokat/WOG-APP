@@ -752,6 +752,8 @@ model GoodsReceiptColloCheck {
   scannedAt   DateTime?
   scannedById String?
   note        String?
+  /// Abweichungs-Foto (WAREHOUSE_PHOTO)
+  documentId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -760,6 +762,7 @@ model GoodsReceiptColloCheck {
 
   @@unique([sessionId, colloId])
   @@index([sessionId, status])
+  @@index([documentId])
 }
 
 model GoodsReceiptSurplus {

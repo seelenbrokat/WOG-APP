@@ -217,6 +217,16 @@ export class GoodsReceiptController {
     return this.service.updateColloDimensions(user, id, colloId, dto);
   }
 
+  @Patch('sessions/:id/colli/:colloId/note')
+  updateNote(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('colloId') colloId: string,
+    @Body() dto: DamageDto,
+  ) {
+    return this.service.updateColloNote(user, id, colloId, dto.note || '');
+  }
+
   @Post('sessions/:id/photo')
   attachPhoto(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PhotoMetaDto) {
     return this.service.attachPhotoMeta(user, id, dto);

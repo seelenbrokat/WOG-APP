@@ -30,6 +30,50 @@ function dayBounds(dateStr: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+/** Systemteile der Check-Notiz (ETB-Marker, Abmessungen, Foto) von Freitext trennen. */
+function splitSystemNoteParts(existing: string | null | undefined): {
+  free: string;
+  system: string[];
+} {
+  let rest = String(existing || '');
+  const system: string[] = [];
+  if (rest.includes(ETB_DIMS_CHANGED_MARKER)) {
+    system.push(ETB_DIMS_CHANGED_MARKER);
+    rest = rest.replace(new RegExp(ETB_DIMS_CHANGED_MARKER.replace(/[[\]]/g, '\\$&'), 'g'), '');
+  }
+  const dims = rest.match(/Abmessungen angepasst:[^·]*/i);
+  if (dims) {
+    system.push(dims[0].trim());
+    rest = rest.replace(dims[0], '');
+  }
+  const gew = rest.match(/Gewicht:\s*[\d.,]+\s*kg(?:\s*\([^)]*\))?/i);
+  if (gew) {
+    system.push(gew[0].trim());
+    rest = rest.replace(gew[0], '');
+  }
+  const foto = rest.match(/(?:Label-)?Foto[^·]*/i);
+  if (foto) {
+    system.push(foto[0].trim());
+    rest = rest.replace(foto[0], '');
+  }
+  const free = rest
+    .replace(/[·]+/g, '·')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[·\s]+|[·\s]+$/g, '')
+    .trim();
+  return { free, system };
+}
+
+function mergeCheckNote(
+  existing: string | null | undefined,
+  freeText: string,
+  extraSystem: string[] = [],
+): string {
+  const { system } = splitSystemNoteParts(existing);
+  const uniq = [...new Set([...system, ...extraSystem].filter(Boolean))];
+  return [freeText.trim(), ...uniq].filter(Boolean).join(' · ');
+}
+
 function normalizeExternalRef(raw: string): string {
   const s = String(raw || '').trim();
   if (!s) return '';
@@ -545,6 +589,8 @@ export class GoodsReceiptService {
         status: c.status,
         scannedAt: c.scannedAt,
         note: c.note,
+        freeNote: splitSystemNoteParts(c.note).free,
+        documentId: c.documentId,
         sscc: c.collo.sscc,
         itemNumber: c.collo.itemNumber,
         content: c.collo.content,
@@ -862,6 +908,8 @@ export class GoodsReceiptService {
     if (!check) throw new NotFoundException('Packstück nicht in dieser Sitzung');
 
     const now = new Date();
+    const free = (note?.trim() || splitSystemNoteParts(check.note).free || 'Beschädigt').trim();
+    const merged = mergeCheckNote(check.note, free.includes('Beschädigt') ? free : `${free} · Beschädigt`.replace(/^ · /, ''));
     await this.prisma.$transaction([
       this.prisma.goodsReceiptColloCheck.update({
         where: { id: check.id },
@@ -869,7 +917,7 @@ export class GoodsReceiptService {
           status: 'DAMAGED',
           scannedAt: check.scannedAt || now,
           scannedById: user.id,
-          note: note || check.note || 'Beschädigt',
+          note: merged,
         },
       }),
       this.prisma.shipmentCollo.update({
@@ -878,8 +926,35 @@ export class GoodsReceiptService {
           warehouseStatus: 'DAMAGED',
           receivedAt: check.scannedAt || now,
           receivedById: user.id,
-          warehouseNote: note || 'Beschädigt',
+          warehouseNote: merged,
         },
+      }),
+    ]);
+    return this.getSession(user, sessionId);
+  }
+
+  /** Freitext zur Abweichung speichern (Systemmarker Abmessungen/Foto bleiben erhalten). */
+  async updateColloNote(
+    user: AuthUser,
+    sessionId: string,
+    colloId: string,
+    note: string,
+  ) {
+    this.assertWarehouseRole(user);
+    const check = await this.prisma.goodsReceiptColloCheck.findFirst({
+      where: { sessionId, colloId, session: { organizationId: user.organizationId } },
+    });
+    if (!check) throw new NotFoundException('Packstück nicht in dieser Sitzung');
+
+    const merged = mergeCheckNote(check.note, note || '');
+    await this.prisma.$transaction([
+      this.prisma.goodsReceiptColloCheck.update({
+        where: { id: check.id },
+        data: { note: merged || null },
+      }),
+      this.prisma.shipmentCollo.update({
+        where: { id: colloId },
+        data: { warehouseNote: merged || null },
       }),
     ]);
     return this.getSession(user, sessionId);
@@ -1000,15 +1075,23 @@ export class GoodsReceiptService {
         data: { documentId: data.documentId, note: data.note },
       });
     }
-    if (data.colloId && data.note) {
-      await this.prisma.goodsReceiptColloCheck.updateMany({
+    if (data.colloId) {
+      const check = await this.prisma.goodsReceiptColloCheck.findFirst({
         where: { sessionId, colloId: data.colloId },
-        data: { note: data.note },
       });
-      await this.prisma.shipmentCollo.update({
-        where: { id: data.colloId },
-        data: { warehouseNote: data.note },
-      });
+      if (check) {
+        const photoLabel = data.note?.trim() || 'Foto Wareneingang';
+        const { free } = splitSystemNoteParts(check.note);
+        const merged = mergeCheckNote(check.note, free, [photoLabel]);
+        await this.prisma.goodsReceiptColloCheck.update({
+          where: { id: check.id },
+          data: { documentId: data.documentId, note: merged },
+        });
+        await this.prisma.shipmentCollo.update({
+          where: { id: data.colloId },
+          data: { warehouseNote: merged },
+        });
+      }
     }
 
     // Dokumenttyp auf WAREHOUSE_PHOTO setzen falls OTHER/CUSTOMER_UPLOAD

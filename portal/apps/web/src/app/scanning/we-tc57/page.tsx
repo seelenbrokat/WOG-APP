@@ -41,6 +41,9 @@ type Session = {
     colloId: string;
     status: string;
     sscc: string;
+    note?: string | null;
+    freeNote?: string | null;
+    documentId?: string | null;
     packaging?: string | null;
     weightKg?: number | null;
     lengthCm?: number | null;
@@ -68,14 +71,37 @@ type LastScan = {
   surplusId?: string;
   shipmentId?: string;
   sscc: string;
+  status?: string;
+  note: string;
+  damaged: boolean;
   photoRequired?: boolean;
   hasPhoto?: boolean;
+  documentId?: string | null;
   knownLabel?: string;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
   weightKg: string;
 };
+
+type WorkTab = 'scan' | 'abweichung';
+
+function freeTextFromCheck(c: {
+  freeNote?: string | null;
+  note?: string | null;
+  status?: string;
+}) {
+  const raw = (c.freeNote ?? c.note ?? '')
+    .replace(/\[DIMS_CHANGED\]/g, '')
+    .replace(/Abmessungen angepasst:[^·]*/gi, '')
+    .replace(/Gewicht:\s*[\d.,]+\s*kg(?:\s*\([^)]*\))?/gi, '')
+    .replace(/(?:Label-)?Foto[^·]*/gi, '')
+    .replace(/[·]+/g, '·')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[·\s]+|[·\s]+$/g, '')
+    .trim();
+  return raw.replace(/(?:\s*·\s*)?Beschädigt\s*$/i, '').trim();
+}
 
 type Customer = { id: string; name: string; customerNumber: string };
 
@@ -155,8 +181,33 @@ export default function WeTc57Page() {
   );
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const [showDims, setShowDims] = useState(false);
+  const [workTab, setWorkTab] = useState<WorkTab>('scan');
+  const workTabRef = useRef<WorkTab>('scan');
 
   sessionRef.current = session;
+  workTabRef.current = workTab;
+
+  function loadLastScanFromCheck(
+    c: Session['expectedColli'][number],
+    overrides?: Partial<LastScan>,
+  ): LastScan {
+    return {
+      kind: 'expected',
+      colloId: c.colloId,
+      shipmentId: c.shipmentId || '',
+      sscc: c.sscc,
+      status: c.status,
+      note: freeTextFromCheck(c),
+      damaged: c.status === 'DAMAGED',
+      hasPhoto: !!c.documentId,
+      documentId: c.documentId,
+      lengthCm: c.lengthCm != null ? String(c.lengthCm) : '',
+      widthCm: c.widthCm != null ? String(c.widthCm) : '',
+      heightCm: c.heightCm != null ? String(c.heightCm) : '',
+      weightKg: c.weightKg != null ? String(c.weightKg) : '',
+      ...overrides,
+    };
+  }
 
   async function unlockAudio() {
     try {
@@ -387,18 +438,34 @@ export default function WeTc57Page() {
 
       if (res.kind === 'expected' && res.collo) {
         const fromSession = res.session.expectedColli.find((c) => c.colloId === res.collo!.id);
-        setLastScan({
-          kind: 'expected',
-          colloId: res.collo.id,
-          shipmentId: fromSession?.shipmentId || res.shipment?.id || '',
-          sscc: shown,
-          lengthCm: res.collo.lengthCm != null ? String(res.collo.lengthCm) : '',
-          widthCm: res.collo.widthCm != null ? String(res.collo.widthCm) : '',
-          heightCm: res.collo.heightCm != null ? String(res.collo.heightCm) : '',
-          weightKg: res.collo.weightKg != null ? String(res.collo.weightKg) : '',
-        });
+        if (fromSession) {
+          setLastScan(
+            loadLastScanFromCheck(fromSession, {
+              lengthCm: res.collo.lengthCm != null ? String(res.collo.lengthCm) : '',
+              widthCm: res.collo.widthCm != null ? String(res.collo.widthCm) : '',
+              heightCm: res.collo.heightCm != null ? String(res.collo.heightCm) : '',
+              weightKg: res.collo.weightKg != null ? String(res.collo.weightKg) : '',
+              sscc: shown,
+            }),
+          );
+        } else {
+          setLastScan({
+            kind: 'expected',
+            colloId: res.collo.id,
+            shipmentId: res.shipment?.id || '',
+            sscc: shown,
+            status: res.status,
+            note: '',
+            damaged: res.status === 'DAMAGED',
+            lengthCm: res.collo.lengthCm != null ? String(res.collo.lengthCm) : '',
+            widthCm: res.collo.widthCm != null ? String(res.collo.widthCm) : '',
+            heightCm: res.collo.heightCm != null ? String(res.collo.heightCm) : '',
+            weightKg: res.collo.weightKg != null ? String(res.collo.weightKg) : '',
+          });
+        }
         setShowDims(false);
-        editingRef.current = false;
+        // Im Abweichungs-Register nach Scan Formular fokussieren
+        editingRef.current = workTabRef.current === 'abweichung';
       } else if (res.kind === 'surplus') {
         const knownLabel = res.knownShipment
           ? [
@@ -415,6 +482,8 @@ export default function WeTc57Page() {
           kind: 'surplus',
           surplusId: res.surplusId,
           sscc: shown,
+          note: '',
+          damaged: false,
           photoRequired: !!res.photoRequired,
           hasPhoto: !!res.hasPhoto,
           knownLabel,
@@ -424,6 +493,7 @@ export default function WeTc57Page() {
           weightKg: '',
         });
         setShowDims(false);
+        editingRef.current = workTabRef.current === 'abweichung';
       }
 
       if (res.kind === 'expected' && res.alreadyScanned) {
@@ -617,15 +687,21 @@ export default function WeTc57Page() {
     URL.revokeObjectURL(url);
   }
 
-  async function markLastDamaged() {
+  async function markLastDamaged(noteOverride?: string) {
     if (!session || !lastScan?.colloId) return;
     setLoading(true);
     try {
       const s = await api<Session>(
         `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/damage`,
-        { method: 'POST', body: JSON.stringify({ note: 'Beschädigt' }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({ note: noteOverride ?? lastScan.note ?? 'Beschädigt' }),
+        },
       );
       setSession(s);
+      const updated = s.expectedColli.find((c) => c.colloId === lastScan.colloId);
+      if (updated) setLastScan(loadLastScanFromCheck(updated));
+      else setLastScan({ ...lastScan, damaged: true, status: 'DAMAGED' });
       setFlash('dup');
       setHeadline('Als beschädigt markiert');
       setDetail(lastScan.sscc);
@@ -637,8 +713,66 @@ export default function WeTc57Page() {
       setDetail(e instanceof Error ? e.message : 'Fehler');
     } finally {
       setLoading(false);
-      editingRef.current = false;
-      focusScanner();
+      if (workTabRef.current !== 'abweichung') {
+        editingRef.current = false;
+        focusScanner();
+      }
+    }
+  }
+
+  async function saveAbweichung() {
+    if (!session || !lastScan?.colloId || lastScan.kind !== 'expected') return;
+    const toNum = (v: string) => {
+      const n = Number(String(v).replace(',', '.'));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    setLoading(true);
+    try {
+      let s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/dimensions`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            lengthCm: toNum(lastScan.lengthCm),
+            widthCm: toNum(lastScan.widthCm),
+            heightCm: toNum(lastScan.heightCm),
+            weightKg: toNum(lastScan.weightKg),
+          }),
+        },
+      );
+      s = await api<Session>(
+        `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/note`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ note: lastScan.note || '' }),
+        },
+      );
+      if (lastScan.damaged) {
+        s = await api<Session>(
+          `/goods-receipt/sessions/${session.id}/colli/${lastScan.colloId}/damage`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ note: lastScan.note || 'Beschädigt' }),
+          },
+        );
+      }
+      setSession(s);
+      const updated = s.expectedColli.find((c) => c.colloId === lastScan.colloId);
+      if (updated) setLastScan(loadLastScanFromCheck(updated));
+      setFlash('ok');
+      setHeadline('Abweichung gespeichert');
+      setDetail(
+        `${lastScan.sscc}${lastScan.damaged ? ' · beschädigt' : ''} · ${lastScan.lengthCm || '–'}×${lastScan.widthCm || '–'}×${lastScan.heightCm || '–'} cm`,
+      );
+      playTone(true);
+      vibrate([25, 30, 50]);
+    } catch (e: unknown) {
+      setFlash('err');
+      setHeadline('Abweichung fehlgeschlagen');
+      setDetail(e instanceof Error ? e.message : 'Fehler');
+    } finally {
+      setLoading(false);
+      editingRef.current = true;
     }
   }
 
@@ -780,10 +914,16 @@ export default function WeTc57Page() {
         }),
       });
       setSession(s);
-      setLastScan({ ...lastScan, hasPhoto: true, photoRequired: false });
+      if (lastScan.kind === 'expected' && lastScan.colloId) {
+        const updated = s.expectedColli.find((c) => c.colloId === lastScan.colloId);
+        if (updated) setLastScan(loadLastScanFromCheck(updated));
+        else setLastScan({ ...lastScan, hasPhoto: true, photoRequired: false, documentId: doc.id });
+      } else {
+        setLastScan({ ...lastScan, hasPhoto: true, photoRequired: false });
+      }
       setFlash('ok');
       setHeadline(lastScan.kind === 'surplus' ? 'Label-Foto gespeichert' : 'Foto gespeichert');
-      setDetail(`${lastScan.sscc} · weiter scannen`);
+      setDetail(`${lastScan.sscc} · ${workTabRef.current === 'abweichung' ? 'Abweichung' : 'weiter scannen'}`);
       playTone(true);
     } catch (e: unknown) {
       setFlash('err');
@@ -792,9 +932,13 @@ export default function WeTc57Page() {
     } finally {
       setLoading(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
-      editingRef.current = false;
-      focusScanner();
-      window.setTimeout(() => focusScanner(), 80);
+      if (workTabRef.current === 'abweichung') {
+        editingRef.current = true;
+      } else {
+        editingRef.current = false;
+        focusScanner();
+        window.setTimeout(() => focusScanner(), 80);
+      }
     }
   }
 
@@ -933,18 +1077,50 @@ export default function WeTc57Page() {
               ) : null}
             </div>
 
-            {/* Scanner zuerst – Nachbearbeitung darf den Flow nicht unterbrechen */}
+            {session.status === 'OPEN' ? (
+              <div className="tabs" role="tablist" aria-label="WE TC57">
+                <button
+                  type="button"
+                  className={workTab === 'scan' ? 'active' : undefined}
+                  onClick={() => {
+                    setWorkTab('scan');
+                    editingRef.current = false;
+                    focusScanner();
+                  }}
+                >
+                  Scannen
+                </button>
+                <button
+                  type="button"
+                  className={workTab === 'abweichung' ? 'active' : undefined}
+                  onClick={() => {
+                    setWorkTab('abweichung');
+                    editingRef.current = true;
+                  }}
+                >
+                  Abweichung
+                </button>
+              </div>
+            ) : null}
+
+            {/* Scanner in beiden Registern – bei Abweichung für SSCC-Auswahl */}
             <div className="panel stack" style={{ gap: '0.45rem' }}>
-              <label style={{ fontWeight: 600 }}>Barcode scannen</label>
+              <label style={{ fontWeight: 600 }}>
+                {workTab === 'abweichung' ? 'SSCC für Abweichung scannen' : 'Barcode scannen'}
+              </label>
               <input
                 ref={inputRef}
                 defaultValue=""
                 onKeyDown={onScannerKeyDown}
                 onInput={onScannerInput}
                 onBlur={() => {
-                  if (sessionRef.current?.status === 'OPEN' && !editingRef.current) {
+                  if (
+                    sessionRef.current?.status === 'OPEN' &&
+                    !editingRef.current &&
+                    workTabRef.current === 'scan'
+                  ) {
                     window.setTimeout(() => {
-                      if (!editingRef.current) focusScanner();
+                      if (!editingRef.current && workTabRef.current === 'scan') focusScanner();
                     }, 30);
                   }
                 }}
@@ -965,73 +1141,79 @@ export default function WeTc57Page() {
                 }}
               />
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                Weiter scannen – Nachbearbeitung ist optional und unterbricht nicht.
+                {workTab === 'abweichung'
+                  ? 'SSCC scannen oder unten aus der Liste wählen – dann Maße, Foto, Freitext, Beschädigt.'
+                  : 'Weiter scannen – Nachbearbeitung ist optional und unterbricht nicht. Ausführliche Abweichung im Register „Abweichung“.'}
               </p>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ minHeight: 40, fontSize: '0.9rem' }}
-                onClick={() => {
-                  void unlockAudio();
-                  editingRef.current = false;
-                  focusScanner();
+              {workTab === 'scan' ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ minHeight: 40, fontSize: '0.9rem' }}
+                  onClick={() => {
+                    void unlockAudio();
+                    editingRef.current = false;
+                    focusScanner();
+                  }}
+                >
+                  Fokus + Ton freischalten
+                </button>
+              ) : null}
+            </div>
+
+            {workTab === 'scan' ? (
+              <div
+                className="panel"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, 1fr)',
+                  gap: '0.35rem',
+                  textAlign: 'center',
+                  padding: '0.65rem 0.5rem',
                 }}
               >
-                Fokus + Ton freischalten
-              </button>
-            </div>
+                <div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{session.summary.expected}</div>
+                  <div className="muted" style={{ fontSize: '0.72rem' }}>
+                    Soll
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1f7a4a' }}>
+                    {session.summary.received}
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.72rem' }}>
+                    OK
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                    {session.summary.pending ?? session.summary.missing}
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.72rem' }}>
+                    Offen
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                    {session.summary.cancelled ?? 0}
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.72rem' }}>
+                    Storno
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#a12622' }}>
+                    {session.summary.surplus}
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.72rem' }}>
+                    Fremd
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
-            <div
-              className="panel"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(5, 1fr)',
-                gap: '0.35rem',
-                textAlign: 'center',
-                padding: '0.65rem 0.5rem',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{session.summary.expected}</div>
-                <div className="muted" style={{ fontSize: '0.72rem' }}>
-                  Soll
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1f7a4a' }}>
-                  {session.summary.received}
-                </div>
-                <div className="muted" style={{ fontSize: '0.72rem' }}>
-                  OK
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
-                  {session.summary.pending ?? session.summary.missing}
-                </div>
-                <div className="muted" style={{ fontSize: '0.72rem' }}>
-                  Offen
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>
-                  {session.summary.cancelled ?? 0}
-                </div>
-                <div className="muted" style={{ fontSize: '0.72rem' }}>
-                  Storno
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#a12622' }}>
-                  {session.summary.surplus}
-                </div>
-                <div className="muted" style={{ fontSize: '0.72rem' }}>
-                  Fremd
-                </div>
-              </div>
-            </div>
-
-            {lastScan && session.status === 'OPEN' ? (
+            {workTab === 'scan' && lastScan && session.status === 'OPEN' ? (
               <details className="panel" style={{ gap: '0.5rem' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
                   Nachbearbeitung optional · {lastScan.sscc}
@@ -1075,7 +1257,7 @@ export default function WeTc57Page() {
                           className="btn btn-secondary"
                           style={{ flex: 1, minHeight: 48 }}
                           disabled={loading}
-                          onClick={() => void markLastDamaged()}
+                          onClick={() => void markLastDamaged('Beschädigt')}
                         >
                           Beschädigt
                         </button>
@@ -1187,6 +1369,179 @@ export default function WeTc57Page() {
               </details>
             ) : null}
 
+            {workTab === 'abweichung' && session.status === 'OPEN' ? (
+              <div className="panel stack" style={{ gap: '0.55rem' }}>
+                <strong>Abweichung erfassen</strong>
+                {lastScan?.kind === 'expected' && lastScan.colloId ? (
+                  <>
+                    <div>
+                      <code style={{ fontSize: '0.95rem' }}>{lastScan.sscc}</code>
+                      <div className="muted" style={{ fontSize: '0.85rem' }}>
+                        Status: {lastScan.damaged || lastScan.status === 'DAMAGED' ? 'beschädigt' : lastScan.status || '—'}
+                        {lastScan.hasPhoto ? ' · Foto vorhanden' : ''}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      {(
+                        [
+                          ['lengthCm', 'L cm'],
+                          ['widthCm', 'B cm'],
+                          ['heightCm', 'H cm'],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div className="field" key={key}>
+                          <label>{label}</label>
+                          <input
+                            inputMode="decimal"
+                            value={lastScan[key]}
+                            onFocus={() => {
+                              editingRef.current = true;
+                            }}
+                            onChange={(e) => setLastScan({ ...lastScan, [key]: e.target.value })}
+                            style={{ minHeight: 48, fontSize: '1rem' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="field">
+                      <label>Gewicht kg</label>
+                      <input
+                        inputMode="decimal"
+                        value={lastScan.weightKg}
+                        onFocus={() => {
+                          editingRef.current = true;
+                        }}
+                        onChange={(e) => setLastScan({ ...lastScan, weightKg: e.target.value })}
+                        style={{ minHeight: 48, fontSize: '1rem' }}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Freitext / Bemerkung</label>
+                      <textarea
+                        value={lastScan.note}
+                        rows={3}
+                        onFocus={() => {
+                          editingRef.current = true;
+                        }}
+                        onChange={(e) => setLastScan({ ...lastScan, note: e.target.value })}
+                        placeholder="z. B. Ecke eingedrückt, Folie gerissen…"
+                        style={{ minHeight: 88, fontSize: '1rem', width: '100%', resize: 'vertical' }}
+                      />
+                    </div>
+                    <label className="row" style={{ gap: '0.5rem', minHeight: 44 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!lastScan.damaged}
+                        onChange={(e) => setLastScan({ ...lastScan, damaged: e.target.checked })}
+                        style={{ width: 22, height: 22 }}
+                      />
+                      <span style={{ fontWeight: 600 }}>Als beschädigt markieren</span>
+                    </label>
+                    <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => {
+                          editingRef.current = true;
+                          photoInputRef.current?.click();
+                        }}
+                      >
+                        {lastScan.hasPhoto ? 'Weiteres Foto' : 'Foto aufnehmen'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ flex: 1, minHeight: 48 }}
+                        disabled={loading}
+                        onClick={() => void saveAbweichung()}
+                      >
+                        Abweichung speichern
+                      </button>
+                    </div>
+                  </>
+                ) : lastScan?.kind === 'surplus' ? (
+                  <div className="stack" style={{ gap: '0.45rem' }}>
+                    <p style={{ margin: 0 }}>
+                      Überzählig: <code>{lastScan.sscc}</code>
+                    </p>
+                    <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                      Für Überzählige nur Label-Foto – Abmessungen/Schaden gelten für Soll-Packstücke.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ minHeight: 48 }}
+                      disabled={loading || !!lastScan.hasPhoto}
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      {lastScan.hasPhoto ? 'Label-Foto gespeichert' : 'Label-Foto aufnehmen'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="muted" style={{ margin: 0 }}>
+                    Noch keine SSCC gewählt – scannen oder aus der Liste tippen.
+                  </p>
+                )}
+
+                <div style={{ marginTop: '0.25rem' }}>
+                  <strong style={{ fontSize: '0.9rem' }}>Packstücke wählen</strong>
+                  <ul style={{ listStyle: 'none', margin: '0.4rem 0 0', padding: 0 }}>
+                    {session.expectedColli
+                      .filter((c) => c.status !== 'CANCELLED')
+                      .slice(0, 40)
+                      .map((c) => (
+                        <li
+                          key={c.checkId}
+                          style={{
+                            borderTop: '1px solid var(--border, #d8e0db)',
+                            padding: '0.4rem 0',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            style={{
+                              width: '100%',
+                              minHeight: 44,
+                              justifyContent: 'flex-start',
+                              textAlign: 'left',
+                              fontSize: '0.85rem',
+                            }}
+                            onClick={() => {
+                              setLastScan(loadLastScanFromCheck(c));
+                              editingRef.current = true;
+                              setFlash(null);
+                              setHeadline('Abweichung');
+                              setDetail(c.sscc);
+                            }}
+                          >
+                            <div>
+                              <code>{c.sscc}</code>
+                              <div className="muted" style={{ fontSize: '0.78rem' }}>
+                                {c.status}
+                                {c.documentId ? ' · Foto' : ''}
+                                {c.freeNote || c.note ? ' · Notiz' : ''}
+                                {c.lengthCm != null
+                                  ? ` · ${c.lengthCm}×${c.widthCm ?? '–'}×${c.heightCm ?? '–'}`
+                                  : ''}
+                              </div>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+
             <div className="row" style={{ gap: '0.45rem' }}>
               <button
                 type="button"
@@ -1197,6 +1552,7 @@ export default function WeTc57Page() {
                   setFlash(null);
                   setLastScan(null);
                   setShowDims(false);
+                  setWorkTab('scan');
                   editingRef.current = false;
                   bufferRef.current = '';
                   setHeadline('Lieferung wählen');
@@ -1236,6 +1592,8 @@ export default function WeTc57Page() {
               ) : null}
             </div>
 
+            {workTab === 'scan' ? (
+            <>
             <details className="panel" open={session.status === 'OPEN'}>
               <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>
                 Fehlend / Offen (
@@ -1398,6 +1756,8 @@ export default function WeTc57Page() {
                                 kind: 'surplus',
                                 surplusId: s.id,
                                 sscc: s.sscc,
+                                note: '',
+                                damaged: false,
                                 photoRequired: true,
                                 hasPhoto: false,
                                 lengthCm: '',
@@ -1446,6 +1806,8 @@ export default function WeTc57Page() {
                     ))}
                 </ul>
               </details>
+            ) : null}
+            </>
             ) : null}
           </>
         )}
