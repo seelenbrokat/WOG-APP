@@ -32,6 +32,49 @@ const MISSING_MAIL_TO =
   process.env.PROFORMA_MISSING_MAIL_TO ||
   'info@worldofgreen.ch';
 
+function recipientNamesMatch(a?: string | null, b?: string | null): boolean {
+  if (!a?.trim() || !b?.trim()) return false;
+  const stop = new Set([
+    'gmbh',
+    'ag',
+    'mbh',
+    'co',
+    'und',
+    'der',
+    'die',
+    'das',
+    'c',
+    'o',
+  ]);
+  const tokens = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !stop.has(w));
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (!ta.length || !tb.length) return false;
+  const hits = ta.filter((t) => tb.some((u) => u === t || u.includes(t) || t.includes(u)));
+  return hits.length >= Math.min(2, ta.length, tb.length) || (hits.length >= 1 && ta.length <= 2);
+}
+
+/** WE-Fenster um Listen-Datum (±1 Tag); ohne Datum: letzte 3 Tage. */
+function listDateWindow(listDate?: string): { since: Date; until?: Date } {
+  if (listDate && /^\d{4}-\d{2}-\d{2}$/.test(listDate)) {
+    const since = new Date(`${listDate}T00:00:00.000Z`);
+    since.setUTCDate(since.getUTCDate() - 1);
+    const until = new Date(`${listDate}T00:00:00.000Z`);
+    until.setUTCDate(until.getUTCDate() + 2);
+    return { since, until };
+  }
+  const since = new Date();
+  since.setDate(since.getDate() - 3);
+  return { since };
+}
+
 /**
  * SCHMIDT'S Ladeliste (PDF) per SFTP → WE-Session für TC57.
  *
@@ -169,14 +212,21 @@ export class SchmidtsLadelisteWeService {
     const missing: SchmidtsLadelisteLine[] = [];
 
     for (const line of parsed.lines) {
-      let found = await this.findShipmentForLak(user.organizationId, line, customer?.id);
+      let found = await this.findShipmentForLak(
+        user.organizationId,
+        line,
+        customer?.id,
+        parsed.listDate,
+      );
       let matchBy: 'sscc' | 'totals' = 'sscc';
-      if (!found && customer) {
+      // Fallback nur mit Empfänger + Listen-Datum – nie nur Gewicht (sonst Fehlzuordnung)
+      if (!found && customer && line.recipientName) {
         found = await this.findWeByLineTotals(
           user.organizationId,
           customer.id,
           line,
           matched.map((m) => m.shipmentId),
+          parsed.listDate,
         );
         matchBy = 'totals';
       }
@@ -280,6 +330,7 @@ export class SchmidtsLadelisteWeService {
     organizationId: string,
     line: SchmidtsLadelisteLine,
     customerId?: string,
+    listDate?: string,
   ) {
     const weFilter = {
       OR: [
@@ -310,7 +361,7 @@ export class SchmidtsLadelisteWeService {
     });
     if (byExtras) return byExtras;
 
-    // Primär: Collonummer / SSCC aus der Ladeliste
+    // Primär: Collonummer / SSCC aus der Ladeliste (sicherste Verknüpfung)
     for (const collo of line.colli) {
       const candidates = ssccMatchCandidates(collo.sscc);
       if (!candidates.length) continue;
@@ -322,7 +373,6 @@ export class SchmidtsLadelisteWeService {
       if (!hit?.shipment) continue;
       if (hit.shipment.organizationId !== organizationId) continue;
       if (customerId && hit.shipment.customerId !== customerId) continue;
-      // Nur WE-Sendungen
       const s = hit.shipment;
       const isWe =
         /^WE-/i.test(s.reference || '') ||
@@ -330,21 +380,6 @@ export class SchmidtsLadelisteWeService {
         /wareneingang/i.test(s.goodsDescription || '');
       if (!isWe) continue;
       return s;
-    }
-
-    // Tour-Sendung mit LAK (TO) → Empfänger-Hinweis, kein direkter WE-Link
-    const cons = await this.prisma.tourConsignment.findFirst({
-      where: { externalConsignmentNumber: { equals: line.lak, mode: 'insensitive' } },
-      orderBy: { id: 'desc' },
-    });
-    if (cons?.receiverName && customerId) {
-      const byReceiver = await this.findWeByLineTotals(
-        organizationId,
-        customerId,
-        { ...line, recipientName: line.recipientName || cons.receiverName },
-        [],
-      );
-      if (byReceiver) return byReceiver;
     }
 
     return null;
@@ -355,17 +390,21 @@ export class SchmidtsLadelisteWeService {
     customerId: string,
     line: SchmidtsLadelisteLine,
     excludeIds: string[],
+    listDate?: string,
   ) {
-    const since = new Date();
-    since.setDate(since.getDate() - 5);
+    if (!line.recipientName?.trim()) return null;
+
+    const { since, until } = listDateWindow(listDate);
     const colli = line.colliCount || line.colli.length || undefined;
     const rows = await this.prisma.shipment.findMany({
       where: {
         organizationId,
         customerId,
-        createdAt: { gte: since },
+        createdAt: { gte: since, ...(until ? { lt: until } : {}) },
         ...(colli ? { packageCount: colli } : {}),
         ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+        // Keine Sammel-WE an Schmidts selbst
+        NOT: { deliveryCompany: { contains: 'Schmidt', mode: 'insensitive' } },
         OR: [
           { reference: { startsWith: 'WE-' } },
           { reference: { startsWith: 'LAK', mode: 'insensitive' } },
@@ -377,6 +416,7 @@ export class SchmidtsLadelisteWeService {
     });
 
     const free = rows.filter((s) => {
+      if ((s.packageCount || 0) > 10) return false; // Mega-Sammel
       const ex =
         s.extras && typeof s.extras === 'object' && !Array.isArray(s.extras)
           ? (s.extras as Record<string, unknown>)
@@ -384,34 +424,34 @@ export class SchmidtsLadelisteWeService {
       return !ex.externalShipmentNumber;
     });
 
-    let candidates = free;
-    if (line.recipientName) {
-      const token = line.recipientName.split(/\s+/).slice(0, 2).join(' ');
-      const byName = free.filter(
-        (s) =>
-          (s.deliveryCompany || '').toLowerCase().includes(token.toLowerCase()) ||
-          token.toLowerCase().includes((s.deliveryCompany || '').toLowerCase().slice(0, 8)),
-      );
-      if (byName.length) candidates = byName;
-    }
+    // Empfänger muss passen (Pflicht)
+    let candidates = free.filter((s) =>
+      recipientNamesMatch(line.recipientName, s.deliveryCompany),
+    );
     if (line.recipientZip) {
       const byZip = candidates.filter((s) => s.deliveryZip === line.recipientZip);
       if (byZip.length) candidates = byZip;
     }
     if (!candidates.length) return null;
 
-    if (line.totalWeightKg == null) return candidates[0];
+    if (line.totalWeightKg == null) {
+      return candidates.length === 1 ? candidates[0] : null;
+    }
     const scored = candidates
       .map((s) => {
         const w = s.weightKg != null ? Number(s.weightKg) : null;
-        if (w == null) return { s, score: 40 };
+        if (w == null) return null;
         const diff = Math.abs(w - line.totalWeightKg!);
-        if (diff > Math.max(15, line.totalWeightKg! * 0.25)) return null;
+        // eng: max 2 kg oder 10 %
+        if (diff > Math.max(2, line.totalWeightKg! * 0.1)) return null;
         return { s, score: diff };
       })
       .filter((x): x is { s: (typeof candidates)[0]; score: number } => !!x)
       .sort((a, b) => a.score - b.score);
-    return scored[0]?.s || null;
+    // Nur eindeutiger Treffer
+    if (!scored.length) return null;
+    if (scored.length > 1 && scored[0].score === scored[1].score) return null;
+    return scored[0].s;
   }
 
   private async resolveCustomer(organizationId: string, parsed: ParsedSchmidtsLadeliste) {
