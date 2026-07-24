@@ -3,6 +3,7 @@ import { IsBoolean, IsNumber, IsOptional, IsString, ValidateIf } from 'class-val
 import { Type } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 import { GoodsReceiptService } from './goods-receipt.service';
+import { ProformaWeService } from './proforma-we.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
@@ -99,11 +100,26 @@ class CloseDto {
 @UseGuards(RolesGuard)
 @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
 export class GoodsReceiptController {
-  constructor(private service: GoodsReceiptService) {}
+  constructor(
+    private service: GoodsReceiptService,
+    private proformaWe: ProformaWeService,
+  ) {}
 
   @Get('entladeberichte')
   listEntladeberichte(@CurrentUser() user: AuthUser) {
     return this.service.listEntladeberichte(user);
+  }
+
+  /** Status Proforma-FTP (inbound/proforma) */
+  @Get('proforma/status')
+  proformaStatus() {
+    return this.proformaWe.status();
+  }
+
+  /** Manuell: Proforma-PDFs aus FTP verarbeiten → WE-Session + Mail bei fehlenden BKs */
+  @Post('proforma/process-inbound')
+  processProformaInbound(@CurrentUser() user: AuthUser) {
+    return this.proformaWe.processInboundDir(user.organizationId);
   }
 
   @Get('groups')

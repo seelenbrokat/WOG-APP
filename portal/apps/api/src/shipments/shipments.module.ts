@@ -3,6 +3,7 @@ import { ShipmentsService } from './shipments.service';
 import { ShipmentsController } from './shipments.controller';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { GoodsReceiptController } from './goods-receipt.controller';
+import { ProformaWeService } from './proforma-we.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -17,7 +18,7 @@ import { AddressValidationService } from '../common/address-validation.service';
     forwardRef(() => IntegrationsModule),
   ],
   controllers: [ShipmentsController, GoodsReceiptController],
-  providers: [ShipmentsService, AddressValidationService, GoodsReceiptService],
-  exports: [ShipmentsService, AddressValidationService, GoodsReceiptService],
+  providers: [ShipmentsService, AddressValidationService, GoodsReceiptService, ProformaWeService],
+  exports: [ShipmentsService, AddressValidationService, GoodsReceiptService, ProformaWeService],
 })
 export class ShipmentsModule {}

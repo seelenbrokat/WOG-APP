@@ -160,6 +160,7 @@ mkdir -p data/uploads \
   data/sftp/outbound/soloplan/orders \
   data/sftp/outbound/soloplan/telematics \
   data/sftp/inbound/vlbportal/telematics \
+  data/sftp/inbound/proforma \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
   data/integrations/soloplan/{in,out} \

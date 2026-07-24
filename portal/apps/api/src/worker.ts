@@ -9,6 +9,7 @@ import { TelematicsService } from './integrations/telematics.service';
 import { IntouchService } from './integrations/intouch.service';
 import { WareneingangService } from './integrations/wareneingang.service';
 import { GoodsReceiptService } from './shipments/goods-receipt.service';
+import { ProformaWeService } from './shipments/proforma-we.service';
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 
 async function bootstrap() {
@@ -23,6 +24,7 @@ async function bootstrap() {
   const intouch = app.get(IntouchService);
   const wareneingang = app.get(WareneingangService);
   const goodsReceipt = app.get(GoodsReceiptService);
+  const proformaWe = app.get(ProformaWeService);
   const fahrerTelematics = app.get(FahrerTelematicsService);
 
   console.log(
@@ -47,6 +49,12 @@ async function bootstrap() {
         );
       }
       await wareneingang.processInboundDir(undefined, 50);
+      const proforma = await proformaWe.processInboundDir();
+      if (proforma.processed || proforma.failed) {
+        console.log(
+          `Proforma-WE: ${proforma.processed} verarbeitet, ${proforma.failed} fehlgeschlagen`,
+        );
+      }
       await intouch.processInboundDir(undefined, 200);
       await soloplan.syncPending();
       const archived = soloplan.archiveDownloadedOrders();

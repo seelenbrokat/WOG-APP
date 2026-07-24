@@ -131,13 +131,18 @@ export function parseWareneingangXml(xml: string): ParsedWareneingangOrder | nul
 
       // Ein Item mit Quantity>1 und mehreren SSCCs → je SSCC ein Collo
       if (ssccs.length > 1) {
+        const totalW = num(it.EffectiveWeightInKilogram);
+        const unitW =
+          totalW != null
+            ? Math.round((totalW / ssccs.length) * 1000) / 1000
+            : undefined;
         for (let i = 0; i < ssccs.length; i++) {
           items.push({
             positionNumber: Number(str(it.PositionNumber) || i + 1),
             quantity: 1,
             content: str(it.Content1),
             packaging: str(it.ShortDesignation),
-            weightKg: num(it.EffectiveWeightInKilogram),
+            weightKg: unitW,
             lengthCm: metersToCm(num(it.LengthInMeters)),
             widthCm: metersToCm(num(it.WidthInMeters)),
             heightCm: metersToCm(num(it.HeightInMeters)),
