@@ -1514,7 +1514,7 @@ function NewShipmentInner() {
         )}
 
         {error && <div className="error">{error}</div>}
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="shipment-form-actions row" style={{ justifyContent: 'space-between' }}>
           <div className="row">
             {tab === 'zusatz' && (
               <button

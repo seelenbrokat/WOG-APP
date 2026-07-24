@@ -105,7 +105,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
-      include: { mandantAccess: true, customer: true },
+      include: { mandantAccess: true, customer: true, partner: true },
     });
     if (!user || !user.active) throw new UnauthorizedException('Ungültige Anmeldedaten');
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
@@ -127,6 +127,8 @@ export class AuthService {
         organizationId: user.organizationId,
         customerId: user.customerId,
         customerName: user.customer?.name,
+        partnerId: user.partner?.id ?? null,
+        partnerName: user.partner?.name,
         mandantIds: user.mandantAccess.map((a) => a.mandantId),
         mustChangePassword: user.mustChangePassword,
       },

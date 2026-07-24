@@ -59,6 +59,22 @@ export class ToursController {
     return this.tours.opsDashboard(user, { mandantId, date });
   }
 
+  @Get('exceptions')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  exceptions(
+    @CurrentUser() user: AuthUser,
+    @Query('mandantId') mandantId?: string,
+    @Query('date') date?: string,
+  ) {
+    return this.tours.exceptionsCockpit(user, { mandantId, date });
+  }
+
+  @Get('mine')
+  @Roles(UserRole.PARTNER)
+  myTours(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
+    return this.tours.listPartnerTours(user, { date });
+  }
+
   @Get('intouch/status')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   intouchStatus() {
@@ -187,8 +203,11 @@ export class ToursController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.PARTNER)
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    if (user.role === UserRole.PARTNER) {
+      return this.tours.getPartnerTour(user, id);
+    }
     const tour = await this.tours.getTour(user, id);
     const extras = await this.telematics.getTourExtras(user, id);
     return { ...tour, ...extras };

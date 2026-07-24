@@ -10,6 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { LabelsModule } from '../labels/labels.module';
 import { AddressValidationService } from '../common/address-validation.service';
+import { RecurringTemplatesService } from './recurring-templates.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AddressValidationService } from '../common/address-validation.service';
     GoodsReceiptService,
     ProformaWeService,
     SchmidtsLadelisteWeService,
+    RecurringTemplatesService,
   ],
   exports: [
     ShipmentsService,
@@ -32,6 +34,7 @@ import { AddressValidationService } from '../common/address-validation.service';
     GoodsReceiptService,
     ProformaWeService,
     SchmidtsLadelisteWeService,
+    RecurringTemplatesService,
   ],
 })
 export class ShipmentsModule {}

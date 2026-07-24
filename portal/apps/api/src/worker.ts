@@ -12,6 +12,7 @@ import { GoodsReceiptService } from './shipments/goods-receipt.service';
 import { ProformaWeService } from './shipments/proforma-we.service';
 import { SchmidtsLadelisteWeService } from './shipments/schmidts-ladeliste-we.service';
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
+import { RecurringTemplatesService } from './shipments/recurring-templates.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -28,6 +29,7 @@ async function bootstrap() {
   const proformaWe = app.get(ProformaWeService);
   const schmidtsLadeliste = app.get(SchmidtsLadelisteWeService);
   const fahrerTelematics = app.get(FahrerTelematicsService);
+  const recurringTemplates = app.get(RecurringTemplatesService);
 
   console.log(
     'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub + ETB-Retention)',
@@ -76,6 +78,13 @@ async function bootstrap() {
         }
       }
       await hub.processInboundQueues();
+
+      const recurring = await recurringTemplates.runDueTemplates();
+      if (recurring.created || recurring.failed) {
+        console.log(
+          `Wiederkehrende Aufträge: ${recurring.created} erstellt, ${recurring.failed} fehlgeschlagen`,
+        );
+      }
 
       // ETB-Retention max. 1× / Stunde
       if (Date.now() - lastEtbPurgeAt > 60 * 60 * 1000) {

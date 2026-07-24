@@ -42,10 +42,56 @@ type IntouchStatus = {
   channels: Array<{ channel: string; path: string; pendingFiles: number; files: string[] }>;
 };
 
+type Exceptions = {
+  delayed: Array<{
+    tourId: string;
+    tourNumber: string;
+    driverName: string | null;
+    vehiclePlate: string | null;
+    orderNumber: string | null;
+    receiverName: string | null;
+    consignmentStatus: string | null;
+    targetEnd: string | null;
+    minutesLate: number;
+  }>;
+  staleTelematics: Array<{
+    tourId: string;
+    tourNumber: string;
+    status: string;
+    telematicsStatus: string | null;
+    driverName: string | null;
+    vehiclePlate: string | null;
+    lastStatusAt: string | null;
+    minutesSinceUpdate: number | null;
+  }>;
+  openGoodsReceipts: Array<{
+    id: string;
+    externalRef: string;
+    sessionDate: string;
+    customerName: string | null;
+    customerNumber: string | null;
+    checkCount: number;
+    createdAt: string;
+  }>;
+  counts: { delayed: number; staleTelematics: number; openGoodsReceipts: number };
+  staleThresholdMinutes: number;
+};
+
+function fmtShort(value?: string | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('de-CH', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function ToursDashboardPage() {
   const [mandantId, setMandantId] = useState('');
   const [date, setDate] = useState(todayLocal);
   const [data, setData] = useState<OpsDashboard | null>(null);
+  const [exceptions, setExceptions] = useState<Exceptions | null>(null);
   const [intouch, setIntouch] = useState<IntouchStatus | null>(null);
   const [error, setError] = useState('');
 
@@ -58,12 +104,14 @@ export default function ToursDashboardPage() {
       if (m) params.set('mandantId', m);
       if (d) params.set('date', d);
       const q = params.toString() ? `?${params}` : '';
-      const [dash, ito] = await Promise.all([
+      const [dash, ito, ex] = await Promise.all([
         api<OpsDashboard>(`/tours/ops-dashboard${q}`),
         api<IntouchStatus>('/tours/intouch/status'),
+        api<Exceptions>(`/tours/exceptions${q}`),
       ]);
       setData(dash);
       setIntouch(ito);
+      setExceptions(ex);
       if (dash.date && dash.date !== date) setDate(dash.date);
       if (!mandantId && dash.mandanten.length === 1) {
         setMandantId(dash.mandanten[0].id);
@@ -179,6 +227,152 @@ export default function ToursDashboardPage() {
               {data.vehiclesWithGps}
             </p>
           </div>
+
+          {exceptions ? (
+            <div className="panel" style={{ marginBottom: '1rem' }}>
+              <strong className="panel-title">Abweichungs-Cockpit</strong>
+              <p className="muted" style={{ marginTop: '0.35rem' }}>
+                Verspätet · fehlende Telematik (&gt;{exceptions.staleThresholdMinutes} Min.) · offene
+                Wareneingänge
+              </p>
+              <div className="grid-3" style={{ marginBottom: '1rem' }}>
+                <div className="stat">
+                  <div className="label">Verspätet</div>
+                  <div className="value">{exceptions.counts.delayed}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Telematik fehlt</div>
+                  <div className="value">{exceptions.counts.staleTelematics}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Offene WE</div>
+                  <div className="value">{exceptions.counts.openGoodsReceipts}</div>
+                </div>
+              </div>
+
+              <strong>Verspätete Zustellungen</strong>
+              <table className="table" style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
+                <thead>
+                  <tr>
+                    <th>Tour</th>
+                    <th>Auftrag / Empfänger</th>
+                    <th>Soll-Ende</th>
+                    <th>Verspätung</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exceptions.delayed.slice(0, 25).map((row, idx) => (
+                    <tr key={`${row.tourId}-${row.orderNumber}-${idx}`}>
+                      <td>
+                        <Link href={`/tours/${row.tourId}`}>{row.tourNumber}</Link>
+                        <div className="muted" style={{ fontSize: '0.85rem' }}>
+                          {row.vehiclePlate || '—'}
+                          {row.driverName ? ` · ${row.driverName}` : ''}
+                        </div>
+                      </td>
+                      <td>
+                        {row.orderNumber || '—'}
+                        <div className="muted" style={{ fontSize: '0.85rem' }}>
+                          {row.receiverName || '—'} · {row.consignmentStatus || 'ohne Status'}
+                        </div>
+                      </td>
+                      <td className="muted">{fmtShort(row.targetEnd)}</td>
+                      <td>
+                        <span className="badge">{row.minutesLate} Min.</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {!exceptions.delayed.length && (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        Keine Verspätungen.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <strong>Fehlende / veraltete Telematik</strong>
+              <table className="table" style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
+                <thead>
+                  <tr>
+                    <th>Tour</th>
+                    <th>Status</th>
+                    <th>Letztes Update</th>
+                    <th>Alter</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exceptions.staleTelematics.slice(0, 25).map((row) => (
+                    <tr key={row.tourId}>
+                      <td>
+                        <Link href={`/tours/${row.tourId}`}>{row.tourNumber}</Link>
+                        <div className="muted" style={{ fontSize: '0.85rem' }}>
+                          {row.vehiclePlate || '—'}
+                          {row.driverName ? ` · ${row.driverName}` : ''}
+                        </div>
+                      </td>
+                      <td>
+                        {row.status}
+                        {row.telematicsStatus ? ` / ${row.telematicsStatus}` : ''}
+                      </td>
+                      <td className="muted">{fmtShort(row.lastStatusAt)}</td>
+                      <td>
+                        {row.minutesSinceUpdate != null
+                          ? `${row.minutesSinceUpdate} Min.`
+                          : 'nie'}
+                      </td>
+                    </tr>
+                  ))}
+                  {!exceptions.staleTelematics.length && (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        Alle aktiven Touren aktuell.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <strong>Offene Wareneingänge</strong>
+              <table className="table" style={{ marginTop: '0.5rem' }}>
+                <thead>
+                  <tr>
+                    <th>Referenz</th>
+                    <th>Kunde</th>
+                    <th>Datum</th>
+                    <th>Checks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exceptions.openGoodsReceipts.slice(0, 25).map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <Link href="/scanning/we-tc57">{row.externalRef}</Link>
+                      </td>
+                      <td>
+                        {row.customerName || '—'}
+                        {row.customerNumber ? (
+                          <div className="muted" style={{ fontSize: '0.85rem' }}>
+                            {row.customerNumber}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="muted">{fmtShort(row.sessionDate)}</td>
+                      <td>{row.checkCount}</td>
+                    </tr>
+                  ))}
+                  {!exceptions.openGoodsReceipts.length && (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        Keine offenen WE-Sitzungen.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </>
       ) : (
         <p className="muted">Laden…</p>

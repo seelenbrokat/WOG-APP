@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'fs';
 import { join } from 'path';
@@ -446,5 +446,242 @@ export class TourService {
       },
       vehiclesWithGps: vehiclesGps,
     };
+  }
+
+  /**
+   * Abweichungs-Cockpit: verspätete Zustellungen, fehlende Telematik, offene WE.
+   */
+  async exceptionsCockpit(user: AuthUser, opts?: { mandantId?: string; date?: string }) {
+    if (user.role === UserRole.CUSTOMER_USER || user.role === UserRole.PARTNER) {
+      throw new NotFoundException();
+    }
+    const mandantFilter = opts?.mandantId ? { mandantId: opts.mandantId } : {};
+    const orgId = user.organizationId;
+    const day =
+      opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : zurichDayKey(new Date());
+    const range = zurichDayRange(day);
+    const startFilter = { targetStart: { gte: range.from, lt: range.to } };
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - 45 * 60 * 1000);
+    const doneStatuses = new Set(['UnloadingFinished', 'UnloadingPlaceLeft']);
+
+    const [tours, openWe] = await Promise.all([
+      this.prisma.tour.findMany({
+        where: {
+          organizationId: orgId,
+          status: { not: 'CANCELLED' },
+          ...mandantFilter,
+          ...startFilter,
+        },
+        select: {
+          id: true,
+          tourNumber: true,
+          status: true,
+          telematicsStatus: true,
+          lastStatusAt: true,
+          targetEnd: true,
+          driverName: true,
+          vehicle: {
+            select: {
+              licensePlate: true,
+              lastLocationAt: true,
+            },
+          },
+          stops: {
+            orderBy: { sequence: 'asc' },
+            select: {
+              id: true,
+              sequence: true,
+              name: true,
+              city: true,
+              targetEnd: true,
+              transportOrderNumber: true,
+            },
+          },
+          consignments: {
+            select: {
+              id: true,
+              soloplanOrderNumber: true,
+              receiverName: true,
+              status: true,
+              lastStatusAt: true,
+            },
+          },
+        },
+        orderBy: { tourNumber: 'asc' },
+        take: 300,
+      }),
+      this.prisma.goodsReceiptSession.findMany({
+        where: {
+          organizationId: orgId,
+          status: 'OPEN',
+          ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, customerNumber: true } },
+          _count: { select: { checks: true } },
+        },
+        orderBy: { sessionDate: 'desc' },
+        take: 100,
+      }),
+    ]);
+
+    const delayed: Array<{
+      tourId: string;
+      tourNumber: string;
+      driverName: string | null;
+      vehiclePlate: string | null;
+      orderNumber: string | null;
+      receiverName: string | null;
+      consignmentStatus: string | null;
+      targetEnd: string | null;
+      minutesLate: number;
+    }> = [];
+
+    for (const tour of tours) {
+      for (const c of tour.consignments) {
+        if (c.status && doneStatuses.has(c.status)) continue;
+        const stop =
+          tour.stops.find((s) => s.transportOrderNumber === c.soloplanOrderNumber) ||
+          tour.stops[tour.stops.length - 1];
+        const targetEnd = stop?.targetEnd || tour.targetEnd;
+        if (!targetEnd || targetEnd >= now) continue;
+        delayed.push({
+          tourId: tour.id,
+          tourNumber: tour.tourNumber,
+          driverName: tour.driverName,
+          vehiclePlate: tour.vehicle?.licensePlate || null,
+          orderNumber: c.soloplanOrderNumber,
+          receiverName: c.receiverName,
+          consignmentStatus: c.status,
+          targetEnd: targetEnd.toISOString(),
+          minutesLate: Math.round((now.getTime() - targetEnd.getTime()) / 60_000),
+        });
+      }
+    }
+    delayed.sort((a, b) => b.minutesLate - a.minutesLate);
+
+    const staleTelematics = tours
+      .filter((t) => t.status === 'ACTIVE' || t.telematicsStatus === 'Started')
+      .filter((t) => {
+        const last = t.lastStatusAt || t.vehicle?.lastLocationAt;
+        return !last || last < staleBefore;
+      })
+      .map((t) => {
+        const last = t.lastStatusAt || t.vehicle?.lastLocationAt || null;
+        return {
+          tourId: t.id,
+          tourNumber: t.tourNumber,
+          status: t.status,
+          telematicsStatus: t.telematicsStatus,
+          driverName: t.driverName,
+          vehiclePlate: t.vehicle?.licensePlate || null,
+          lastStatusAt: last?.toISOString() || null,
+          minutesSinceUpdate: last
+            ? Math.round((now.getTime() - last.getTime()) / 60_000)
+            : null,
+        };
+      })
+      .sort((a, b) => (b.minutesSinceUpdate ?? 9999) - (a.minutesSinceUpdate ?? 9999));
+
+    return {
+      mandantId: opts?.mandantId || null,
+      date: day,
+      staleThresholdMinutes: 45,
+      delayed: delayed.slice(0, 80),
+      staleTelematics: staleTelematics.slice(0, 80),
+      openGoodsReceipts: openWe.map((s) => ({
+        id: s.id,
+        externalRef: s.externalRef,
+        sessionDate: s.sessionDate.toISOString(),
+        customerName: s.customer?.name || null,
+        customerNumber: s.customer?.customerNumber || null,
+        checkCount: s._count.checks,
+        createdAt: s.createdAt.toISOString(),
+      })),
+      counts: {
+        delayed: delayed.length,
+        staleTelematics: staleTelematics.length,
+        openGoodsReceipts: openWe.length,
+      },
+    };
+  }
+
+  private partnerBpKeys(partner: {
+    soloplanBusinessPartnerId: string | null;
+    matchcode: string | null;
+    code: string;
+  }) {
+    return [partner.soloplanBusinessPartnerId, partner.matchcode, partner.code].filter(
+      (v): v is string => Boolean(v && String(v).trim()),
+    );
+  }
+
+  async resolvePartnerForUser(user: AuthUser) {
+    if (user.role !== UserRole.PARTNER) return null;
+    return this.prisma.partner.findFirst({
+      where: { userId: user.id, organizationId: user.organizationId, active: true },
+    });
+  }
+
+  /** Partner-Self-Service: Touren mit eigenen Sendungen (Absender-BP). */
+  async listPartnerTours(user: AuthUser, opts?: { date?: string }) {
+    if (user.role !== UserRole.PARTNER) throw new NotFoundException();
+    const partner = await this.resolvePartnerForUser(user);
+    if (!partner) throw new ForbiddenException('Kein Partnerkonto verknüpft');
+    const keys = this.partnerBpKeys(partner);
+    if (!keys.length) return [];
+
+    const where: Record<string, unknown> = {
+      organizationId: user.organizationId,
+      status: { not: 'CANCELLED' },
+      consignments: { some: { senderBpNumber: { in: keys } } },
+    };
+    if (opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
+      const range = zurichDayRange(opts.date);
+      where.targetStart = { gte: range.from, lt: range.to };
+    }
+
+    return this.prisma.tour.findMany({
+      where,
+      include: {
+        vehicle: {
+          select: { id: true, licensePlate: true, number: true, matchcode: true },
+        },
+        mandant: { select: { id: true, code: true, name: true } },
+        stops: { orderBy: { sequence: 'asc' } },
+        consignments: {
+          where: { senderBpNumber: { in: keys } },
+          orderBy: { soloplanOrderNumber: 'asc' },
+        },
+      },
+      orderBy: [{ targetStart: 'desc' }, { tourNumber: 'desc' }],
+      take: 100,
+    });
+  }
+
+  async getPartnerTour(user: AuthUser, id: string) {
+    if (user.role !== UserRole.PARTNER) throw new NotFoundException();
+    const partner = await this.resolvePartnerForUser(user);
+    if (!partner) throw new ForbiddenException('Kein Partnerkonto verknüpft');
+    const keys = this.partnerBpKeys(partner);
+    const tour = await this.prisma.tour.findFirst({
+      where: {
+        id,
+        organizationId: user.organizationId,
+        consignments: { some: { senderBpNumber: { in: keys } } },
+      },
+      include: {
+        vehicle: true,
+        mandant: { select: { id: true, code: true, name: true } },
+        stops: { orderBy: { sequence: 'asc' } },
+        consignments: {
+          where: { senderBpNumber: { in: keys } },
+          orderBy: { soloplanOrderNumber: 'asc' },
+        },
+      },
+    });
+    if (!tour) throw new NotFoundException('Tour nicht gefunden');
+    return tour;
   }
 }

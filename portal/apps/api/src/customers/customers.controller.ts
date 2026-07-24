@@ -3,7 +3,7 @@ import { CustomersService } from './customers.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '@prisma/client';
-import { IsBoolean, IsEmail, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 class CreateCustomerDto {
   @IsString()
@@ -183,6 +183,18 @@ class TemplateDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  scheduleEnabled?: boolean;
+
+  @IsOptional()
+  @IsIn(['DAILY', 'WEEKLY'])
+  scheduleFreq?: string;
+
+  @IsOptional()
+  @IsString()
+  scheduleWeekdays?: string;
 }
 
 @Controller('customers')

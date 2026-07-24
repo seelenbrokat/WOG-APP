@@ -532,12 +532,20 @@ model ShipmentTemplate {
   deliveryCity     String?
   deliveryCountry  String?  @default("AT")
   notes            String?
+  /// Wiederkehrend: ausgeschaltet | DAILY | WEEKLY
+  scheduleEnabled  Boolean  @default(false)
+  scheduleFreq     String?
+  /// Wochentage 1=Mo … 7=So, z. B. "1,2,3,4,5"
+  scheduleWeekdays String?
+  scheduleNextRun  DateTime?
+  scheduleLastRun  DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([scheduleEnabled, scheduleNextRun])
 }
 
 model User {

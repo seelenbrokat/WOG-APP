@@ -17,9 +17,28 @@ export class AuditService {
     });
   }
 
-  list(organizationUserIds: string[], take = 100) {
+  list(
+    organizationUserIds: string[],
+    opts?: { take?: number; entityType?: string; action?: string; q?: string },
+  ) {
+    const take = Math.min(Math.max(opts?.take ?? 100, 1), 500);
+    const where: Record<string, unknown> = {
+      actorId: { in: organizationUserIds },
+    };
+    if (opts?.entityType?.trim()) where.entityType = opts.entityType.trim();
+    if (opts?.action?.trim()) {
+      where.action = { contains: opts.action.trim(), mode: 'insensitive' };
+    }
+    if (opts?.q?.trim()) {
+      const q = opts.q.trim();
+      where.OR = [
+        { action: { contains: q, mode: 'insensitive' } },
+        { entityType: { contains: q, mode: 'insensitive' } },
+        { entityId: { contains: q, mode: 'insensitive' } },
+      ];
+    }
     return this.prisma.auditLog.findMany({
-      where: { actorId: { in: organizationUserIds } },
+      where,
       orderBy: { createdAt: 'desc' },
       take,
       include: { actor: { select: { email: true, firstName: true, lastName: true } } },

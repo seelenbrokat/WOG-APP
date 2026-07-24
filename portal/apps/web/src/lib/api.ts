@@ -9,6 +9,8 @@ export type SessionUser = {
   organizationId: string;
   customerId?: string | null;
   customerName?: string;
+  partnerId?: string | null;
+  partnerName?: string;
   mandantIds: string[];
   mustChangePassword?: boolean;
 };

@@ -712,6 +712,60 @@ code {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .main { padding: 1rem 1rem 2rem; }
   .topbar { align-items: flex-start; }
+
+  /* Kunden mobil: Auftrag + Track */
+  input, select, textarea, button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .btn {
+    min-height: 48px;
+    padding: 0.75rem 1.1rem;
+    width: 100%;
+    justify-content: center;
+  }
+  .row .btn { width: auto; min-width: 44%; }
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs button {
+    min-height: 44px;
+    white-space: nowrap;
+  }
+  .shipment-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -0.25rem;
+    padding: 0.75rem 0.25rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, transparent, var(--bg-panel) 28%);
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .shipment-form-actions .btn-primary {
+    width: 100%;
+    order: -1;
+  }
+  .track-hero { padding: 1.5rem 1rem 2.5rem; }
+  .track-body {
+    margin-top: -1.25rem;
+    padding: 0 0.85rem 5rem;
+  }
+  .track-body .panel { padding: 1rem; }
+  .track-body .grid-2 { gap: 0.75rem; }
+  .timeline li {
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 600px) {
+  .main { padding: 0.85rem 0.75rem 5.5rem; }
+  .topbar h1 { font-size: 1.35rem; }
+  .panel { padding: 0.9rem; }
+  .table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* Fleet / Kartenmonitor */

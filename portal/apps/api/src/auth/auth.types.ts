@@ -10,6 +10,7 @@ export type AuthUser = {
   role: UserRole;
   organizationId: string;
   customerId?: string | null;
+  partnerId?: string | null;
   mandantIds: string[];
 };
 

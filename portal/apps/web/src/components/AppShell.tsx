@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<string, string> = {
   ORG_ADMIN: 'Administrator',
   MANDANT_DISPATCHER: 'Disposition',
   CUSTOMER_USER: 'Kunde',
-  PARTNER_USER: 'Partner',
+  PARTNER: 'Partner',
 };
 
 const NAV = [
@@ -19,6 +19,7 @@ const NAV = [
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
+  { href: '/partner/tours', label: 'Meine Touren', roles: ['PARTNER'] },
   { href: '/fahrer', label: 'Fahrer / Zustell-App', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/lademittel', label: 'Lademittel', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning', label: 'Scanning', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -32,6 +33,7 @@ const NAV = [
   { href: '/mandanten', label: 'Mandanten', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/partners', label: 'Partner', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/users', label: 'Benutzer', roles: ['ORG_ADMIN'] },
+  { href: '/audit', label: 'Protokoll', roles: ['ORG_ADMIN'] },
   { href: '/settings', label: 'Einstellungen', roles: ['*'] },
   { href: '/track', label: 'Track & Trace', roles: ['*'] },
 ];
@@ -92,7 +94,9 @@ export function AppShell({
                     /^\/tours\/(?!map$|dashboard$|lademittel$)[^/]+$/.test(pathname))) ||
                 (l.href === '/tours/dashboard' && pathname.startsWith('/tours/dashboard')) ||
                 (l.href === '/tours/lademittel' && pathname.startsWith('/tours/lademittel')) ||
-                (l.href === '/tours/map' && pathname.startsWith('/tours/map'));
+                (l.href === '/tours/map' && pathname.startsWith('/tours/map')) ||
+                (l.href === '/partner/tours' && pathname.startsWith('/partner/')) ||
+                (l.href === '/audit' && pathname.startsWith('/audit'));
               return (
                 <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
                   {l.label}

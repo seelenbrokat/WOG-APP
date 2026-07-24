@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { computeNextRun, parseWeekdays } from '../common/schedule';
 
 export type AddressInput = {
   label?: string;
@@ -37,6 +38,9 @@ export type TemplateInput = {
   deliveryCity?: string;
   deliveryCountry?: string;
   notes?: string;
+  scheduleEnabled?: boolean;
+  scheduleFreq?: string;
+  scheduleWeekdays?: string;
 };
 
 @Injectable()
@@ -260,6 +264,11 @@ export class CustomersService {
       }
     }
 
+    const schedule = this.resolveScheduleFields(data, null);
+    if (schedule.scheduleEnabled && !data.mandantId) {
+      throw new BadRequestException('Für wiederkehrende Vorlagen ist ein Mandant erforderlich');
+    }
+
     const template = await this.prisma.shipmentTemplate.create({
       data: {
         customerId: id,
@@ -276,9 +285,13 @@ export class CustomersService {
         notes: data.notes,
         ...pickup,
         ...delivery,
+        ...schedule,
       },
     });
-    await this.audit.log(user.id, 'template.create', 'ShipmentTemplate', template.id, { name: data.name });
+    await this.audit.log(user.id, 'template.create', 'ShipmentTemplate', template.id, {
+      name: data.name,
+      scheduleEnabled: template.scheduleEnabled,
+    });
     return template;
   }
 
@@ -286,7 +299,12 @@ export class CustomersService {
     const template = await this.prisma.shipmentTemplate.findUnique({ where: { id: templateId } });
     if (!template) throw new NotFoundException();
     await this.get(user, template.customerId);
-    return this.prisma.shipmentTemplate.update({
+    const schedule = this.resolveScheduleFields(data, template);
+    const mandantId = data.mandantId !== undefined ? data.mandantId : template.mandantId;
+    if (schedule.scheduleEnabled && !mandantId) {
+      throw new BadRequestException('Für wiederkehrende Vorlagen ist ein Mandant erforderlich');
+    }
+    const updated = await this.prisma.shipmentTemplate.update({
       where: { id: templateId },
       data: {
         name: data.name,
@@ -310,8 +328,14 @@ export class CustomersService {
         deliveryCity: data.deliveryCity,
         deliveryCountry: data.deliveryCountry,
         notes: data.notes,
+        ...schedule,
       },
     });
+    await this.audit.log(user.id, 'template.update', 'ShipmentTemplate', updated.id, {
+      name: updated.name,
+      scheduleEnabled: updated.scheduleEnabled,
+    });
+    return updated;
   }
 
   async deleteTemplate(user: AuthUser, templateId: string) {
@@ -319,7 +343,56 @@ export class CustomersService {
     if (!template) throw new NotFoundException();
     await this.get(user, template.customerId);
     await this.prisma.shipmentTemplate.delete({ where: { id: templateId } });
+    await this.audit.log(user.id, 'template.delete', 'ShipmentTemplate', templateId, {
+      name: template.name,
+    });
     return { ok: true };
+  }
+
+  private resolveScheduleFields(
+    data: Partial<TemplateInput>,
+    existing: {
+      scheduleEnabled: boolean;
+      scheduleFreq: string | null;
+      scheduleWeekdays: string | null;
+      scheduleNextRun: Date | null;
+    } | null,
+  ) {
+    const enabled =
+      data.scheduleEnabled !== undefined
+        ? Boolean(data.scheduleEnabled)
+        : existing?.scheduleEnabled ?? false;
+    if (!enabled) {
+      return {
+        scheduleEnabled: false,
+        scheduleFreq: null as string | null,
+        scheduleWeekdays: null as string | null,
+        scheduleNextRun: null as Date | null,
+      };
+    }
+    const freq =
+      data.scheduleFreq === 'WEEKLY' || data.scheduleFreq === 'DAILY'
+        ? data.scheduleFreq
+        : existing?.scheduleFreq === 'WEEKLY'
+          ? 'WEEKLY'
+          : 'DAILY';
+    const weekdays =
+      data.scheduleWeekdays !== undefined
+        ? parseWeekdays(data.scheduleWeekdays).join(',')
+        : existing?.scheduleWeekdays || parseWeekdays(null).join(',');
+    const scheduleChanged =
+      data.scheduleEnabled !== undefined ||
+      data.scheduleFreq !== undefined ||
+      data.scheduleWeekdays !== undefined ||
+      !existing?.scheduleNextRun;
+    return {
+      scheduleEnabled: true,
+      scheduleFreq: freq,
+      scheduleWeekdays: weekdays,
+      scheduleNextRun: scheduleChanged
+        ? computeNextRun(new Date(), freq, weekdays)
+        : existing!.scheduleNextRun,
+    };
   }
 
   async saveAddressesFromShipment(
