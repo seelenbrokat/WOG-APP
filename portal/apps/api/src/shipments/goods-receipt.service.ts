@@ -37,6 +37,15 @@ function normalizeExternalRef(raw: string): string {
   return s;
 }
 
+/** Kurzname für Scanübersicht, z. B. Unitec Energietechnik GmbH → Unitec */
+function shortCustomerName(name?: string | null): string {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (/unitec/i.test(n)) return 'Unitec';
+  const first = n.split(/\s+/)[0];
+  return first.replace(/[,.]$/, '') || n;
+}
+
 @Injectable()
 export class GoodsReceiptService {
   private readonly logger = new Logger(GoodsReceiptService.name);
@@ -136,6 +145,11 @@ export class GoodsReceiptService {
     type Group = {
       /** Anzeigename / Session-Schlüssel; bei Sammel z. B. ALLE oder Kundensuchbegriff */
       externalRef: string;
+      /** Anzeige in der Scanübersicht, z. B. „WE Unitec · PRO26175“ */
+      displayLabel?: string;
+      /** Offene Session fortsetzen (Proforma o. ä.) */
+      sessionId?: string;
+      kind?: 'shipments' | 'session';
       /** true = alle WE-Sendungen des Kunden an diesem Tag */
       allCustomerShipments: boolean;
       customerId: string | null;
@@ -161,6 +175,7 @@ export class GoodsReceiptService {
       if (!g) {
         g = {
           externalRef: 'ALLE',
+          kind: 'shipments',
           allCustomerShipments: true,
           customerId: s.customerId,
           customerName: s.customer?.name || null,
@@ -190,14 +205,83 @@ export class GoodsReceiptService {
         g.externalRef = g.orderRefs[0];
         // Eine einzige Soloplan-Nr. → Session genau darauf; sonst Sammel
         g.allCustomerShipments = false;
+        g.displayLabel = `Auftrag ${g.externalRef}`;
       } else {
         g.externalRef = 'ALLE';
         g.allCustomerShipments = true;
+        const short = shortCustomerName(g.customerName);
+        g.displayLabel = short ? `WE ${short} · Sammel` : 'Sammel WE';
       }
     }
 
-    return [...map.values()].sort(
-      (a, b) => b.date.localeCompare(a.date) || (a.customerName || '').localeCompare(b.customerName || '', 'de'),
+    // Offene Proforma-/Kontroll-Sessions oben in der Übersicht
+    const dayFilter = opts.date ? dayBounds(opts.date) : null;
+    const openSessions = await this.prisma.goodsReceiptSession.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: 'OPEN',
+        ...(opts.customerId ? { customerId: opts.customerId } : {}),
+        ...(dayFilter ? { sessionDate: { gte: dayFilter.start, lt: dayFilter.end } } : {}),
+        ...(mandantId ? { mandantId } : {}),
+      },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+        checks: { select: { status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    const sessionGroups: Group[] = openSessions.map((s) => {
+      const date = s.sessionDate.toISOString().slice(0, 10);
+      const expected = s.checks.length;
+      const received = s.checks.filter(
+        (c) => c.status === 'RECEIVED' || c.status === 'DAMAGED',
+      ).length;
+      const damaged = s.checks.filter((c) => c.status === 'DAMAGED').length;
+      const isProforma = /^WE\s+.+\s+·\s+PRO/i.test(s.externalRef) || /^PRO\d+/i.test(s.externalRef);
+      const displayLabel = isProforma
+        ? /^WE\s+/i.test(s.externalRef)
+          ? s.externalRef
+          : `WE ${shortCustomerName(s.customer?.name) || 'Kunde'} · ${s.externalRef}`
+        : s.externalRef;
+      return {
+        externalRef: s.externalRef,
+        displayLabel,
+        sessionId: s.id,
+        kind: 'session' as const,
+        allCustomerShipments: false,
+        customerId: s.customerId,
+        customerName: s.customer?.name || null,
+        customerNumber: s.customer?.customerNumber || null,
+        date,
+        shipmentIds: [],
+        shipmentCount: 0,
+        orderRefs: [s.externalRef],
+        expected,
+        received,
+        damaged,
+      };
+    });
+
+    // Proforma-Sessions: zugehörigen Sammel-Eintrag gleichen Kunden/Tages ausblenden
+    const sessionCustomerDays = new Set(
+      sessionGroups
+        .filter((g) => /^WE\s+.+\s+·\s+PRO/i.test(g.displayLabel || '') || /^PRO\d+/i.test(g.externalRef))
+        .map((g) => `${g.customerId || 'none'}|${g.date}`),
+    );
+    const shipmentGroups = [...map.values()].filter((g) => {
+      if (sessionCustomerDays.has(`${g.customerId || 'none'}|${g.date}`) && g.allCustomerShipments) {
+        return false;
+      }
+      return true;
+    });
+
+    return [...sessionGroups, ...shipmentGroups].sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        (a.kind === 'session' && b.kind !== 'session' ? -1 : 0) ||
+        (a.customerName || '').localeCompare(b.customerName || '', 'de'),
     );
   }
 

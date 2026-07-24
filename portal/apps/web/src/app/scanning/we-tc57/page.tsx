@@ -6,6 +6,9 @@ import { api, getToken } from '@/lib/api';
 
 type Group = {
   externalRef: string;
+  displayLabel?: string;
+  sessionId?: string;
+  kind?: 'shipments' | 'session';
   allCustomerShipments?: boolean;
   customerId: string | null;
   customerName: string | null;
@@ -265,6 +268,22 @@ export default function WeTc57Page() {
     setLoading(true);
     void unlockAudio();
     try {
+      // Offene Proforma-/Kontroll-Session fortsetzen
+      if (g.sessionId) {
+        const s = await api<Session>(`/goods-receipt/sessions/${g.sessionId}`);
+        setSession(s);
+        bufferRef.current = '';
+        if (inputRef.current) inputRef.current.value = '';
+        setFlash(null);
+        setHeadline('Bereit zum Scannen');
+        setDetail(
+          `${g.displayLabel || s.externalRef} · ${s.summary.received}/${s.summary.expected} Colli`,
+        );
+        window.setTimeout(() => focusScanner(), 80);
+        window.setTimeout(() => focusScanner(), 300);
+        return;
+      }
+
       const label = customerOrderNo.trim() || undefined;
       const all = !!g.allCustomerShipments || (g.shipmentCount != null && g.shipmentCount > 1);
       const s = await api<Session>('/goods-receipt/sessions', {
@@ -850,7 +869,7 @@ export default function WeTc57Page() {
               ) : (
                 groups.map((g) => (
                   <button
-                    key={`${g.customerId}-${g.date}-${g.externalRef}`}
+                    key={`${g.sessionId || g.customerId}-${g.date}-${g.externalRef}`}
                     type="button"
                     className="btn btn-primary"
                     style={{
@@ -864,11 +883,13 @@ export default function WeTc57Page() {
                   >
                     <div>
                       <div>
-                        {g.allCustomerShipments || (g.shipmentCount || 0) > 1
-                          ? `${g.customerName || 'Kunde'} · Sammel`
-                          : `Auftrag ${g.externalRef}`}
+                        {g.displayLabel ||
+                          (g.allCustomerShipments || (g.shipmentCount || 0) > 1
+                            ? `${g.customerName || 'Kunde'} · Sammel`
+                            : `Auftrag ${g.externalRef}`)}
                       </div>
                       <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+                        {g.kind === 'session' ? 'Proforma · ' : ''}
                         {g.shipmentCount && g.shipmentCount > 1 ? `${g.shipmentCount} Sendungen · ` : ''}
                         {g.received}/{g.expected} Colli
                         {customerOrderNo.trim() ? ` · ${customerOrderNo.trim()}` : ''}

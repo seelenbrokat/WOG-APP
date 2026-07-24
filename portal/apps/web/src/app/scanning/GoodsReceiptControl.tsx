@@ -5,6 +5,9 @@ import { api, getToken } from '@/lib/api';
 
 type Group = {
   externalRef: string;
+  displayLabel?: string;
+  sessionId?: string;
+  kind?: 'shipments' | 'session';
   allCustomerShipments?: boolean;
   customerId: string | null;
   customerName: string | null;
@@ -133,6 +136,12 @@ export function GoodsReceiptControl(props: {
     setLoading(true);
     setError('');
     try {
+      if (g.sessionId) {
+        const s = await api<Session>(`/goods-receipt/sessions/${g.sessionId}`);
+        setSession(s);
+        setInfo(`Kontrolle: ${g.displayLabel || s.externalRef} · ${s.summary.received}/${s.summary.expected} Colli`);
+        return;
+      }
       const label = customerOrderNo.trim() || undefined;
       const all = !!g.allCustomerShipments || (g.shipmentCount != null && g.shipmentCount > 1);
       const s = await api<Session>('/goods-receipt/sessions', {
@@ -458,7 +467,7 @@ export function GoodsReceiptControl(props: {
             ) : (
               groups.map((g) => (
                 <button
-                  key={`${g.customerId}-${g.date}-${g.externalRef}`}
+                  key={`${g.sessionId || g.customerId}-${g.date}-${g.externalRef}`}
                   type="button"
                   className="btn btn-ghost"
                   style={{
@@ -473,15 +482,17 @@ export function GoodsReceiptControl(props: {
                   <div>
                     <div>
                       <strong>
-                        {g.allCustomerShipments || (g.shipmentCount || 0) > 1
-                          ? `${g.customerName || 'Kunde'} · Sammelkontrolle`
-                          : `Auftrag ${g.externalRef}`}
+                        {g.displayLabel ||
+                          (g.allCustomerShipments || (g.shipmentCount || 0) > 1
+                            ? `${g.customerName || 'Kunde'} · Sammelkontrolle`
+                            : `Auftrag ${g.externalRef}`)}
                       </strong>
                       <span className="muted" style={{ marginLeft: 8 }}>
                         {g.date}
                       </span>
                     </div>
                     <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      {g.kind === 'session' ? 'Proforma · ' : ''}
                       {g.shipmentCount && g.shipmentCount > 1
                         ? `${g.shipmentCount} Sendungen · `
                         : ''}

@@ -203,10 +203,14 @@ export class ProformaWeService {
       await this.mailMissingShipments(parsed, missing, fileName);
     }
 
-    // WE-Session: genau eine passende WE-Referenz (Sammel bevorzugt), nie alle Kunden-WEs
+    // WE-Session: Label „WE Unitec · PRO26175“ für die Scanübersicht
     let session: Awaited<ReturnType<GoodsReceiptService['openSession']>> | null = null;
     const sessionDate = new Date().toISOString().slice(0, 10);
-    const sessionLabel = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
+    const pro = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
+    const short = /unitec/i.test(customer?.name || '')
+      ? 'Unitec'
+      : (customer?.name || 'Kunde').split(/\s+/)[0] || 'Kunde';
+    const sessionLabel = `WE ${short} · ${pro}`;
 
     const preferredFromMatched = (() => {
       const weMatched = matched.filter((m) => m.reference && /^WE-/i.test(m.reference));
