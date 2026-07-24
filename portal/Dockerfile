@@ -23,6 +23,8 @@ RUN npm run build -w @wog/web
 FROM node:20-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production
+# pdftotext für Proforma-WE (Unitec-PDFs sind komprimiert, Rohtext reicht nicht)
+RUN apk add --no-cache poppler-utils
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared ./packages/shared
@@ -40,6 +42,8 @@ CMD ["node", "dist/main.js"]
 FROM node:20-alpine AS worker
 WORKDIR /app
 ENV NODE_ENV=production
+# pdftotext für Proforma-WE (Unitec-PDFs sind komprimiert, Rohtext reicht nicht)
+RUN apk add --no-cache poppler-utils
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared ./packages/shared

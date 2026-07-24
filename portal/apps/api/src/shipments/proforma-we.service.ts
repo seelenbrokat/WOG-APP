@@ -264,16 +264,16 @@ export class ProformaWeService {
     const lower = fullPath.toLowerCase();
     if (lower.endsWith('.txt')) return readFileSync(fullPath, 'utf8');
 
-    // 1) pdftotext wenn auf dem Host/Container vorhanden
+    // 1) pdftotext (poppler-utils im api/worker-Image) – Unitec-PDFs sind komprimiert
     try {
-      const { stdout } = await execFileAsync('pdftotext', ['-layout', fullPath, '-'], {
-        timeout: 15_000,
+      const { stdout } = await execFileAsync('pdftotext', ['-layout', '-enc', 'UTF-8', fullPath, '-'], {
+        timeout: 20_000,
         maxBuffer: 8 * 1024 * 1024,
       });
       if (stdout && /BK\d+/i.test(stdout)) return stdout;
       if (stdout?.trim()) return stdout;
-    } catch {
-      /* fallback */
+    } catch (err: any) {
+      this.logger.warn(`pdftotext fehlgeschlagen: ${err?.message || err}`);
     }
 
     // 2) Roh-PDF-Strings
