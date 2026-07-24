@@ -34,28 +34,55 @@ function formatSchedule(value?: string | null) {
   });
 }
 
+function placeCell(company?: string | null, city?: string | null, zip?: string | null) {
+  const name = (company || '').trim();
+  const loc = [zip, city].filter(Boolean).join(' ');
+  if (!name && !loc) return '–';
+  return (
+    <div>
+      {name ? <div>{name}</div> : null}
+      {loc ? <div className="muted" style={{ fontSize: '0.85rem' }}>{loc}</div> : null}
+    </div>
+  );
+}
+
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
   const [mandantId, setMandantId] = useState('');
+  const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
-  async function load(filter?: string) {
-    const q = filter ? `?mandantId=${filter}` : '';
-    const rows = await api<any[]>(`/shipments${q}`);
+  async function load(opts?: { mandantId?: string; q?: string }) {
+    const params = new URLSearchParams();
+    if (opts?.mandantId) params.set('mandantId', opts.mandantId);
+    if (opts?.q?.trim()) params.set('q', opts.q.trim());
+    const qs = params.toString();
+    const rows = await api<any[]>(`/shipments${qs ? `?${qs}` : ''}`);
     setShipments(rows);
     setSelected({});
   }
 
   useEffect(() => {
-    api<any[]>('/mandanten').then(setMandanten);
+    api<any[]>('/mandanten').then(setMandanten).catch(() => setMandanten([]));
     load();
   }, []);
 
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      load({ mandantId: mandantId || undefined, q }).catch((e: any) =>
+        setError(e?.message || 'Laden fehlgeschlagen'),
+      );
+    }, 280);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, mandantId]);
+
   const user = getUser();
+  const isCustomer = user?.role === 'CUSTOMER_USER';
   const selectable = useMemo(
     () => shipments.filter((s) => s.orderId),
     [shipments],
@@ -98,7 +125,7 @@ export default function ShipmentsPage() {
           ? `${n} Auftrag/Aufträge übergeben · Sammelladeliste heruntergeladen`
           : `Sammelladeliste für ${n} Auftrag/Aufträge heruntergeladen`,
       );
-      await load(mandantId || undefined);
+      await load({ mandantId: mandantId || undefined, q });
     } catch (e: any) {
       setError(e.message || 'Aktion fehlgeschlagen');
     } finally {
@@ -110,18 +137,25 @@ export default function ShipmentsPage() {
     <AppShell title="Sendungen">
       <div className="stack">
         <div className="row" style={{ marginBottom: 0, flexWrap: 'wrap', gap: '0.65rem' }}>
-          <select
-            value={mandantId}
-            onChange={(e) => {
-              setMandantId(e.target.value);
-              load(e.target.value || undefined);
-            }}
-          >
-            <option value="">Alle Mandanten</option>
-            {mandanten.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+          <input
+            type="search"
+            placeholder="Suche: Empfänger, Tracking, Referenz, Ort…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ minWidth: 260, flex: '1 1 220px' }}
+            aria-label="Sendungen suchen"
+          />
+          {!isCustomer && (
+            <select
+              value={mandantId}
+              onChange={(e) => setMandantId(e.target.value)}
+            >
+              <option value="">Alle Mandanten</option>
+              {mandanten.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
           {(user?.role === 'ORG_ADMIN' || user?.role === 'CUSTOMER_USER' || user?.role === 'MANDANT_DISPATCHER') && (
             <Link className="btn btn-primary" href="/shipments/new">Neuer Auftrag</Link>
           )}
@@ -154,30 +188,33 @@ export default function ShipmentsPage() {
         {info && <div className="success">{info}</div>}
 
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-          Aufträge markieren und gemeinsam übergeben – sie erscheinen zusammen auf einer Ladeliste.
-          Pro Auftrag gibt es genau eine Sendung.
+          {isCustomer
+            ? 'Ihre Sendungen – Suche nach Empfänger, Tracking oder Referenz.'
+            : 'Aufträge markieren und gemeinsam übergeben – sie erscheinen zusammen auf einer Ladeliste.'}
         </p>
 
         <div className="panel">
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 36 }}>
-                  <input
-                    type="checkbox"
-                    aria-label="Alle markieren"
-                    checked={allSelected}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                    disabled={!selectable.length}
-                  />
-                </th>
+                {!isCustomer && (
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Alle markieren"
+                      checked={allSelected}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      disabled={!selectable.length}
+                    />
+                  </th>
+                )}
                 <th>Auftrag</th>
                 <th>Tracking</th>
                 <th>Referenz</th>
-                <th>Mandant</th>
-                <th>Von</th>
+                {!isCustomer && <th>Mandant</th>}
+                <th>Absender</th>
                 <th>Abholung</th>
-                <th>Nach</th>
+                <th>Empfänger</th>
                 <th>Zustellung</th>
                 <th>Status</th>
                 <th></th>
@@ -186,27 +223,29 @@ export default function ShipmentsPage() {
             <tbody>
               {shipments.map((s) => (
                 <tr key={s.id}>
-                  <td>
-                    {s.orderId ? (
-                      <input
-                        type="checkbox"
-                        aria-label={`Auftrag ${s.order?.externalNumber || s.trackingNumber} markieren`}
-                        checked={!!selected[s.id]}
-                        onChange={(e) =>
-                          setSelected((prev) => ({ ...prev, [s.id]: e.target.checked }))
-                        }
-                      />
-                    ) : (
-                      <span className="muted">–</span>
-                    )}
-                  </td>
+                  {!isCustomer && (
+                    <td>
+                      {s.orderId ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Auftrag ${s.order?.externalNumber || s.trackingNumber} markieren`}
+                          checked={!!selected[s.id]}
+                          onChange={(e) =>
+                            setSelected((prev) => ({ ...prev, [s.id]: e.target.checked }))
+                          }
+                        />
+                      ) : (
+                        <span className="muted">–</span>
+                      )}
+                    </td>
+                  )}
                   <td>{s.order?.externalNumber || '–'}</td>
                   <td>{s.trackingNumber}</td>
                   <td>{s.reference || '–'}</td>
-                  <td>{s.mandant?.name}</td>
-                  <td>{s.pickupCity || '–'}</td>
+                  {!isCustomer && <td>{s.mandant?.name}</td>}
+                  <td>{placeCell(s.pickupCompany, s.pickupCity, s.pickupZip)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{formatSchedule(s.pickupDate)}</td>
-                  <td>{s.deliveryCity || '–'}</td>
+                  <td>{placeCell(s.deliveryCompany, s.deliveryCity, s.deliveryZip)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {formatSchedule(s.deliveryDate)}
                     {s.deliveryDateEnd && s.deliveryDateEnd !== s.deliveryDate ? (
@@ -217,6 +256,13 @@ export default function ShipmentsPage() {
                   <td><Link href={`/shipments/${s.id}`}>Details</Link></td>
                 </tr>
               ))}
+              {!shipments.length && (
+                <tr>
+                  <td colSpan={isCustomer ? 9 : 11} className="muted">
+                    {q.trim() ? 'Keine Treffer für diese Suche.' : 'Keine Sendungen.'}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

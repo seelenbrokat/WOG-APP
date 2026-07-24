@@ -111,13 +111,35 @@ export class ShipmentsService {
     return mandant.id;
   }
 
-  list(user: AuthUser, mandantId?: string) {
-    const where = this.scope(user);
+  list(user: AuthUser, opts?: { mandantId?: string; q?: string }) {
+    const where: Record<string, unknown> = { ...this.scope(user) };
+    const mandantId = opts?.mandantId;
     if (mandantId) {
       if (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) {
         assertMandantAccess(user, mandantId);
       }
-      Object.assign(where, { mandantId });
+      where.mandantId = mandantId;
+    }
+    const q = opts?.q?.trim();
+    if (q) {
+      where.AND = [
+        {
+          OR: [
+            { trackingNumber: { contains: q, mode: 'insensitive' } },
+            { reference: { contains: q, mode: 'insensitive' } },
+            { soloplanRef: { contains: q, mode: 'insensitive' } },
+            { deliveryCompany: { contains: q, mode: 'insensitive' } },
+            { pickupCompany: { contains: q, mode: 'insensitive' } },
+            { deliveryCity: { contains: q, mode: 'insensitive' } },
+            { pickupCity: { contains: q, mode: 'insensitive' } },
+            { deliveryZip: { contains: q, mode: 'insensitive' } },
+            { pickupZip: { contains: q, mode: 'insensitive' } },
+            { notes: { contains: q, mode: 'insensitive' } },
+            { order: { externalNumber: { contains: q, mode: 'insensitive' } } },
+            { customer: { name: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+      ];
     }
     return this.prisma.shipment.findMany({
       where,
@@ -128,6 +150,7 @@ export class ShipmentsService {
         events: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
   }
 

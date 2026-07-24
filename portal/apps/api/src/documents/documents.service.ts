@@ -148,8 +148,12 @@ export class DocumentsService {
   async get(user: AuthUser, id: string) {
     const doc = await this.prisma.document.findUnique({ where: { id } });
     if (!doc || doc.organizationId !== user.organizationId) throw new NotFoundException();
-    if (user.role === UserRole.CUSTOMER_USER && doc.customerId && doc.customerId !== user.customerId) {
-      throw new ForbiddenException();
+    if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) throw new ForbiddenException('Kein Kundenkonto verknüpft');
+      // Dokumente ohne customerId sind für Kunden nicht sichtbar
+      if (!doc.customerId || doc.customerId !== user.customerId) {
+        throw new ForbiddenException();
+      }
     }
     if (doc.shipmentId && (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER)) {
       const shipment = await this.prisma.shipment.findUnique({ where: { id: doc.shipmentId } });

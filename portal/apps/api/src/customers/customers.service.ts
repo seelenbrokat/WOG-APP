@@ -58,19 +58,33 @@ export class CustomersService {
 
   list(user: AuthUser) {
     if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) throw new ForbiddenException('Kein Kundenkonto verknüpft');
+      // Nur eigenes Konto – Adressbuch bleibt kundenisoliert
       return this.prisma.customer.findMany({
-        where: { id: user.customerId || '__none__', organizationId: user.organizationId },
-        include: { addresses: { orderBy: [{ isDefault: 'desc' }, { label: 'asc' }] }, contacts: true, templates: true },
+        where: { id: user.customerId, organizationId: user.organizationId },
+        include: {
+          addresses: { orderBy: [{ isDefault: 'desc' }, { label: 'asc' }] },
+          contacts: true,
+          templates: true,
+        },
       });
     }
+    // Staff: Kontakte ok; Adressbuch-Details nur über /addresses (kundenisoliert)
     return this.prisma.customer.findMany({
       where: { organizationId: user.organizationId },
-      include: { addresses: true, contacts: true, templates: true },
+      include: {
+        contacts: true,
+        _count: { select: { addresses: true } },
+      },
       orderBy: { name: 'asc' },
     });
   }
 
   async get(user: AuthUser, id: string) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) throw new ForbiddenException('Kein Kundenkonto verknüpft');
+      if (user.customerId !== id) throw new NotFoundException();
+    }
     const customer = await this.prisma.customer.findFirst({
       where: { id, organizationId: user.organizationId },
       include: {
@@ -81,9 +95,6 @@ export class CustomersService {
       },
     });
     if (!customer) throw new NotFoundException();
-    if (user.role === UserRole.CUSTOMER_USER && user.customerId !== id) {
-      throw new NotFoundException();
-    }
     return customer;
   }
 

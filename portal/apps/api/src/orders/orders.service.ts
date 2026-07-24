@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -33,7 +34,10 @@ export class OrdersService {
 
   private orderScope(user: AuthUser) {
     const where: Record<string, unknown> = { organizationId: user.organizationId };
-    if (user.role === UserRole.CUSTOMER_USER && user.customerId) {
+    if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) {
+        throw new ForbiddenException('Kein Kundenkonto verknüpft');
+      }
       where.freightPayerCustomerId = user.customerId;
     }
     if (

@@ -234,8 +234,12 @@ export class ShipmentsController {
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('mandantId') mandantId?: string) {
-    return this.service.list(user, mandantId);
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query('mandantId') mandantId?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.service.list(user, { mandantId, q });
   }
 
   @Post('validate-address')

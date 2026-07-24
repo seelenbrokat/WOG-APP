@@ -164,7 +164,7 @@ export default function CustomersPage() {
                     : ' · ohne Soloplan-BP'}
                 </div>
               </div>
-              <span className="badge">{c.addresses?.length || 0} Adressen</span>
+              <span className="badge">{c._count?.addresses ?? c.addresses?.length ?? 0} Adressen</span>
             </div>
             {(c.contacts?.length || 0) > 0 && (
               <table className="table" style={{ marginTop: '0.75rem' }}>

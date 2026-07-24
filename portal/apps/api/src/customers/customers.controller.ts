@@ -191,6 +191,7 @@ export class CustomersController {
   constructor(private service: CustomersService) {}
 
   @Get()
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   list(@CurrentUser() user: AuthUser) {
     return this.service.list(user);
   }
@@ -272,6 +273,7 @@ export class CustomersController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.get(user, id);
   }

@@ -65,7 +65,7 @@ export default function AddressBookPage() {
     const q = addressFilter.trim().toLowerCase();
     if (!q) return addresses;
     return addresses.filter((a) =>
-      [a.company, a.label]
+      [a.company, a.label, a.street, a.zip, a.city, a.country]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
