@@ -228,7 +228,39 @@ function NewShipmentInner() {
         ? `?customerId=${form.customerId}`
         : '';
 
-  async function loadAddressBook(customerId?: string) {
+  function pickDefaultPickupAddress(list: Address[]): Address | undefined {
+    return (
+      list.find((a) => a.isDefault && a.usage !== 'DELIVERY') ||
+      list.find((a) => a.usage === 'PICKUP' || a.usage === 'BOTH') ||
+      list.find((a) => a.usage !== 'DELIVERY') ||
+      list[0]
+    );
+  }
+
+  function applyDefaultPickup(list: Address[], opts?: { force?: boolean }) {
+    const def = pickDefaultPickupAddress(list);
+    if (!def) return;
+    setForm((f) => {
+      const pickupEmpty =
+        !String(f.pickupStreet || '').trim() &&
+        !String(f.pickupZip || '').trim() &&
+        !String(f.pickupCity || '').trim();
+      if (!opts?.force && !pickupEmpty) return f;
+      return {
+        ...f,
+        pickupAddressId: def.id,
+        pickupCompany: def.company || '',
+        pickupStreet: def.street,
+        pickupZip: def.zip,
+        pickupCity: def.city,
+        pickupCountry: def.country || 'AT',
+      };
+    });
+    setPickupCheck(idleCheck);
+    setPickupOverride(false);
+  }
+
+  async function loadAddressBook(customerId?: string, opts?: { forcePickup?: boolean }) {
     const q =
       user?.role === 'CUSTOMER_USER'
         ? ''
@@ -246,6 +278,8 @@ function NewShipmentInner() {
     ]);
     setAddresses(a);
     setTemplates(t);
+    // Abholadresse = Kundenadresse (Standard / erste passende aus dem Adressbuch)
+    applyDefaultPickup(a, { force: !!opts?.forcePickup });
   }
 
   useEffect(() => {
@@ -271,13 +305,14 @@ function NewShipmentInner() {
     if (user?.role !== 'CUSTOMER_USER') {
       api<any[]>('/customers').then(setCustomers);
     } else {
-      loadAddressBook();
+      loadAddressBook(undefined, { forcePickup: true });
     }
   }, []);
 
   useEffect(() => {
     if (user?.role !== 'CUSTOMER_USER' && form.customerId) {
-      loadAddressBook(form.customerId);
+      // Bei Kundenwechsel Abholadresse auf dessen Adresse setzen
+      loadAddressBook(form.customerId, { forcePickup: true });
     }
   }, [form.customerId]);
 
