@@ -35,8 +35,10 @@ const MISSING_MAIL_TO =
 /**
  * SCHMIDT'S Ladeliste (PDF) per SFTP → WE-Session für TC57.
  *
- * FTP: inbound/wareneingang/ladelisten/
- * (listen/ bleibt für Unitec-Entladelisten-Ausgabe)
+ * FTP:
+ *   inbound/wareneingang/ladelisten/  ← primär
+ *   inbound/wareneingang/listen/      ← ebenfalls (wenn LAK/Schmidts erkannt;
+ *                                       Unitec-Entladeliste-Kopien werden übersprungen)
  *
  * LAK… = externe Sendungsnr. → Shipment.reference
  * Match primär über Collonummer/SSCC, sonst Empfänger+Colli+kg.
@@ -45,6 +47,7 @@ const MISSING_MAIL_TO =
 export class SchmidtsLadelisteWeService {
   private readonly logger = new Logger(SchmidtsLadelisteWeService.name);
   private readonly inboundDir: string;
+  private readonly listenDir: string;
 
   constructor(
     private prisma: PrismaService,
@@ -55,20 +58,31 @@ export class SchmidtsLadelisteWeService {
     const root =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
     this.inboundDir = join(root, 'wareneingang', 'ladelisten');
-    for (const d of [this.inboundDir, join(this.inboundDir, 'processed'), join(this.inboundDir, 'failed')]) {
+    this.listenDir = join(root, 'wareneingang', 'listen');
+    for (const d of [
+      this.inboundDir,
+      join(this.inboundDir, 'processed'),
+      join(this.inboundDir, 'failed'),
+      this.listenDir,
+      join(this.listenDir, 'processed'),
+      join(this.listenDir, 'failed'),
+    ]) {
       if (!existsSync(d)) mkdirSync(d, { recursive: true });
     }
   }
 
   status() {
-    const pending = existsSync(this.inboundDir)
-      ? readdirSync(this.inboundDir).filter((f) => /\.(pdf|txt)$/i.test(f)).length
-      : 0;
+    const countPending = (dir: string) =>
+      existsSync(dir) ? readdirSync(dir).filter((f) => /\.(pdf|txt)$/i.test(f)).length : 0;
     return {
       inboundDir: this.inboundDir,
-      ftpPath: 'inbound/wareneingang/ladelisten',
+      listenDir: this.listenDir,
+      ftpPaths: {
+        ladelisten: 'inbound/wareneingang/ladelisten',
+        listen: 'inbound/wareneingang/listen',
+      },
       missingMailTo: MISSING_MAIL_TO,
-      pending,
+      pending: countPending(this.inboundDir) + countPending(this.listenDir),
     };
   }
 
@@ -96,25 +110,37 @@ export class SchmidtsLadelisteWeService {
     const results: unknown[] = [];
     let processed = 0;
     let failed = 0;
-    if (!existsSync(this.inboundDir)) return { processed, failed, results };
 
-    const files = readdirSync(this.inboundDir).filter((f) => /\.(pdf|txt)$/i.test(f));
-    for (const fileName of files) {
-      const full = join(this.inboundDir, fileName);
-      try {
-        const res = await this.processLadelisteFile(authUser, full, fileName);
-        results.push(res);
-        renameSync(full, join(this.inboundDir, 'processed', `${Date.now()}_${fileName}`));
-        processed += 1;
-      } catch (err: any) {
-        failed += 1;
-        this.logger.warn(`Schmidts-Ladeliste ${fileName}: ${err?.message || err}`);
+    for (const dir of [this.inboundDir, this.listenDir]) {
+      if (!existsSync(dir)) continue;
+      const files = readdirSync(dir).filter((f) => {
+        if (!/\.(pdf|txt)$/i.test(f)) return false;
+        // Unitec-Entladelisten-Kopien in listen/ nicht als Schmidts werten
+        if (/entladeliste/i.test(f)) return false;
+        return true;
+      });
+      for (const fileName of files) {
+        const full = join(dir, fileName);
         try {
-          renameSync(full, join(this.inboundDir, 'failed', `${Date.now()}_${fileName}`));
-        } catch {
-          /* ignore */
+          // In listen/: nur verarbeiten wenn Inhalt nach Schmidts aussieht
+          if (dir === this.listenDir) {
+            const preview = await this.readListText(full);
+            if (!looksLikeSchmidtsLadeliste(preview)) continue;
+          }
+          const res = await this.processLadelisteFile(authUser, full, fileName);
+          results.push(res);
+          renameSync(full, join(dir, 'processed', `${Date.now()}_${fileName}`));
+          processed += 1;
+        } catch (err: any) {
+          failed += 1;
+          this.logger.warn(`Schmidts-Ladeliste ${fileName}: ${err?.message || err}`);
+          try {
+            renameSync(full, join(dir, 'failed', `${Date.now()}_${fileName}`));
+          } catch {
+            /* ignore */
+          }
+          results.push({ fileName, ok: false, error: err?.message || String(err) });
         }
-        results.push({ fileName, ok: false, error: err?.message || String(err) });
       }
     }
     return { processed, failed, results };
