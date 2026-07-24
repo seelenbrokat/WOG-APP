@@ -200,11 +200,13 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
       "$SFTP_ROOT/inbound/soloplan" \
       "$SFTP_ROOT/inbound/intouch" \
       "$SFTP_ROOT/inbound/vlbportal" \
+      "$SFTP_ROOT/inbound/proforma" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
       "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
       2>/dev/null || true
     chmod 775 \
+      "$SFTP_ROOT/inbound/proforma" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
       "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
@@ -242,11 +244,13 @@ EOF
     "$SFTP_ROOT/inbound/soloplan" \
     "$SFTP_ROOT/inbound/intouch" \
     "$SFTP_ROOT/inbound/vlbportal" \
+    "$SFTP_ROOT/inbound/proforma" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \
     2>/dev/null || true
   chmod 775 \
+    "$SFTP_ROOT/inbound/proforma" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \
