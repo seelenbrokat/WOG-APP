@@ -114,7 +114,7 @@ export function parseSchmidtsLadelisteText(text: string): ParsedSchmidtsLadelist
     : undefined;
 
   const transportNumber =
-    normalized.match(/Transport-Nr\.\s*:\s*([0-9/]+)/i)?.[1]?.trim() || undefined;
+    normalized.match(/Transport-Nr\.\s*:\s*([0-9A-Za-z/_-]+)/i)?.[1]?.trim() || undefined;
 
   const customerName =
     normalized.match(/SCHMIDT'?S\s+Handels[^\n,]*/i)?.[0]?.trim() ||
