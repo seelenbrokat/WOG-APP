@@ -817,10 +817,6 @@ function NewShipmentInner() {
             <label>Referenz</label>
             <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
           </div>
-          <div className="field">
-            <label>Transportart</label>
-            <input value={form.transportMode} onChange={(e) => setForm({ ...form, transportMode: e.target.value })} />
-          </div>
         </div>
 
         <div className="grid-2">
