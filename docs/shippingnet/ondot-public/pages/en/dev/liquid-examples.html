@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Liquid Examples | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Liquid Examples | shippingNET ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="liquid-examples">Liquid Examples</h1>
+
+<p>Here are some useful liquid examples.</p>
+<h2 id="date-and-time">Date and time</h2>
+<pre><code>{{ &quot;now&quot; | date }} Default date according to current culture
+{{ &quot;now&quot; | date_time }} No parameters possible - only current culture
+</code></pre>
+<h3 id="special-date-formats">Special date formats</h3>
+<p>If you need to deviate from the standard format.
+Formats can be viewed under <a href="http://strftime.net/">http://strftime.net/</a>.</p>
+<pre><code>{{ &quot;now&quot; | date: &quot;%d.%m.%Y %H:%M&quot; }}
+{{ &quot;now&quot; | date: &quot;%d.%m.%Y&quot; }}
+{{ &quot;now&quot; | date: &quot;%A&quot; }} {{ &quot;now&quot; | date: &quot;%a&quot; }} Weekday long/short
+{{ &quot;now&quot; | date: &quot;%-e&quot; }} Day of the month without leading blank (note that - at %-e)
+</code></pre>
+<p>Add an hour (value in seconds)</p>
+<pre><code>{% assign correctedArrivalTime = Stop.ArrivalTimeWindowTo | date: '%s' | plus: 3600 | date: '%H:%M' %}
+</code></pre>
+<h2 id="number-formatting-via-culture">Number formatting via Culture</h2>
+<pre><code>{{ 12.435984 | number: 'local2' }} 12,44
+{{ 12.435984 | number: 'local4' }} 12,4360
+{{ 12.435984 | number: 'local0' }} 12
+{{ 12.43 | number }} 12,43 works without length but is not recommended
+{{ 12.435984 | number: 'local2 kg' }} 12.44 kg (Fomat string can also be linked to a unit)
+{{ undefined | number: 'local2 kg' }} Blank string
+</code></pre>
+<h3 id="currency-selection-via-culture">Currency selection via Culture</h3>
+<p>The number of decimal places is determined automatically</p>
+<pre><code>{{ 12.435984 | currency: 'EUR' }} 12,44 €
+{{ 12.435984 | currency: 'JPY' }} 12 ¥ (Yen has e.g. no decimal places)
+</code></pre>
+<h3 id="special-number-formats">Special number formats</h3>
+<p>Instructions on <a href="https://www.npmjs.com/package/number-format.js">https://www.npmjs.com/package/number-format.js</a> (comma over period or comma is determined after the &quot;rightmost&quot; character of it)</p>
+<pre><code>{{ 12.435984 | number: '0,00' }} 12,44
+{{ 12.435984 | number: '0.00' }} 12.44
+{{ 12 | number: '0.00' }} 12.00 
+{{ 12 | number: '#.##' }} 12 - unnecessary decimal places are lost in the notation
+{{ 1211111.430984 | number: '#.###,00' }} 1.211.111,43
+{{ 12.430984 | number: '#.###,' }} 12
+{{ 12.430984 | number: '0000,00' }} 0012,43 leading zeros can be specified with 0
+{{ 12.430984 | number: '0,00 €' }} 12,43 €
+{{ undefined | number: '0,00 €' }}
+</code></pre>
+<h2 id="text-formatting">Text formatting</h2>
+<pre><code>{{ 'ABC' | format: 'You can wrap {0} like this and'}} has the advantage that {{ '' | format: '--&gt; {0} &lt;--'}} doesn't output anything at all
+{{ '10' | pad_start: 5 }} 10
+{{ '10' | pad_start: 5, '0'}} 00010
+</code></pre>
+<h2 id="list-operations">List Operations</h2>
+<pre><code>{% assign TestList = 'Foo.Fuu.Pattern.Test' | split: '.'  %} Generates only test data
+{{ TestList | map: 'length' }} = 3,4,34,5
+{{ TestList | sum: 'length'}} = {{ TestList | map: 'length' | sum }}
+{{ TestList | avg: 'length'}} = 11.5
+{{ TestList | min: 'length'}} = 3
+{{ TestList | max: 'length'}} = 34
+{{ TestList | sort: 'length'}} = 34
+{{ TestList | sort: 'length' | reverse | first }} = Danube Steamship Company
+</code></pre>
+<h2 id="list-grouping">List grouping</h2>
+<pre><code>{% assign GroupsByLength = TestList | group_by: 'length' %}
+{% for Group in GroupsByLength -%}
+    String length: {{Group.Key}} Number of elements: {{ Group.Items.length }}
+    {% for GroupItem in Group.Items -%}
+        Item: {{ GroupItem }}
+    {% endfor %}
+{% endfor %}
+</code></pre>
+<h2 id="barcode">Barcode</h2>
+<pre><code>{{ 'abc' | code128 }}
+{{ 'abc' | idAutomation_code128 }} For the more complex font
+{{ 'abc' | idAutomation_ean13 }}
+</code></pre>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
