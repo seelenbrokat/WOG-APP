@@ -176,19 +176,26 @@ export class ProformaWeService {
         );
       }
       if (shipment) {
-        // BK in extras merken
+        // Unitec: Referenz = externe Sendungsnr. (BK…); Soloplan-Auftragsnr. bleibt in soloplanRef
         const prevExtras =
           shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
             ? (shipment.extras as Record<string, unknown>)
             : {};
+        const prevRef = shipment.reference?.trim() || null;
+        const soloplanWeRef =
+          (typeof prevExtras.soloplanWeReference === 'string' && prevExtras.soloplanWeReference) ||
+          (prevRef && /^WE-/i.test(prevRef) ? prevRef : null) ||
+          (shipment.soloplanRef ? `WE-${shipment.soloplanRef}` : null);
         await this.prisma.shipment.update({
           where: { id: shipment.id },
           data: {
+            reference: line.bk,
             extras: {
               ...prevExtras,
               externalShipmentNumber: line.bk,
               liNumber: line.li,
               proforma: parsed.proformaNumber,
+              ...(soloplanWeRef ? { soloplanWeReference: soloplanWeRef } : {}),
             },
             notes: shipment.notes?.includes(line.bk)
               ? shipment.notes
@@ -201,7 +208,7 @@ export class ProformaWeService {
           line,
           shipmentId: shipment.id,
           trackingNumber: shipment.trackingNumber,
-          reference: shipment.reference,
+          reference: line.bk,
           packageCount: shipment.packageCount || 0,
         });
       } else {
@@ -347,9 +354,21 @@ export class ProformaWeService {
     const weFilter = {
       OR: [
         { reference: { startsWith: 'WE-' } },
+        { reference: { startsWith: 'BK', mode: 'insensitive' as const } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' as const } },
       ],
     };
+
+    // Primär: Referenz = externe Sendungsnr. (BK…)
+    const byReference = await this.prisma.shipment.findFirst({
+      where: {
+        organizationId,
+        ...(customerId ? { customerId } : {}),
+        AND: [weFilter, { reference: { equals: bk, mode: 'insensitive' } }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (byReference) return byReference;
 
     const byExtras = await this.prisma.shipment.findFirst({
       where: {
@@ -406,8 +425,9 @@ export class ProformaWeService {
   }
 
   /**
-   * Einzelne Proforma-Zeile (Colli/kg) → WE-Sendung des Kunden (letzte 2 Tage).
-   * Bereits gematchte Sendungen werden übersprungen.
+   * Notfall-Fallback: Soloplan-XML enthält oft keine BK.
+   * Dann versuchen wir die Zeile über Colli-Anzahl + Gewicht dem WE zuzuordnen.
+   * Sobald die BK bekannt ist, wird reference auf die BK gesetzt (nicht WE-…).
    */
   private async findWeByLineTotals(
     organizationId: string,
@@ -427,6 +447,7 @@ export class ProformaWeService {
         ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
         OR: [
           { reference: { startsWith: 'WE-' } },
+          { reference: { startsWith: 'BK', mode: 'insensitive' } },
           { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
         ],
       },
@@ -476,6 +497,7 @@ export class ProformaWeService {
           {
             OR: [
               { reference: { startsWith: 'WE-' } },
+              { reference: { startsWith: 'BK', mode: 'insensitive' } },
               { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
             ],
           },
@@ -499,6 +521,7 @@ export class ProformaWeService {
                 {
                   OR: [
                     { reference: { startsWith: 'WE-' } },
+                    { reference: { startsWith: 'BK', mode: 'insensitive' } },
                     { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
                   ],
                 },

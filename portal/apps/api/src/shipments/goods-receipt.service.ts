@@ -94,9 +94,11 @@ export class GoodsReceiptService {
     const where: any = {
       organizationId: user.organizationId,
       mandantId,
-      // Nur echte Wareneingangs-Importe (nicht normale Portal-/Soloplan-Aufträge)
+      // Nur echte Wareneingangs-Importe (nicht normale Portal-/Soloplan-Aufträge).
+      // Nach Proforma-Match ist reference = externe Sendungsnr. (BK…), Soloplan bleibt in soloplanRef.
       OR: [
         { reference: { startsWith: 'WE-' } },
+        { reference: { startsWith: 'BK', mode: 'insensitive' } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
       ],
     };
@@ -315,6 +317,7 @@ export class GoodsReceiptService {
     const weClause = {
       OR: [
         { reference: { startsWith: 'WE-' } },
+        { reference: { startsWith: 'BK', mode: 'insensitive' as const } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' as const } },
       ],
     };
