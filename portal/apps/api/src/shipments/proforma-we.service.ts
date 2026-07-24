@@ -164,7 +164,17 @@ export class ProformaWeService {
     let fallbackShipments: Array<{ id: string; reference: string | null }> = [];
 
     for (const line of parsed.lines) {
-      const shipment = await this.findShipmentForBk(user.organizationId, line.bk, customer?.id);
+      let shipment = await this.findShipmentForBk(user.organizationId, line.bk, customer?.id);
+      // Soloplan-XML enthält oft keine BK → Fallback Colli/kg je Zeile
+      if (!shipment && customer && line.colli != null) {
+        shipment = await this.findWeByLineTotals(
+          user.organizationId,
+          customer.id,
+          line.colli,
+          line.weightKg,
+          matched.map((m) => m.shipmentId),
+        );
+      }
       if (shipment) {
         // BK in extras merken
         const prevExtras =
@@ -393,6 +403,59 @@ export class ProformaWeService {
     }
 
     return null;
+  }
+
+  /**
+   * Einzelne Proforma-Zeile (Colli/kg) → WE-Sendung des Kunden (letzte 2 Tage).
+   * Bereits gematchte Sendungen werden übersprungen.
+   */
+  private async findWeByLineTotals(
+    organizationId: string,
+    customerId: string,
+    colli: number,
+    weightKg: number | undefined,
+    excludeIds: string[],
+  ) {
+    const since = new Date();
+    since.setDate(since.getDate() - 2);
+    const rows = await this.prisma.shipment.findMany({
+      where: {
+        organizationId,
+        customerId,
+        createdAt: { gte: since },
+        packageCount: colli,
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+        OR: [
+          { reference: { startsWith: 'WE-' } },
+          { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+
+    const free = rows.filter((s) => {
+      const ex =
+        s.extras && typeof s.extras === 'object' && !Array.isArray(s.extras)
+          ? (s.extras as Record<string, unknown>)
+          : {};
+      return !ex.externalShipmentNumber;
+    });
+    if (!free.length) return null;
+    if (weightKg == null) return free[0];
+
+    const scored = free
+      .map((s) => {
+        const w = s.weightKg != null ? Number(s.weightKg) : null;
+        if (w == null || !Number.isFinite(w)) return { s, score: 50 };
+        const diff = Math.abs(w - weightKg);
+        if (diff > Math.max(25, weightKg * 0.2)) return null;
+        return { s, score: diff };
+      })
+      .filter((x): x is { s: (typeof free)[0]; score: number } => !!x)
+      .sort((a, b) => a.score - b.score);
+
+    return scored[0]?.s || null;
   }
 
   private async findWeByTotals(
