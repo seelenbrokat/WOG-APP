@@ -203,7 +203,7 @@ export class ProformaWeService {
       await this.mailMissingShipments(parsed, missing, fileName);
     }
 
-    // WE-Session: Label „WE Unitec · PRO26175“ für die Scanübersicht
+    // WE-Session: Label „WE Unitec · PRO26175“; Soll = BK-Einzel-WEs (nicht Sammel-WE)
     let session: Awaited<ReturnType<GoodsReceiptService['openSession']>> | null = null;
     const sessionDate = new Date().toISOString().slice(0, 10);
     const pro = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
@@ -212,28 +212,30 @@ export class ProformaWeService {
       : (customer?.name || 'Kunde').split(/\s+/)[0] || 'Kunde';
     const sessionLabel = `WE ${short} · ${pro}`;
 
-    const preferredFromMatched = (() => {
-      const weMatched = matched.filter((m) => m.reference && /^WE-/i.test(m.reference));
-      if (!weMatched.length) return null;
-      if (parsed.totalColli) {
-        const exact = weMatched.find((m) => m.packageCount === parsed.totalColli);
-        if (exact) return exact.reference;
-      }
-      // größte WE-Sendung (Sammel), nicht die kleinste Teil-WE
-      return [...weMatched].sort((a, b) => b.packageCount - a.packageCount)[0]?.reference || null;
-    })();
-
-    const preferredRef =
-      fallbackShipments.find((s) => s.reference)?.reference || preferredFromMatched;
-    const weRef = preferredRef ? preferredRef.replace(/^WE-/i, '') : null;
+    // Bevorzugt alle per BK gematchten Einzel-WEs (echte Scan-Labels).
+    // Sammel-WE (Totals) nur Fallback, wenn keine BK-WEs gefunden wurden.
+    const matchedShipmentIds = [
+      ...new Set(
+        matched
+          .filter((m) => m.reference && /^WE-/i.test(m.reference))
+          .map((m) => m.shipmentId),
+      ),
+    ];
+    const fallbackIds = fallbackShipments.map((s) => s.id);
+    const shipmentIds = matchedShipmentIds.length ? matchedShipmentIds : fallbackIds;
+    const weRef =
+      (matched.find((m) => m.reference && /^WE-/i.test(m.reference))?.reference ||
+        fallbackShipments[0]?.reference ||
+        '')?.replace(/^WE-/i, '') || pro;
 
     try {
-      if (weRef && customer) {
+      if (shipmentIds.length && customer) {
         session = await this.goodsReceipt.openSession(user, {
           customerId: customer.id,
           date: sessionDate,
-          externalRef: weRef,
+          externalRef: weRef || pro,
           sessionLabel,
+          shipmentIds,
         });
       }
     } catch (err: any) {

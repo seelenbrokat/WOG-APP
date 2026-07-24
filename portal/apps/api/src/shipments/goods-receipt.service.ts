@@ -296,6 +296,8 @@ export class GoodsReceiptService {
       allCustomerShipments?: boolean;
       /** Anzeigename/Session-Schlüssel, z. B. Kunden-Auftragsnr. RPK… */
       sessionLabel?: string;
+      /** Explizite Sendungen (z. B. alle BK-WEs einer Proforma) */
+      shipmentIds?: string[];
     },
   ) {
     this.assertWarehouseRole(user);
@@ -317,41 +319,54 @@ export class GoodsReceiptService {
       ],
     };
 
-    if (wantAll && !data.customerId) {
+    if (wantAll && !data.customerId && !data.shipmentIds?.length) {
       throw new BadRequestException('Für Sammelkontrolle bitte einen Kunden wählen');
     }
 
-    let shipments = await this.prisma.shipment.findMany({
-      where: {
-        organizationId: user.organizationId,
-        mandantId,
-        ...(data.customerId ? { customerId: data.customerId } : {}),
-        createdAt: { gte: start, lt: end },
-        AND: [
-          weClause,
-          ...(wantAll
-            ? []
-            : [
-                {
-                  OR: [
-                    { soloplanRef: externalRefRaw },
-                    { reference: `WE-${externalRefRaw}` },
-                    { reference: { equals: externalRefRaw, mode: 'insensitive' as const } },
-                    { soloplanRef: { equals: externalRefRaw, mode: 'insensitive' as const } },
-                  ],
-                },
-              ]),
-        ],
-      },
-      include: {
-        customer: { select: { id: true, name: true, customerNumber: true } },
-        colli: { orderBy: { itemNumber: 'asc' } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    let shipments = data.shipmentIds?.length
+      ? await this.prisma.shipment.findMany({
+          where: {
+            organizationId: user.organizationId,
+            id: { in: data.shipmentIds },
+            AND: [weClause],
+          },
+          include: {
+            customer: { select: { id: true, name: true, customerNumber: true } },
+            colli: { orderBy: { itemNumber: 'asc' } },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : await this.prisma.shipment.findMany({
+          where: {
+            organizationId: user.organizationId,
+            mandantId,
+            ...(data.customerId ? { customerId: data.customerId } : {}),
+            createdAt: { gte: start, lt: end },
+            AND: [
+              weClause,
+              ...(wantAll
+                ? []
+                : [
+                    {
+                      OR: [
+                        { soloplanRef: externalRefRaw },
+                        { reference: `WE-${externalRefRaw}` },
+                        { reference: { equals: externalRefRaw, mode: 'insensitive' as const } },
+                        { soloplanRef: { equals: externalRefRaw, mode: 'insensitive' as const } },
+                      ],
+                    },
+                  ]),
+            ],
+          },
+          include: {
+            customer: { select: { id: true, name: true, customerNumber: true } },
+            colli: { orderBy: { itemNumber: 'asc' } },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
 
     // Kunden-Auftragsnr. (z. B. RPK…) steckt oft nicht in Soloplan-WE → bei Kunde+Tag auf Sammel fallen
-    if (!shipments.length && data.customerId && !wantAll) {
+    if (!shipments.length && data.customerId && !wantAll && !data.shipmentIds?.length) {
       shipments = await this.prisma.shipment.findMany({
         where: {
           organizationId: user.organizationId,

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 import { GoodsReceiptService } from './goods-receipt.service';
@@ -26,6 +26,12 @@ class OpenSessionDto {
   @IsOptional()
   @IsString()
   sessionLabel?: string;
+
+  /** Explizite WE-Sendungen (Proforma: alle BK-Aufträge) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  shipmentIds?: string[];
 }
 
 class ScanDto {
