@@ -10,6 +10,7 @@ import { IntouchService } from './integrations/intouch.service';
 import { WareneingangService } from './integrations/wareneingang.service';
 import { GoodsReceiptService } from './shipments/goods-receipt.service';
 import { ProformaWeService } from './shipments/proforma-we.service';
+import { SchmidtsLadelisteWeService } from './shipments/schmidts-ladeliste-we.service';
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 
 async function bootstrap() {
@@ -25,6 +26,7 @@ async function bootstrap() {
   const wareneingang = app.get(WareneingangService);
   const goodsReceipt = app.get(GoodsReceiptService);
   const proformaWe = app.get(ProformaWeService);
+  const schmidtsLadeliste = app.get(SchmidtsLadelisteWeService);
   const fahrerTelematics = app.get(FahrerTelematicsService);
 
   console.log(
@@ -53,6 +55,12 @@ async function bootstrap() {
       if (proforma.processed || proforma.failed) {
         console.log(
           `Proforma-WE: ${proforma.processed} verarbeitet, ${proforma.failed} fehlgeschlagen`,
+        );
+      }
+      const ladeliste = await schmidtsLadeliste.processInboundDir();
+      if (ladeliste.processed || ladeliste.failed) {
+        console.log(
+          `Schmidts-Ladeliste: ${ladeliste.processed} verarbeitet, ${ladeliste.failed} fehlgeschlagen`,
         );
       }
       await intouch.processInboundDir(undefined, 200);

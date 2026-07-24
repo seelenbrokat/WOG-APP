@@ -163,6 +163,7 @@ mkdir -p data/uploads \
   data/sftp/inbound/proforma \
   data/sftp/inbound/wareneingang/rechnungen \
   data/sftp/inbound/wareneingang/listen \
+  data/sftp/inbound/wareneingang/ladelisten \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
   data/integrations/soloplan/{in,out} \
@@ -213,6 +214,7 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
       "$SFTP_ROOT/inbound/wareneingang" \
       "$SFTP_ROOT/inbound/wareneingang/rechnungen" \
       "$SFTP_ROOT/inbound/wareneingang/listen" \
+      "$SFTP_ROOT/inbound/wareneingang/ladelisten" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
       "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
@@ -261,6 +263,7 @@ EOF
     "$SFTP_ROOT/inbound/wareneingang" \
     "$SFTP_ROOT/inbound/wareneingang/rechnungen" \
     "$SFTP_ROOT/inbound/wareneingang/listen" \
+    "$SFTP_ROOT/inbound/wareneingang/ladelisten" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \

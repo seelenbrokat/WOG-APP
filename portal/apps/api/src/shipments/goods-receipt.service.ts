@@ -95,10 +95,11 @@ export class GoodsReceiptService {
       organizationId: user.organizationId,
       mandantId,
       // Nur echte Wareneingangs-Importe (nicht normale Portal-/Soloplan-Aufträge).
-      // Nach Proforma-Match ist reference = externe Sendungsnr. (BK…), Soloplan bleibt in soloplanRef.
+      // Nach Match: reference = externe Sendungsnr. (BK… / LAK…), Soloplan bleibt in soloplanRef.
       OR: [
         { reference: { startsWith: 'WE-' } },
         { reference: { startsWith: 'BK', mode: 'insensitive' } },
+        { reference: { startsWith: 'LAK', mode: 'insensitive' } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
       ],
     };
@@ -237,6 +238,7 @@ export class GoodsReceiptService {
                   sessionDate: { gte: dayFilter.end, lt: upcomingEnd },
                   OR: [
                     { externalRef: { contains: 'PRO', mode: 'insensitive' as const } },
+                    { externalRef: { contains: 'Schmidts', mode: 'insensitive' as const } },
                     { externalRef: { startsWith: 'WE ', mode: 'insensitive' as const } },
                   ],
                 },
@@ -259,8 +261,11 @@ export class GoodsReceiptService {
         (c) => c.status === 'RECEIVED' || c.status === 'DAMAGED',
       ).length;
       const damaged = s.checks.filter((c) => c.status === 'DAMAGED').length;
-      const isProforma = /^WE\s+.+\s+·\s+PRO/i.test(s.externalRef) || /^PRO\d+/i.test(s.externalRef);
-      const displayLabel = isProforma
+      const isNamedSession =
+        /^WE\s+.+\s+·\s+/i.test(s.externalRef) ||
+        /^PRO\d+/i.test(s.externalRef) ||
+        /Schmidts/i.test(s.externalRef);
+      const displayLabel = isNamedSession
         ? /^WE\s+/i.test(s.externalRef)
           ? s.externalRef
           : `WE ${shortCustomerName(s.customer?.name) || 'Kunde'} · ${s.externalRef}`
@@ -287,7 +292,13 @@ export class GoodsReceiptService {
     // Proforma-Sessions: zugehörigen Sammel-Eintrag gleichen Kunden/Tages ausblenden
     const sessionCustomerDays = new Set(
       sessionGroups
-        .filter((g) => /^WE\s+.+\s+·\s+PRO/i.test(g.displayLabel || '') || /^PRO\d+/i.test(g.externalRef))
+        .filter(
+          (g) =>
+            /^WE\s+.+\s+·\s+/i.test(g.displayLabel || '') ||
+            /^PRO\d+/i.test(g.externalRef) ||
+            /Schmidts/i.test(g.displayLabel || '') ||
+            /Schmidts/i.test(g.externalRef),
+        )
         .map((g) => `${g.customerId || 'none'}|${g.date}`),
     );
     const shipmentGroups = [...map.values()].filter((g) => {
@@ -336,6 +347,7 @@ export class GoodsReceiptService {
       OR: [
         { reference: { startsWith: 'WE-' } },
         { reference: { startsWith: 'BK', mode: 'insensitive' as const } },
+        { reference: { startsWith: 'LAK', mode: 'insensitive' as const } },
         { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' as const } },
       ],
     };

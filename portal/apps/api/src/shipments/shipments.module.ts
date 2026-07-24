@@ -4,6 +4,7 @@ import { ShipmentsController } from './shipments.controller';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { GoodsReceiptController } from './goods-receipt.controller';
 import { ProformaWeService } from './proforma-we.service';
+import { SchmidtsLadelisteWeService } from './schmidts-ladeliste-we.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -18,7 +19,19 @@ import { AddressValidationService } from '../common/address-validation.service';
     forwardRef(() => IntegrationsModule),
   ],
   controllers: [ShipmentsController, GoodsReceiptController],
-  providers: [ShipmentsService, AddressValidationService, GoodsReceiptService, ProformaWeService],
-  exports: [ShipmentsService, AddressValidationService, GoodsReceiptService, ProformaWeService],
+  providers: [
+    ShipmentsService,
+    AddressValidationService,
+    GoodsReceiptService,
+    ProformaWeService,
+    SchmidtsLadelisteWeService,
+  ],
+  exports: [
+    ShipmentsService,
+    AddressValidationService,
+    GoodsReceiptService,
+    ProformaWeService,
+    SchmidtsLadelisteWeService,
+  ],
 })
 export class ShipmentsModule {}

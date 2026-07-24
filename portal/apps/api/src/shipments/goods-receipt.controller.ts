@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { ProformaWeService } from './proforma-we.service';
+import { SchmidtsLadelisteWeService } from './schmidts-ladeliste-we.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
@@ -109,6 +110,7 @@ export class GoodsReceiptController {
   constructor(
     private service: GoodsReceiptService,
     private proformaWe: ProformaWeService,
+    private schmidtsLadeliste: SchmidtsLadelisteWeService,
   ) {}
 
   @Get('entladeberichte')
@@ -135,6 +137,18 @@ export class GoodsReceiptController {
     @Param('proformaNumber') proformaNumber: string,
   ) {
     return this.proformaWe.resendEntladelisteForProforma(user, proformaNumber);
+  }
+
+  /** Status Schmidts-Ladeliste FTP (inbound/wareneingang/ladelisten) */
+  @Get('ladeliste/status')
+  ladelisteStatus() {
+    return this.schmidtsLadeliste.status();
+  }
+
+  /** Manuell: Schmidts-Ladelisten verarbeiten → WE-Session (LAK ↔ Soloplan) */
+  @Post('ladeliste/process-inbound')
+  processLadelisteInbound(@CurrentUser() user: AuthUser) {
+    return this.schmidtsLadeliste.processInboundDir(user.organizationId);
   }
 
   @Get('groups')
