@@ -1005,6 +1005,10 @@ export default function WeTc57Page() {
                 style={{ minHeight: 48, fontSize: '1rem' }}
               />
             </div>
+            <p className="muted" style={{ margin: '0 0 0.35rem', fontSize: '0.92rem' }}>
+              Nach Auswahl einer Lieferung: Register <strong>Scannen</strong> und{' '}
+              <strong>Abweichung</strong> (Maße, Foto, Freitext, beschädigt).
+            </p>
             <div className="stack" style={{ gap: '0.4rem' }}>
               {!groups.length ? (
                 <p className="muted" style={{ margin: 0 }}>
@@ -1078,24 +1082,71 @@ export default function WeTc57Page() {
             </div>
 
             {session.status === 'OPEN' ? (
-              <div className="tabs" role="tablist" aria-label="WE TC57">
+              <div
+                role="tablist"
+                aria-label="WE TC57 Register"
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 20,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 8,
+                  margin: '0.35rem 0 0.75rem',
+                  padding: 6,
+                  borderRadius: 14,
+                  background: 'var(--bg-panel, #fff)',
+                  border: '2px solid var(--wog-green, #1f6b3a)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+                }}
+              >
                 <button
                   type="button"
-                  className={workTab === 'scan' ? 'active' : undefined}
+                  role="tab"
+                  aria-selected={workTab === 'scan'}
                   onClick={() => {
                     setWorkTab('scan');
                     editingRef.current = false;
                     focusScanner();
+                  }}
+                  style={{
+                    minHeight: 56,
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: '1.15rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.01em',
+                    cursor: 'pointer',
+                    color: workTab === 'scan' ? '#fff' : 'var(--ink, #122)',
+                    background:
+                      workTab === 'scan'
+                        ? 'var(--wog-green, #1f6b3a)'
+                        : 'transparent',
                   }}
                 >
                   Scannen
                 </button>
                 <button
                   type="button"
-                  className={workTab === 'abweichung' ? 'active' : undefined}
+                  role="tab"
+                  aria-selected={workTab === 'abweichung'}
                   onClick={() => {
                     setWorkTab('abweichung');
                     editingRef.current = true;
+                  }}
+                  style={{
+                    minHeight: 56,
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: '1.15rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.01em',
+                    cursor: 'pointer',
+                    color: workTab === 'abweichung' ? '#fff' : 'var(--ink, #122)',
+                    background:
+                      workTab === 'abweichung'
+                        ? 'var(--wog-green, #1f6b3a)'
+                        : 'transparent',
                   }}
                 >
                   Abweichung
