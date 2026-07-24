@@ -143,6 +143,11 @@ export function writeEntladelistePdf(input: EntladelistePdfInput, storagePath: s
     doc.moveDown(0.3);
     doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(10);
     if (input.sessionLabel) doc.text(`Session: ${input.sessionLabel}`);
+    doc
+      .font('Helvetica-Bold')
+      .fillColor(WOG_PDF.greenDeep)
+      .text(`Wareneingang (Werktag): ${input.sessionDate}`);
+    doc.font('Helvetica').fillColor(WOG_PDF.ink);
     doc.text(`Erstellt: ${formatPdfDateTime(new Date())}`);
     if (input.sourceFileName) doc.text(`Quelle: ${input.sourceFileName}`);
     doc.text(`Colli gesamt: ${summary.total}${input.missing?.length ? ` · BK ohne WE: ${input.missing.length}` : ''}`);

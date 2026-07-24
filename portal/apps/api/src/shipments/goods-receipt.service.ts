@@ -216,15 +216,33 @@ export class GoodsReceiptService {
       }
     }
 
-    // Offene Proforma-/Kontroll-Sessions oben in der Übersicht
+    // Offene Proforma-/Kontroll-Sessions oben in der Übersicht.
+    // Proforma kommt am Vortag → Session-Datum = nächster Werktag;
+    // deshalb am gewählten Tag auch kommende Proforma-Sessions (bis +5 Tage) zeigen.
     const dayFilter = opts.date ? dayBounds(opts.date) : null;
+    const upcomingEnd = dayFilter
+      ? new Date(dayFilter.start.getTime() + 6 * 24 * 60 * 60 * 1000)
+      : null;
     const openSessions = await this.prisma.goodsReceiptSession.findMany({
       where: {
         organizationId: user.organizationId,
         status: 'OPEN',
         ...(opts.customerId ? { customerId: opts.customerId } : {}),
-        ...(dayFilter ? { sessionDate: { gte: dayFilter.start, lt: dayFilter.end } } : {}),
         ...(mandantId ? { mandantId } : {}),
+        ...(dayFilter && upcomingEnd
+          ? {
+              OR: [
+                { sessionDate: { gte: dayFilter.start, lt: dayFilter.end } },
+                {
+                  sessionDate: { gte: dayFilter.end, lt: upcomingEnd },
+                  OR: [
+                    { externalRef: { contains: 'PRO', mode: 'insensitive' as const } },
+                    { externalRef: { startsWith: 'WE ', mode: 'insensitive' as const } },
+                  ],
+                },
+              ],
+            }
+          : {}),
       },
       include: {
         customer: { select: { id: true, name: true, customerNumber: true } },

@@ -25,6 +25,7 @@ import {
 } from './proforma-invoice.parser';
 import { writeEntladelistePdf } from './entladeliste-pdf';
 import { AuthUser } from '../auth/auth.types';
+import { proformaGoodsReceiptDate } from '../common/working-days';
 
 const execFileAsync = promisify(execFile);
 
@@ -267,9 +268,10 @@ export class ProformaWeService {
       await this.mailMissingShipments(parsed, missing, fileName);
     }
 
-    // WE-Session: Label „WE Unitec · PRO26175“; Soll = BK-Einzel-WEs (nicht Sammel-WE)
+    // WE-Session: Label „WE Unitec · PRO…“; Datum = nächster Werktag
+    // (Proforma kommt i. d. R. am Vortag → TC57-Übersicht am WE-Tag)
     let session: Awaited<ReturnType<GoodsReceiptService['openSession']>> | null = null;
-    const sessionDate = new Date().toISOString().slice(0, 10);
+    const sessionDate = proformaGoodsReceiptDate();
     const pro = parsed.proformaNumber || `PROFORMA-${sessionDate}`;
     const short = /unitec/i.test(customer?.name || '')
       ? 'Unitec'
@@ -433,14 +435,14 @@ export class ProformaWeService {
 
     const recipients = this.entladelisteMailRecipients();
     const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
-    const subject = `Entladeliste ${opts.proformaNumber} · ${opts.customerName || 'WE'} · ${opts.sessionDate}`;
+    const subject = `Entladeliste ${opts.proformaNumber} · WE ${opts.sessionDate} · ${opts.customerName || 'WE'}`;
     const body = [
       `Entladeliste Wareneingang (nach Proforma-Upload)`,
       ``,
       `Kunde: ${opts.customerName || '–'} (${opts.customerNumber || '–'})`,
       `Proforma: ${opts.proformaNumber}`,
       opts.sessionLabel ? `Session: ${opts.sessionLabel}` : null,
-      `Datum: ${opts.sessionDate}`,
+      `Wareneingang (nächster Werktag): ${opts.sessionDate}`,
       ``,
       `Colli gesamt: ${packSummary.total}`,
       `Isolationen: ${packSummary.isolation} (Isogroß ${packSummary.isogross} · Isoklein ${packSummary.isoklein})`,
