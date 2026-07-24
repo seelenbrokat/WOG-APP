@@ -161,6 +161,8 @@ mkdir -p data/uploads \
   data/sftp/outbound/soloplan/telematics \
   data/sftp/inbound/vlbportal/telematics \
   data/sftp/inbound/proforma \
+  data/sftp/inbound/wareneingang/rechnungen \
+  data/sftp/inbound/wareneingang/listen \
   data/integrations/ldv/{in,out} \
   data/integrations/mercurio/{in,out} \
   data/integrations/soloplan/{in,out} \
@@ -201,12 +203,16 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
       "$SFTP_ROOT/inbound/intouch" \
       "$SFTP_ROOT/inbound/vlbportal" \
       "$SFTP_ROOT/inbound/proforma" \
+      "$SFTP_ROOT/inbound/wareneingang" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
       "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
       2>/dev/null || true
     chmod 775 \
       "$SFTP_ROOT/inbound/proforma" \
+      "$SFTP_ROOT/inbound/wareneingang" \
+      "$SFTP_ROOT/inbound/wareneingang/rechnungen" \
+      "$SFTP_ROOT/inbound/wareneingang/listen" \
       "$SFTP_ROOT/outbound/soloplan/orders" \
       "$SFTP_ROOT/outbound/soloplan/telematics" \
       "$SFTP_ROOT/outbound/soloplan/archive" \
@@ -245,12 +251,16 @@ EOF
     "$SFTP_ROOT/inbound/intouch" \
     "$SFTP_ROOT/inbound/vlbportal" \
     "$SFTP_ROOT/inbound/proforma" \
+    "$SFTP_ROOT/inbound/wareneingang" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \
     2>/dev/null || true
   chmod 775 \
     "$SFTP_ROOT/inbound/proforma" \
+    "$SFTP_ROOT/inbound/wareneingang" \
+    "$SFTP_ROOT/inbound/wareneingang/rechnungen" \
+    "$SFTP_ROOT/inbound/wareneingang/listen" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
     "$SFTP_ROOT/outbound/soloplan/archive" \

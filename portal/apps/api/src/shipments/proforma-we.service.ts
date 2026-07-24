@@ -29,13 +29,24 @@ const MISSING_SHIPMENT_MAIL_TO =
   process.env.PROFORMA_MISSING_MAIL_TO || 'info@worldofgreen.ch';
 
 /**
- * Proforma-Rechnung (PDF) per SFTP → Wareneingangs-Session für TC57.
+ * Proforma-/Ausfuhr-Rechnung (PDF) per SFTP → Wareneingangs-Session für TC57.
+ *
+ * FTP (Soloplan-User, Chroot data/sftp):
+ *   inbound/wareneingang/rechnungen/  ← Proforma/Rechnungen (aktiv)
+ *   inbound/wareneingang/listen/      ← PDF-Listen (Ablage)
+ *   inbound/proforma/                 ← Legacy-Alias (weiterhin gelesen)
+ *
  * Fehlende BK-Sendungen → E-Mail an info@worldofgreen.ch.
  */
 @Injectable()
 export class ProformaWeService {
   private readonly logger = new Logger(ProformaWeService.name);
+  /** Primär: inbound/wareneingang/rechnungen */
   private readonly inboundDir: string;
+  /** Ablage für WE-Listen (PDF) */
+  private readonly listenDir: string;
+  /** Alter Pfad, bleibt kompatibel */
+  private readonly legacyInboundDir: string;
 
   constructor(
     private prisma: PrismaService,
@@ -45,23 +56,43 @@ export class ProformaWeService {
   ) {
     const root =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
-    this.inboundDir = join(root, 'proforma');
-    for (const d of [this.inboundDir, join(this.inboundDir, 'processed'), join(this.inboundDir, 'failed')]) {
+    this.inboundDir = join(root, 'wareneingang', 'rechnungen');
+    this.listenDir = join(root, 'wareneingang', 'listen');
+    this.legacyInboundDir = join(root, 'proforma');
+    for (const d of [
+      this.inboundDir,
+      join(this.inboundDir, 'processed'),
+      join(this.inboundDir, 'failed'),
+      this.listenDir,
+      join(this.listenDir, 'processed'),
+      join(this.listenDir, 'failed'),
+      this.legacyInboundDir,
+      join(this.legacyInboundDir, 'processed'),
+      join(this.legacyInboundDir, 'failed'),
+    ]) {
       if (!existsSync(d)) mkdirSync(d, { recursive: true });
     }
   }
 
   status() {
+    const countPdf = (dir: string) =>
+      existsSync(dir) ? readdirSync(dir).filter((f) => /\.(pdf|txt)$/i.test(f)).length : 0;
     return {
       inboundDir: this.inboundDir,
+      listenDir: this.listenDir,
+      legacyInboundDir: this.legacyInboundDir,
+      ftpPaths: {
+        rechnungen: 'inbound/wareneingang/rechnungen',
+        listen: 'inbound/wareneingang/listen',
+        legacyProforma: 'inbound/proforma',
+      },
       missingMailTo: MISSING_SHIPMENT_MAIL_TO,
-      pending: existsSync(this.inboundDir)
-        ? readdirSync(this.inboundDir).filter((f) => /\.(pdf|txt)$/i.test(f)).length
-        : 0,
+      pending: countPdf(this.inboundDir) + countPdf(this.legacyInboundDir),
+      pendingListen: countPdf(this.listenDir),
     };
   }
 
-  /** Worker: neue Proforma-PDFs verarbeiten. */
+  /** Worker: neue Proforma-PDFs verarbeiten (neuer + Legacy-Pfad). */
   async processInboundDir(organizationId?: string) {
     const orgId =
       organizationId ||
@@ -71,14 +102,9 @@ export class ProformaWeService {
           select: { id: true },
         })
       )?.id;
-    if (!orgId || !existsSync(this.inboundDir)) {
+    if (!orgId) {
       return { processed: 0, failed: 0, results: [] as unknown[] };
     }
-
-    const files = readdirSync(this.inboundDir).filter((f) => /\.(pdf|txt)$/i.test(f));
-    const results: unknown[] = [];
-    let processed = 0;
-    let failed = 0;
 
     const admin = await this.prisma.user.findFirst({
       where: { organizationId: orgId, role: UserRole.ORG_ADMIN },
@@ -86,26 +112,34 @@ export class ProformaWeService {
     });
     if (!admin) {
       this.logger.warn('Kein ORG_ADMIN für Proforma-WE');
-      return { processed: 0, failed: files.length, results };
+      return { processed: 0, failed: 0, results: [] as unknown[] };
     }
     const authUser = this.toAuthUser(admin);
 
-    for (const fileName of files) {
-      const full = join(this.inboundDir, fileName);
-      try {
-        const res = await this.processProformaFile(authUser, full, fileName);
-        results.push(res);
-        renameSync(full, join(this.inboundDir, 'processed', `${Date.now()}_${fileName}`));
-        processed += 1;
-      } catch (err: any) {
-        failed += 1;
-        this.logger.warn(`Proforma ${fileName}: ${err?.message || err}`);
+    const results: unknown[] = [];
+    let processed = 0;
+    let failed = 0;
+
+    for (const dir of [this.inboundDir, this.legacyInboundDir]) {
+      if (!existsSync(dir)) continue;
+      const files = readdirSync(dir).filter((f) => /\.(pdf|txt)$/i.test(f));
+      for (const fileName of files) {
+        const full = join(dir, fileName);
         try {
-          renameSync(full, join(this.inboundDir, 'failed', `${Date.now()}_${fileName}`));
-        } catch {
-          /* ignore */
+          const res = await this.processProformaFile(authUser, full, fileName);
+          results.push(res);
+          renameSync(full, join(dir, 'processed', `${Date.now()}_${fileName}`));
+          processed += 1;
+        } catch (err: any) {
+          failed += 1;
+          this.logger.warn(`Proforma ${fileName}: ${err?.message || err}`);
+          try {
+            renameSync(full, join(dir, 'failed', `${Date.now()}_${fileName}`));
+          } catch {
+            /* ignore */
+          }
+          results.push({ fileName, ok: false, error: err?.message || String(err) });
         }
-        results.push({ fileName, ok: false, error: err?.message || String(err) });
       }
     }
     return { processed, failed, results };
