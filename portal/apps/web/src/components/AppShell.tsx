@@ -17,6 +17,7 @@ const NAV = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/customs/new', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/partner/tours', label: 'Meine Touren', roles: ['PARTNER'] },
@@ -96,7 +97,11 @@ export function AppShell({
                 (l.href === '/tours/lademittel' && pathname.startsWith('/tours/lademittel')) ||
                 (l.href === '/tours/map' && pathname.startsWith('/tours/map')) ||
                 (l.href === '/partner/tours' && pathname.startsWith('/partner/')) ||
-                (l.href === '/audit' && pathname.startsWith('/audit'));
+                (l.href === '/audit' && pathname.startsWith('/audit')) ||
+                (l.href === '/customs/new' && pathname.startsWith('/customs/new')) ||
+                (l.href === '/customs' &&
+                  pathname.startsWith('/customs') &&
+                  !pathname.startsWith('/customs/new'));
               return (
                 <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
                   {l.label}

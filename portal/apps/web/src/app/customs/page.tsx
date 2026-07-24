@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import {
   VORARLBERG_CH_GOODS_BORDERS,
@@ -265,6 +266,11 @@ export default function CustomsPage() {
         Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger, Frankatur und Zollpapieren.
         Auftraggeber ist stets der angemeldete Kunde
         {customerName ? ` (${customerName})` : ''}.
+      </p>
+      <p style={{ marginBottom: '1.25rem' }}>
+        <Link className="btn btn-primary" href="/customs/new">
+          Neuer Verzollungsauftrag (Sendung)
+        </Link>
       </p>
 
       {isCustomer ? (
