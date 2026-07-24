@@ -172,8 +172,8 @@ export class DocumentsService {
       where: {
         id: shipmentId,
         organizationId: user.organizationId,
-        ...(user.role === UserRole.CUSTOMER_USER && user.customerId
-          ? { customerId: user.customerId }
+        ...(user.role === UserRole.CUSTOMER_USER
+          ? { customerId: user.customerId || '__none__' }
           : {}),
       },
       include: {
