@@ -172,6 +172,7 @@ export default function CustomsPage() {
   const [papers, setPapers] = useState<FileList | null>(null);
   const [invoice, setInvoice] = useState<FileList | null>(null);
   const [extraPapers, setExtraPapers] = useState<Record<string, FileList | null>>({});
+  const [inquiryBusy, setInquiryBusy] = useState('');
   const [abweichend, setAbweichend] = useState(false);
   const [absender, setAbsender] = useState<Party>(emptyParty('AT'));
   const [empfaenger, setEmpfaenger] = useState<Party>(emptyParty('CH'));
@@ -372,6 +373,28 @@ export default function CustomsPage() {
     await api(`/customs/${orderId}/papers`, { method: 'POST', body: fd });
     setExtraPapers((prev) => ({ ...prev, [orderId]: null }));
     await load();
+  }
+
+  async function requestInquiry(orderId: string) {
+    setError('');
+    setMessage('');
+    setInquiryBusy(orderId);
+    try {
+      const note = window.prompt(
+        'Optionaler Hinweis zur Sendungsnachfrage (Status / Zustellung):',
+        '',
+      );
+      if (note === null) return;
+      await api(`/customs/${orderId}/inquiry`, {
+        method: 'POST',
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      });
+      setMessage('Sendungsnachfrage an info@worldofgreen.ch gesendet.');
+    } catch (err: any) {
+      setError(err?.message || 'Sendungsnachfrage fehlgeschlagen');
+    } finally {
+      setInquiryBusy('');
+    }
   }
 
   return (
@@ -673,13 +696,14 @@ export default function CustomsPage() {
           <thead>
             <tr>
               <th>Auftrag</th>
+              <th>Soloplan</th>
               {isStaff ? <th>Kunde</th> : null}
               <th>Fahrzeug</th>
               <th>Route</th>
               <th>Grenze / Importeur</th>
               <th>Dokumente</th>
               <th>Status</th>
-              {isStaff ? <th></th> : null}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -692,11 +716,6 @@ export default function CustomsPage() {
                 <tr key={o.id}>
                   <td style={{ whiteSpace: 'nowrap', minWidth: '7.5rem' }}>
                     <strong className="mono">{o.externalNumber || '–'}</strong>
-                    {sp ? (
-                      <span className="meta">Soloplan {sp}</span>
-                    ) : (
-                      <span className="meta">Export ausstehend</span>
-                    )}
                     <span className="meta">
                       {new Date(o.zeit).toLocaleString('de-AT', {
                         day: '2-digit',
@@ -706,6 +725,13 @@ export default function CustomsPage() {
                         minute: '2-digit',
                       })}
                     </span>
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {sp ? (
+                      <strong className="mono">{sp}</strong>
+                    ) : (
+                      <span className="meta">–</span>
+                    )}
                   </td>
                   {isStaff ? (
                     <td>
@@ -818,34 +844,46 @@ export default function CustomsPage() {
                       {STATUS_LABEL[o.status] || o.status}
                     </span>
                   </td>
-                  {isStaff ? (
-                    <td>
-                      <select
-                        aria-label={`Status ${o.externalNumber || o.id}`}
-                        value={o.status}
-                        style={{ maxWidth: '9.5rem', fontSize: '0.8rem' }}
-                        onChange={async (e) => {
-                          await api(`/customs/${o.id}/status`, {
-                            method: 'PATCH',
-                            body: JSON.stringify({ status: e.target.value }),
-                          });
-                          await load();
-                        }}
+                  <td>
+                    <div className="stack" style={{ gap: '0.35rem' }}>
+                      {isStaff ? (
+                        <select
+                          aria-label={`Status ${o.externalNumber || o.id}`}
+                          value={o.status}
+                          style={{ maxWidth: '9.5rem', fontSize: '0.8rem' }}
+                          onChange={async (e) => {
+                            await api(`/customs/${o.id}/status`, {
+                              method: 'PATCH',
+                              body: JSON.stringify({ status: e.target.value }),
+                            });
+                            await load();
+                          }}
+                        >
+                          <option value="SUBMITTED">Übermittelt</option>
+                          <option value="ACCEPTED">Angenommen</option>
+                          <option value="IN_PROGRESS">In Bearbeitung</option>
+                          <option value="DONE">Erledigt</option>
+                          <option value="CANCELLED">Storniert</option>
+                        </select>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.78rem' }}
+                        disabled={inquiryBusy === o.id || o.status === 'CANCELLED'}
+                        title="Status- und Zustellinfo bei WOG anfragen"
+                        onClick={() => requestInquiry(o.id)}
                       >
-                        <option value="SUBMITTED">Übermittelt</option>
-                        <option value="ACCEPTED">Angenommen</option>
-                        <option value="IN_PROGRESS">In Bearbeitung</option>
-                        <option value="DONE">Erledigt</option>
-                        <option value="CANCELLED">Storniert</option>
-                      </select>
-                    </td>
-                  ) : null}
+                        {inquiryBusy === o.id ? 'Sende…' : 'Sendungsnachfrage'}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
             {!orders.length && (
               <tr>
-                <td colSpan={isStaff ? 8 : 6} className="muted">
+                <td colSpan={isStaff ? 9 : 8} className="muted">
                   Noch keine Verzollungsaufträge.
                 </td>
               </tr>

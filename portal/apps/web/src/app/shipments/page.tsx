@@ -46,6 +46,16 @@ function placeCell(company?: string | null, city?: string | null, zip?: string |
   );
 }
 
+function soloplanOrderNumber(s: {
+  soloplanRef?: string | null;
+  order?: { soloplanRef?: string | null } | null;
+}) {
+  for (const ref of [s.order?.soloplanRef, s.soloplanRef]) {
+    if (ref && !ref.startsWith('FILE:') && !ref.startsWith('SP-STUB-')) return ref;
+  }
+  return null;
+}
+
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
@@ -53,6 +63,7 @@ export default function ShipmentsPage() {
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState('');
+  const [inquiryBusy, setInquiryBusy] = useState<string>('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
@@ -105,6 +116,28 @@ export default function ShipmentsPage() {
     const next: Record<string, boolean> = {};
     for (const s of selectable) next[s.id] = true;
     setSelected(next);
+  }
+
+  async function requestInquiry(shipmentId: string) {
+    setError('');
+    setInfo('');
+    setInquiryBusy(shipmentId);
+    try {
+      const note = window.prompt(
+        'Optionaler Hinweis zur Sendungsnachfrage (Status / Zustellung):',
+        '',
+      );
+      if (note === null) return;
+      await api(`/shipments/${shipmentId}/inquiry`, {
+        method: 'POST',
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      });
+      setInfo('Sendungsnachfrage an info@worldofgreen.ch gesendet.');
+    } catch (e: any) {
+      setError(e?.message || 'Sendungsnachfrage fehlgeschlagen');
+    } finally {
+      setInquiryBusy('');
+    }
   }
 
   async function runBulk(handover: boolean) {
@@ -209,6 +242,7 @@ export default function ShipmentsPage() {
                   </th>
                 )}
                 <th>Auftrag</th>
+                <th>Soloplan</th>
                 <th>Tracking</th>
                 <th>Referenz</th>
                 {!isCustomer && <th>Mandant</th>}
@@ -221,7 +255,9 @@ export default function ShipmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {shipments.map((s) => (
+              {shipments.map((s) => {
+                const sp = soloplanOrderNumber(s);
+                return (
                 <tr key={s.id}>
                   {!isCustomer && (
                     <td>
@@ -240,6 +276,9 @@ export default function ShipmentsPage() {
                     </td>
                   )}
                   <td>{s.order?.externalNumber || '–'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {sp ? <strong>{sp}</strong> : <span className="muted">–</span>}
+                  </td>
                   <td>{s.trackingNumber}</td>
                   <td>{s.reference || '–'}</td>
                   {!isCustomer && <td>{s.mandant?.name}</td>}
@@ -253,12 +292,27 @@ export default function ShipmentsPage() {
                     ) : null}
                   </td>
                   <td><span className="badge">{statusLabel(s.status)}</span></td>
-                  <td><Link href={`/shipments/${s.id}`}>Details</Link></td>
+                  <td>
+                    <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <Link href={`/shipments/${s.id}`}>Details</Link>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.78rem' }}
+                        disabled={inquiryBusy === s.id || s.status === 'CANCELLED'}
+                        title="Status- und Zustellinfo bei WOG anfragen (wenn kein POD vorhanden)"
+                        onClick={() => requestInquiry(s.id)}
+                      >
+                        {inquiryBusy === s.id ? 'Sende…' : 'Sendungsnachfrage'}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+              );
+              })}
               {!shipments.length && (
                 <tr>
-                  <td colSpan={isCustomer ? 9 : 11} className="muted">
+                  <td colSpan={isCustomer ? 10 : 12} className="muted">
                     {q.trim() ? 'Keine Treffer für diese Suche.' : 'Keine Sendungen.'}
                   </td>
                 </tr>

@@ -11,10 +11,10 @@ const STATUSES = [
 ];
 
 function soloplanStatusLabel(ref?: string | null) {
-  if (!ref) return { label: 'TMS: noch nicht übergeben', tone: 'muted' as const };
-  if (ref.startsWith('SP-STUB-')) return { label: 'TMS: Stub', tone: 'muted' as const };
-  if (ref.startsWith('FILE:')) return { label: 'TMS: Datei exportiert', tone: 'ok' as const };
-  return { label: `TMS: ${ref}`, tone: 'ok' as const };
+  if (!ref) return { label: 'TMS: noch nicht übergeben', tone: 'muted' as const, orderNumber: null as string | null };
+  if (ref.startsWith('SP-STUB-')) return { label: 'TMS: Stub', tone: 'muted' as const, orderNumber: null };
+  if (ref.startsWith('FILE:')) return { label: 'TMS: Datei exportiert', tone: 'ok' as const, orderNumber: null };
+  return { label: `Soloplan-Ordernummer: ${ref}`, tone: 'ok' as const, orderNumber: ref };
 }
 
 async function downloadDocument(docId: string, fileName: string) {
@@ -43,6 +43,7 @@ function ShipmentDetailInner() {
   const [banner, setBanner] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const user = getUser();
 
   const DOC_TYPE_LABELS: Record<string, string> = {
@@ -162,6 +163,7 @@ function ShipmentDetailInner() {
           </div>
         )}
         {error && <div className="error">{error}</div>}
+        {info && <div className="success">{info}</div>}
 
         <div className="grid-2">
           <div className="panel stack">
@@ -175,8 +177,41 @@ function ShipmentDetailInner() {
             </div>
             <div><strong>Frachtzahler:</strong> {shipment.order?.freightPayer?.name || shipment.customer?.name || '–'}</div>
             <div><strong>Referenz:</strong> {shipment.reference || '–'}</div>
+            <div>
+              <strong>Soloplan:</strong>{' '}
+              {tms.orderNumber ? <strong>{tms.orderNumber}</strong> : <span className="muted">–</span>}
+            </div>
             <div><strong>PIN:</strong> {shipment.trackingPin || '–'}</div>
             <div className="muted" style={{ fontSize: '0.85rem' }}>{tms.label}</div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy === 'inquiry' || shipment.status === 'CANCELLED'}
+              title="Status- und Zustellinfo bei WOG anfragen"
+              onClick={async () => {
+                setError('');
+                setInfo('');
+                setBusy('inquiry');
+                try {
+                  const note = window.prompt(
+                    'Optionaler Hinweis zur Sendungsnachfrage (Status / Zustellung):',
+                    '',
+                  );
+                  if (note === null) return;
+                  await api(`/shipments/${shipment.id}/inquiry`, {
+                    method: 'POST',
+                    body: JSON.stringify({ note: note.trim() || undefined }),
+                  });
+                  setInfo('Sendungsnachfrage an info@worldofgreen.ch gesendet.');
+                } catch (e: any) {
+                  setError(e?.message || 'Sendungsnachfrage fehlgeschlagen');
+                } finally {
+                  setBusy('');
+                }
+              }}
+            >
+              {busy === 'inquiry' ? 'Sende…' : 'Sendungsnachfrage'}
+            </button>
             <div className="grid-2">
               <div>
                 <strong>Abholung</strong>

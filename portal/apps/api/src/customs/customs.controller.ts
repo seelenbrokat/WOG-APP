@@ -229,4 +229,15 @@ export class CustomsController {
   status(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: StatusDto) {
     return this.service.updateStatus(user, id, dto.status);
   }
+
+  /** Sendungsnachfrage an Disposition (Status/Zustellung). */
+  @Post(':id/inquiry')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  inquiry(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body?: { note?: string },
+  ) {
+    return this.service.requestStatusInquiry(user, id, body?.note);
+  }
 }

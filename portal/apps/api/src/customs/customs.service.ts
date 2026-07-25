@@ -541,6 +541,93 @@ export class CustomsService {
     });
   }
 
+  /**
+   * Sendungsnachfrage zu einem Verzollungsauftrag an info@worldofgreen.ch.
+   */
+  async requestStatusInquiry(user: AuthUser, id: string, note?: string) {
+    const order = await this.get(user, id);
+    const soloplanRef =
+      order.soloplanRef &&
+      !order.soloplanRef.startsWith('FILE:') &&
+      !order.soloplanRef.startsWith('SP-STUB-')
+        ? order.soloplanRef
+        : null;
+
+    const requester = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { firstName: true, lastName: true, email: true },
+    });
+    const requesterName =
+      [requester?.firstName, requester?.lastName].filter(Boolean).join(' ') ||
+      requester?.email ||
+      user.email;
+    const to =
+      this.config.get('SHIPMENT_INQUIRY_MAIL_TO') ||
+      this.config.get('CUSTOMS_NOTIFY_TO') ||
+      'info@worldofgreen.ch';
+
+    const fmt = (d?: Date | string | null) => {
+      if (!d) return '–';
+      const dt = typeof d === 'string' ? new Date(d) : d;
+      if (Number.isNaN(dt.getTime())) return '–';
+      return dt.toLocaleString('de-AT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const subject = [
+      'Sendungsnachfrage Verzollung',
+      order.externalNumber || order.kennzeichen,
+      soloplanRef ? `Soloplan ${soloplanRef}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const body = [
+      'Sendungsnachfrage (Verzollungsauftrag) aus dem WOG Kundenportal',
+      '',
+      'Bitte um Information zum aktuellen Status und zur voraussichtlichen bzw. erfolgten Zustellung.',
+      '',
+      `Anfragender: ${requesterName}`,
+      `E-Mail: ${requester?.email || user.email}`,
+      `Rolle: ${user.role}`,
+      '',
+      `Auftragsnummer (VLB): ${order.externalNumber || '–'}`,
+      `Soloplan-Ordernummer: ${soloplanRef || '– (noch nicht verknüpft)'}`,
+      `Kunde: ${order.customer?.name || '–'} (${order.customer?.customerNumber || '–'})`,
+      `Portal-Status: ${order.status}`,
+      `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland || '–'})`,
+      `Grenze: ${order.grenzuebergang}`,
+      `Zeit Grenze: ${fmt(order.zeit)}`,
+      `Importeur: ${order.importeur || '–'}`,
+      `Absender: ${order.absenderFirma || '–'} (${order.absenderCountry || '–'})`,
+      `Empfänger: ${order.empfaengerFirma || '–'} (${order.empfaengerCountry || '–'})`,
+      '',
+      note?.trim() ? `Hinweis des Kunden:\n${note.trim()}` : 'Hinweis des Kunden: (keiner)',
+      '',
+      `Portal: ${(this.config.get('PUBLIC_WEB_URL') || 'https://wog.logistikberater.at').replace(/\/$/, '')}/customs`,
+    ].join('\n');
+
+    await this.notifications.sendRaw(
+      to,
+      subject,
+      body,
+      undefined,
+      undefined,
+      { replyTo: requester?.email || user.email },
+    );
+    await this.audit.log(user.id, 'customs.inquiry', 'CustomsOrder', id, {
+      to,
+      soloplanRef,
+    });
+
+    return { ok: true, to, soloplanRef };
+  }
+
   async uploadPapers(user: AuthUser, customsOrderId: string, files: Express.Multer.File[]) {
     if (!files?.length) throw new BadRequestException('Keine Dateien übermittelt');
     await this.get(user, customsOrderId);

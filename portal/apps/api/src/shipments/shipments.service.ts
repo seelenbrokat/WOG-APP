@@ -741,6 +741,127 @@ export class ShipmentsService {
   }
 
   /**
+   * Kunden-Sendungsnachfrage an Disposition (info@worldofgreen.ch):
+   * Status-/Zustellinfo anfordern, wenn kein POD/Ablieferbeleg im Portal liegt.
+   */
+  async requestStatusInquiry(user: AuthUser, id: string, note?: string) {
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { id, ...this.scope(user) },
+      include: {
+        mandant: true,
+        customer: true,
+        order: true,
+        documents: {
+          where: { type: { in: [DocumentType.POD, DocumentType.ABLIEFERBELEG] } },
+          select: { id: true, type: true, fileName: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+      },
+    });
+    if (!shipment) throw new NotFoundException();
+    if (
+      (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER) &&
+      !user.mandantIds.includes(shipment.mandantId)
+    ) {
+      throw new ForbiddenException();
+    }
+    if (user.role === UserRole.CUSTOMER_USER && shipment.customerId !== user.customerId) {
+      throw new ForbiddenException();
+    }
+
+    const soloplanRef = [shipment.order?.soloplanRef, shipment.soloplanRef].find(
+      (r) => r && !r.startsWith('FILE:') && !r.startsWith('SP-STUB-'),
+    );
+    const hasPod = shipment.documents.length > 0;
+    const fmt = (d?: Date | null) =>
+      d
+        ? d.toLocaleString('de-AT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '–';
+
+    const requester = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { firstName: true, lastName: true, email: true },
+    });
+    const requesterName =
+      [requester?.firstName, requester?.lastName].filter(Boolean).join(' ') ||
+      requester?.email ||
+      user.email;
+    const to =
+      this.config.get('SHIPMENT_INQUIRY_MAIL_TO') ||
+      this.config.get('CUSTOMS_NOTIFY_TO') ||
+      'info@worldofgreen.ch';
+
+    const subject = [
+      'Sendungsnachfrage',
+      shipment.order?.externalNumber || shipment.trackingNumber,
+      soloplanRef ? `Soloplan ${soloplanRef}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const body = [
+      'Sendungsnachfrage aus dem WOG Kundenportal',
+      '',
+      'Bitte um Information zum aktuellen Sendungsstatus und zur voraussichtlichen bzw. erfolgten Zustellung.',
+      '',
+      `Anfragender: ${requesterName}`,
+      `E-Mail: ${requester?.email || user.email}`,
+      `Rolle: ${user.role}`,
+      '',
+      `Auftragsnummer (VLB): ${shipment.order?.externalNumber || '–'}`,
+      `Soloplan-Ordernummer: ${soloplanRef || '– (noch nicht verknüpft)'}`,
+      `Tracking: ${shipment.trackingNumber}`,
+      `Referenz: ${shipment.reference || '–'}`,
+      `Kunde: ${shipment.customer?.name || '–'} (${shipment.customer?.customerNumber || '–'})`,
+      `Mandant: ${shipment.mandant?.name || '–'}`,
+      `Portal-Status: ${shipment.status}`,
+      '',
+      `Abholung: ${shipment.pickupCompany || '–'}, ${[shipment.pickupZip, shipment.pickupCity].filter(Boolean).join(' ')} (${shipment.pickupCountry || '–'})`,
+      `Abholtermin: ${fmt(shipment.pickupDate)}`,
+      `Empfänger: ${shipment.deliveryCompany || '–'}, ${[shipment.deliveryZip, shipment.deliveryCity].filter(Boolean).join(' ')} (${shipment.deliveryCountry || '–'})`,
+      `Zustelltermin: ${fmt(shipment.deliveryDate)}${
+        shipment.deliveryDateEnd && shipment.deliveryDateEnd.getTime() !== shipment.deliveryDate?.getTime()
+          ? ` – ${fmt(shipment.deliveryDateEnd)}`
+          : ''
+      }`,
+      '',
+      `POD / Ablieferbeleg im Portal: ${hasPod ? 'Ja' : 'Nein – bitte Zustellinfo nachreichen'}`,
+      ...(hasPod
+        ? shipment.documents.map(
+            (d) => `  - ${d.type}: ${d.fileName} (${fmt(d.createdAt)})`,
+          )
+        : []),
+      '',
+      note?.trim() ? `Hinweis des Kunden:\n${note.trim()}` : 'Hinweis des Kunden: (keiner)',
+      '',
+      `Portal-Link: ${(this.config.get('PUBLIC_WEB_URL') || 'https://wog.logistikberater.at').replace(/\/$/, '')}/shipments/${shipment.id}`,
+    ].join('\n');
+
+    await this.notifications.sendRaw(
+      to,
+      subject,
+      body,
+      NotificationEvent.STATUS_CHANGED,
+      undefined,
+      { replyTo: requester?.email || user.email },
+    );
+    await this.audit.log(user.id, 'shipment.inquiry', 'Shipment', id, {
+      to,
+      soloplanRef: soloplanRef || null,
+      hasPod,
+    });
+
+    return { ok: true, to, hasPod, soloplanRef: soloplanRef || null };
+  }
+
+  /**
    * Adresse im Kunden-Adressbuch anlegen bzw. wiederverwenden (ohne Duplikate).
    * Gleiche Straße/PLZ/Ort/Land → bestehender Eintrag; Usage ggf. auf BOTH erweitern.
    */

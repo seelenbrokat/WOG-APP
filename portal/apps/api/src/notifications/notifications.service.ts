@@ -38,6 +38,7 @@ export class NotificationsService {
     body: string,
     event?: NotificationEvent,
     attachments?: Array<{ filename: string; path?: string; content?: Buffer; contentType?: string }>,
+    opts?: { replyTo?: string },
   ) {
     const outbox = await this.prisma.emailOutbox.create({
       data: { toEmail, subject, body, event },
@@ -52,6 +53,7 @@ export class NotificationsService {
           to: toEmail,
           subject,
           text: body,
+          ...(opts?.replyTo ? { replyTo: opts.replyTo } : {}),
           attachments: attachments?.map((a) => ({
             filename: a.filename,
             path: a.path,

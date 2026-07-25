@@ -278,4 +278,15 @@ export class ShipmentsController {
   status(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: StatusDto) {
     return this.service.updateStatus(user, id, dto.status, dto.message, dto.location);
   }
+
+  /** Sendungsnachfrage an Disposition (Status/Zustellung, wenn kein POD). */
+  @Post(':id/inquiry')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  inquiry(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body?: { note?: string },
+  ) {
+    return this.service.requestStatusInquiry(user, id, body?.note);
+  }
 }
