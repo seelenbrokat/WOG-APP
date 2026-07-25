@@ -820,10 +820,16 @@ export class SoloplanService implements TransportIntegration {
     const objectOwnerId =
       Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined;
 
+    // Exact-Keys importeurVLBPortal/zAZVLBPortal nur wenn Soloplan-Schema sie erlaubt.
+    // Default false: sonst NoAdditionalPropertiesAllowed → gesamter Import inkl. Docs fehlgeschlagen.
+    const extendedVlbFields =
+      this.config.get('SOLOPLAN_VLBPORTAL_EXTENDED_FIELDS') === 'true';
+
     const payload = buildSoloplanFilePayload(shipmentLike, {
       format,
       defaultSender: this.getDefaultSender(),
       objectOwnerId,
+      extendedVlbFields,
     });
 
     if (!enabled || mode === 'stub') {
@@ -839,8 +845,13 @@ export class SoloplanService implements TransportIntegration {
       if (!existsSync(this.ordersOutDir)) mkdirSync(this.ordersOutDir, { recursive: true });
       writeFileSync(primary, json);
       writeFileSync(mirror, json);
-      this.logger.log(`Soloplan PORTAL-v6 customs export ${primary}`);
-      return { ok: true, fileName, externalNumber };
+      const docCount = Array.isArray((payload as any)?.order?.[0]?.documentData)
+        ? (payload as any).order[0].documentData.length
+        : 0;
+      this.logger.log(
+        `Soloplan PORTAL-v6 customs export ${primary} (docs=${docCount}, extendedVlb=${extendedVlbFields})`,
+      );
+      return { ok: true, fileName, externalNumber, documents: docCount, extendedVlbFields };
     }
 
     this.logger.warn(`Soloplan customs export: mode ${mode} nicht unterstützt für CustomsOrder`);

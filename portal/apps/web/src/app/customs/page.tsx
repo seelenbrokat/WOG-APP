@@ -725,6 +725,7 @@ export default function CustomsPage() {
                         style={{ padding: '0.2rem 0.45rem', justifyContent: 'flex-start' }}
                         onClick={() => downloadDoc(d.id, d.fileName)}
                       >
+                        {d.type === 'INVOICE' ? 'Rechnung: ' : ''}
                         {d.fileName}
                       </button>
                     ))}

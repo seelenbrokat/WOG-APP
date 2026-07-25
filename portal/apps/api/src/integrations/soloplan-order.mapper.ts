@@ -629,10 +629,20 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
   };
 }
 
-/** Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL FileAPI (exakte Schreibweise). */
+/**
+ * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL FileAPI.
+ *
+ * Wichtig: Automate validiert mit additionalProperties=false.
+ * `importeurVLBPortal` / `zAZVLBPortal` / `warenortVLBPortal` dürfen NUR gesendet werden,
+ * wenn sie im Soloplan-Importschema freigeschaltet sind (sonst scheitert der gesamte Import
+ * inkl. documentData). Bis dahin → information.info1–info3.
+ *
+ * Env: SOLOPLAN_VLBPORTAL_EXTENDED_FIELDS=true aktiviert die Exact-Keys.
+ */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
   shipment: PortalShipmentForSoloplan,
+  opts: { extendedVlbFields?: boolean } = {},
 ) {
   const fields = resolveCustomsFileApiFields(shipment);
   if (fields.kennzeichen) consignment.kennzeichen = fields.kennzeichen;
@@ -642,10 +652,22 @@ function applyCustomsConsignmentFields(
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
-  // Soloplan FileAPI Exact-Keys (Importeur / ZAZ / Warenort)
-  if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
-  if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
-  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
+
+  const info = {
+    ...((consignment.information as Record<string, unknown>) || {}),
+  };
+  // Fallback in erlaubte Schema-Felder (CONSConsignmentInformation)
+  if (fields.importeurVLBPortal) info.info1 = fields.importeurVLBPortal;
+  if (fields.zAZVLBPortal) info.info2 = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) info.info3 = fields.warenortVLBPortal;
+  if (Object.keys(info).length) consignment.information = info;
+
+  // Exact-Keys nur wenn Soloplan-Importschema die Properties erlaubt
+  if (opts.extendedVlbFields) {
+    if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
+    if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
+    if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
+  }
   return consignment;
 }
 
@@ -713,6 +735,11 @@ export function buildSoloplanFilePayload(
     orderShipments?: PortalShipmentForSoloplan[];
     /** true = nur externe Nummern, keine Sendungsinfos */
     update?: boolean;
+    /**
+     * Exact-Keys importeurVLBPortal / zAZVLBPortal / warenortVLBPortal senden.
+     * Nur true, wenn Soloplan Automate-Schema die Properties erlaubt.
+     */
+    extendedVlbFields?: boolean;
   } = {},
 ) {
   if (opts.update) {
@@ -739,6 +766,7 @@ export function buildSoloplanFilePayload(
     return applyCustomsConsignmentFields(
       { ...consignment, itemNumber: idx + 1 },
       s,
+      { extendedVlbFields: opts.extendedVlbFields === true },
     );
   });
 
