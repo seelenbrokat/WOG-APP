@@ -1068,8 +1068,9 @@ export class SoloplanService implements TransportIntegration {
     }
 
     let updateFileName: string | null = null;
-    // Docs erst nach Create-Abholung – sonst sortiert Soloplan Update vor Create
-    if (docs.length && createAlreadyPickedUp) {
+    const createSettled = this.isCreateImportSettled(externalNumber);
+    // Docs erst nach Create-Abholung + Wartezeit (sonst „Update … does not exist“)
+    if (docs.length && createSettled) {
       const updatePayload = buildSoloplanUpdatePayload(
         { ...shipmentBase, documents: docs },
         { format, objectOwnerId },
@@ -1081,6 +1082,11 @@ export class SoloplanService implements TransportIntegration {
       this.writeOutboundOrderFile(updateFileName, JSON.stringify(updatePayload, null, 2));
       this.logger.log(
         `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (${docs.length} Datei(en), nur documentData)`,
+      );
+    } else if (docs.length && createAlreadyPickedUp && !createSettled) {
+      const waitSec = Math.ceil(this.docsDelayMs() / 1000);
+      this.logger.log(
+        `Soloplan customs Docs für ${externalNumber} zurückgestellt – ${waitSec}s nach Create-Abholung abwarten`,
       );
     } else if (docs.length && !createAlreadyPickedUp) {
       this.logger.log(
@@ -1099,7 +1105,7 @@ export class SoloplanService implements TransportIntegration {
       externalNumber,
       documents: docs.length,
       createSkipped: createAlreadyPickedUp || createPendingInPickup,
-      docsDeferred: docs.length > 0 && !createAlreadyPickedUp,
+      docsDeferred: docs.length > 0 && !createSettled,
     };
   }
 }
