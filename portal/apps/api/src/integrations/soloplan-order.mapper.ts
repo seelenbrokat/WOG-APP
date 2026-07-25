@@ -544,9 +544,10 @@ function buildConsignment(
     additionalTimes: {},
     loadType: 0,
     // Leeres documentData weglassen – Soloplan sonst ggf. Anhänge überschreiben
-    ...(toSoloplanDocumentData(shipment.documents).length
-      ? { documentData: toSoloplanDocumentData(shipment.documents) }
-      : {}),
+    ...(() => {
+      const documentData = toSoloplanDocumentData(shipment.documents);
+      return documentData.length ? { documentData } : {};
+    })(),
   };
 }
 
@@ -633,9 +634,10 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 }
 
 /**
- * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL FileAPI.
+ * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6.
  * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+ * importeurVLBPortal, zAZVLBPortal.
+ * warenortVLBPortal bewusst nicht – fehlt im Schema (NoAdditionalPropertiesAllowed).
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -651,7 +653,6 @@ function applyCustomsConsignmentFields(
   }
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
-  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
   return consignment;
 }
 
@@ -672,18 +673,16 @@ export function buildSoloplanUpdatePayload(
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
 
-  const consignments = siblings.map((s, idx) => {
-    const documentData = toSoloplanDocumentData(s.documents);
-    return {
-      itemNumber: idx + 1,
-      actionAttribute: 'update',
-      externalNumber: consignmentExternalNumber(s),
-      ...(documentData.length ? { documentData } : {}),
-    };
-  });
+  // Consignment im Schema: DocumentCategories nur ABL.
+  // RG/CHBEL daher nur auf Order-Ebene (ohne DocumentCategories-Einschränkung).
+  const consignments = siblings.map((s, idx) => ({
+    itemNumber: idx + 1,
+    actionAttribute: 'update',
+    externalNumber: consignmentExternalNumber(s),
+  }));
 
   if (format === 'order') {
-    // Update: alle mitgelieferten Dokumente (ABL, RG, CHBEL, …) – keine Sendungsdetails
+    // Update: nur documentData am Auftrag – keine Sendungsdetails
     const orderDocuments = toSoloplanDocumentData(siblings.flatMap((s) => s.documents || []));
     return {
       header,
@@ -699,9 +698,20 @@ export function buildSoloplanUpdatePayload(
     };
   }
 
+  // consignment-Format: nur ABL-taugliche Docs an Sendung
+  const consignmentsWithDocs = siblings.map((s, idx) => {
+    const documentData = toSoloplanDocumentData(s.documents).filter((d) => d.category === 'ABL');
+    return {
+      itemNumber: idx + 1,
+      actionAttribute: 'update',
+      externalNumber: consignmentExternalNumber(s),
+      ...(documentData.length ? { documentData } : {}),
+    };
+  });
+
   return {
     header,
-    consignment: consignments,
+    consignment: consignmentsWithDocs,
   };
 }
 
