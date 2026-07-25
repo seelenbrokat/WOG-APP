@@ -76,19 +76,21 @@ export class WareneingangService {
     let failed = 0;
     let linked = 0;
 
-    const xmlResult = await this.processXmlInbox(org.id, limit);
-    processed += xmlResult.processed;
-    skipped += xmlResult.skipped;
-    failed += xmlResult.failed;
-    linked += xmlResult.linked;
+    // Zuerst Order-Feedback-JSON (ExternalNumber→OrderNumber), damit XML-Masse das Limit nicht blockiert
+    const jsonLimit = Math.min(40, Math.max(10, Math.floor(limit / 2)));
+    const jsonResult = await this.processOrderFeedbackJson(org.id, jsonLimit);
+    processed += jsonResult.processed;
+    skipped += jsonResult.skipped;
+    failed += jsonResult.failed;
+    linked += jsonResult.linked;
 
     const remaining = Math.max(0, limit - processed);
     if (remaining > 0) {
-      const jsonResult = await this.processOrderFeedbackJson(org.id, remaining);
-      processed += jsonResult.processed;
-      skipped += jsonResult.skipped;
-      failed += jsonResult.failed;
-      linked += jsonResult.linked;
+      const xmlResult = await this.processXmlInbox(org.id, remaining);
+      processed += xmlResult.processed;
+      skipped += xmlResult.skipped;
+      failed += xmlResult.failed;
+      linked += xmlResult.linked;
     }
 
     if (processed || failed || linked) {
