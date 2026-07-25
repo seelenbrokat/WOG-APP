@@ -487,6 +487,58 @@ code {
 .table tbody tr:hover { background: var(--wog-green-tint); }
 .table tbody tr:last-child td { border-bottom: none; }
 
+.cell-clip {
+  display: block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-clip-wide {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-compact th,
+.table-compact td {
+  padding: 0.65rem 0.5rem;
+  font-size: 0.875rem;
+  vertical-align: top;
+}
+.table-compact .meta {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.table-compact .meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.65rem;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.table-compact .mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 11rem;
+}
+.docs-list button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .badge {
   display: inline-block;
   padding: 0.18rem 0.5rem;

@@ -62,6 +62,25 @@ function formatBytes(n: number) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function clip(value: string | null | undefined, max = 40) {
+  const s = String(value || '').trim();
+  if (!s) return '–';
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
+function soloplanLabel(ref?: string | null) {
+  if (!ref) return null;
+  if (ref.startsWith('FILE:') || ref.startsWith('SP-STUB-')) return null;
+  return ref;
+}
+
+function statusBadgeClass(status: string) {
+  if (status === 'DONE') return 'badge ok';
+  if (status === 'CANCELLED') return 'badge warn';
+  return 'badge';
+}
+
 function PartyFields({
   title,
   party,
@@ -644,142 +663,187 @@ export default function CustomsPage() {
 
       <div className="panel">
         <strong>Verzollungsaufträge</strong>
-        <table className="table">
+        <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
+          {orders.length
+            ? `${orders.length} Auftrag${orders.length === 1 ? '' : 'e'} – Soloplan-Nummer erscheint nach Rückmeldung.`
+            : 'Noch keine Aufträge erfasst.'}
+        </p>
+        <table className="table table-compact">
           <thead>
             <tr>
-              {isStaff ? <th>Kunde</th> : null}
               <th>Auftrag</th>
-              <th>Kennzeichen</th>
-              <th>Kennzeichen Anhänger</th>
-              <th>Grenze</th>
-              <th>Absender → Empfänger</th>
-              <th>Anhänge</th>
+              {isStaff ? <th>Kunde</th> : null}
+              <th>Fahrzeug</th>
+              <th>Route</th>
+              <th>Grenze / Importeur</th>
+              <th>Dokumente</th>
               <th>Status</th>
               {isStaff ? <th></th> : null}
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => (
-              <tr key={o.id}>
-                {isStaff ? (
+            {orders.map((o) => {
+              const sp = soloplanLabel(o.soloplanRef);
+              const docs = o.documents || [];
+              const invoiceDocs = docs.filter((d: any) => d.type === 'INVOICE');
+              const otherDocs = docs.filter((d: any) => d.type !== 'INVOICE');
+              return (
+                <tr key={o.id}>
+                  <td style={{ whiteSpace: 'nowrap', minWidth: '7.5rem' }}>
+                    <strong className="mono">{o.externalNumber || '–'}</strong>
+                    {sp ? (
+                      <span className="meta">Soloplan {sp}</span>
+                    ) : (
+                      <span className="meta">Export ausstehend</span>
+                    )}
+                    <span className="meta">
+                      {new Date(o.zeit).toLocaleString('de-AT', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </td>
+                  {isStaff ? (
+                    <td>
+                      <span className="cell-clip" title={o.customer?.name || ''}>
+                        {clip(o.customer?.name, 28)}
+                      </span>
+                      <span className="meta mono">{o.customer?.customerNumber || ''}</span>
+                    </td>
+                  ) : null}
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <strong className="mono">{o.kennzeichen}</strong>
+                    <span className="meta">{o.zulassungsland || '–'}</span>
+                    {o.kennzeichenAnhaenger ? (
+                      <span className="meta mono" title={`Anhänger ${o.kennzeichenAnhaenger}`}>
+                        Anh. {o.kennzeichenAnhaenger}
+                        {o.zulassungslandAnhaenger ? ` (${o.zulassungslandAnhaenger})` : ''}
+                      </span>
+                    ) : null}
+                  </td>
                   <td>
-                    <strong>{o.customer?.name || '–'}</strong>
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      {o.customer?.customerNumber || ''}
+                    <span className="cell-clip" title={o.absenderFirma || ''}>
+                      {clip(o.absenderFirma, 32)}
+                    </span>
+                    <span className="meta" title={o.empfaengerFirma || ''}>
+                      → {clip(o.empfaengerFirma, 32)}
+                    </span>
+                    <span className="meta">
+                      {[o.absenderCountry, o.empfaengerCountry].filter(Boolean).join(' → ') || '–'}
+                    </span>
+                    {o.abweichenderFrachtzahler ? (
+                      <span className="meta" title={o.frachtzahlerFirma || ''}>
+                        Fracht: {clip(o.frachtzahlerFirma, 24)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td>
+                    <span className="cell-clip-wide" title={o.grenzuebergang || ''}>
+                      {clip(o.grenzuebergang, 36)}
+                    </span>
+                    <span className="meta" title={o.importeur || ''}>
+                      Imp. {clip(o.importeur, 28)}
+                    </span>
+                    <div className="meta-row">
+                      {o.zazKonto ? <span title={o.zazKonto}>ZAZ {clip(o.zazKonto, 16)}</span> : null}
+                      {o.warenort ? <span title={o.warenort}>Ort {clip(o.warenort, 18)}</span> : null}
                     </div>
                   </td>
-                ) : null}
-                <td>
-                  <strong>{o.externalNumber || '–'}</strong>
-                </td>
-                <td>
-                  <strong>{o.kennzeichen}</strong>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    Zulassungsland: {o.zulassungsland || '–'}
-                  </div>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    {new Date(o.zeit).toLocaleString('de-AT')}
-                  </div>
-                </td>
-                <td>
-                  {o.kennzeichenAnhaenger ? (
-                    <>
-                      <strong>{o.kennzeichenAnhaenger}</strong>
-                      <div className="muted" style={{ fontSize: '0.8rem' }}>
-                        Zulassungsland: {o.zulassungslandAnhaenger || '–'}
+                  <td>
+                    <div className="docs-list">
+                      {invoiceDocs.map((d: any) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ padding: '0.15rem 0.35rem', fontSize: '0.78rem' }}
+                          title={d.fileName}
+                          onClick={() => downloadDoc(d.id, d.fileName)}
+                        >
+                          RG {clip(d.fileName, 18)}
+                        </button>
+                      ))}
+                      {otherDocs.map((d: any) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ padding: '0.15rem 0.35rem', fontSize: '0.78rem' }}
+                          title={d.fileName}
+                          onClick={() => downloadDoc(d.id, d.fileName)}
+                        >
+                          {clip(d.fileName, 20)}
+                        </button>
+                      ))}
+                      {!docs.length ? <span className="meta">keine Dateien</span> : null}
+                      <div className="row" style={{ gap: '0.35rem', marginTop: '0.25rem', alignItems: 'center' }}>
+                        <label
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '0.2rem 0.45rem',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            margin: 0,
+                          }}
+                        >
+                          + Datei
+                          <input
+                            type="file"
+                            multiple
+                            hidden
+                            onChange={(e) =>
+                              setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
+                            }
+                          />
+                        </label>
+                        {extraPapers[o.id]?.length ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem' }}
+                            onClick={() => uploadExtra(o.id)}
+                          >
+                            Hochladen ({extraPapers[o.id]?.length})
+                          </button>
+                        ) : null}
                       </div>
-                    </>
-                  ) : (
-                    <span className="muted">–</span>
-                  )}
-                </td>
-                <td>
-                  <div>{o.grenzuebergang}</div>
-                  <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    Importeur: {o.importeur || '–'}
-                  </div>
-                  {o.zazKonto ? (
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      ZAZ: {o.zazKonto}
                     </div>
-                  ) : null}
-                  {o.warenort ? (
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      Warenort: {o.warenort}
-                    </div>
-                  ) : null}
-                </td>
-                <td>
-                  <div>{o.absenderFirma || '–'}</div>
-                  <div className="muted">→ {o.empfaengerFirma || '–'}</div>
-                  {o.abweichenderFrachtzahler && (
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      Frachtzahler: {o.frachtzahlerFirma}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  <div className="stack" style={{ gap: '0.35rem' }}>
-                    {(o.documents || []).map((d: any) => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        title={d.type === 'INVOICE' ? 'Rechnung' : 'Begleitdokument'}
-                        className="btn btn-ghost"
-                        style={{ padding: '0.2rem 0.45rem', justifyContent: 'flex-start' }}
-                        onClick={() => downloadDoc(d.id, d.fileName)}
-                      >
-                        {d.type === 'INVOICE' ? 'Rechnung: ' : ''}
-                        {d.fileName}
-                      </button>
-                    ))}
-                    {!o.documents?.length && <span className="muted">keine</span>}
-                    <div className="row">
-                      <input
-                        type="file"
-                        multiple
-                        onChange={(e) =>
-                          setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        disabled={!extraPapers[o.id]?.length}
-                        onClick={() => uploadExtra(o.id)}
-                      >
-                        Hochladen
-                      </button>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <span className="badge">{STATUS_LABEL[o.status] || o.status}</span>
-                </td>
-                {isStaff ? (
-                  <td>
-                    <select
-                      value={o.status}
-                      onChange={async (e) => {
-                        await api(`/customs/${o.id}/status`, {
-                          method: 'PATCH',
-                          body: JSON.stringify({ status: e.target.value }),
-                        });
-                        await load();
-                      }}
-                    >
-                      <option value="SUBMITTED">Übermittelt</option>
-                      <option value="IN_PROGRESS">In Bearbeitung</option>
-                      <option value="DONE">Erledigt</option>
-                      <option value="CANCELLED">Storniert</option>
-                    </select>
                   </td>
-                ) : null}
-              </tr>
-            ))}
+                  <td>
+                    <span className={statusBadgeClass(o.status)}>
+                      {STATUS_LABEL[o.status] || o.status}
+                    </span>
+                  </td>
+                  {isStaff ? (
+                    <td>
+                      <select
+                        aria-label={`Status ${o.externalNumber || o.id}`}
+                        value={o.status}
+                        style={{ maxWidth: '9.5rem', fontSize: '0.8rem' }}
+                        onChange={async (e) => {
+                          await api(`/customs/${o.id}/status`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: e.target.value }),
+                          });
+                          await load();
+                        }}
+                      >
+                        <option value="SUBMITTED">Übermittelt</option>
+                        <option value="IN_PROGRESS">In Bearbeitung</option>
+                        <option value="DONE">Erledigt</option>
+                        <option value="CANCELLED">Storniert</option>
+                      </select>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
             {!orders.length && (
               <tr>
-                <td colSpan={isStaff ? 9 : 7} className="muted">
+                <td colSpan={isStaff ? 8 : 6} className="muted">
                   Noch keine Verzollungsaufträge.
                 </td>
               </tr>
