@@ -73,19 +73,19 @@ export type PortalShipmentForSoloplan = {
   extras?: unknown;
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
-   * Schema-Keys (Automate): kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
-   * Importeur/ZAZ/Warenort → information.info1/2/3 (VLBPortal-Keys werden von Automate abgelehnt).
+   * Schema-Keys (OrderImportPORTAL-v6): kennzeichen, kennzeichenAnhänger, grenzübergang,
+   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
   grenzuebergang?: string | null;
   grenzzollstelle?: string | null;
   zeitpunktGrenze?: Date | string | null;
-  /** Importeur-Name → information.info1 (bis importeurVLBPortal freigeschaltet) */
+  /** Importeur-Name → Soloplan importeurVLBPortal */
   importeurVLBPortal?: string | null;
-  /** ZAZ-Konto → information.info2 */
+  /** ZAZ-Konto → Soloplan zAZVLBPortal */
   zAZVLBPortal?: string | null;
-  /** Warenort/Verzollungsort → information.info3 */
+  /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
@@ -634,13 +634,9 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 }
 
 /**
- * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6.
- * Exact-Keys die Automate aktuell akzeptiert:
- * kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
- *
- * importeurVLBPortal / zAZVLBPortal / warenortVLBPortal werden von Automate mit
- * NoAdditionalPropertiesAllowed abgelehnt (Fehlerdatei VLB250700004) – daher nicht senden.
- * Werte liegen weiter in Portal/PDF/E-Mail; optional in information.info*.
+ * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6 (Order schema).
+ * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -654,15 +650,9 @@ function applyCustomsConsignmentFields(
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
-  // Importeur / ZAZ / Warenort in Info-Felder (Schema-sicher), bis VLBPortal-Felder freigeschaltet sind
-  const information =
-    consignment.information && typeof consignment.information === 'object'
-      ? { ...(consignment.information as Record<string, unknown>) }
-      : {};
-  if (fields.importeurVLBPortal) information.info1 = fields.importeurVLBPortal;
-  if (fields.zAZVLBPortal) information.info2 = fields.zAZVLBPortal;
-  if (fields.warenortVLBPortal) information.info3 = fields.warenortVLBPortal;
-  if (Object.keys(information).length) consignment.information = information;
+  if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
+  if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
   return consignment;
 }
 
