@@ -29,6 +29,7 @@ import {
   soloplanOrderBaseName,
   soloplanOutboundFileName,
 } from './soloplan-order.mapper';
+import { allocateVlbExternalNumber } from '../shipments/order-number';
 
 export interface TransportIntegration {
   createOrder(shipmentId: string): Promise<void>;
@@ -726,7 +727,16 @@ export class SoloplanService implements TransportIntegration {
     });
     if (!order) throw new NotFoundException('Verzollungsauftrag nicht gefunden');
 
-    const externalNumber = `VZ-${order.kennzeichen.replace(/[^\w.-]+/g, '_')}-${order.id.slice(-6)}`;
+    // Externe Auftragsreferenz VLB… (wie TransportOrder) – einmalig vergeben und speichern
+    let externalNumber = order.externalNumber?.trim() || '';
+    if (!externalNumber) {
+      externalNumber = await allocateVlbExternalNumber(this.prisma, order.organizationId);
+      await this.prisma.customsOrder.update({
+        where: { id: order.id },
+        data: { externalNumber },
+      });
+    }
+
     const docs = (
       await Promise.all(
         (order.documents || []).map(async (d) => {
@@ -850,6 +860,11 @@ export class SoloplanService implements TransportIntegration {
       writeFileSync(join(this.ordersOutDir, createFileName), json);
       writeFileSync(join(this.integrationOrdersOutDir, createFileName), json);
       createFileNameWritten = createFileName;
+      const fileRef = `FILE:${createFileName}`;
+      await this.prisma.customsOrder.update({
+        where: { id: order.id },
+        data: { soloplanRef: fileRef },
+      });
       this.logger.log(
         `Soloplan PORTAL-v6 customs CREATE ${join(this.ordersOutDir, createFileName)} (ohne Dokumente)`,
       );

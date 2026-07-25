@@ -648,6 +648,7 @@ export default function CustomsPage() {
           <thead>
             <tr>
               {isStaff ? <th>Kunde</th> : null}
+              <th>Auftrag</th>
               <th>Kennzeichen</th>
               <th>Kennzeichen Anhänger</th>
               <th>Grenze</th>
@@ -668,6 +669,9 @@ export default function CustomsPage() {
                     </div>
                   </td>
                 ) : null}
+                <td>
+                  <strong>{o.externalNumber || '–'}</strong>
+                </td>
                 <td>
                   <strong>{o.kennzeichen}</strong>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>

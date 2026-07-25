@@ -921,6 +921,10 @@ model CustomsOrder {
   organizationId String
   customerId     String
   mandantId      String?
+  /// Externe Auftragsnummer: VLB + TT + MM + 5-stellig (wie TransportOrder)
+  externalNumber String?
+  /// Soloplan-Referenz (z. B. FILE:order-VLB….json)
+  soloplanRef    String?
   /// Kfz-Kennzeichen Zugfahrzeug (Smart Border Austria Schreibweise)
   kennzeichen    String
   /// Zulassungsland Zugfahrzeug (ISO-3166-1 alpha-2)
@@ -967,8 +971,10 @@ model CustomsOrder {
   mandant      Mandant?     @relation(fields: [mandantId], references: [id])
   documents    Document[]
 
+  @@unique([organizationId, externalNumber])
   @@index([customerId, createdAt])
   @@index([organizationId, status])
+  @@index([externalNumber])
 }
 
 model AuditLog {

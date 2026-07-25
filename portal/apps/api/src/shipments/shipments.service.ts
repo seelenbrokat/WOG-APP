@@ -19,7 +19,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
 import { LabelsService } from '../labels/labels.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
-import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from './order-number';
+import { allocateVlbExternalNumber } from './order-number';
 
 function trackingNumber() {
   const d = new Date();
@@ -680,22 +680,10 @@ export class ShipmentsService {
     user: AuthUser,
     data: { mandantId: string; freightPayerCustomerId: string },
   ) {
-    const now = new Date();
-    const prefix = vlbOrderPrefix(now);
-    const existing = await this.prisma.transportOrder.findMany({
-      where: {
-        organizationId: user.organizationId,
-        externalNumber: { startsWith: prefix },
-      },
-      select: { externalNumber: true },
-      orderBy: { externalNumber: 'desc' },
-      take: 50,
-    });
-    const seq = nextSeqFromExisting(
-      existing.map((e) => e.externalNumber),
-      now,
+    const externalNumber = await allocateVlbExternalNumber(
+      this.prisma,
+      user.organizationId,
     );
-    const externalNumber = formatVlbOrderNumber(seq, now);
 
     const order = await this.prisma.transportOrder.create({
       data: {

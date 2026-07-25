@@ -12,6 +12,8 @@ import {
 } from '../common/pdf-brand';
 
 export type VerzollungsauftragPdfInput = {
+  /** Externe Auftragsnummer VLB… */
+  externalNumber?: string | null;
   kennzeichen: string;
   zulassungsland?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -157,6 +159,7 @@ export function writeVerzollungsauftragPdf(
       doc.moveDown(0.15);
     };
 
+    row('Auftragsnummer', order.externalNumber || '–');
     row(
       'Kennzeichen',
       `${order.kennzeichen}${order.zulassungsland ? ` (${order.zulassungsland})` : ''}`,

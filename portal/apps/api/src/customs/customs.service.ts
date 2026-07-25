@@ -23,6 +23,7 @@ import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import { allocateVlbExternalNumber } from '../shipments/order-number';
 import {
   formatGrenzeDateTime,
   writeVerzollungsauftragPdf,
@@ -253,11 +254,17 @@ export class CustomsService {
       );
     }
 
+    const externalNumber = await allocateVlbExternalNumber(
+      this.prisma,
+      user.organizationId,
+    );
+
     const order = await this.prisma.customsOrder.create({
       data: {
         organizationId: user.organizationId,
         customerId,
         mandantId: data.mandantId,
+        externalNumber,
         kennzeichen,
         zulassungsland,
         kennzeichenAnhaenger,
@@ -302,6 +309,7 @@ export class CustomsService {
     const full = await this.get(user, order.id);
 
     await this.audit.log(user.id, 'customs.create', 'CustomsOrder', order.id, {
+      externalNumber: order.externalNumber,
       kennzeichen: order.kennzeichen,
       grenzuebergang: order.grenzuebergang,
       documents: invoices.length + papers.length,
@@ -315,6 +323,7 @@ export class CustomsService {
       `Verzollungsauftrag ${order.kennzeichen}`,
       [
         'Neuer Verzollungsauftrag:',
+        `Auftrag: ${order.externalNumber}`,
         `Kunde: ${full.customer.name}`,
         `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
         order.kennzeichenAnhaenger
@@ -407,6 +416,7 @@ export class CustomsService {
     const pdfPath = join(this.uploadDir, pdfFileName);
     await writeVerzollungsauftragPdf(
       {
+        externalNumber: full.externalNumber,
         kennzeichen: full.kennzeichen,
         zulassungsland: full.zulassungsland,
         kennzeichenAnhaenger: full.kennzeichenAnhaenger,
@@ -461,6 +471,7 @@ export class CustomsService {
     const body = [
       'Neuer Verzollungsauftrag im WOG Portal.',
       '',
+      full.externalNumber ? `Auftrag: ${full.externalNumber}` : null,
       `Kunde: ${full.customer.name}${full.customer.customerNumber ? ` (${full.customer.customerNumber})` : ''}`,
       `Zeitpunkt an der Grenze: ${grenzeWhen}`,
       `Kennzeichen: ${full.kennzeichen}${full.zulassungsland ? ` (${full.zulassungsland})` : ''}`,

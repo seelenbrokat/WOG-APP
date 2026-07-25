@@ -28,3 +28,54 @@ export function nextSeqFromExisting(externalNumbers: string[], date: Date = new 
   }
   return max + 1;
 }
+
+/** Minimaler Prisma-Ausschnitt für die VLB-Vergabe (TransportOrder + CustomsOrder). */
+export type VlbNumberDb = {
+  transportOrder: {
+    findMany: (args: {
+      where: { organizationId: string; externalNumber: { startsWith: string } };
+      select: { externalNumber: true };
+      orderBy: { externalNumber: 'desc' };
+      take: number;
+    }) => Promise<Array<{ externalNumber: string }>>;
+  };
+  customsOrder: {
+    findMany: (args: {
+      where: { organizationId: string; externalNumber: { startsWith: string } };
+      select: { externalNumber: true };
+      orderBy: { externalNumber: 'desc' };
+      take: number;
+    }) => Promise<Array<{ externalNumber: string | null }>>;
+  };
+};
+
+/**
+ * Nächste freie VLB-Nummer für die Organisation (Tagessequenz).
+ * Berücksichtigt TransportOrder und CustomsOrder gemeinsam.
+ */
+export async function allocateVlbExternalNumber(
+  db: VlbNumberDb,
+  organizationId: string,
+  date: Date = new Date(),
+): Promise<string> {
+  const prefix = vlbOrderPrefix(date);
+  const [orders, customs] = await Promise.all([
+    db.transportOrder.findMany({
+      where: { organizationId, externalNumber: { startsWith: prefix } },
+      select: { externalNumber: true },
+      orderBy: { externalNumber: 'desc' },
+      take: 50,
+    }),
+    db.customsOrder.findMany({
+      where: { organizationId, externalNumber: { startsWith: prefix } },
+      select: { externalNumber: true },
+      orderBy: { externalNumber: 'desc' },
+      take: 50,
+    }),
+  ]);
+  const existing = [
+    ...orders.map((e) => e.externalNumber),
+    ...customs.map((e) => e.externalNumber).filter((n): n is string => Boolean(n)),
+  ];
+  return formatVlbOrderNumber(nextSeqFromExisting(existing, date), date);
+}

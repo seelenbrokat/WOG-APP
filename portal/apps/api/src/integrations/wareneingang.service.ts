@@ -14,7 +14,7 @@ import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeTransportLabelPdf, writeTransportLabelsPrintPdf } from '../labels/label-pdf';
 import { normalizeIncomingSscc } from '../labels/sscc';
-import { formatVlbOrderNumber, nextSeqFromExisting, vlbOrderPrefix } from '../shipments/order-number';
+import { allocateVlbExternalNumber } from '../shipments/order-number';
 import {
   isWareneingangXml,
   parseWareneingangXml,
@@ -230,21 +230,7 @@ export class WareneingangService {
       select: { id: true },
     });
 
-    const now = new Date();
-    const prefix = vlbOrderPrefix(now);
-    const existingOrders = await this.prisma.transportOrder.findMany({
-      where: { organizationId, externalNumber: { startsWith: prefix } },
-      select: { externalNumber: true },
-      take: 50,
-      orderBy: { externalNumber: 'desc' },
-    });
-    const externalNumber = formatVlbOrderNumber(
-      nextSeqFromExisting(
-        existingOrders.map((e) => e.externalNumber),
-        now,
-      ),
-      now,
-    );
+    const externalNumber = await allocateVlbExternalNumber(this.prisma, organizationId);
 
     const order = await this.prisma.transportOrder.create({
       data: {
