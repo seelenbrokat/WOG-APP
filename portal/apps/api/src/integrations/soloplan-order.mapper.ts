@@ -543,7 +543,10 @@ function buildConsignment(
     },
     additionalTimes: {},
     loadType: 0,
-    documentData: toSoloplanDocumentData(shipment.documents),
+    // Leeres documentData weglassen – Soloplan sonst ggf. Anhänge überschreiben
+    ...(toSoloplanDocumentData(shipment.documents).length
+      ? { documentData: toSoloplanDocumentData(shipment.documents) }
+      : {}),
   };
 }
 
@@ -745,6 +748,7 @@ export function buildSoloplanFilePayload(
     // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
     // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
     const allDocs = siblings.flatMap((s) => s.documents || []);
+    // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
     const orderDocuments = toSoloplanDocumentData(
       anyVerzollung
         ? []
@@ -768,7 +772,7 @@ export function buildSoloplanFilePayload(
           // Frachtzahler = eingeloggter Kunde / order.freightPayer
           customer: toMasterDataBp(customerToBp(freightPayer)),
           consignments,
-          documentData: orderDocuments,
+          ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },
       ],
     };
