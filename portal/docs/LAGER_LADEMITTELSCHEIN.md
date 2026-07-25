@@ -12,7 +12,17 @@ Digitale Ablösung des Papier-Lademittelscheins (Tablet 10″ im Lager).
 2. Mengen EUP / Rahmen / Deckel / Gitterbox (Übergabe & Übernahme)
 3. Zwei Unterschriften (WOG + Partner/Fahrer)
 4. PDF erzeugen, an Partner-E-Mail senden, JSON nach Soloplan-FTP legen
-5. Browser-Druck über PDF (physischer Drucker folgt separat)
+5. Mengen werden in die **Lademittelverwaltung → Partner-Saldo** gebucht (`LoadingUnitPosting`)
+6. Partner sieht Saldo + Scheine unter **Lademittelverwaltung**
+7. Browser-Druck über PDF (physischer Drucker folgt separat)
+
+### Mapping Schein → Lademittelverwaltung
+| Schein | Matchcode | given / taken |
+|--------|-----------|---------------|
+| Euro-Paletten | EUP | Out → given, In → taken |
+| Rahmen | RAH | Out → given, In → taken |
+| Deckel | DECKEL | Out → given, In → taken |
+| Gitterboxen | GIBO | Out → given, In → taken |
 
 ## SFTP / FTP
 | Richtung | Pfad |

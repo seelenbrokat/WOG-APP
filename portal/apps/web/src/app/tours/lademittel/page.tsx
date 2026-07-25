@@ -245,8 +245,10 @@ export default function LademittelPage() {
   return (
     <AppShell title="Lademittel">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Übersicht Lademitteltausch aus TourStopStatus. Gebucht werden nur Matchcodes aus der
-        PackagingType-CSV.{' '}
+        Übersicht Lademitteltausch aus TourStopStatus und abgeschlossenen{' '}
+        <Link href="/lager/lademittelscheine">Lager-Lademittelscheinen</Link>. Unter{' '}
+        <strong>Partner-Saldo</strong> erscheinen die Mengen je Partner. Gebucht werden Matchcodes
+        aus der PackagingType-CSV (EUP, RAH, GIBO, …).{' '}
         <Link href="/tours">Touren</Link>
         {' · '}
         <Link href="/tours/dashboard">Dispo-Dashboard</Link>

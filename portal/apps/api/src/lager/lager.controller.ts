@@ -37,6 +37,12 @@ export class LagerController {
     return this.scheine.listForPartner(user);
   }
 
+  @Get('lademittelscheine/partner/balances')
+  @Roles(UserRole.PARTNER)
+  partnerBalances(@CurrentUser() user: AuthUser) {
+    return this.scheine.balancesForPartner(user);
+  }
+
   @Get('lademittelscheine/dirs')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   dirs() {

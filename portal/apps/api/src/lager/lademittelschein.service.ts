@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LoadingUnitService } from '../integrations/loading-unit.service';
 import { writeLademittelscheinPdf } from './lademittelschein-pdf';
 
 type QtyInput = {
@@ -52,6 +53,7 @@ export class LademittelscheinService {
     private config: ConfigService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    private loadingUnits: LoadingUnitService,
   ) {
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads');
     const inboundRoot =
@@ -130,6 +132,77 @@ export class LademittelscheinService {
       orderBy: { occurredAt: 'desc' },
       take: 100,
     });
+  }
+
+  /** Partner-Saldo aus Lademittelverwaltung (gebuchte Scheine + Telematik). */
+  async balancesForPartner(user: AuthUser) {
+    if (user.role !== UserRole.PARTNER || !user.partnerId) {
+      throw new ForbiddenException();
+    }
+    const partner = await this.prisma.partner.findFirst({
+      where: { id: user.partnerId, organizationId: user.organizationId },
+    });
+    if (!partner) throw new ForbiddenException();
+
+    const numbers = [
+      partner.soloplanBusinessPartnerId,
+      partner.code,
+      partner.matchcode,
+    ]
+      .map((x) => (x || '').trim())
+      .filter(Boolean);
+
+    const or: Array<Record<string, unknown>> = [
+      { partnerName: { equals: partner.name, mode: 'insensitive' } },
+    ];
+    if (numbers.length) {
+      or.push({ partnerNumber: { in: numbers } });
+    }
+
+    const rows = await this.prisma.loadingUnitPosting.groupBy({
+      by: ['packagingMatchcode', 'packagingLabel'],
+      where: {
+        organizationId: user.organizationId,
+        status: { in: ['BOOKED', 'SKIPPED_ZERO'] },
+        OR: or,
+      },
+      _sum: { given: true, taken: true, balanceDelta: true, owedQuantity: true },
+      _count: { _all: true },
+      _max: { occurredAt: true },
+    });
+
+    const balances = rows
+      .map((r) => {
+        const given = r._sum.given || 0;
+        const taken = r._sum.taken || 0;
+        const balance = r._sum.balanceDelta ?? given - taken;
+        const owedQuantity = r._sum.owedQuantity || 0;
+        return {
+          packagingMatchcode: r.packagingMatchcode,
+          packagingLabel: r.packagingLabel,
+          given,
+          taken,
+          balance,
+          owedQuantity: owedQuantity > 0 ? owedQuantity : Math.max(0, balance),
+          postings: r._count._all,
+          lastAt: r._max.occurredAt,
+        };
+      })
+      .filter((r) => r.given !== 0 || r.taken !== 0 || r.owedQuantity !== 0)
+      .sort((a, b) => a.packagingMatchcode.localeCompare(b.packagingMatchcode, 'de'));
+
+    const totals = balances.reduce(
+      (acc, r) => {
+        acc.given += r.given;
+        acc.taken += r.taken;
+        acc.balance += r.balance;
+        acc.owedQuantity += r.owedQuantity;
+        return acc;
+      },
+      { given: 0, taken: 0, balance: 0, owedQuantity: 0 },
+    );
+
+    return { partner: { id: partner.id, name: partner.name, code: partner.code }, balances, totals };
   }
 
   async get(user: AuthUser, id: string) {
@@ -359,6 +432,10 @@ export class LademittelscheinService {
     });
 
     const exportPath = await this.exportOutbound(updated);
+
+    // In Lademittelverwaltung (Partner-Saldo) buchen
+    const luBooked = await this.loadingUnits.bookFromLademittelschein(updated);
+
     let emailedAt: Date | null = null;
     const shouldMail = body.sendEmail !== false;
     const mailTo = updated.partnerEmail?.trim();
@@ -401,9 +478,10 @@ export class LademittelscheinService {
       emailed: !!emailedAt,
       mailTo: mailTo || null,
       documentId: doc.id,
+      loadingUnitsBooked: luBooked.booked,
     });
 
-    return { ...final, document: doc };
+    return { ...final, document: doc, loadingUnits: luBooked };
   }
 
   async openPdf(user: AuthUser, id: string) {

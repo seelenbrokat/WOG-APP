@@ -260,6 +260,162 @@ export class LoadingUnitService {
   }
 
   /**
+   * Bucht abgeschlossenen Lager-Lademittelschein in die Lademittelverwaltung
+   * (Partner-Saldo / LoadingUnitPosting).
+   * Mapping: übergibt (Out) → given, übernimmt (In) → taken.
+   */
+  async bookFromLademittelschein(schein: {
+    id: string;
+    number: string;
+    organizationId: string;
+    tourId?: string | null;
+    tourNumber?: string | null;
+    partnerNumber?: string | null;
+    partnerName?: string | null;
+    vehiclePlate?: string | null;
+    occurredAt: Date;
+    eupOut: number;
+    rahmenOut: number;
+    deckelOut: number;
+    gitterboxOut: number;
+    eupIn: number;
+    rahmenIn: number;
+    deckelIn: number;
+    gitterboxIn: number;
+    noExchangeNoStock?: boolean;
+    noExchangeDriverRefuse?: boolean;
+  }) {
+    const sourceBase = `lademittelschein-${schein.number}`;
+    const partnerName = (schein.partnerName || 'Partner').trim();
+    const partnerNumber = schein.partnerNumber?.trim() || null;
+    const lines: Array<{ aliases: string[]; preferred: string; given: number; taken: number }> = [
+      { aliases: ['EUP'], preferred: 'EUP', given: schein.eupOut, taken: schein.eupIn },
+      { aliases: ['RAH', 'ERAH', 'RAHMEN'], preferred: 'RAH', given: schein.rahmenOut, taken: schein.rahmenIn },
+      {
+        aliases: ['DECKEL', 'DKL', 'PALDECKEL'],
+        preferred: 'DECKEL',
+        given: schein.deckelOut,
+        taken: schein.deckelIn,
+      },
+      {
+        aliases: ['GIBO', 'GITTERBOX', 'GP'],
+        preferred: 'GIBO',
+        given: schein.gitterboxOut,
+        taken: schein.gitterboxIn,
+      },
+    ];
+
+    let booked = 0;
+    let skipped = 0;
+
+    for (const line of lines) {
+      if (line.given <= 0 && line.taken <= 0) continue;
+      let packaging: Awaited<ReturnType<typeof this.resolvePackagingType>> | null = null;
+      for (const alias of line.aliases) {
+        packaging = await this.resolvePackagingType(schein.organizationId, alias);
+        if (packaging) break;
+      }
+      const matchcode = packaging?.matchcode || line.preferred;
+      if (!isExchangeBookableMatchcode(matchcode)) {
+        skipped += 1;
+        continue;
+      }
+      const sourceFile = `${sourceBase}-${matchcode}`;
+      const existing = await this.prisma.loadingUnitPosting.findUnique({
+        where: {
+          organizationId_sourceFile_packagingMatchcode: {
+            organizationId: schein.organizationId,
+            sourceFile,
+            packagingMatchcode: matchcode,
+          },
+        },
+      });
+      if (existing) {
+        skipped += 1;
+        continue;
+      }
+      const balanceDelta = line.given - line.taken;
+      await this.prisma.loadingUnitPosting.create({
+        data: {
+          organizationId: schein.organizationId,
+          packagingTypeId: packaging?.id,
+          packagingMatchcode: matchcode,
+          packagingLabel: packaging?.label || null,
+          given: line.given,
+          taken: line.taken,
+          balanceDelta,
+          owedQuantity: Math.max(0, balanceDelta),
+          tourId: schein.tourId || null,
+          tourNumber: schein.tourNumber || null,
+          partnerNumber,
+          partnerName,
+          vehicleSoloplanId: schein.vehiclePlate || null,
+          status: packaging ? 'BOOKED' : 'SKIPPED_UNKNOWN_TYPE',
+          skipReason: packaging ? null : 'Matchcode nicht in aktiver PackagingType-CSV',
+          occurredAt: schein.occurredAt,
+          sourceFile,
+        },
+      });
+      booked += 1;
+    }
+
+    // Nicht getauscht (nur Markierung, keine Mengen)
+    const anyQty = lines.some((l) => l.given > 0 || l.taken > 0);
+    if (
+      !anyQty &&
+      (schein.noExchangeNoStock || schein.noExchangeDriverRefuse)
+    ) {
+      const packaging = await this.resolvePackagingType(schein.organizationId, 'EUP');
+      const matchcode = packaging?.matchcode || 'EUP';
+      const sourceFile = `${sourceBase}-NOEXCHANGE`;
+      const existing = await this.prisma.loadingUnitPosting.findUnique({
+        where: {
+          organizationId_sourceFile_packagingMatchcode: {
+            organizationId: schein.organizationId,
+            sourceFile,
+            packagingMatchcode: matchcode,
+          },
+        },
+      });
+      if (!existing && packaging) {
+        const reason = [
+          schein.noExchangeNoStock ? 'Keine Lademittel zum Tausch vorhanden' : null,
+          schein.noExchangeDriverRefuse ? 'Fahrer wollte nicht tauschen' : null,
+        ]
+          .filter(Boolean)
+          .join('; ');
+        await this.prisma.loadingUnitPosting.create({
+          data: {
+            organizationId: schein.organizationId,
+            packagingTypeId: packaging.id,
+            packagingMatchcode: packaging.matchcode,
+            packagingLabel: packaging.label,
+            given: 0,
+            taken: 0,
+            balanceDelta: 1,
+            owedQuantity: 1,
+            tourId: schein.tourId || null,
+            tourNumber: schein.tourNumber || null,
+            partnerNumber,
+            partnerName,
+            vehicleSoloplanId: schein.vehiclePlate || null,
+            status: 'SKIPPED_ZERO',
+            skipReason: `Lademittelschein ${schein.number}: ${reason}`,
+            occurredAt: schein.occurredAt,
+            sourceFile,
+          },
+        });
+        booked += 1;
+      }
+    }
+
+    this.logger.log(
+      `Lademittelschein ${schein.number} → Lademittelverwaltung: ${booked} gebucht, ${skipped} übersprungen`,
+    );
+    return { booked, skipped, sourceBase };
+  }
+
+  /**
    * Ermittelt die Anzahl schuldender Lademittel aus Portal-Sendung/Colli
    * (für Nicht-Tausch, wenn Telematics Given/Taken = 0 meldet).
    */

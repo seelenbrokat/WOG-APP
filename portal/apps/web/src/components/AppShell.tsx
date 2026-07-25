@@ -27,7 +27,7 @@ const NAV: NavItem[] = [
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/partner/tours', label: 'Meine Touren', roles: ['PARTNER'] },
-  { href: '/partner/lademittelscheine', label: 'Lademittelscheine', roles: ['PARTNER'] },
+  { href: '/partner/lademittelscheine', label: 'Lademittelverwaltung', roles: ['PARTNER'] },
   { href: '/fahrer', label: 'Fahrer / Zustell-App', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/lademittel', label: 'Lademittel', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   {
