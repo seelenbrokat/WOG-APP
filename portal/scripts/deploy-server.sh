@@ -173,10 +173,14 @@ mkdir -p data/uploads \
 log "Docker Compose: nur Projekt $COMPOSE_PROJECT_NAME starten"
 docker compose up -d --build postgres redis
 sleep 5
+# Zuerst Images bauen – migrate/seed müssen die neuen prisma/migrations aus dem Image sehen
+docker compose build api worker web
+# Kernstack inkl. SFTPGo (restart: unless-stopped) – nach Docker-Crash wieder hoch
+docker compose up -d api worker web sftpgo
 docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
   docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npm run prisma:seed"
-# Kernstack inkl. SFTPGo (restart: unless-stopped) – nach Docker-Crash wieder hoch
-docker compose up -d --build api worker web sftpgo
+# API nach Seed neu starten (Schema ggf. geändert)
+docker compose up -d api worker
 
 if [[ "$ENABLE_SFTP" == "1" ]]; then
   # Primär: OpenSSH internal-sftp auf Port 22 (Soloplan-Firewall oft nur 22)
