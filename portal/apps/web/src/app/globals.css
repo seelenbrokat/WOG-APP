@@ -640,6 +640,88 @@ code {
   max-width: 100%;
 }
 
+.table-shipments {
+  width: 100%;
+  table-layout: fixed;
+  min-width: 0;
+}
+.table-shipments th,
+.table-shipments td {
+  padding: 0.55rem 0.45rem;
+  vertical-align: top;
+  overflow: hidden;
+}
+.table-shipments .col-check { width: 2.4rem; }
+.table-shipments .col-ref { width: 22%; }
+.table-shipments .col-route { width: 28%; }
+.table-shipments .col-schedule { width: 16%; }
+.table-shipments .col-side {
+  width: 18%;
+  min-width: 10rem;
+  vertical-align: middle;
+  position: sticky;
+  right: 0;
+  background: var(--bg-panel);
+  box-shadow: -6px 0 10px -8px rgba(18, 74, 41, 0.18);
+  overflow: visible;
+}
+.table-shipments.is-customer .col-ref { width: 26%; }
+.table-shipments.is-customer .col-route { width: 34%; }
+.table-shipments.is-customer .col-schedule { width: 18%; }
+.table-shipments.is-customer .col-side { width: 22%; }
+.table-shipments thead .col-side { z-index: 2; }
+.table-shipments tbody .col-side { z-index: 1; }
+.table-shipments tbody tr:hover .col-side { background: var(--wog-green-tint); }
+.table-shipments .soloplan-num {
+  display: block;
+  margin-top: 0.12rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--wog-green-deep);
+}
+.table-shipments .soloplan-pending {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.table-shipments .side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: stretch;
+}
+.table-shipments .btn-inquiry,
+.table-shipments .btn-details {
+  width: 100%;
+  padding: 0.32rem 0.45rem;
+  font-size: 0.76rem;
+  text-align: center;
+  white-space: nowrap;
+}
+.table-shipments .btn-details {
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.table-shipments .meta-label {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.table-shipments .meta-label:first-child { margin-top: 0; }
+.table-shipments .cell-clip { max-width: 100%; }
+.table-shipments .mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .badge {
   display: inline-block;
   padding: 0.18rem 0.5rem;

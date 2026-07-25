@@ -9,6 +9,7 @@ export default function UsersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
   const [message, setMessage] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     email: '',
@@ -33,6 +34,7 @@ export default function UsersPage() {
     e.preventDefault();
     setError('');
     setMessage('');
+    setTempPassword('');
     try {
       const res = await api<any>('/users/invite', {
         method: 'POST',
@@ -41,7 +43,10 @@ export default function UsersPage() {
           customerId: form.customerId || undefined,
         }),
       });
-      setMessage(`User ${res.email} angelegt. Standardpasswort wurde per E-Mail gesendet.`);
+      setMessage(
+        `User ${res.email} angelegt. Einmal-Passwort wurde per E-Mail an den User gesendet.`,
+      );
+      if (res.temporaryPassword) setTempPassword(res.temporaryPassword);
       setForm({
         email: '',
         firstName: '',
@@ -59,9 +64,11 @@ export default function UsersPage() {
   async function resetPassword(userId: string) {
     setError('');
     setMessage('');
+    setTempPassword('');
     try {
       const res = await api<any>(`/users/${userId}/reset-password`, { method: 'POST' });
-      setMessage(`Passwort für ${res.email} zurückgesetzt (Standardpasswort per E-Mail).`);
+      setMessage(`Passwort für ${res.email} zurückgesetzt. Neues Einmal-Passwort per E-Mail gesendet.`);
+      if (res.temporaryPassword) setTempPassword(res.temporaryPassword);
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -72,7 +79,9 @@ export default function UsersPage() {
     <AppShell title="Benutzerverwaltung">
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Kunden-/Partner-User benötigen eine Soloplan-BusinessPartnerId am Kundenstamm.
-        Standardpasswort gilt nur erstmalig – der User muss es danach ändern. Admins können jederzeit zurücksetzen.
+        Beim Anlegen/Zurücksetzen erzeugt das Portal ein <strong>zufälliges Einmal-Passwort</strong>,
+        sendet es per E-Mail und zeigt es hier einmalig an. Nach dem ersten Login muss der User das
+        Passwort ändern (API erzwingt das).
       </p>
 
       <form className="panel stack" style={{ marginBottom: '1rem' }} onSubmit={onInvite}>
@@ -127,6 +136,37 @@ export default function UsersPage() {
       </form>
 
       {message && <div className="success" style={{ marginBottom: '1rem' }}>{message}</div>}
+      {tempPassword && (
+        <div className="panel" style={{ marginBottom: '1rem', borderColor: 'var(--wog-green)' }}>
+          <strong>Einmal-Passwort (nur jetzt sichtbar)</strong>
+          <p className="muted" style={{ margin: '0.35rem 0 0.55rem', fontSize: '0.85rem' }}>
+            Bitte dem User sicher weitergeben, falls die E-Mail nicht ankommt. Danach nicht mehr abrufbar.
+          </p>
+          <code
+            style={{
+              display: 'inline-block',
+              padding: '0.45rem 0.7rem',
+              background: 'var(--wog-green-soft)',
+              borderRadius: '6px',
+              fontSize: '1.05rem',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {tempPassword}
+          </code>
+          <div style={{ marginTop: '0.65rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                void navigator.clipboard?.writeText(tempPassword);
+              }}
+            >
+              Kopieren
+            </button>
+          </div>
+        </div>
+      )}
       {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       <div className="panel">
