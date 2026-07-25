@@ -77,6 +77,13 @@ async function bootstrap() {
           );
         }
       }
+      // Verzollung: Docs erst ~3 Min nach Create-Abholung (Soloplan Import-Latenz)
+      const customsDocs = await soloplan.flushPendingCustomsDocuments();
+      if (customsDocs.flushed.length) {
+        console.log(
+          `Soloplan: Customs-Dokumente nachgereicht für ${customsDocs.flushed.join(', ')}`,
+        );
+      }
       await hub.processInboundQueues();
 
       const recurring = await recurringTemplates.runDueTemplates();
