@@ -698,15 +698,13 @@ export default function CustomsPage() {
           <table className="table table-compact table-customs">
             <thead>
               <tr>
-                <th>Auftrag</th>
-                <th>Soloplan</th>
-                {isStaff ? <th>Kunde</th> : null}
-                <th>Fahrzeug</th>
-                <th>Route</th>
-                <th>Grenze</th>
-                <th>Dokumente</th>
-                <th>Status</th>
-                <th>Aktion</th>
+                <th className="col-auftrag">Auftrag</th>
+                {isStaff ? <th className="col-kunde">Kunde</th> : null}
+                <th className="col-vehicle">Fahrzeug</th>
+                <th className="col-route">Route</th>
+                <th className="col-border">Grenze</th>
+                <th className="col-docs">Dok.</th>
+                <th className="col-side">Status / Aktion</th>
               </tr>
             </thead>
             <tbody>
@@ -739,6 +737,13 @@ export default function CustomsPage() {
                   <tr key={o.id}>
                     <td className="col-auftrag">
                       <strong className="mono">{o.externalNumber || '–'}</strong>
+                      {sp ? (
+                        <span className="soloplan-num mono" title={`Soloplan ${sp}`}>
+                          SP {sp}
+                        </span>
+                      ) : (
+                        <span className="soloplan-pending">Soloplan ausstehend</span>
+                      )}
                       <span className="meta">
                         {new Date(o.zeit).toLocaleString('de-AT', {
                           day: '2-digit',
@@ -749,17 +754,10 @@ export default function CustomsPage() {
                         })}
                       </span>
                     </td>
-                    <td className="col-soloplan">
-                      {sp ? (
-                        <span className="soloplan-num mono">{sp}</span>
-                      ) : (
-                        <span className="soloplan-pending">ausstehend</span>
-                      )}
-                    </td>
                     {isStaff ? (
-                      <td>
+                      <td className="col-kunde">
                         <span className="cell-clip" title={o.customer?.name || ''}>
-                          {clip(o.customer?.name, 22)}
+                          {clip(o.customer?.name, 18)}
                         </span>
                         <span className="meta mono">{o.customer?.customerNumber || ''}</span>
                       </td>
@@ -782,12 +780,12 @@ export default function CustomsPage() {
                       <strong>
                         {[o.absenderCountry, o.empfaengerCountry].filter(Boolean).join(' → ') || '–'}
                       </strong>
-                      <span className="meta cell-clip">{clip(o.absenderFirma, 24)}</span>
-                      <span className="meta cell-clip">→ {clip(o.empfaengerFirma, 24)}</span>
+                      <span className="meta cell-clip">{clip(o.absenderFirma, 16)}</span>
+                      <span className="meta cell-clip">→ {clip(o.empfaengerFirma, 16)}</span>
                     </td>
                     <td className="col-border" title={borderTitle}>
-                      <span className="cell-clip-wide">{clip(o.grenzuebergang, 28)}</span>
-                      <span className="meta cell-clip">{clip(o.importeur, 24)}</span>
+                      <span className="cell-clip">{clip(o.grenzuebergang, 20)}</span>
+                      <span className="meta cell-clip">{clip(o.importeur, 18)}</span>
                     </td>
                     <td className="col-docs">
                       <div className="docs-summary">
@@ -818,84 +816,82 @@ export default function CustomsPage() {
                             ) : null}
                           </div>
                         ) : (
-                          <span className="meta">keine</span>
+                          <span className="meta">–</span>
                         )}
-                        <div className="row" style={{ gap: '0.3rem', alignItems: 'center' }}>
-                          <label
-                            className="btn btn-secondary"
-                            style={{
-                              padding: '0.2rem 0.45rem',
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                              margin: 0,
-                            }}
-                          >
-                            + Datei
-                            <input
-                              type="file"
-                              multiple
-                              hidden
-                              onChange={(e) =>
-                                setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
-                              }
-                            />
-                          </label>
-                          {extraPapers[o.id]?.length ? (
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem' }}
-                              onClick={() => uploadExtra(o.id)}
-                            >
-                              Hochladen
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="col-status">
-                      {isStaff ? (
-                        <select
-                          className="status-select"
-                          aria-label={`Status ${o.externalNumber || o.id}`}
-                          value={o.status}
-                          onChange={async (e) => {
-                            await api(`/customs/${o.id}/status`, {
-                              method: 'PATCH',
-                              body: JSON.stringify({ status: e.target.value }),
-                            });
-                            await load();
+                        <label
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '0.18rem 0.4rem',
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                            margin: 0,
                           }}
                         >
-                          <option value="SUBMITTED">Übermittelt</option>
-                          <option value="ACCEPTED">Angenommen</option>
-                          <option value="IN_PROGRESS">In Bearbeitung</option>
-                          <option value="DONE">Erledigt</option>
-                          <option value="CANCELLED">Storniert</option>
-                        </select>
-                      ) : (
-                        <span className={statusBadgeClass(o.status)}>
-                          {STATUS_LABEL[o.status] || o.status}
-                        </span>
-                      )}
+                          + Datei
+                          <input
+                            type="file"
+                            multiple
+                            hidden
+                            onChange={(e) =>
+                              setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
+                            }
+                          />
+                        </label>
+                        {extraPapers[o.id]?.length ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '0.18rem 0.4rem', fontSize: '0.72rem' }}
+                            onClick={() => uploadExtra(o.id)}
+                          >
+                            Hochladen
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
-                    <td className="col-action">
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-inquiry"
-                        disabled={inquiryBusy === o.id || o.status === 'CANCELLED'}
-                        title="Status und Zustellung bei WOG anfragen (wenn kein POD)"
-                        onClick={() => requestInquiry(o.id)}
-                      >
-                        {inquiryBusy === o.id ? 'Sende…' : 'Sendungsnachfrage'}
-                      </button>
+                    <td className="col-side">
+                      <div className="side-stack">
+                        {isStaff ? (
+                          <select
+                            className="status-select"
+                            aria-label={`Status ${o.externalNumber || o.id}`}
+                            value={o.status}
+                            onChange={async (e) => {
+                              await api(`/customs/${o.id}/status`, {
+                                method: 'PATCH',
+                                body: JSON.stringify({ status: e.target.value }),
+                              });
+                              await load();
+                            }}
+                          >
+                            <option value="SUBMITTED">Übermittelt</option>
+                            <option value="ACCEPTED">Angenommen</option>
+                            <option value="IN_PROGRESS">In Bearbeitung</option>
+                            <option value="DONE">Erledigt</option>
+                            <option value="CANCELLED">Storniert</option>
+                          </select>
+                        ) : (
+                          <span className={statusBadgeClass(o.status)}>
+                            {STATUS_LABEL[o.status] || o.status}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-inquiry"
+                          disabled={inquiryBusy === o.id || o.status === 'CANCELLED'}
+                          title="Status und Zustellung bei WOG anfragen (wenn kein POD)"
+                          onClick={() => requestInquiry(o.id)}
+                        >
+                          {inquiryBusy === o.id ? 'Sende…' : 'Sendungsnachfrage'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {!orders.length && (
                 <tr>
-                  <td colSpan={isStaff ? 9 : 8} className="muted">
+                  <td colSpan={isStaff ? 7 : 6} className="muted">
                     Noch keine Verzollungsaufträge.
                   </td>
                 </tr>

@@ -545,55 +545,82 @@ code {
   -webkit-overflow-scrolling: touch;
 }
 .table-customs {
-  min-width: 64rem;
+  width: 100%;
+  table-layout: fixed;
+  min-width: 0;
 }
 .table-customs th,
 .table-customs td {
-  padding: 0.7rem 0.55rem;
+  padding: 0.55rem 0.4rem;
   vertical-align: top;
+  overflow: hidden;
 }
-.table-customs .col-auftrag { min-width: 8rem; white-space: nowrap; }
-.table-customs .col-soloplan { min-width: 5.5rem; white-space: nowrap; }
-.table-customs .col-vehicle { min-width: 5.5rem; white-space: nowrap; }
-.table-customs .col-route { min-width: 9rem; max-width: 12rem; }
-.table-customs .col-border { min-width: 9rem; max-width: 13rem; }
-.table-customs .col-docs { min-width: 6.5rem; }
-.table-customs .col-status { min-width: 8.5rem; white-space: nowrap; }
-.table-customs .col-action {
-  min-width: 9.5rem;
-  white-space: nowrap;
+.table-customs .col-auftrag { width: 11%; }
+.table-customs .col-kunde { width: 12%; }
+.table-customs .col-vehicle { width: 9%; }
+.table-customs .col-route { width: 14%; }
+.table-customs .col-border { width: 14%; }
+.table-customs .col-docs { width: 8%; }
+.table-customs .col-side {
+  width: 18%;
+  min-width: 10.5rem;
   vertical-align: middle;
+  position: sticky;
+  right: 0;
+  background: var(--bg-panel);
+  box-shadow: -6px 0 10px -8px rgba(18, 74, 41, 0.18);
+  overflow: visible;
+}
+.table-customs thead .col-side {
+  z-index: 2;
+}
+.table-customs tbody .col-side {
+  z-index: 1;
+}
+.table-customs tbody tr:hover .col-side {
+  background: var(--wog-green-tint);
 }
 .table-customs .soloplan-num {
+  display: block;
+  margin-top: 0.12rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  font-size: 0.82rem;
   letter-spacing: 0.01em;
+  color: var(--wog-green-deep);
 }
 .table-customs .soloplan-pending {
+  display: block;
+  margin-top: 0.12rem;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
+}
+.table-customs .side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
 }
 .table-customs .status-select {
   width: 100%;
-  max-width: 10rem;
+  min-width: 0;
   font-size: 0.8rem;
-  padding: 0.3rem 0.4rem;
+  padding: 0.3rem 0.35rem;
 }
 .table-customs .btn-inquiry {
   width: 100%;
-  max-width: 10rem;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.78rem;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.76rem;
   white-space: nowrap;
 }
 .table-customs .docs-summary {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.25rem;
   align-items: flex-start;
 }
 .table-customs .docs-count {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--ink);
 }
 .table-customs .docs-count button {
@@ -607,6 +634,10 @@ code {
 }
 .table-customs .docs-count button:hover {
   text-decoration: underline;
+}
+.table-customs .cell-clip,
+.table-customs .cell-clip-wide {
+  max-width: 100%;
 }
 
 .badge {
