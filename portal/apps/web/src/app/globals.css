@@ -539,6 +539,76 @@ code {
   white-space: nowrap;
 }
 
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-customs {
+  min-width: 64rem;
+}
+.table-customs th,
+.table-customs td {
+  padding: 0.7rem 0.55rem;
+  vertical-align: top;
+}
+.table-customs .col-auftrag { min-width: 8rem; white-space: nowrap; }
+.table-customs .col-soloplan { min-width: 5.5rem; white-space: nowrap; }
+.table-customs .col-vehicle { min-width: 5.5rem; white-space: nowrap; }
+.table-customs .col-route { min-width: 9rem; max-width: 12rem; }
+.table-customs .col-border { min-width: 9rem; max-width: 13rem; }
+.table-customs .col-docs { min-width: 6.5rem; }
+.table-customs .col-status { min-width: 8.5rem; white-space: nowrap; }
+.table-customs .col-action {
+  min-width: 9.5rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.table-customs .soloplan-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.table-customs .soloplan-pending {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.table-customs .status-select {
+  width: 100%;
+  max-width: 10rem;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.4rem;
+}
+.table-customs .btn-inquiry {
+  width: 100%;
+  max-width: 10rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.table-customs .docs-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
+.table-customs .docs-count {
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+.table-customs .docs-count button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wog-blue);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.table-customs .docs-count button:hover {
+  text-decoration: underline;
+}
+
 .badge {
   display: inline-block;
   padding: 0.18rem 0.5rem;
