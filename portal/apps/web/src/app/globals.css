@@ -714,7 +714,7 @@ code {
   .sidebar .logo .brand-logo-mark { width: 92px; }
   .sidebar-label { display: none; }
   .sidebar nav { flex-direction: row; flex: unset; }
-  .sidebar a { white-space: nowrap; font-size: 0.88rem; padding: 0.5rem 0.65rem; }
+  .sidebar nav a { white-space: nowrap; font-size: 0.88rem; padding: 0.5rem 0.65rem; }
   .sidebar-user { display: none; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .main { padding: 1rem 1rem 2rem; }
