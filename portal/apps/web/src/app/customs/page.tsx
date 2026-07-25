@@ -17,6 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 const STATUS_LABEL: Record<string, string> = {
   SUBMITTED: 'Übermittelt',
+  ACCEPTED: 'Angenommen',
   IN_PROGRESS: 'In Bearbeitung',
   DONE: 'Erledigt',
   CANCELLED: 'Storniert',
@@ -76,7 +77,7 @@ function soloplanLabel(ref?: string | null) {
 }
 
 function statusBadgeClass(status: string) {
-  if (status === 'DONE') return 'badge ok';
+  if (status === 'ACCEPTED' || status === 'DONE') return 'badge ok';
   if (status === 'CANCELLED') return 'badge warn';
   return 'badge';
 }
@@ -832,6 +833,7 @@ export default function CustomsPage() {
                         }}
                       >
                         <option value="SUBMITTED">Übermittelt</option>
+                        <option value="ACCEPTED">Angenommen</option>
                         <option value="IN_PROGRESS">In Bearbeitung</option>
                         <option value="DONE">Erledigt</option>
                         <option value="CANCELLED">Storniert</option>

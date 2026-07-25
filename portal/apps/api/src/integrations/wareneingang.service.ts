@@ -377,9 +377,18 @@ export class WareneingangService {
     return { processed, failed, linked };
   }
 
+  /** Customs: frühe Status, die bei Soloplan-Annahme auf ACCEPTED wechseln dürfen. */
+  private static readonly CUSTOMS_ACCEPT_FROM = new Set(['SUBMITTED', 'IN_PROGRESS']);
+  /** Sendungen: nur DRAFT/SUBMITTED → ACCEPTED (keine Rückstufung späterer Status). */
+  private static readonly SHIPMENT_ACCEPT_FROM = new Set<ShipmentStatus>([
+    ShipmentStatus.DRAFT,
+    ShipmentStatus.SUBMITTED,
+  ]);
+
   /**
    * Soloplan OrderNumber anhand ExternalNumber (VLB…) an Portal-Aufträge schreiben.
    * Trifft CustomsOrder und/oder TransportOrder (+ zugehörige Shipments).
+   * Bei erfolgreicher Verknüpfung: Status → Angenommen (ACCEPTED).
    */
   private async linkSoloplanOrderNumber(
     organizationId: string,
@@ -406,23 +415,30 @@ export class WareneingangService {
     if (ext) {
       const customs = await this.prisma.customsOrder.findFirst({
         where: { organizationId, externalNumber: ext },
-        select: { id: true, soloplanRef: true },
+        select: { id: true, soloplanRef: true, status: true },
       });
       if (customs) {
         matched += 1;
         customsId = customs.id;
-        if (customs.soloplanRef !== orderNumber) {
-          await this.prisma.customsOrder.update({
-            where: { id: customs.id },
-            data: { soloplanRef: orderNumber },
-          });
+        const accept =
+          WareneingangService.CUSTOMS_ACCEPT_FROM.has(customs.status) ||
+          customs.status === 'ACCEPTED';
+        const data: { soloplanRef?: string; status?: string } = {};
+        if (customs.soloplanRef !== orderNumber) data.soloplanRef = orderNumber;
+        if (accept && customs.status !== 'ACCEPTED') data.status = 'ACCEPTED';
+        if (Object.keys(data).length) {
+          await this.prisma.customsOrder.update({ where: { id: customs.id }, data });
           updated += 1;
         }
       }
 
       const transport = await this.prisma.transportOrder.findFirst({
         where: { organizationId, externalNumber: ext },
-        select: { id: true, soloplanRef: true, shipments: { select: { id: true, soloplanRef: true } } },
+        select: {
+          id: true,
+          soloplanRef: true,
+          shipments: { select: { id: true, soloplanRef: true, status: true } },
+        },
       });
       if (transport) {
         matched += 1;
@@ -436,11 +452,16 @@ export class WareneingangService {
         }
         for (const s of transport.shipments) {
           shipmentIds.push(s.id);
-          if (s.soloplanRef !== orderNumber) {
-            await this.prisma.shipment.update({
-              where: { id: s.id },
-              data: { soloplanRef: orderNumber },
-            });
+          const shipData: { soloplanRef?: string; status?: ShipmentStatus } = {};
+          if (s.soloplanRef !== orderNumber) shipData.soloplanRef = orderNumber;
+          if (
+            WareneingangService.SHIPMENT_ACCEPT_FROM.has(s.status) &&
+            s.status !== ShipmentStatus.ACCEPTED
+          ) {
+            shipData.status = ShipmentStatus.ACCEPTED;
+          }
+          if (Object.keys(shipData).length) {
+            await this.prisma.shipment.update({ where: { id: s.id }, data: shipData });
             updated += 1;
           }
         }
@@ -451,15 +472,20 @@ export class WareneingangService {
     if (consExt) {
       const byRef = await this.prisma.shipment.findFirst({
         where: { organizationId, reference: consExt },
-        select: { id: true, orderId: true, soloplanRef: true },
+        select: { id: true, orderId: true, soloplanRef: true, status: true },
       });
       if (byRef) {
         matched += 1;
-        if (byRef.soloplanRef !== orderNumber) {
-          await this.prisma.shipment.update({
-            where: { id: byRef.id },
-            data: { soloplanRef: orderNumber },
-          });
+        const shipData: { soloplanRef?: string; status?: ShipmentStatus } = {};
+        if (byRef.soloplanRef !== orderNumber) shipData.soloplanRef = orderNumber;
+        if (
+          WareneingangService.SHIPMENT_ACCEPT_FROM.has(byRef.status) &&
+          byRef.status !== ShipmentStatus.ACCEPTED
+        ) {
+          shipData.status = ShipmentStatus.ACCEPTED;
+        }
+        if (Object.keys(shipData).length) {
+          await this.prisma.shipment.update({ where: { id: byRef.id }, data: shipData });
           updated += 1;
         }
         if (!shipmentIds.includes(byRef.id)) shipmentIds.push(byRef.id);
@@ -486,7 +512,8 @@ export class WareneingangService {
           (ext ? ` über ExternalNumber ${ext}` : '') +
           (customsId ? ` Customs=${customsId}` : '') +
           (transportOrderId ? ` TO=${transportOrderId}` : '') +
-          (shipmentIds.length ? ` Shipments=${shipmentIds.length}` : ''),
+          (shipmentIds.length ? ` Shipments=${shipmentIds.length}` : '') +
+          ' → Status Angenommen',
       );
     }
 
