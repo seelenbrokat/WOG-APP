@@ -30,12 +30,13 @@ const NAV = [
   { href: '/customs', label: 'Verzollung', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
-  { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
-  { href: '/mandanten', label: 'Mandanten', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
+  { href: '/mandanten', label: 'Mandanten', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/partners', label: 'Partner', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/users', label: 'Benutzer', roles: ['ORG_ADMIN'] },
   { href: '/audit', label: 'Protokoll', roles: ['ORG_ADMIN'] },
   { href: '/settings', label: 'Einstellungen', roles: ['*'] },
+  { href: '/change-password', label: 'Passwort ändern', roles: ['*'] },
   { href: '/track', label: 'Track & Trace', roles: ['*'] },
 ];
 
@@ -80,9 +81,9 @@ export function AppShell({
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="logo">
+        <Link href="/dashboard" className="logo" aria-label="Zur Übersicht" title="Zur Übersicht">
           <BrandLogo variant="mark" />
-        </div>
+        </Link>
         <div>
           <p className="sidebar-label">Navigation</p>
           <nav>

@@ -333,6 +333,13 @@ code {
   background: #ffffff;
   display: flex;
   justify-content: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.sidebar .logo:hover {
+  background: #ffffff;
+  opacity: 0.92;
 }
 
 .sidebar .logo .brand-logo-mark {
@@ -356,7 +363,7 @@ code {
   flex: 1;
 }
 
-.sidebar a {
+.sidebar nav a {
   padding: 0.58rem 0.75rem;
   border-radius: 6px;
   color: rgba(255, 255, 255, 0.78);
@@ -364,11 +371,11 @@ code {
   font-size: 0.95rem;
   transition: background 140ms ease, color 140ms ease;
 }
-.sidebar a:hover {
+.sidebar nav a:hover {
   background: rgba(255, 255, 255, 0.07);
   color: white;
 }
-.sidebar a.active {
+.sidebar nav a.active {
   background: rgba(255, 255, 255, 0.12);
   color: white;
   font-weight: 600;
