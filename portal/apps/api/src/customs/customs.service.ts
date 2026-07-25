@@ -1,4 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
 import {
@@ -15,6 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SoloplanService } from '../integrations/soloplan.service';
 
 export type PartyAddress = {
   firma: string;
@@ -57,6 +66,7 @@ export type CreateCustomsInput = {
 
 @Injectable()
 export class CustomsService {
+  private readonly logger = new Logger(CustomsService.name);
   private uploadDir: string;
 
   constructor(
@@ -64,6 +74,8 @@ export class CustomsService {
     private audit: AuditService,
     private notifications: NotificationsService,
     private config: ConfigService,
+    @Inject(forwardRef(() => SoloplanService))
+    private soloplan: SoloplanService,
   ) {
     this.uploadDir = join(
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads'),
@@ -287,6 +299,13 @@ export class CustomsService {
         .filter(Boolean)
         .join('\n'),
     );
+
+    try {
+      await this.soloplan.exportCustomsOrder(order.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Soloplan-Export Verzollungsauftrag ${order.id} fehlgeschlagen: ${msg}`);
+    }
 
     return full;
   }

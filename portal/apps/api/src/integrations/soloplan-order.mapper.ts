@@ -71,6 +71,17 @@ export type PortalShipmentForSoloplan = {
   notes?: string | null;
   deliveryAvisPhone?: string | null;
   extras?: unknown;
+  /**
+   * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL v6).
+   * Keys in Soloplan: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
+   */
+  kennzeichen?: string | null;
+  kennzeichenAnhaenger?: string | null;
+  grenzuebergang?: string | null;
+  grenzzollstelle?: string | null;
+  zeitpunktGrenze?: Date | string | null;
+  /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
+  verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
   /** Portal-Auftrag inkl. Frachtzahler (order.customer in Soloplan) */
   order?: {
@@ -543,6 +554,73 @@ function orderExternalNumber(shipment: PortalShipmentForSoloplan): string {
   return shipment.order?.externalNumber || shipment.reference || shipment.trackingNumber;
 }
 
+function extrasRecord(extras: unknown): Record<string, unknown> {
+  if (extras && typeof extras === 'object' && !Array.isArray(extras)) {
+    return extras as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** Verzollungsauftrag: explizites Flag oder extras.verzollung. */
+export function isVerzollungsauftrag(shipment: PortalShipmentForSoloplan): boolean {
+  if (shipment.verzollungsauftrag === true) return true;
+  return extrasRecord(shipment.extras).verzollung === true;
+}
+
+/** Kennzeichen / Grenze / Zeitpunkt aus Sendung oder extras lesen. */
+export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan) {
+  const extras = extrasRecord(shipment.extras);
+  const kennzeichen =
+    String(shipment.kennzeichen || extras.kennzeichen || '')
+      .trim() || undefined;
+  const kennzeichenAnhaenger =
+    String(shipment.kennzeichenAnhaenger || extras.kennzeichenAnhaenger || '')
+      .trim() || undefined;
+  const grenzuebergang =
+    String(shipment.grenzuebergang || extras.grenzuebergang || '')
+      .trim() || undefined;
+  const grenzzollstelle =
+    String(shipment.grenzzollstelle || extras.grenzzollstelle || '')
+      .trim() || undefined;
+  const zeitRaw =
+    shipment.zeitpunktGrenze ||
+    extras.zeitpunktanderGrenze ||
+    extras.zeitpunktGrenze ||
+    extras.zeitGrenze ||
+    null;
+  const zeitpunktanderGrenze = formatSoloplanDateTime(
+    zeitRaw as Date | string | null | undefined,
+  );
+  return {
+    kennzeichen,
+    kennzeichenAnhaenger,
+    grenzuebergang,
+    grenzzollstelle,
+    zeitpunktanderGrenze,
+  };
+}
+
+/** Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL FileAPI (exakte Schreibweise). */
+function applyCustomsConsignmentFields(
+  consignment: Record<string, unknown>,
+  shipment: PortalShipmentForSoloplan,
+) {
+  const fields = resolveCustomsFileApiFields(shipment);
+  if (fields.kennzeichen) consignment.kennzeichen = fields.kennzeichen;
+  // FileAPI-Feldname mit Umlaut
+  if (fields.kennzeichenAnhaenger) consignment['kennzeichenAnhänger'] = fields.kennzeichenAnhaenger;
+  if (fields.grenzuebergang) consignment['grenzübergang'] = fields.grenzuebergang;
+  if (fields.grenzzollstelle) {
+    const info = (consignment.information as Record<string, unknown>) || {};
+    info.senderInfo3 = `Grenzzollstelle: ${fields.grenzzollstelle}`;
+    consignment.information = info;
+  }
+  if (fields.zeitpunktanderGrenze) {
+    consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
+  }
+  return consignment;
+}
+
 /**
  * Update-Export: keine Sendungsinfos erneut senden.
  * Nur externe Auftrags-/Sendungsnummer (+ documentData zum Ablegen in Soloplan).
@@ -620,6 +698,8 @@ export function buildSoloplanFilePayload(
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
 
+  const anyVerzollung = siblings.some((s) => isVerzollungsauftrag(s));
+
   const consignments = siblings.map((s, idx) => {
     const trackingUrl = opts.trackingBaseUrl
       ? `${opts.trackingBaseUrl.replace(/\/$/, '')}/track?tn=${encodeURIComponent(s.trackingNumber)}`
@@ -628,7 +708,10 @@ export function buildSoloplanFilePayload(
       defaultSender: opts.defaultSender,
       trackingUrl,
     });
-    return { ...consignment, itemNumber: idx + 1 };
+    return applyCustomsConsignmentFields(
+      { ...consignment, itemNumber: idx + 1 },
+      s,
+    );
   });
 
   if (format === 'order') {
@@ -647,6 +730,10 @@ export function buildSoloplanFilePayload(
           externalNumber,
           orderContext: 0,
           orderDate: formatSoloplanDate(new Date()),
+          // Immer: Auftrag kommt aus dem VLB-Portal
+          erstelltviaVLBPortal: true,
+          // FileAPI: verzollungsauftrag = true wenn Verzollung
+          verzollungsauftrag: anyVerzollung,
           // Frachtzahler = eingeloggter Kunde / order.freightPayer
           customer: toMasterDataBp(customerToBp(freightPayer)),
           consignments,

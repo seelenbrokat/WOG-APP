@@ -33,6 +33,16 @@ export type ShipmentExtras = Partial<Record<ShipmentExtraCode, boolean>> & {
   pickupNote?: string | null;
   /** Hinweis direkt unter der Entladestellen-Adresse */
   deliveryNote?: string | null;
+  /** Soloplan FileAPI: Kennzeichen (bei Verzollung) */
+  kennzeichen?: string | null;
+  /** Soloplan FileAPI: Kennzeichen Anhänger */
+  kennzeichenAnhaenger?: string | null;
+  /** Soloplan FileAPI: Grenzübergang */
+  grenzuebergang?: string | null;
+  /** Soloplan FileAPI: Grenzzollstelle (Freitext) */
+  grenzzollstelle?: string | null;
+  /** Soloplan FileAPI: Zeitpunkt an der Grenze (ISO) */
+  zeitpunktGrenze?: string | null;
 };
 
 export function shipmentExtrasLabels(extras?: ShipmentExtras | null): string[] {

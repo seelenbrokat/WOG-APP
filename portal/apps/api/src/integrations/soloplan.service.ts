@@ -22,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   buildSoloplanFilePayload,
+  PortalShipmentForSoloplan,
   SoloplanFileFormat,
   soloplanDocumentCategory,
   soloplanOrderBaseName,
@@ -700,6 +701,135 @@ export class SoloplanService implements TransportIntegration {
       city: this.config.get('SOLOPLAN_DEFAULT_SENDER_CITY') || 'Diepoldsau',
       country: this.config.get('SOLOPLAN_DEFAULT_SENDER_COUNTRY') || 'CH',
     };
+  }
+
+  /**
+   * Verzollungsauftrag (CustomsOrder) als SoloplanOrderImportPORTAL v6 File exportieren.
+   * Setzt verzollungsauftrag=true, erstelltviaVLBPortal=true sowie Kennzeichen/Grenze/Zeitpunkt.
+   */
+  async exportCustomsOrder(customsOrderId: string) {
+    const order = await this.prisma.customsOrder.findUnique({
+      where: { id: customsOrderId },
+      include: {
+        customer: { include: { contacts: true } },
+        mandant: true,
+        documents: {
+          where: { type: DocumentType.CUSTOMS_PAPER },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Verzollungsauftrag nicht gefunden');
+
+    const externalNumber = `VZ-${order.kennzeichen.replace(/[^\w.-]+/g, '_')}-${order.id.slice(-6)}`;
+    const docs = (
+      await Promise.all(
+        (order.documents || []).map(async (d) => {
+          try {
+            if (!d.storagePath || !existsSync(d.storagePath)) return null;
+            const contentBase64 = readFileSync(d.storagePath).toString('base64');
+            return {
+              fileName: d.fileName,
+              category: soloplanDocumentCategory(d.type),
+              contentBase64,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter(Boolean) as Array<{ fileName: string; category: string; contentBase64: string }>;
+
+    const shipmentLike: PortalShipmentForSoloplan = {
+      id: order.id,
+      trackingNumber: externalNumber,
+      reference: externalNumber,
+      goodsDescription: `Verzollung ${order.importeur}`,
+      packageCount: 1,
+      pickupCompany: order.absenderFirma,
+      pickupStreet: order.absenderStreet,
+      pickupZip: order.absenderZip,
+      pickupCity: order.absenderCity,
+      pickupCountry: order.absenderCountry,
+      pickupDate: order.zeit,
+      deliveryCompany: order.empfaengerFirma,
+      deliveryStreet: order.empfaengerStreet,
+      deliveryZip: order.empfaengerZip,
+      deliveryCity: order.empfaengerCity,
+      deliveryCountry: order.empfaengerCountry,
+      deliveryDate: order.zeit,
+      notes: order.notes,
+      extras: { verzollung: true },
+      verzollungsauftrag: true,
+      kennzeichen: order.kennzeichen,
+      kennzeichenAnhaenger: order.kennzeichenAnhaenger,
+      grenzuebergang: order.grenzuebergang,
+      grenzzollstelle: order.grenzzollstelle,
+      zeitpunktGrenze: order.zeit,
+      customer: {
+        customerNumber: order.customer.customerNumber,
+        name: order.customer.name,
+        soloplanBusinessPartnerId: order.customer.soloplanBusinessPartnerId,
+        matchcode: order.customer.matchcode,
+        contacts: (order.customer.contacts || []).map((c) => ({
+          soloplanContactNumber: c.soloplanContactNumber,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+        })),
+      },
+      order: {
+        externalNumber,
+        freightPayer: order.abweichenderFrachtzahler
+          ? {
+              customerNumber: order.customer.customerNumber,
+              name: order.frachtzahlerFirma || order.customer.name,
+            }
+          : undefined,
+      },
+      positions: [
+        {
+          description: `Verzollungsauftrag ${order.importeur}`,
+          quantity: 1,
+          packaging: 'KRT',
+        },
+      ],
+      documents: docs,
+    };
+
+    const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
+    const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
+    const format = this.getFileFormat();
+    const objectOwnerId =
+      Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined;
+
+    const payload = buildSoloplanFilePayload(shipmentLike, {
+      format,
+      defaultSender: this.getDefaultSender(),
+      objectOwnerId,
+    });
+
+    if (!enabled || mode === 'stub') {
+      this.logger.log(`Soloplan stub exportCustomsOrder ${externalNumber}`);
+      return { ok: true, stub: true, externalNumber };
+    }
+
+    if (mode === 'file') {
+      const fileName = `order-${externalNumber}.json`;
+      const json = JSON.stringify(payload, null, 2);
+      const primary = join(this.ordersOutDir, fileName);
+      const mirror = join(this.integrationOrdersOutDir, fileName);
+      if (!existsSync(this.ordersOutDir)) mkdirSync(this.ordersOutDir, { recursive: true });
+      writeFileSync(primary, json);
+      writeFileSync(mirror, json);
+      this.logger.log(`Soloplan PORTAL-v6 customs export ${primary}`);
+      return { ok: true, fileName, externalNumber };
+    }
+
+    this.logger.warn(`Soloplan customs export: mode ${mode} nicht unterstützt für CustomsOrder`);
+    return { ok: false, externalNumber };
   }
 }
 
