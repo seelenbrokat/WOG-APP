@@ -22,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   buildSoloplanFilePayload,
+  buildSoloplanUpdatePayload,
   PortalShipmentForSoloplan,
   SoloplanFileFormat,
   soloplanDocumentCategory,
@@ -705,7 +706,9 @@ export class SoloplanService implements TransportIntegration {
 
   /**
    * Verzollungsauftrag (CustomsOrder) als SoloplanOrderImportPORTAL v6 File exportieren.
-   * Setzt verzollungsauftrag=true, erstelltviaVLBPortal=true sowie Kennzeichen/Grenze/Zeitpunkt.
+   *
+   * 1) Create: Auftrags-/Sendungsdaten inkl. VLBPortal-Felder – OHNE Dokumente
+   * 2) Update: nur externalNumber + documentData (sonst würden Sendungsdetails überschrieben)
    */
   async exportCustomsOrder(customsOrderId: string) {
     const order = await this.prisma.customsOrder.findUnique({
@@ -742,17 +745,8 @@ export class SoloplanService implements TransportIntegration {
         }),
       )
     ).filter(Boolean) as Array<{ fileName: string; category: string; contentBase64: string }>;
-    if (!docs.length) {
-      this.logger.warn(
-        `Soloplan customs export ${externalNumber}: keine Anhänge (Rechnung/Begleitdokumente)`,
-      );
-    } else {
-      this.logger.log(
-        `Soloplan customs export ${externalNumber}: ${docs.length} Dokument(e) → documentData`,
-      );
-    }
 
-    const shipmentLike: PortalShipmentForSoloplan = {
+    const shipmentBase: PortalShipmentForSoloplan = {
       id: order.id,
       trackingNumber: externalNumber,
       reference: externalNumber,
@@ -811,7 +805,7 @@ export class SoloplanService implements TransportIntegration {
           packaging: 'KRT',
         },
       ],
-      documents: docs,
+      documents: [],
     };
 
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
@@ -820,42 +814,81 @@ export class SoloplanService implements TransportIntegration {
     const objectOwnerId =
       Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined;
 
-    // Exact-Keys importeurVLBPortal/zAZVLBPortal nur wenn Soloplan-Schema sie erlaubt.
-    // Default false: sonst NoAdditionalPropertiesAllowed → gesamter Import inkl. Docs fehlgeschlagen.
-    const extendedVlbFields =
-      this.config.get('SOLOPLAN_VLBPORTAL_EXTENDED_FIELDS') === 'true';
-
-    const payload = buildSoloplanFilePayload(shipmentLike, {
-      format,
-      defaultSender: this.getDefaultSender(),
-      objectOwnerId,
-      extendedVlbFields,
-    });
-
     if (!enabled || mode === 'stub') {
       this.logger.log(`Soloplan stub exportCustomsOrder ${externalNumber}`);
-      return { ok: true, stub: true, externalNumber };
+      return { ok: true, stub: true, externalNumber, documents: docs.length };
     }
 
-    if (mode === 'file') {
-      const fileName = `order-${externalNumber}.json`;
-      const json = JSON.stringify(payload, null, 2);
-      const primary = join(this.ordersOutDir, fileName);
-      const mirror = join(this.integrationOrdersOutDir, fileName);
-      if (!existsSync(this.ordersOutDir)) mkdirSync(this.ordersOutDir, { recursive: true });
-      writeFileSync(primary, json);
-      writeFileSync(mirror, json);
-      const docCount = Array.isArray((payload as any)?.order?.[0]?.documentData)
-        ? (payload as any).order[0].documentData.length
-        : 0;
-      this.logger.log(
-        `Soloplan PORTAL-v6 customs export ${primary} (docs=${docCount}, extendedVlb=${extendedVlbFields})`,
+    if (mode !== 'file') {
+      this.logger.warn(`Soloplan customs export: mode ${mode} nicht unterstützt für CustomsOrder`);
+      return { ok: false, externalNumber };
+    }
+
+    if (!existsSync(this.ordersOutDir)) mkdirSync(this.ordersOutDir, { recursive: true });
+    if (!existsSync(this.integrationOrdersOutDir)) {
+      mkdirSync(this.integrationOrdersOutDir, { recursive: true });
+    }
+
+    const archiveDir = join(this.sftpOutboundRoot, 'soloplan', 'archive');
+    const createFileName = `order-${externalNumber}.json`;
+    const createAlreadyPickedUp =
+      existsSync(join(archiveDir, createFileName)) || this.wasCreatePickedUp(externalNumber);
+
+    let createFileNameWritten: string | null = null;
+    // Create nur schreiben, solange Soloplan den Auftrag noch nicht abgeholt hat.
+    // Erneutes Create mit Sendungsdetails würde Soloplan-Daten überschreiben.
+    if (!createAlreadyPickedUp) {
+      const createPayload = buildSoloplanFilePayload(
+        { ...shipmentBase, documents: [] },
+        {
+          format,
+          defaultSender: this.getDefaultSender(),
+          objectOwnerId,
+        },
       );
-      return { ok: true, fileName, externalNumber, documents: docCount, extendedVlbFields };
+      const json = JSON.stringify(createPayload, null, 2);
+      writeFileSync(join(this.ordersOutDir, createFileName), json);
+      writeFileSync(join(this.integrationOrdersOutDir, createFileName), json);
+      createFileNameWritten = createFileName;
+      this.logger.log(
+        `Soloplan PORTAL-v6 customs CREATE ${join(this.ordersOutDir, createFileName)} (ohne Dokumente)`,
+      );
+    } else {
+      this.logger.log(
+        `Soloplan customs CREATE übersprungen – ${externalNumber} bereits abgeholt; nur Dokument-Update`,
+      );
     }
 
-    this.logger.warn(`Soloplan customs export: mode ${mode} nicht unterstützt für CustomsOrder`);
-    return { ok: false, externalNumber };
+    let updateFileName: string | null = null;
+    if (docs.length) {
+      const updatePayload = buildSoloplanUpdatePayload(
+        { ...shipmentBase, documents: docs },
+        { format, objectOwnerId },
+      );
+      updateFileName = soloplanOutboundFileName(shipmentBase, format, {
+        update: true,
+        at: new Date(),
+      });
+      const json = JSON.stringify(updatePayload, null, 2);
+      writeFileSync(join(this.ordersOutDir, updateFileName), json);
+      writeFileSync(join(this.integrationOrdersOutDir, updateFileName), json);
+      this.logger.log(
+        `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (${docs.length} Datei(en), nur documentData)`,
+      );
+    } else {
+      this.logger.warn(
+        `Soloplan customs export ${externalNumber}: keine Anhänge (Rechnung/Begleitdokumente)`,
+      );
+    }
+
+    return {
+      ok: true,
+      fileName: createFileNameWritten || updateFileName,
+      updateFileName,
+      externalNumber,
+      documents: docs.length,
+      createSkipped: createAlreadyPickedUp,
+    };
   }
 }
 

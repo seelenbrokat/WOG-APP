@@ -631,18 +631,12 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL FileAPI.
- *
- * Wichtig: Automate validiert mit additionalProperties=false.
- * `importeurVLBPortal` / `zAZVLBPortal` / `warenortVLBPortal` dürfen NUR gesendet werden,
- * wenn sie im Soloplan-Importschema freigeschaltet sind (sonst scheitert der gesamte Import
- * inkl. documentData). Bis dahin → information.info1–info3.
- *
- * Env: SOLOPLAN_VLBPORTAL_EXTENDED_FIELDS=true aktiviert die Exact-Keys.
+ * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
   shipment: PortalShipmentForSoloplan,
-  opts: { extendedVlbFields?: boolean } = {},
 ) {
   const fields = resolveCustomsFileApiFields(shipment);
   if (fields.kennzeichen) consignment.kennzeichen = fields.kennzeichen;
@@ -652,22 +646,9 @@ function applyCustomsConsignmentFields(
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
-
-  const info = {
-    ...((consignment.information as Record<string, unknown>) || {}),
-  };
-  // Fallback in erlaubte Schema-Felder (CONSConsignmentInformation)
-  if (fields.importeurVLBPortal) info.info1 = fields.importeurVLBPortal;
-  if (fields.zAZVLBPortal) info.info2 = fields.zAZVLBPortal;
-  if (fields.warenortVLBPortal) info.info3 = fields.warenortVLBPortal;
-  if (Object.keys(info).length) consignment.information = info;
-
-  // Exact-Keys nur wenn Soloplan-Importschema die Properties erlaubt
-  if (opts.extendedVlbFields) {
-    if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
-    if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
-    if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
-  }
+  if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
+  if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
   return consignment;
 }
 
@@ -699,11 +680,8 @@ export function buildSoloplanUpdatePayload(
   });
 
   if (format === 'order') {
-    const orderDocuments = toSoloplanDocumentData(
-      siblings
-        .flatMap((s) => s.documents || [])
-        .filter((d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG'),
-    );
+    // Update: alle mitgelieferten Dokumente (ABL, RG, CHBEL, …) – keine Sendungsdetails
+    const orderDocuments = toSoloplanDocumentData(siblings.flatMap((s) => s.documents || []));
     return {
       header,
       order: [
@@ -735,11 +713,6 @@ export function buildSoloplanFilePayload(
     orderShipments?: PortalShipmentForSoloplan[];
     /** true = nur externe Nummern, keine Sendungsinfos */
     update?: boolean;
-    /**
-     * Exact-Keys importeurVLBPortal / zAZVLBPortal / warenortVLBPortal senden.
-     * Nur true, wenn Soloplan Automate-Schema die Properties erlaubt.
-     */
-    extendedVlbFields?: boolean;
   } = {},
 ) {
   if (opts.update) {
@@ -763,24 +736,18 @@ export function buildSoloplanFilePayload(
       defaultSender: opts.defaultSender,
       trackingUrl,
     });
-    return applyCustomsConsignmentFields(
-      { ...consignment, itemNumber: idx + 1 },
-      s,
-      { extendedVlbFields: opts.extendedVlbFields === true },
-    );
+    return applyCustomsConsignmentFields({ ...consignment, itemNumber: idx + 1 }, s);
   });
 
   if (format === 'order') {
     const freightPayer = shipment.order?.freightPayer || shipment.customer;
     const externalNumber = orderExternalNumber(shipment);
-    // Auftragsweite Dokumente:
-    // - normal: Ablieferbelege
-    // - Verzollung: alle Anhänge (Rechnung RG, Begleitdokumente CHBEL/INFO) auf Order-Ebene,
-    //   damit Soloplan OrderImport sie zuverlässig übernimmt
+    // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
+    // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
     const allDocs = siblings.flatMap((s) => s.documents || []);
     const orderDocuments = toSoloplanDocumentData(
       anyVerzollung
-        ? allDocs
+        ? []
         : allDocs.filter(
             (d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG',
           ),
