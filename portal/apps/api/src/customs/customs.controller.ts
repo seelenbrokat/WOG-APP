@@ -197,6 +197,13 @@ export class CustomsController {
     return this.service.get(user, id);
   }
 
+  /** Soloplan erneut exportieren + PDF/E-Mail an info@worldofgreen.ch */
+  @Post(':id/submit')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  submit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.get(user, id).then(() => this.service.finalizeSubmission(id));
+  }
+
   @Patch(':id/status')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   status(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: StatusDto) {

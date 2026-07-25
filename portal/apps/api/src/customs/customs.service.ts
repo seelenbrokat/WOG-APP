@@ -15,7 +15,7 @@ import {
   normalizeSmartBorderPlate,
   isValidSmartBorderPlate,
 } from '@wog/shared';
-import { createWriteStream, createReadStream, existsSync, mkdirSync } from 'fs';
+import { createWriteStream, createReadStream, existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
@@ -24,6 +24,10 @@ import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import {
+  formatGrenzeDateTime,
+  writeVerzollungsauftragPdf,
+} from './verzollungsauftrag-pdf';
 
 export type PartyAddress = {
   firma: string;
@@ -301,13 +305,175 @@ export class CustomsService {
     );
 
     try {
-      await this.soloplan.exportCustomsOrder(order.id);
+      await this.finalizeSubmission(full);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`Soloplan-Export Verzollungsauftrag ${order.id} fehlgeschlagen: ${msg}`);
+      this.logger.warn(`Nachbearbeitung Verzollungsauftrag ${order.id} fehlgeschlagen: ${msg}`);
     }
 
-    return full;
+    return this.get(user, order.id);
+  }
+
+  /**
+   * Soloplan-Export + sauberes PDF + E-Mail an info@worldofgreen.ch (Anhänge inkl. PDF).
+   * Kann auch für bereits erstellte Aufträge erneut aufgerufen werden.
+   */
+  async finalizeSubmission(orderIdOrFull: string | Awaited<ReturnType<CustomsService['get']>>) {
+    const full =
+      typeof orderIdOrFull === 'string'
+        ? await this.prisma.customsOrder.findUnique({
+            where: { id: orderIdOrFull },
+            include: {
+              customer: { select: { name: true, customerNumber: true } },
+              mandant: { select: { name: true, code: true } },
+              documents: {
+                where: { type: DocumentType.CUSTOMS_PAPER },
+                orderBy: { createdAt: 'desc' },
+                select: {
+                  id: true,
+                  fileName: true,
+                  mimeType: true,
+                  sizeBytes: true,
+                  createdAt: true,
+                  storagePath: true,
+                },
+              },
+            },
+          })
+        : orderIdOrFull;
+    if (!full) throw new NotFoundException('Verzollungsauftrag nicht gefunden');
+
+    // Soloplan FileAPI
+    try {
+      await this.soloplan.exportCustomsOrder(full.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Soloplan-Export Verzollungsauftrag ${full.id} fehlgeschlagen: ${msg}`);
+    }
+
+    const paperDocs = (full.documents || []).filter((d) =>
+      existsSync((d as { storagePath?: string }).storagePath || ''),
+    ) as Array<{
+      id: string;
+      fileName: string;
+      mimeType: string;
+      storagePath: string;
+    }>;
+
+    const grenzeWhen = formatGrenzeDateTime(full.zeit);
+    const pdfFileName =
+      `Verzollungsauftrag-${full.kennzeichen}-${full.id.slice(-6)}.pdf`.replace(
+        /[^\w.\-]+/g,
+        '_',
+      );
+    const pdfPath = join(this.uploadDir, pdfFileName);
+    await writeVerzollungsauftragPdf(
+      {
+        kennzeichen: full.kennzeichen,
+        zulassungsland: full.zulassungsland,
+        kennzeichenAnhaenger: full.kennzeichenAnhaenger,
+        zulassungslandAnhaenger: full.zulassungslandAnhaenger,
+        grenzuebergang: full.grenzuebergang,
+        grenzzollstelle: full.grenzzollstelle,
+        zeit: full.zeit,
+        importeur: full.importeur,
+        frankatur: full.frankatur,
+        notes: full.notes,
+        customerName: full.customer.name,
+        customerNumber: full.customer.customerNumber,
+        mandantName: full.mandant?.name,
+        absenderFirma: full.absenderFirma,
+        absenderStreet: full.absenderStreet,
+        absenderZip: full.absenderZip,
+        absenderCity: full.absenderCity,
+        absenderCountry: full.absenderCountry,
+        empfaengerFirma: full.empfaengerFirma,
+        empfaengerStreet: full.empfaengerStreet,
+        empfaengerZip: full.empfaengerZip,
+        empfaengerCity: full.empfaengerCity,
+        empfaengerCountry: full.empfaengerCountry,
+        abweichenderFrachtzahler: full.abweichenderFrachtzahler,
+        frachtzahlerFirma: full.frachtzahlerFirma,
+        frachtzahlerStreet: full.frachtzahlerStreet,
+        frachtzahlerZip: full.frachtzahlerZip,
+        frachtzahlerCity: full.frachtzahlerCity,
+        frachtzahlerCountry: full.frachtzahlerCountry,
+        documentNames: paperDocs.map((d) => d.fileName),
+      },
+      pdfPath,
+    );
+
+    const pdfDoc = await this.prisma.document.create({
+      data: {
+        organizationId: full.organizationId,
+        customsOrderId: full.id,
+        customerId: full.customerId,
+        type: DocumentType.OTHER,
+        fileName: pdfFileName,
+        mimeType: 'application/pdf',
+        storagePath: pdfPath,
+        sizeBytes: statSync(pdfPath).size,
+        uploadedById: full.createdById,
+      },
+    });
+
+    const notifyTo =
+      this.config.get<string>('CUSTOMS_NOTIFY_EMAIL') || 'info@worldofgreen.ch';
+    const subject = `${grenzeWhen} · ${full.customer.name}`;
+    const body = [
+      'Neuer Verzollungsauftrag im WOG Portal.',
+      '',
+      `Kunde: ${full.customer.name}${full.customer.customerNumber ? ` (${full.customer.customerNumber})` : ''}`,
+      `Zeitpunkt an der Grenze: ${grenzeWhen}`,
+      `Kennzeichen: ${full.kennzeichen}${full.zulassungsland ? ` (${full.zulassungsland})` : ''}`,
+      full.kennzeichenAnhaenger
+        ? `Kennzeichen Anhänger: ${full.kennzeichenAnhaenger}${
+            full.zulassungslandAnhaenger ? ` (${full.zulassungslandAnhaenger})` : ''
+          }`
+        : null,
+      `Grenzübergang: ${full.grenzuebergang}`,
+      full.grenzzollstelle ? `Grenzzollstelle: ${full.grenzzollstelle}` : null,
+      `Importeur: ${full.importeur}`,
+      `Frankatur: ${full.frankatur}`,
+      `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
+      `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,
+      full.mandant ? `Mandant: ${full.mandant.name}` : null,
+      '',
+      `Anhänge: ${paperDocs.length + 1} Datei(en) (inkl. Auftrags-PDF)`,
+      ...paperDocs.map((d) => `- ${d.fileName}`),
+      `- ${pdfFileName}`,
+      '',
+      `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
+    ]
+      .filter((line) => line != null)
+      .join('\n');
+
+    await this.notifications.sendRaw(notifyTo.trim(), subject, body, undefined, [
+      {
+        filename: pdfFileName,
+        path: pdfPath,
+        contentType: 'application/pdf',
+      },
+      ...paperDocs.map((d) => ({
+        filename: d.fileName,
+        path: d.storagePath,
+        contentType: d.mimeType || 'application/octet-stream',
+      })),
+    ]);
+
+    await this.audit.log(full.createdById, 'customs.submit.notify', 'CustomsOrder', full.id, {
+      email: notifyTo,
+      pdfDocumentId: pdfDoc.id,
+      attachments: paperDocs.length + 1,
+    });
+
+    return {
+      ok: true,
+      email: notifyTo,
+      subject,
+      pdfDocumentId: pdfDoc.id,
+      fileName: pdfFileName,
+    };
   }
 
   async updateStatus(user: AuthUser, id: string, status: string) {
