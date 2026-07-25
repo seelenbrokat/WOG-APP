@@ -381,6 +381,20 @@ code {
   font-weight: 600;
   box-shadow: inset 2px 0 0 #9fc8e0;
 }
+.sidebar .nav-block { display: flex; flex-direction: column; gap: 0.1rem; }
+.sidebar .nav-children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  margin: 0 0 0.2rem 0.55rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+.sidebar .nav-children a {
+  font-size: 0.88rem;
+  padding: 0.42rem 0.65rem;
+  color: rgba(255, 255, 255, 0.68);
+}
 
 .sidebar-user {
   margin-top: auto;
@@ -720,6 +734,91 @@ code {
 .table-shipments .mono {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+
+/* Lager / Lademittelschein – 10"-Tablet */
+.lager-tablet .lms-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.lms-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--wog-green-tint);
+}
+.lms-stepper > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.lms-stepper-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.lms-stepper-controls button {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: white;
+  font-size: 1.35rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lms-stepper-controls input {
+  flex: 1;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+}
+.lms-entity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.lms-entity label {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  font-size: 0.95rem;
+}
+.lms-sigs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+.sig-pad {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55rem;
+  background: white;
+}
+.sig-pad-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.sig-pad-canvas {
+  width: 100%;
+  height: 140px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  touch-action: none;
+  cursor: crosshair;
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .lager-tablet .lms-grid,
+  .lms-sigs { grid-template-columns: 1fr; }
 }
 
 .badge {

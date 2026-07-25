@@ -38,6 +38,7 @@ enum DocumentType {
   LOADING_LIST
   WAREHOUSE_PHOTO
   ENTLADEBERICHT
+  LADEMITTELSCHEIN
   OTHER
 }
 
@@ -92,6 +93,7 @@ model Organization {
   tourDocuments     TourDocument[]
   intouchFiles      IntouchFile[]
   loadingUnitPostings LoadingUnitPosting[]
+  lademittelscheine   Lademittelschein[]
 }
 
 /// Soloplan-/InTouch-Fahrer (INTOUCHFAHRER / Tour Driver1.TelematicsId)
@@ -199,6 +201,7 @@ model Tour {
   events       TelematicsEvent[]
   documents    TourDocument[]
   loadingUnitPostings LoadingUnitPosting[]
+  lademittelscheine   Lademittelschein[]
 
   @@unique([organizationId, soloplanTourId])
   @@index([organizationId, tourNumber])
@@ -870,10 +873,76 @@ model Partner {
   user         User?        @relation(fields: [userId], references: [id])
   jobs         PartnerJob[]
   contacts     Contact[]
+  lademittelscheine Lademittelschein[]
 
   @@unique([organizationId, code])
   @@unique([organizationId, soloplanBusinessPartnerId])
   @@index([matchcode])
+}
+
+/// Digitaler Lademittelschein (Lager / Tour, Tablet-Erfassung)
+model Lademittelschein {
+  id             String   @id @default(cuid())
+  organizationId String
+  mandantId      String?
+  /// Laufende Nummer z. B. LMS-20260725-0001
+  number         String
+  status         String   @default("DRAFT") // DRAFT | COMPLETED | SENT
+  /// AG | GMBH – Papierformular Mandant
+  companyEntity  String   @default("AG")
+
+  tourId         String?
+  tourNumber     String?
+  partnerId      String?
+  partnerName    String?
+  partnerNumber  String?
+  partnerEmail   String?
+  vehiclePlate   String?
+  driverName     String?
+  reference      String?
+  locationText   String?
+  occurredAt     DateTime @default(now())
+
+  /// WOG übergibt (Ausgang an Partner)
+  eupOut       Int @default(0)
+  rahmenOut    Int @default(0)
+  deckelOut    Int @default(0)
+  gitterboxOut Int @default(0)
+  otherOut     String?
+  /// WOG übernimmt (Eingang von Partner)
+  eupIn        Int @default(0)
+  rahmenIn     Int @default(0)
+  deckelIn     Int @default(0)
+  gitterboxIn  Int @default(0)
+  otherIn      String?
+
+  noExchangeNoStock  Boolean @default(false)
+  noExchangeDriverRefuse Boolean @default(false)
+
+  wogSignedByName      String?
+  wogSignaturePath     String?
+  partnerSignedByName  String?
+  partnerSignaturePath String?
+
+  documentId   String?
+  emailedAt    DateTime?
+  exportedAt   DateTime?
+  exportPath   String?
+  sourceFile   String?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tour         Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  partner      Partner?     @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, number])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, status])
+  @@index([tourNumber])
+  @@index([partnerId])
 }
 
 model PartnerJob {

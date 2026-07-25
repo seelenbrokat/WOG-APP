@@ -199,10 +199,13 @@ mkdir -p data/uploads \
   data/sftp/inbound/soloplan \
   data/sftp/inbound/soloplan/business-partners \
   data/sftp/inbound/soloplan/tours \
+  data/sftp/inbound/soloplan/lademittel \
+  data/sftp/inbound/soloplan/lademittel/processed \
   data/sftp/inbound/intouch/meldungen \
   data/sftp/inbound/intouch/dokumente \
   data/sftp/outbound/soloplan/orders \
   data/sftp/outbound/soloplan/telematics \
+  data/sftp/outbound/soloplan/lademittel \
   data/sftp/inbound/vlbportal/telematics \
   data/sftp/inbound/proforma \
   data/sftp/inbound/wareneingang/rechnungen \
@@ -241,11 +244,13 @@ if [[ "$ENABLE_SFTP" == "1" ]]; then
   mkdir -p \
     "$SFTP_ROOT/inbound/soloplan/business-partners" \
     "$SFTP_ROOT/inbound/soloplan/tours" \
+    "$SFTP_ROOT/inbound/soloplan/lademittel/processed" \
     "$SFTP_ROOT/inbound/intouch/meldungen/processed" \
     "$SFTP_ROOT/inbound/intouch/dokumente/processed" \
     "$SFTP_ROOT/inbound/vlbportal/telematics" \
     "$SFTP_ROOT/outbound/soloplan/orders" \
     "$SFTP_ROOT/outbound/soloplan/telematics" \
+    "$SFTP_ROOT/outbound/soloplan/lademittel" \
     "$SFTP_ROOT/outbound/soloplan/archive"
   chown root:root "$SFTP_ROOT"
   chmod 755 "$SFTP_ROOT"

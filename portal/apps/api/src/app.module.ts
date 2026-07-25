@@ -21,6 +21,7 @@ import { LabelsModule } from './labels/labels.module';
 import { OrdersModule } from './orders/orders.module';
 import { ToursModule } from './tours/tours.module';
 import { DriverModule } from './driver/driver.module';
+import { LagerModule } from './lager/lager.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { PasswordChangeGuard } from './auth/password-change.guard';
@@ -48,6 +49,7 @@ import { PasswordChangeGuard } from './auth/password-change.guard';
     IntegrationsModule,
     AuditModule,
     CustomsModule,
+    LagerModule,
   ],
   controllers: [HealthController],
   providers: [

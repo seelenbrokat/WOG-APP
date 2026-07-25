@@ -13,6 +13,7 @@ import { ProformaWeService } from './shipments/proforma-we.service';
 import { SchmidtsLadelisteWeService } from './shipments/schmidts-ladeliste-we.service';
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 import { RecurringTemplatesService } from './shipments/recurring-templates.service';
+import { LademittelscheinService } from './lager/lademittelschein.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -30,6 +31,7 @@ async function bootstrap() {
   const schmidtsLadeliste = app.get(SchmidtsLadelisteWeService);
   const fahrerTelematics = app.get(FahrerTelematicsService);
   const recurringTemplates = app.get(RecurringTemplatesService);
+  const lademittelscheine = app.get(LademittelscheinService);
 
   console.log(
     'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub + ETB-Retention)',
@@ -63,6 +65,12 @@ async function bootstrap() {
       if (ladeliste.processed || ladeliste.failed) {
         console.log(
           `Schmidts-Ladeliste: ${ladeliste.processed} verarbeitet, ${ladeliste.failed} fehlgeschlagen`,
+        );
+      }
+      const lms = await lademittelscheine.processInboundDir();
+      if (lms.processed || lms.failed) {
+        console.log(
+          `Lademittelschein: ${lms.processed} verarbeitet, ${lms.failed} fehlgeschlagen`,
         );
       }
       await intouch.processInboundDir(undefined, 200);

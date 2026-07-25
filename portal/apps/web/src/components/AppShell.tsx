@@ -13,15 +13,29 @@ const ROLE_LABEL: Record<string, string> = {
   PARTNER: 'Partner',
 };
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  roles: string[];
+  children?: Array<{ href: string; label: string }>;
+};
+
+const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/partner/tours', label: 'Meine Touren', roles: ['PARTNER'] },
+  { href: '/partner/lademittelscheine', label: 'Lademittelscheine', roles: ['PARTNER'] },
   { href: '/fahrer', label: 'Fahrer / Zustell-App', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/lademittel', label: 'Lademittel', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
+  {
+    href: '/lager',
+    label: 'Lager',
+    roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'],
+    children: [{ href: '/lager/lademittelscheine', label: 'Lademittelscheine' }],
+  },
   { href: '/scanning', label: 'Scanning', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning/we-tc57', label: 'WE TC57', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning/entladeberichte', label: 'Entladeberichte', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -38,6 +52,27 @@ const NAV = [
   { href: '/change-password', label: 'Passwort ändern', roles: ['*'] },
   { href: '/track', label: 'Track & Trace', roles: ['*'] },
 ];
+
+function isActive(pathname: string, href: string) {
+  if (pathname === href) return true;
+  if (href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname)) return true;
+  if (
+    href === '/tours' &&
+    (pathname === '/tours' || /^\/tours\/(?!map$|dashboard$|lademittel$)[^/]+$/.test(pathname))
+  ) {
+    return true;
+  }
+  if (href === '/tours/dashboard' && pathname.startsWith('/tours/dashboard')) return true;
+  if (href === '/tours/lademittel' && pathname.startsWith('/tours/lademittel')) return true;
+  if (href === '/tours/map' && pathname.startsWith('/tours/map')) return true;
+  if (href === '/partner/tours' && pathname === '/partner/tours') return true;
+  if (href === '/partner/lademittelscheine' && pathname.startsWith('/partner/lademittelscheine')) return true;
+  if (href === '/lager' && pathname.startsWith('/lager')) return true;
+  if (href === '/lager/lademittelscheine' && pathname.startsWith('/lager/lademittelscheine')) return true;
+  if (href === '/audit' && pathname.startsWith('/audit')) return true;
+  if (href === '/customs' && pathname.startsWith('/customs')) return true;
+  return false;
+}
 
 export function AppShell({
   title,
@@ -87,22 +122,26 @@ export function AppShell({
           <p className="sidebar-label">Navigation</p>
           <nav>
             {links.map((l) => {
-              const active =
-                pathname === l.href ||
-                (l.href === '/shipments' && /^\/shipments\/[^/]+$/.test(pathname)) ||
-                (l.href === '/tours' &&
-                  (pathname === '/tours' ||
-                    /^\/tours\/(?!map$|dashboard$|lademittel$)[^/]+$/.test(pathname))) ||
-                (l.href === '/tours/dashboard' && pathname.startsWith('/tours/dashboard')) ||
-                (l.href === '/tours/lademittel' && pathname.startsWith('/tours/lademittel')) ||
-                (l.href === '/tours/map' && pathname.startsWith('/tours/map')) ||
-                (l.href === '/partner/tours' && pathname.startsWith('/partner/')) ||
-                (l.href === '/audit' && pathname.startsWith('/audit')) ||
-                (l.href === '/customs' && pathname.startsWith('/customs'));
+              const active = isActive(pathname, l.href);
               return (
-                <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
-                  {l.label}
-                </Link>
+                <div key={l.href} className="nav-block">
+                  <Link href={l.href} className={active ? 'active' : undefined}>
+                    {l.label}
+                  </Link>
+                  {l.children?.length ? (
+                    <div className="nav-children">
+                      {l.children.map((c) => (
+                        <Link
+                          key={c.href}
+                          href={c.href}
+                          className={isActive(pathname, c.href) ? 'active' : undefined}
+                        >
+                          {c.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </nav>
