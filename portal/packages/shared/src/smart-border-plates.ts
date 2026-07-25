@@ -62,30 +62,11 @@ export function normalizeSmartBorderPlate(raw: string, zulassungsland?: string |
   }
   s = s.toUpperCase();
 
-  // AT/DE ohne Bindestrich: Regionskürzel 1–3, dann Identifikator
+  // AT/DE ohne Bindestrich: führende Buchstaben = Regionskürzel, Rest beginnt mit Ziffer
+  // (z. B. W12345T → W-12345T, GAP850 → GAP-850). Bei Buchstaben-Identifikator bitte „MÜ-A1234“ eingeben.
   if ((country === 'AT' || country === 'DE') && s && !s.includes('-')) {
-    let split: string | null = null;
-    for (let len = 3; len >= 1; len--) {
-      const region = s.slice(0, len);
-      const rest = s.slice(len);
-      if (!/^[A-ZÄÖÜ]+$/i.test(region) || !rest) continue;
-      if (/^\d[A-ZÄÖÜ0-9]*$/i.test(rest)) {
-        split = `${region}-${rest}`;
-        break;
-      }
-    }
-    if (!split) {
-      for (let len = 3; len >= 1; len--) {
-        const region = s.slice(0, len);
-        const rest = s.slice(len);
-        if (!/^[A-ZÄÖÜ]+$/i.test(region) || !rest) continue;
-        if (/^[A-ZÄÖÜ]\d[A-ZÄÖÜ0-9]*$/i.test(rest)) {
-          split = `${region}-${rest}`;
-          break;
-        }
-      }
-    }
-    if (split) s = split;
+    const m = s.match(/^([A-ZÄÖÜ]{1,3})(\d[A-ZÄÖÜ0-9]*)$/i);
+    if (m) s = `${m[1]}-${m[2]}`;
   }
   return s;
 }
