@@ -52,6 +52,14 @@ class CreateCustomsDto {
   @MinLength(2)
   importeur!: string;
 
+  @IsOptional()
+  @IsString()
+  zazKonto?: string;
+
+  @IsOptional()
+  @IsString()
+  warenort?: string;
+
   @IsString()
   @MinLength(2)
   frankatur!: string;

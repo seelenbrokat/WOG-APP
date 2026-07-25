@@ -46,6 +46,8 @@ export type CreateCustomsInput = {
   grenzzollstelle?: string;
   zeit: string;
   importeur: string;
+  zazKonto?: string;
+  warenort?: string;
   frankatur: string;
   mandantId?: string;
   customerId?: string;
@@ -224,6 +226,17 @@ export class CustomsService {
       });
     }
 
+    const absenderCountry = (data.absenderCountry?.trim() || 'AT').toUpperCase();
+    const empfaengerCountry = (data.empfaengerCountry?.trim() || 'CH').toUpperCase();
+    const fromChFl = ['CH', 'LI', 'FL'].includes(absenderCountry);
+    const toAt = empfaengerCountry === 'AT' || empfaengerCountry === 'A';
+    const warenort = data.warenort?.trim() || '';
+    if (fromChFl && toAt && !warenort) {
+      throw new BadRequestException(
+        'Warenort/Verzollungsort ist bei Verkehrsrichtung CH/FL → Österreich Pflicht',
+      );
+    }
+
     const order = await this.prisma.customsOrder.create({
       data: {
         organizationId: user.organizationId,
@@ -237,6 +250,8 @@ export class CustomsService {
         grenzzollstelle: data.grenzzollstelle?.trim() || null,
         zeit: new Date(data.zeit),
         importeur: data.importeur.trim(),
+        zazKonto: data.zazKonto?.trim() || null,
+        warenort: warenort || null,
         frankatur,
         abweichenderFrachtzahler: abweichend,
         frachtzahlerFirma: abweichend ? data.frachtzahlerFirma?.trim() : null,
@@ -248,12 +263,12 @@ export class CustomsService {
         absenderStreet: data.absenderStreet.trim(),
         absenderZip: data.absenderZip.trim(),
         absenderCity: data.absenderCity.trim(),
-        absenderCountry: data.absenderCountry?.trim() || 'AT',
+        absenderCountry,
         empfaengerFirma: data.empfaengerFirma.trim(),
         empfaengerStreet: data.empfaengerStreet.trim(),
         empfaengerZip: data.empfaengerZip.trim(),
         empfaengerCity: data.empfaengerCity.trim(),
-        empfaengerCountry: data.empfaengerCountry?.trim() || 'CH',
+        empfaengerCountry,
         notes: data.notes,
         status: 'SUBMITTED',
         createdById: user.id,
@@ -290,6 +305,8 @@ export class CustomsService {
         `Zeit: ${when}`,
         `Frankatur: ${order.frankatur}`,
         `Importeur: ${order.importeur}`,
+        order.zazKonto ? `ZAZ-Konto: ${order.zazKonto}` : '',
+        order.warenort ? `Warenort/Verzollungsort: ${order.warenort}` : '',
         `Absender: ${order.absenderFirma}, ${order.absenderStreet}, ${order.absenderZip} ${order.absenderCity}`,
         `Empfänger: ${order.empfaengerFirma}, ${order.empfaengerStreet}, ${order.empfaengerZip} ${order.empfaengerCity}`,
         abweichend
@@ -377,6 +394,8 @@ export class CustomsService {
         grenzzollstelle: full.grenzzollstelle,
         zeit: full.zeit,
         importeur: full.importeur,
+        zazKonto: full.zazKonto,
+        warenort: full.warenort,
         frankatur: full.frankatur,
         notes: full.notes,
         customerName: full.customer.name,
@@ -434,6 +453,8 @@ export class CustomsService {
       `Grenzübergang: ${full.grenzuebergang}`,
       full.grenzzollstelle ? `Grenzzollstelle: ${full.grenzzollstelle}` : null,
       `Importeur: ${full.importeur}`,
+      full.zazKonto ? `ZAZ-Konto: ${full.zazKonto}` : null,
+      full.warenort ? `Warenort/Verzollungsort: ${full.warenort}` : null,
       `Frankatur: ${full.frankatur}`,
       `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
       `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,

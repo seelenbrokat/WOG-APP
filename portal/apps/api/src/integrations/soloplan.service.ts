@@ -766,6 +766,9 @@ export class SoloplanService implements TransportIntegration {
       grenzuebergang: order.grenzuebergang,
       grenzzollstelle: order.grenzzollstelle,
       zeitpunktGrenze: order.zeit,
+      importeurVLBPortal: order.importeur,
+      zAZVLBPortal: order.zazKonto,
+      warenortVLBPortal: order.warenort,
       customer: {
         customerNumber: order.customer.customerNumber,
         name: order.customer.name,

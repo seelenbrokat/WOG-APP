@@ -73,13 +73,20 @@ export type PortalShipmentForSoloplan = {
   extras?: unknown;
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL v6).
-   * Keys in Soloplan: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
+   * Keys in Soloplan: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
+   * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
   grenzuebergang?: string | null;
   grenzzollstelle?: string | null;
   zeitpunktGrenze?: Date | string | null;
+  /** Importeur-Name → Soloplan importeurVLBPortal */
+  importeurVLBPortal?: string | null;
+  /** ZAZ-Konto → Soloplan zAZVLBPortal */
+  zAZVLBPortal?: string | null;
+  /** Warenort/Verzollungsort → Soloplan warenortVLBPortal (CH/FL → AT) */
+  warenortVLBPortal?: string | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
@@ -567,7 +574,7 @@ export function isVerzollungsauftrag(shipment: PortalShipmentForSoloplan): boole
   return extrasRecord(shipment.extras).verzollung === true;
 }
 
-/** Kennzeichen / Grenze / Zeitpunkt aus Sendung oder extras lesen. */
+/** Kennzeichen / Grenze / Zeitpunkt / VLBPortal-Felder aus Sendung oder extras lesen. */
 export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan) {
   const extras = extrasRecord(shipment.extras);
   const kennzeichen =
@@ -591,12 +598,33 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
   const zeitpunktanderGrenze = formatSoloplanDateTime(
     zeitRaw as Date | string | null | undefined,
   );
+  const importeurVLBPortal =
+    String(
+      shipment.importeurVLBPortal ||
+        extras.importeurVLBPortal ||
+        extras.importeur ||
+        '',
+    ).trim() || undefined;
+  const zAZVLBPortal =
+    String(shipment.zAZVLBPortal || extras.zAZVLBPortal || extras.zazKonto || '')
+      .trim() || undefined;
+  const warenortVLBPortal =
+    String(
+      shipment.warenortVLBPortal ||
+        extras.warenortVLBPortal ||
+        extras.warenort ||
+        extras.verzollungsort ||
+        '',
+    ).trim() || undefined;
   return {
     kennzeichen,
     kennzeichenAnhaenger,
     grenzuebergang,
     grenzzollstelle,
     zeitpunktanderGrenze,
+    importeurVLBPortal,
+    zAZVLBPortal,
+    warenortVLBPortal,
   };
 }
 
@@ -618,6 +646,10 @@ function applyCustomsConsignmentFields(
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
+  // Soloplan FileAPI Exact-Keys (Importeur / ZAZ / Warenort)
+  if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
+  if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
   return consignment;
 }
 

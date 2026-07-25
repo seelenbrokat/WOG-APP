@@ -20,6 +20,8 @@ export type VerzollungsauftragPdfInput = {
   grenzzollstelle?: string | null;
   zeit: Date | string;
   importeur: string;
+  zazKonto?: string | null;
+  warenort?: string | null;
   frankatur: string;
   notes?: string | null;
   customerName: string;
@@ -173,6 +175,8 @@ export function writeVerzollungsauftragPdf(
     row('Grenzübergang', order.grenzuebergang);
     row('Grenzzollstelle', order.grenzzollstelle || '–');
     row('Importeur', order.importeur);
+    row('ZAZ-Konto', order.zazKonto || '–');
+    row('Warenort/Verzollungsort', order.warenort || '–');
     doc.moveDown(0.4);
 
     // Absender / Empfänger

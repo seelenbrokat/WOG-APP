@@ -167,10 +167,16 @@ export default function CustomsPage() {
     grenzzollstelle: '',
     zeit: '',
     importeur: '',
+    zazKonto: '',
+    warenort: '',
     frankatur: FRANKATUR_PRESETS[0],
     mandantId: '',
     notes: '',
   });
+
+  const fromChFl = ['CH', 'LI', 'FL'].includes(absender.country.trim().toUpperCase());
+  const toAt = ['AT', 'A'].includes(empfaenger.country.trim().toUpperCase());
+  const needsWarenort = fromChFl && toAt;
 
   async function load() {
     setOrders(await api('/customs'));
@@ -266,6 +272,9 @@ export default function CustomsPage() {
       if (isStaff && !form.customerId) {
         throw new Error('Bitte einen Kunden wählen');
       }
+      if (needsWarenort && !form.warenort.trim()) {
+        throw new Error('Warenort/Verzollungsort ist bei CH/FL → Österreich Pflicht');
+      }
       const fd = new FormData();
       if (isStaff) fd.append('customerId', form.customerId);
       const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
@@ -282,6 +291,8 @@ export default function CustomsPage() {
       if (form.grenzzollstelle.trim()) fd.append('grenzzollstelle', form.grenzzollstelle.trim());
       fd.append('zeit', new Date(form.zeit).toISOString());
       fd.append('importeur', form.importeur);
+      if (form.zazKonto.trim()) fd.append('zazKonto', form.zazKonto.trim());
+      if (form.warenort.trim()) fd.append('warenort', form.warenort.trim());
       fd.append('frankatur', form.frankatur);
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
@@ -316,6 +327,8 @@ export default function CustomsPage() {
         kennzeichenAnhaenger: '',
         grenzzollstelle: '',
         importeur: '',
+        zazKonto: '',
+        warenort: '',
         notes: '',
       }));
       await load();
@@ -514,18 +527,27 @@ export default function CustomsPage() {
             />
           </div>
           <div className="field">
-            <label>Mandant</label>
-            <select
-              value={form.mandantId}
-              onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
-            >
-              {mandanten.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <label>ZAZ-Konto</label>
+            <input
+              placeholder="ZAZ-Kontonummer"
+              value={form.zazKonto}
+              onChange={(e) => setForm({ ...form, zazKonto: e.target.value })}
+            />
           </div>
+        </div>
+
+        <div className="field">
+          <label>Mandant</label>
+          <select
+            value={form.mandantId}
+            onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
+          >
+            {mandanten.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid-2">
@@ -543,6 +565,28 @@ export default function CustomsPage() {
             addresses={addresses}
             defaultCountry="CH"
           />
+        </div>
+
+        <div className="field">
+          <label>
+            Warenort / Verzollungsort
+            {needsWarenort ? '' : ' (optional)'}
+          </label>
+          <input
+            required={needsWarenort}
+            placeholder={
+              needsWarenort
+                ? 'Ort der Verzollung (CH/FL → AT)'
+                : 'Relevant bei Verkehrsrichtung CH/FL → Österreich'
+            }
+            value={form.warenort}
+            onChange={(e) => setForm({ ...form, warenort: e.target.value })}
+          />
+          {needsWarenort && (
+            <span className="muted" style={{ fontSize: '0.8rem' }}>
+              Pflicht bei Verkehrsrichtung Schweiz/Liechtenstein nach Österreich.
+            </span>
+          )}
         </div>
 
         <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
@@ -656,6 +700,19 @@ export default function CustomsPage() {
                       Grenzzollstelle: –
                     </div>
                   )}
+                  <div className="muted" style={{ fontSize: '0.8rem' }}>
+                    Importeur: {o.importeur || '–'}
+                  </div>
+                  {o.zazKonto ? (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      ZAZ: {o.zazKonto}
+                    </div>
+                  ) : null}
+                  {o.warenort ? (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      Warenort: {o.warenort}
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   <div>{o.absenderFirma || '–'}</div>

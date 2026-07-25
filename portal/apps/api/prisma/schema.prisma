@@ -934,6 +934,10 @@ model CustomsOrder {
   grenzzollstelle String?
   zeit           DateTime
   importeur      String
+  /// ZAZ-Konto (Soloplan FileAPI: zAZVLBPortal)
+  zazKonto       String?
+  /// Warenort / Verzollungsort – relevant CH/FL → AT (Soloplan: warenortVLBPortal)
+  warenort       String?
   frankatur      String
   /// true = abweichender Frachtzahler (nicht der angemeldete Kunde)
   abweichenderFrachtzahler Boolean @default(false)
