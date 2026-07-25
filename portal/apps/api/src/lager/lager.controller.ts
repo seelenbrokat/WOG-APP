@@ -43,6 +43,22 @@ export class LagerController {
     return this.scheine.balancesForPartner(user);
   }
 
+  @Get('lademittelscheine/partner/export')
+  @Roles(UserRole.PARTNER)
+  async partnerExport(
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+    @Query('format') format?: 'csv' | 'pdf',
+  ) {
+    const out = await this.scheine.exportForPartner(user, format === 'pdf' ? 'pdf' : 'csv');
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${out.fileName.replace(/"/g, '')}"`,
+    );
+    res.send(out.buffer);
+  }
+
   @Get('lademittelscheine/dirs')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   dirs() {

@@ -3,7 +3,29 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
+
+async function downloadExport(params: Record<string, string>) {
+  const qs = new URLSearchParams(params);
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL || '/api'}/tours/loading-units/export?${qs}`,
+    { headers: { Authorization: `Bearer ${getToken()}` } },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Export fehlgeschlagen');
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') || '';
+  const m = /filename="([^"]+)"/.exec(cd);
+  const fileName = m?.[1] || 'Lademittel-Export.csv';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 type BalanceRow = {
   partnerNumber: string | null;
@@ -582,6 +604,88 @@ export default function LademittelPage() {
               <div className="label">Saldo (Given − Taken)</div>
               <div className="value">{totals.balance}</div>
             </div>
+          </div>
+
+          <div
+            className="row"
+            style={{ gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}
+          >
+            <strong style={{ marginRight: '0.35rem' }}>Listen exportieren</strong>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                void downloadExport({
+                  view: 'overview',
+                  format: 'csv',
+                  ...(q.trim() ? { q: q.trim() } : {}),
+                  ...(matchcode.trim() ? { matchcode: matchcode.trim() } : {}),
+                }).catch((e: Error) => setError(e.message))
+              }
+            >
+              Übersicht CSV
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                void downloadExport({
+                  view: 'overview',
+                  format: 'csv-matrix',
+                  ...(q.trim() ? { q: q.trim() } : {}),
+                }).catch((e: Error) => setError(e.message))
+              }
+            >
+              Matrix Offen CSV
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                void downloadExport({
+                  view: 'overview',
+                  format: 'pdf',
+                  ...(q.trim() ? { q: q.trim() } : {}),
+                  ...(matchcode.trim() ? { matchcode: matchcode.trim() } : {}),
+                }).catch((e: Error) => setError(e.message))
+              }
+            >
+              Übersicht PDF
+            </button>
+            {selectedPartner ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() =>
+                    void downloadExport({
+                      view: 'partner',
+                      format: 'csv',
+                      partnerName: selectedPartner,
+                    }).catch((e: Error) => setError(e.message))
+                  }
+                >
+                  Partner CSV · {selectedPartner}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() =>
+                    void downloadExport({
+                      view: 'partner',
+                      format: 'pdf',
+                      partnerName: selectedPartner,
+                    }).catch((e: Error) => setError(e.message))
+                  }
+                >
+                  Partner PDF · {selectedPartner}
+                </button>
+              </>
+            ) : (
+              <span className="muted" style={{ fontSize: '0.9rem' }}>
+                Partner in der Tabelle wählen für Partner-Liste (Total je Lademittel)
+              </span>
+            )}
           </div>
 
           <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Partner-Salden</h2>

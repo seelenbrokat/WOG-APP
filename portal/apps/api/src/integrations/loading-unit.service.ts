@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
 import { existsSync, readdirSync, readFileSync } from 'fs';
@@ -12,6 +12,14 @@ import {
   zurichMonthRange,
 } from '../common/zurich-date';
 import { parseTelematicsXml, ParsedTourStopStatus } from './telematics-xml.parser';
+import {
+  buildLuExportReport,
+  luReportToMatrixCsv,
+  luReportToOverviewCsv,
+  luReportToPartnerCsv,
+  writeLuOverviewPdf,
+  writeLuPartnerPdf,
+} from './loading-unit-export';
 
 export type LoadingUnitExchangeNote = {
   status: 'EXCHANGED' | 'NOT_EXCHANGED' | 'MIXED' | 'UNKNOWN';
@@ -700,6 +708,83 @@ export class LoadingUnitService {
     );
 
     return { balances, totals, count: balances.length };
+  }
+
+  /**
+   * Saubere Listen: Übersicht alle Partner oder Totale je Lademittel für einen Partner.
+   * format: csv | csv-matrix | pdf
+   * view: overview | partner
+   */
+  async exportLists(
+    user: AuthUser,
+    opts: {
+      view?: 'overview' | 'partner';
+      format?: 'csv' | 'csv-matrix' | 'pdf';
+      partnerName?: string;
+      q?: string;
+      matchcode?: string;
+    },
+  ) {
+    if (user.role !== UserRole.ORG_ADMIN && user.role !== UserRole.MANDANT_DISPATCHER) {
+      throw new NotFoundException();
+    }
+    const view = opts.view === 'partner' ? 'partner' : 'overview';
+    const format = opts.format || 'csv';
+    if (view === 'partner' && !opts.partnerName?.trim()) {
+      throw new BadRequestException('Partnername erforderlich für Partner-Liste');
+    }
+
+    const { balances } = await this.listBalances(user, {
+      q: opts.q,
+      matchcode: opts.matchcode,
+      includeZero: false,
+    });
+    const filtered =
+      view === 'partner'
+        ? balances.filter(
+            (b) =>
+              b.partnerName.toLowerCase() === opts.partnerName!.trim().toLowerCase(),
+          )
+        : balances;
+    const report = buildLuExportReport(filtered);
+    const day = new Date().toISOString().slice(0, 10);
+    const safePartner = (opts.partnerName || 'alle')
+      .replace(/[^\w.\-äöüÄÖÜß ]+/g, '_')
+      .trim()
+      .slice(0, 60);
+
+    if (format === 'pdf') {
+      const buf =
+        view === 'partner'
+          ? await writeLuPartnerPdf(report, opts.partnerName!.trim())
+          : await writeLuOverviewPdf(report);
+      const fileName =
+        view === 'partner'
+          ? `Lademittel-Partner-${safePartner}-${day}.pdf`
+          : `Lademittel-Uebersicht-${day}.pdf`;
+      return { buffer: buf, contentType: 'application/pdf', fileName };
+    }
+
+    if (format === 'csv-matrix') {
+      const csv = luReportToMatrixCsv(
+        view === 'partner' ? report : buildLuExportReport(balances),
+      );
+      return {
+        buffer: Buffer.from(csv, 'utf8'),
+        contentType: 'text/csv; charset=utf-8',
+        fileName: `Lademittel-Matrix-${day}.csv`,
+      };
+    }
+
+    const csv =
+      view === 'partner'
+        ? luReportToPartnerCsv(report, opts.partnerName!.trim())
+        : luReportToOverviewCsv(report);
+    const fileName =
+      view === 'partner'
+        ? `Lademittel-Partner-${safePartner}-${day}.csv`
+        : `Lademittel-Uebersicht-${day}.csv`;
+    return { buffer: Buffer.from(csv, 'utf8'), contentType: 'text/csv; charset=utf-8', fileName };
   }
 
   async listPostings(

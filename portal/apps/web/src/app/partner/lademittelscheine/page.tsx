@@ -88,6 +88,48 @@ export default function PartnerLademittelscheinePage() {
         </div>
       </div>
 
+      <div className="row" style={{ gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            void (async () => {
+              const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || '/api'}/lager/lademittelscheine/partner/export?format=csv`,
+                { headers: { Authorization: `Bearer ${getToken()}` } },
+              );
+              if (!res.ok) throw new Error('Export fehlgeschlagen');
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'Lademittel-Partner.csv';
+              a.click();
+              URL.revokeObjectURL(url);
+            })().catch((e: Error) => setError(e.message));
+          }}
+        >
+          Liste CSV
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            void (async () => {
+              const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || '/api'}/lager/lademittelscheine/partner/export?format=pdf`,
+                { headers: { Authorization: `Bearer ${getToken()}` } },
+              );
+              if (!res.ok) throw new Error('Export fehlgeschlagen');
+              const blob = await res.blob();
+              window.open(URL.createObjectURL(blob), '_blank');
+            })().catch((e: Error) => setError(e.message));
+          }}
+        >
+          Liste PDF
+        </button>
+      </div>
+
       <div className="panel" style={{ marginBottom: '1.25rem' }}>
         <strong>Partner-Saldo nach Typ</strong>
         <table className="table" style={{ marginTop: '0.75rem' }}>

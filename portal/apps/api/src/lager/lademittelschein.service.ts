@@ -14,6 +14,11 @@ import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LoadingUnitService } from '../integrations/loading-unit.service';
+import {
+  buildLuExportReport,
+  luReportToPartnerCsv,
+  writeLuPartnerPdf,
+} from '../integrations/loading-unit-export';
 import { writeLademittelscheinPdf } from './lademittelschein-pdf';
 
 type QtyInput = {
@@ -203,6 +208,41 @@ export class LademittelscheinService {
     );
 
     return { partner: { id: partner.id, name: partner.name, code: partner.code }, balances, totals };
+  }
+
+  /** Partner-Export: Totale je Lademittel (CSV/PDF). */
+  async exportForPartner(user: AuthUser, format: 'csv' | 'pdf' = 'csv') {
+    const data = await this.balancesForPartner(user);
+    const report = buildLuExportReport(
+      data.balances.map((b) => ({
+        partnerNumber: data.partner.code,
+        partnerName: data.partner.name,
+        partnerCity: null,
+        packagingMatchcode: b.packagingMatchcode,
+        packagingLabel: b.packagingLabel || null,
+        given: b.given,
+        taken: b.taken,
+        balance: b.balance,
+        owedQuantity: b.owedQuantity,
+        postings: b.postings,
+      })),
+    );
+    const day = new Date().toISOString().slice(0, 10);
+    const safe = data.partner.name.replace(/[^\w.\-äöüÄÖÜß ]+/g, '_').slice(0, 60);
+    if (format === 'pdf') {
+      const buffer = await writeLuPartnerPdf(report, data.partner.name);
+      return {
+        buffer,
+        contentType: 'application/pdf',
+        fileName: `Lademittel-Partner-${safe}-${day}.pdf`,
+      };
+    }
+    const csv = luReportToPartnerCsv(report, data.partner.name);
+    return {
+      buffer: Buffer.from(csv, 'utf8'),
+      contentType: 'text/csv; charset=utf-8',
+      fileName: `Lademittel-Partner-${safe}-${day}.csv`,
+    };
   }
 
   async get(user: AuthUser, id: string) {

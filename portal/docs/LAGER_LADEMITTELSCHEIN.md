@@ -47,3 +47,12 @@ Inbound-JSON Beispiel:
 - `POST /lager/lademittelscheine/:id/complete` (Mengen + Signatur-DataURLs)
 - `GET /lager/lademittelscheine/:id/pdf`
 - `GET /lager/lademittelscheine/partner` (Partner-Rolle)
+- `GET /lager/lademittelscheine/partner/balances`
+- `GET /lager/lademittelscheine/partner/export?format=csv|pdf`
+
+## Listen-Export (Lademittelverwaltung)
+Unter **Lademittel → Partner-Saldo**:
+- Übersicht CSV / Matrix Offen CSV / Übersicht PDF
+- Partner wählen → Partner CSV / Partner PDF (Total je Lademittel)
+
+API: `GET /tours/loading-units/export?view=overview|partner&format=csv|csv-matrix|pdf&partnerName=`

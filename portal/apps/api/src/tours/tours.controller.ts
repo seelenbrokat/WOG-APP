@@ -118,6 +118,33 @@ export class ToursController {
     });
   }
 
+  /** Listen-Export: Übersicht oder Partner-Totale (CSV / PDF) */
+  @Get('loading-units/export')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  async loadingUnitExport(
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+    @Query('view') view?: 'overview' | 'partner',
+    @Query('format') format?: 'csv' | 'csv-matrix' | 'pdf',
+    @Query('partnerName') partnerName?: string,
+    @Query('q') q?: string,
+    @Query('matchcode') matchcode?: string,
+  ) {
+    const out = await this.loadingUnits.exportLists(user, {
+      view,
+      format,
+      partnerName,
+      q,
+      matchcode,
+    });
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${out.fileName.replace(/"/g, '')}"`,
+    );
+    res.send(out.buffer);
+  }
+
   @Get('loading-units/postings')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   loadingUnitPostings(
