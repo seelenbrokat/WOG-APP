@@ -635,8 +635,12 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6.
- * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+ * Exact-Keys die Automate aktuell akzeptiert:
+ * kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
+ *
+ * importeurVLBPortal / zAZVLBPortal / warenortVLBPortal werden von Automate mit
+ * NoAdditionalPropertiesAllowed abgelehnt (Fehlerdatei VLB250700004) – daher nicht senden.
+ * Werte liegen weiter in Portal/PDF/E-Mail; optional in information.info*.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -650,9 +654,15 @@ function applyCustomsConsignmentFields(
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
-  if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
-  if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
-  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
+  // Importeur / ZAZ / Warenort in Info-Felder (Schema-sicher), bis VLBPortal-Felder freigeschaltet sind
+  const information =
+    consignment.information && typeof consignment.information === 'object'
+      ? { ...(consignment.information as Record<string, unknown>) }
+      : {};
+  if (fields.importeurVLBPortal) information.info1 = fields.importeurVLBPortal;
+  if (fields.zAZVLBPortal) information.info2 = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) information.info3 = fields.warenortVLBPortal;
+  if (Object.keys(information).length) consignment.information = information;
   return consignment;
 }
 
