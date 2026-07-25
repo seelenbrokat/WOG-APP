@@ -229,6 +229,64 @@ export class SoloplanService implements TransportIntegration {
     return { archived: archived.length, files: archived };
   }
 
+  /** Sekunden Wartezeit nach Create-Abholung, bevor Docs-Update geschrieben wird. */
+  private docsDelayMs(): number {
+    const sec = Number(this.config.get('SOLOPLAN_DOCS_DELAY_SEC') || 180);
+    return Math.max(60, sec) * 1000;
+  }
+
+  /** Alter der archivierten Create-Datei (ms), oder null wenn unbekannt. */
+  private createArchivedAgeMs(externalNumber?: string | null): number | null {
+    const base = this.orderBaseName(externalNumber);
+    if (!base) return null;
+    const createName = `order-${base}.json`;
+    const candidates = [
+      join(this.sftpOutboundRoot, 'soloplan', 'archive', createName),
+      join(dirname(this.integrationOrdersOutDir), 'processed', createName),
+    ];
+    for (const p of candidates) {
+      if (!existsSync(p)) continue;
+      try {
+        return Date.now() - statSync(p).mtimeMs;
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
+  /** true wenn Create abgeholt und Wartezeit abgelaufen (Soloplan Import braucht Zeit). */
+  private isCreateImportSettled(externalNumber?: string | null): boolean {
+    if (!this.wasCreatePickedUp(externalNumber)) return false;
+    const age = this.createArchivedAgeMs(externalNumber);
+    if (age == null) return false;
+    return age >= this.docsDelayMs();
+  }
+
+  /** true wenn bereits ein Docs-Update für diese Nummer geschrieben wurde. */
+  private wasDocsUpdateWritten(externalNumber?: string | null): boolean {
+    const base = this.orderBaseName(externalNumber);
+    if (!base) return false;
+    const prefix = `order-${base}-update-`;
+    const dirs = [
+      this.ordersOutDir,
+      this.integrationOrdersOutDir,
+      join(this.sftpOutboundRoot, 'soloplan', 'archive'),
+      join(dirname(this.integrationOrdersOutDir), 'processed'),
+    ];
+    for (const dir of dirs) {
+      if (!existsSync(dir)) continue;
+      try {
+        if (readdirSync(dir).some((f) => f.startsWith(prefix) && f.endsWith('.json'))) {
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return false;
+  }
+
   /**
    * Nach Soloplan-Abholung der Create-Datei: Dokumente nachreichen (Update).
    * Wird vom Worker nach archiveDownloadedOrders aufgerufen.
@@ -247,6 +305,14 @@ export class SoloplanService implements TransportIntegration {
         select: { id: true },
       });
       if (customs) {
+        // Customs: nicht sofort – Soloplan braucht Zeit nach Create (sonst Update „does not exist“)
+        if (!this.isCreateImportSettled(externalNumber)) {
+          this.logger.log(
+            `Soloplan customs Docs für ${externalNumber} warten noch ${Math.ceil(this.docsDelayMs() / 1000)}s nach Create-Abholung`,
+          );
+          continue;
+        }
+        if (this.wasDocsUpdateWritten(externalNumber)) continue;
         try {
           const res = await this.exportCustomsOrder(customs.id);
           if (res.updateFileName) flushed.push(externalNumber);
@@ -277,6 +343,39 @@ export class SoloplanService implements TransportIntegration {
       }
     }
     return { flushed: [...new Set(flushed)] };
+  }
+
+  /**
+   * Verzollungs-Dokumente nachreichen, sobald Create lange genug abgeholt ist.
+   * Läuft jeden Worker-Zyklus (Create-Abholung und Docs-Update sind zeitlich entkoppelt).
+   */
+  async flushPendingCustomsDocuments() {
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const pending = await this.prisma.customsOrder.findMany({
+      where: {
+        createdAt: { gte: since },
+        externalNumber: { not: null },
+        soloplanRef: { startsWith: 'FILE:' },
+      },
+      select: { id: true, externalNumber: true },
+      take: 30,
+      orderBy: { createdAt: 'desc' },
+    });
+    const flushed: string[] = [];
+    for (const c of pending) {
+      const ext = c.externalNumber!;
+      if (!this.isCreateImportSettled(ext)) continue;
+      if (this.wasDocsUpdateWritten(ext)) continue;
+      try {
+        const res = await this.exportCustomsOrder(c.id);
+        if (res.updateFileName) flushed.push(ext);
+      } catch (err: any) {
+        this.logger.warn(
+          `Soloplan pending customs Docs ${ext}: ${err?.message || err}`,
+        );
+      }
+    }
+    return { flushed };
   }
 
   openOutboundFile(fileName: string) {
