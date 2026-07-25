@@ -11,7 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { UserRole } from '@prisma/client';
@@ -60,9 +60,9 @@ class CreateCustomsDto {
   @IsString()
   warenort?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  frankatur!: string;
+  frankatur?: string;
 
   @IsOptional()
   @IsString()
@@ -152,6 +152,17 @@ const papersUpload = FilesInterceptor('papers', 20, {
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
+const createUpload = FileFieldsInterceptor(
+  [
+    { name: 'invoice', maxCount: 10 },
+    { name: 'papers', maxCount: 20 },
+  ],
+  {
+    storage: memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 },
+  },
+);
+
 @Controller('customs')
 @UseGuards(RolesGuard)
 export class CustomsController {
@@ -178,13 +189,14 @@ export class CustomsController {
 
   @Post()
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
-  @UseInterceptors(papersUpload)
+  @UseInterceptors(createUpload)
   create(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateCustomsDto,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles()
+    files: { invoice?: Express.Multer.File[]; papers?: Express.Multer.File[] },
   ) {
-    return this.service.create(user, dto, files || []);
+    return this.service.create(user, dto, files || {});
   }
 
   @Post(':id/papers')

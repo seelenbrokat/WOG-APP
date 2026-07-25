@@ -136,6 +136,7 @@ export function soloplanDocumentCategory(type: string): string {
     INVOICE: 'RG',
     LABEL: 'INFO',
     CUSTOMER_UPLOAD: 'INFO',
+    OTHER: 'INFO',
   };
   return map[type] || 'INFO';
 }
@@ -638,11 +639,6 @@ function applyCustomsConsignmentFields(
   // FileAPI-Feldname mit Umlaut
   if (fields.kennzeichenAnhaenger) consignment['kennzeichenAnhänger'] = fields.kennzeichenAnhaenger;
   if (fields.grenzuebergang) consignment['grenzübergang'] = fields.grenzuebergang;
-  if (fields.grenzzollstelle) {
-    const info = (consignment.information as Record<string, unknown>) || {};
-    info.senderInfo3 = `Grenzzollstelle: ${fields.grenzzollstelle}`;
-    consignment.information = info;
-  }
   if (fields.zeitpunktanderGrenze) {
     consignment.zeitpunktanderGrenze = fields.zeitpunktanderGrenze;
   }
@@ -749,9 +745,17 @@ export function buildSoloplanFilePayload(
   if (format === 'order') {
     const freightPayer = shipment.order?.freightPayer || shipment.customer;
     const externalNumber = orderExternalNumber(shipment);
-    // Auftragsweite Dokumente (z. B. Ablieferbeleg) zusätzlich auf Order-Ebene
+    // Auftragsweite Dokumente:
+    // - normal: Ablieferbelege
+    // - Verzollung: alle Anhänge (Rechnung RG, Begleitdokumente CHBEL/INFO) auf Order-Ebene,
+    //   damit Soloplan OrderImport sie zuverlässig übernimmt
+    const allDocs = siblings.flatMap((s) => s.documents || []);
     const orderDocuments = toSoloplanDocumentData(
-      siblings.flatMap((s) => s.documents || []).filter((d) => d.category === 'ABL' || d.category === 'AUFABL'),
+      anyVerzollung
+        ? allDocs
+        : allDocs.filter(
+            (d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG',
+          ),
     );
     return {
       header,

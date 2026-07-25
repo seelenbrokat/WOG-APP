@@ -3,18 +3,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import {
   VORARLBERG_CH_GOODS_BORDERS,
-  FRANKATUREN,
   COUNTRIES,
   normalizeSmartBorderPlate,
   smartBorderPlateHint,
   type VorarlbergChGoodsBorder,
-  type Frankatur,
 } from '@wog/shared';
 import { AppShell } from '@/components/AppShell';
 import { api, getToken, getUser } from '@/lib/api';
 
 const BORDER_PRESETS: VorarlbergChGoodsBorder[] = [...VORARLBERG_CH_GOODS_BORDERS];
-const FRANKATUR_PRESETS: Frankatur[] = [...FRANKATUREN];
+const BORDER_OTHER = '__other__';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -152,24 +150,24 @@ export default function CustomsPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [papers, setPapers] = useState<FileList | null>(null);
+  const [invoice, setInvoice] = useState<FileList | null>(null);
   const [extraPapers, setExtraPapers] = useState<Record<string, FileList | null>>({});
   const [abweichend, setAbweichend] = useState(false);
   const [absender, setAbsender] = useState<Party>(emptyParty('AT'));
   const [empfaenger, setEmpfaenger] = useState<Party>(emptyParty('CH'));
   const [frachtzahler, setFrachtzahler] = useState<Party>(emptyParty('AT'));
+  const [borderPreset, setBorderPreset] = useState<string>(BORDER_PRESETS[0]);
+  const [borderCustom, setBorderCustom] = useState('');
   const [form, setForm] = useState({
     customerId: '',
     kennzeichen: '',
     zulassungsland: 'AT',
     kennzeichenAnhaenger: '',
     zulassungslandAnhaenger: 'AT',
-    grenzuebergang: BORDER_PRESETS[0],
-    grenzzollstelle: '',
     zeit: '',
     importeur: '',
     zazKonto: '',
     warenort: '',
-    frankatur: FRANKATUR_PRESETS[0],
     mandantId: '',
     notes: '',
   });
@@ -177,6 +175,8 @@ export default function CustomsPage() {
   const fromChFl = ['CH', 'LI', 'FL'].includes(absender.country.trim().toUpperCase());
   const toAt = ['AT', 'A'].includes(empfaenger.country.trim().toUpperCase());
   const needsWarenort = fromChFl && toAt;
+  const grenzuebergang =
+    borderPreset === BORDER_OTHER ? borderCustom.trim() : borderPreset;
 
   async function load() {
     setOrders(await api('/customs'));
@@ -275,6 +275,12 @@ export default function CustomsPage() {
       if (needsWarenort && !form.warenort.trim()) {
         throw new Error('Warenort/Verzollungsort ist bei CH/FL → Österreich Pflicht');
       }
+      if (!grenzuebergang || grenzuebergang.length < 2) {
+        throw new Error('Grenzübergang bitte auswählen oder als Freitext eingeben');
+      }
+      if (!invoice?.length) {
+        throw new Error('Rechnung ist Pflicht – bitte die Rechnung hochladen');
+      }
       const fd = new FormData();
       if (isStaff) fd.append('customerId', form.customerId);
       const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
@@ -287,13 +293,11 @@ export default function CustomsPage() {
         );
         fd.append('zulassungslandAnhaenger', form.zulassungslandAnhaenger.trim().toUpperCase());
       }
-      fd.append('grenzuebergang', form.grenzuebergang);
-      if (form.grenzzollstelle.trim()) fd.append('grenzzollstelle', form.grenzzollstelle.trim());
+      fd.append('grenzuebergang', grenzuebergang);
       fd.append('zeit', new Date(form.zeit).toISOString());
       fd.append('importeur', form.importeur);
       if (form.zazKonto.trim()) fd.append('zazKonto', form.zazKonto.trim());
       if (form.warenort.trim()) fd.append('warenort', form.warenort.trim());
-      fd.append('frankatur', form.frankatur);
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
       fd.append('abweichenderFrachtzahler', abweichend ? 'true' : 'false');
@@ -314,6 +318,7 @@ export default function CustomsPage() {
         fd.append('frachtzahlerCity', frachtzahler.city);
         fd.append('frachtzahlerCountry', frachtzahler.country);
       }
+      Array.from(invoice).forEach((file) => fd.append('invoice', file));
       if (papers) {
         Array.from(papers).forEach((file) => fd.append('papers', file));
       }
@@ -321,11 +326,13 @@ export default function CustomsPage() {
       await api('/customs', { method: 'POST', body: fd });
       setMessage('Verzollungsauftrag übermittelt.');
       setPapers(null);
+      setInvoice(null);
+      setBorderCustom('');
+      setBorderPreset(BORDER_PRESETS[0]);
       setForm((f) => ({
         ...f,
         kennzeichen: '',
         kennzeichenAnhaenger: '',
-        grenzzollstelle: '',
         importeur: '',
         zazKonto: '',
         warenort: '',
@@ -350,7 +357,7 @@ export default function CustomsPage() {
   return (
     <AppShell title="Verzollungsauftrag">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger, Frankatur und Zollpapieren.
+        Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger und Pflicht-Rechnung.
         Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
         {isCustomer
           ? ` Auftraggeber: ${customerName || 'angemeldeter Kunde'}.`
@@ -466,53 +473,28 @@ export default function CustomsPage() {
             />
           </div>
           <div className="field">
-            <label>Grenzzollstelle</label>
-            <input
-              placeholder="Freitext, z. B. AT330400"
-              value={form.grenzzollstelle}
-              onChange={(e) => setForm({ ...form, grenzzollstelle: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="grid-2">
-          <div className="field">
-            <label>Grenzübergang (Warenverkehr V / CH)</label>
+            <label>Grenzübergang / Grenzzollstelle</label>
             <select
               required
-              value={form.grenzuebergang}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  grenzuebergang: e.target.value as VorarlbergChGoodsBorder,
-                })
-              }
+              value={borderPreset}
+              onChange={(e) => setBorderPreset(e.target.value)}
             >
               {BORDER_PRESETS.map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
               ))}
+              <option value={BORDER_OTHER}>Andere (Freitext)</option>
             </select>
-          </div>
-          <div className="field">
-            <label>Frankatur</label>
-            <select
-              required
-              value={form.frankatur}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  frankatur: e.target.value as Frankatur,
-                })
-              }
-            >
-              {FRANKATUR_PRESETS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
+            {borderPreset === BORDER_OTHER && (
+              <input
+                required
+                style={{ marginTop: '0.4rem' }}
+                placeholder="Grenzübergang als Freitext"
+                value={borderCustom}
+                onChange={(e) => setBorderCustom(e.target.value)}
+              />
+            )}
           </div>
         </div>
 
@@ -613,7 +595,26 @@ export default function CustomsPage() {
         </div>
 
         <div className="field">
-          <label>Zollpapiere</label>
+          <label>Rechnung (Pflicht)</label>
+          <input
+            required
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
+            onChange={(e) => setInvoice(e.target.files)}
+          />
+          {invoice && invoice.length > 0 && (
+            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+              {Array.from(invoice).map((f) => (
+                <li key={f.name}>
+                  {f.name} ({formatBytes(f.size)})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="field">
+          <label>Begleitdokumente / Zollpapiere (optional)</label>
           <input
             type="file"
             multiple
@@ -651,8 +652,7 @@ export default function CustomsPage() {
               <th>Kennzeichen Anhänger</th>
               <th>Grenze</th>
               <th>Absender → Empfänger</th>
-              <th>Frankatur</th>
-              <th>Papiere</th>
+              <th>Anhänge</th>
               <th>Status</th>
               {isStaff ? <th></th> : null}
             </tr>
@@ -691,15 +691,6 @@ export default function CustomsPage() {
                 </td>
                 <td>
                   <div>{o.grenzuebergang}</div>
-                  {o.grenzzollstelle ? (
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      Grenzzollstelle: {o.grenzzollstelle}
-                    </div>
-                  ) : (
-                    <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      Grenzzollstelle: –
-                    </div>
-                  )}
                   <div className="muted" style={{ fontSize: '0.8rem' }}>
                     Importeur: {o.importeur || '–'}
                   </div>
@@ -723,13 +714,13 @@ export default function CustomsPage() {
                     </div>
                   )}
                 </td>
-                <td>{o.frankatur || '–'}</td>
                 <td>
                   <div className="stack" style={{ gap: '0.35rem' }}>
                     {(o.documents || []).map((d: any) => (
                       <button
                         key={d.id}
                         type="button"
+                        title={d.type === 'INVOICE' ? 'Rechnung' : 'Begleitdokument'}
                         className="btn btn-ghost"
                         style={{ padding: '0.2rem 0.45rem', justifyContent: 'flex-start' }}
                         onClick={() => downloadDoc(d.id, d.fileName)}

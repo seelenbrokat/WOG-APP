@@ -22,7 +22,6 @@ export type VerzollungsauftragPdfInput = {
   importeur: string;
   zazKonto?: string | null;
   warenort?: string | null;
-  frankatur: string;
   notes?: string | null;
   customerName: string;
   customerNumber?: string | null;
@@ -100,7 +99,7 @@ export function writeVerzollungsauftragPdf(
     });
 
     const metaTop = doc.y;
-    const metaH = 96;
+    const metaH = 82;
     doc.rect(left, metaTop, contentW, metaH).fill(WOG_PDF.soft);
     doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(11);
     doc.text(`Kennzeichen ${order.kennzeichen}`, left + 12, metaTop + 10, {
@@ -131,7 +130,6 @@ export function writeVerzollungsauftragPdf(
     metaLine(col2, my, 'Mandant', order.mandantName || '–', 70);
     my += 14;
     metaLine(left + 12, my, 'Grenzübergang', order.grenzuebergang);
-    metaLine(col2, my, 'Frankatur', order.frankatur, 70);
     doc.x = left;
     doc.y = metaTop + metaH + 12;
 
@@ -173,7 +171,6 @@ export function writeVerzollungsauftragPdf(
     );
     row('Zeitpunkt an der Grenze', grenzeWhen);
     row('Grenzübergang', order.grenzuebergang);
-    row('Grenzzollstelle', order.grenzzollstelle || '–');
     row('Importeur', order.importeur);
     row('ZAZ-Konto', order.zazKonto || '–');
     row('Warenort/Verzollungsort', order.warenort || '–');
@@ -242,35 +239,13 @@ export function writeVerzollungsauftragPdf(
 
     if (order.documentNames?.length) {
       ensureSpace(30 + order.documentNames.length * 12);
-      doc.font('Helvetica-Bold').fillColor(WOG_PDF.greenDeep).text('Zollpapiere / Anhänge');
+      doc.font('Helvetica-Bold').fillColor(WOG_PDF.greenDeep).text('Rechnung / Begleitdokumente');
       doc.font('Helvetica').fillColor(WOG_PDF.ink);
       for (const name of order.documentNames) {
         doc.text(`• ${name}`, { width: contentW });
       }
       doc.moveDown(0.5);
     }
-
-    ensureSpace(90);
-    const boxY = doc.y;
-    doc.rect(left, boxY, contentW, 78).strokeColor(WOG_PDF.green).lineWidth(1).stroke();
-    doc
-      .fillColor(WOG_PDF.greenDeep)
-      .font('Helvetica-Bold')
-      .fontSize(10)
-      .text('Bestätigung Verzollungsauftrag', left + 10, boxY + 8);
-    doc.fillColor(WOG_PDF.ink).font('Helvetica').fontSize(9);
-    doc.text('Name: ________________________________', left + 10, boxY + 28);
-    doc.text('Unterschrift: _________________________', left + contentW / 2, boxY + 28);
-    doc.text('Datum / Uhrzeit: ______________________', left + 10, boxY + 50);
-    doc
-      .fontSize(7)
-      .fillColor(WOG_PDF.muted)
-      .text(
-        'Dieses Dokument bestätigt die Übermittlung des Verzollungsauftrags an WOG Logistics.',
-        left + 10,
-        boxY + 68,
-        { width: contentW - 20 },
-      );
 
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {

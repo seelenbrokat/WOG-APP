@@ -10,8 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
 import {
-  isVorarlbergChGoodsBorder,
-  isFrankatur,
+  isValidGrenzuebergang,
   normalizeSmartBorderPlate,
   isValidSmartBorderPlate,
 } from '@wog/shared';
@@ -48,7 +47,8 @@ export type CreateCustomsInput = {
   importeur: string;
   zazKonto?: string;
   warenort?: string;
-  frankatur: string;
+  /** Legacy – nicht mehr im Formular, optional */
+  frankatur?: string;
   mandantId?: string;
   customerId?: string;
   notes?: string;
@@ -102,9 +102,18 @@ export class CustomsService {
         customer: { select: { name: true, customerNumber: true } },
         mandant: { select: { name: true, code: true } },
         documents: {
-          where: { type: DocumentType.CUSTOMS_PAPER },
+          where: {
+            type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+          },
           orderBy: { createdAt: 'desc' },
-          select: { id: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true },
+          select: {
+            id: true,
+            fileName: true,
+            mimeType: true,
+            sizeBytes: true,
+            createdAt: true,
+            type: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -118,7 +127,9 @@ export class CustomsService {
         customer: true,
         mandant: true,
         documents: {
-          where: { type: DocumentType.CUSTOMS_PAPER },
+          where: {
+            type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -130,7 +141,13 @@ export class CustomsService {
     return order;
   }
 
-  async create(user: AuthUser, data: CreateCustomsInput, files: Express.Multer.File[] = []) {
+  async create(
+    user: AuthUser,
+    data: CreateCustomsInput,
+    files: { papers?: Express.Multer.File[]; invoice?: Express.Multer.File[] } = {},
+  ) {
+    const papers = files.papers || [];
+    const invoices = files.invoice || [];
     const isStaff =
       user.role === UserRole.ORG_ADMIN || user.role === UserRole.MANDANT_DISPATCHER;
     const customerId = isStaff
@@ -158,10 +175,12 @@ export class CustomsService {
     }
 
     const grenzuebergang = data.grenzuebergang.trim();
-    if (!isVorarlbergChGoodsBorder(grenzuebergang)) {
-      throw new BadRequestException(
-        'Grenzübergang ist für den Warenverkehr Vorarlberg–Schweiz nicht freigegeben',
-      );
+    if (!isValidGrenzuebergang(grenzuebergang)) {
+      throw new BadRequestException('Grenzübergang / Grenzzollstelle bitte angeben (Auswahl oder Freitext)');
+    }
+
+    if (!invoices.length) {
+      throw new BadRequestException('Rechnung ist Pflicht – bitte die Rechnung hochladen');
     }
 
     const zulassungsland = (data.zulassungsland || 'AT').trim().toUpperCase();
@@ -194,10 +213,7 @@ export class CustomsService {
       }
     }
 
-    const frankatur = data.frankatur.trim();
-    if (!isFrankatur(frankatur)) {
-      throw new BadRequestException('Ungültige Frankatur');
-    }
+    const frankatur = (data.frankatur || '').trim() || '-';
 
     this.assertParty('Absender', {
       firma: data.absenderFirma,
@@ -247,7 +263,8 @@ export class CustomsService {
         kennzeichenAnhaenger,
         zulassungslandAnhaenger,
         grenzuebergang,
-        grenzzollstelle: data.grenzzollstelle?.trim() || null,
+        // Grenzzollstelle = Grenzübergang (ein Feld)
+        grenzzollstelle: grenzuebergang,
         zeit: new Date(data.zeit),
         importeur: data.importeur.trim(),
         zazKonto: data.zazKonto?.trim() || null,
@@ -275,8 +292,11 @@ export class CustomsService {
       },
     });
 
-    if (files?.length) {
-      await this.savePapers(user, order.id, files);
+    if (invoices.length) {
+      await this.savePapers(user, order.id, invoices, DocumentType.INVOICE);
+    }
+    if (papers.length) {
+      await this.savePapers(user, order.id, papers, DocumentType.CUSTOMS_PAPER);
     }
 
     const full = await this.get(user, order.id);
@@ -284,8 +304,8 @@ export class CustomsService {
     await this.audit.log(user.id, 'customs.create', 'CustomsOrder', order.id, {
       kennzeichen: order.kennzeichen,
       grenzuebergang: order.grenzuebergang,
-      frankatur: order.frankatur,
-      documents: files?.length || 0,
+      documents: invoices.length + papers.length,
+      invoices: invoices.length,
     });
 
     const adminEmail = this.config.get('SEED_ADMIN_EMAIL') || 'admin@wog.logistikberater.at';
@@ -301,9 +321,7 @@ export class CustomsService {
           ? `Kennzeichen Anhänger: ${order.kennzeichenAnhaenger} (${order.zulassungslandAnhaenger || '–'})`
           : '',
         `Grenzübergang: ${order.grenzuebergang}`,
-        order.grenzzollstelle ? `Grenzzollstelle: ${order.grenzzollstelle}` : '',
         `Zeit: ${when}`,
-        `Frankatur: ${order.frankatur}`,
         `Importeur: ${order.importeur}`,
         order.zazKonto ? `ZAZ-Konto: ${order.zazKonto}` : '',
         order.warenort ? `Warenort/Verzollungsort: ${order.warenort}` : '',
@@ -313,7 +331,7 @@ export class CustomsService {
           ? `Frachtzahler: ${order.frachtzahlerFirma}, ${order.frachtzahlerStreet}, ${order.frachtzahlerZip} ${order.frachtzahlerCity}`
           : `Frachtzahler: ${full.customer.name} (Auftraggeber)`,
         full.mandant ? `Mandant: ${full.mandant.name}` : '',
-        `Zollpapiere: ${full.documents.length} Datei(en)`,
+        `Anhänge: ${full.documents.length} Datei(en)`,
         ...full.documents.map((d) => `- ${d.fileName}`),
         order.notes ? `Hinweis: ${order.notes}` : '',
       ]
@@ -344,7 +362,9 @@ export class CustomsService {
               customer: { select: { name: true, customerNumber: true } },
               mandant: { select: { name: true, code: true } },
               documents: {
-                where: { type: DocumentType.CUSTOMS_PAPER },
+                where: {
+                  type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+                },
                 orderBy: { createdAt: 'desc' },
                 select: {
                   id: true,
@@ -353,6 +373,7 @@ export class CustomsService {
                   sizeBytes: true,
                   createdAt: true,
                   storagePath: true,
+                  type: true,
                 },
               },
             },
@@ -391,12 +412,10 @@ export class CustomsService {
         kennzeichenAnhaenger: full.kennzeichenAnhaenger,
         zulassungslandAnhaenger: full.zulassungslandAnhaenger,
         grenzuebergang: full.grenzuebergang,
-        grenzzollstelle: full.grenzzollstelle,
         zeit: full.zeit,
         importeur: full.importeur,
         zazKonto: full.zazKonto,
         warenort: full.warenort,
-        frankatur: full.frankatur,
         notes: full.notes,
         customerName: full.customer.name,
         customerNumber: full.customer.customerNumber,
@@ -451,11 +470,9 @@ export class CustomsService {
           }`
         : null,
       `Grenzübergang: ${full.grenzuebergang}`,
-      full.grenzzollstelle ? `Grenzzollstelle: ${full.grenzzollstelle}` : null,
       `Importeur: ${full.importeur}`,
       full.zazKonto ? `ZAZ-Konto: ${full.zazKonto}` : null,
       full.warenort ? `Warenort/Verzollungsort: ${full.warenort}` : null,
-      `Frankatur: ${full.frankatur}`,
       `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
       `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,
       full.mandant ? `Mandant: ${full.mandant.name}` : null,
@@ -506,7 +523,9 @@ export class CustomsService {
       include: {
         customer: true,
         mandant: true,
-        documents: { where: { type: DocumentType.CUSTOMS_PAPER } },
+        documents: {
+          where: { type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] } },
+        },
       },
     });
   }
@@ -514,7 +533,7 @@ export class CustomsService {
   async uploadPapers(user: AuthUser, customsOrderId: string, files: Express.Multer.File[]) {
     if (!files?.length) throw new BadRequestException('Keine Dateien übermittelt');
     await this.get(user, customsOrderId);
-    const docs = await this.savePapers(user, customsOrderId, files);
+    const docs = await this.savePapers(user, customsOrderId, files, DocumentType.CUSTOMS_PAPER);
     await this.audit.log(user.id, 'customs.papers.upload', 'CustomsOrder', customsOrderId, {
       count: docs.length,
       files: docs.map((d) => d.fileName),
@@ -537,7 +556,12 @@ export class CustomsService {
     }
   }
 
-  private async savePapers(user: AuthUser, customsOrderId: string, files: Express.Multer.File[]) {
+  private async savePapers(
+    user: AuthUser,
+    customsOrderId: string,
+    files: Express.Multer.File[],
+    type: DocumentType = DocumentType.CUSTOMS_PAPER,
+  ) {
     const order = await this.prisma.customsOrder.findUnique({ where: { id: customsOrderId } });
     if (!order) throw new NotFoundException();
 
@@ -551,7 +575,7 @@ export class CustomsService {
           organizationId: order.organizationId,
           customerId: order.customerId,
           customsOrderId,
-          type: DocumentType.CUSTOMS_PAPER,
+          type,
           fileName: file.originalname,
           mimeType: file.mimetype || 'application/octet-stream',
           storagePath,

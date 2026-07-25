@@ -68,6 +68,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export {
   VORARLBERG_CH_GOODS_BORDERS,
+  isValidGrenzuebergang,
   isVorarlbergChGoodsBorder,
 } from './borders';
 export type { VorarlbergChGoodsBorder } from './borders';

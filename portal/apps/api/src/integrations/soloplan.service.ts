@@ -714,7 +714,9 @@ export class SoloplanService implements TransportIntegration {
         customer: { include: { contacts: true } },
         mandant: true,
         documents: {
-          where: { type: DocumentType.CUSTOMS_PAPER },
+          where: {
+            type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -730,6 +732,7 @@ export class SoloplanService implements TransportIntegration {
             const contentBase64 = readFileSync(d.storagePath).toString('base64');
             return {
               fileName: d.fileName,
+              // Rechnung → RG, Begleit-/Zollpapiere → CHBEL
               category: soloplanDocumentCategory(d.type),
               contentBase64,
             };
@@ -739,6 +742,15 @@ export class SoloplanService implements TransportIntegration {
         }),
       )
     ).filter(Boolean) as Array<{ fileName: string; category: string; contentBase64: string }>;
+    if (!docs.length) {
+      this.logger.warn(
+        `Soloplan customs export ${externalNumber}: keine Anhänge (Rechnung/Begleitdokumente)`,
+      );
+    } else {
+      this.logger.log(
+        `Soloplan customs export ${externalNumber}: ${docs.length} Dokument(e) → documentData`,
+      );
+    }
 
     const shipmentLike: PortalShipmentForSoloplan = {
       id: order.id,
