@@ -35,6 +35,7 @@ export type CreateCustomsInput = {
   importeur: string;
   frankatur: string;
   mandantId?: string;
+  customerId?: string;
   notes?: string;
   abweichenderFrachtzahler?: boolean | string;
   frachtzahlerFirma?: string;
@@ -112,12 +113,19 @@ export class CustomsService {
   }
 
   async create(user: AuthUser, data: CreateCustomsInput, files: Express.Multer.File[] = []) {
-    if (!user.customerId) {
-      throw new ForbiddenException(
-        'Verzollungsaufträge nur mit Kundenkonto – bitte als Kunde anmelden',
+    const isStaff =
+      user.role === UserRole.ORG_ADMIN || user.role === UserRole.MANDANT_DISPATCHER;
+    const customerId = isStaff
+      ? (data.customerId || '').trim()
+      : user.customerId || '';
+
+    if (!customerId) {
+      throw new BadRequestException(
+        isStaff
+          ? 'Bitte einen Kunden für den Verzollungsauftrag wählen'
+          : 'Verzollungsaufträge nur mit Kundenkonto – bitte als Kunde anmelden',
       );
     }
-    const customerId = user.customerId;
 
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, organizationId: user.organizationId },

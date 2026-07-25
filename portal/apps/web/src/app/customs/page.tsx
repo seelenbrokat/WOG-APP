@@ -17,6 +17,13 @@ const BORDER_PRESETS: VorarlbergChGoodsBorder[] = [...VORARLBERG_CH_GOODS_BORDER
 const FRANKATUR_PRESETS: Frankatur[] = [...FRANKATUREN];
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+const STATUS_LABEL: Record<string, string> = {
+  SUBMITTED: 'Übermittelt',
+  IN_PROGRESS: 'In Bearbeitung',
+  DONE: 'Erledigt',
+  CANCELLED: 'Storniert',
+};
+
 type Address = {
   id: string;
   label?: string | null;
@@ -35,6 +42,12 @@ type Party = {
   zip: string;
   city: string;
   country: string;
+};
+
+type CustomerOption = {
+  id: string;
+  name: string;
+  customerNumber: string;
 };
 
 const emptyParty = (country = 'AT'): Party => ({
@@ -130,8 +143,10 @@ function PartyFields({
 export default function CustomsPage() {
   const user = getUser();
   const isCustomer = user?.role === 'CUSTOMER_USER';
+  const isStaff = user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER';
   const [orders, setOrders] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [message, setMessage] = useState('');
@@ -143,6 +158,7 @@ export default function CustomsPage() {
   const [empfaenger, setEmpfaenger] = useState<Party>(emptyParty('CH'));
   const [frachtzahler, setFrachtzahler] = useState<Party>(emptyParty('AT'));
   const [form, setForm] = useState({
+    customerId: '',
     kennzeichen: '',
     zulassungsland: 'AT',
     kennzeichenAnhaenger: '',
@@ -195,7 +211,38 @@ export default function CustomsPage() {
         })
         .catch(() => null);
     }
+
+    if (isStaff) {
+      api<CustomerOption[]>('/customers')
+        .then((list) => {
+          setCustomers(list);
+          if (list[0]) setForm((f) => ({ ...f, customerId: f.customerId || list[0].id }));
+        })
+        .catch(() => null);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isStaff || !form.customerId) return;
+    api<Address[]>(`/customers/${form.customerId}/addresses`)
+      .then((list) => {
+        setAddresses(list);
+        const def = list.find((a) => a.isDefault) || list[0];
+        const cust = customers.find((c) => c.id === form.customerId);
+        if (def) {
+          setAbsender({
+            firma: def.company || def.label || cust?.name || '',
+            street: def.street,
+            zip: def.zip,
+            city: def.city,
+            country: def.country || 'AT',
+          });
+        } else if (cust) {
+          setAbsender((a) => ({ ...a, firma: a.firma || cust.name }));
+        }
+      })
+      .catch(() => setAddresses([]));
+  }, [form.customerId, isStaff, customers]);
 
   async function downloadDoc(docId: string, fileName: string) {
     const res = await fetch(`${API_URL}/customs/documents/${docId}/download`, {
@@ -216,7 +263,11 @@ export default function CustomsPage() {
     setError('');
     setMessage('');
     try {
+      if (isStaff && !form.customerId) {
+        throw new Error('Bitte einen Kunden wählen');
+      }
       const fd = new FormData();
+      if (isStaff) fd.append('customerId', form.customerId);
       const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
       fd.append('kennzeichen', kennzeichen);
       fd.append('zulassungsland', form.zulassungsland.trim().toUpperCase());
@@ -288,269 +339,323 @@ export default function CustomsPage() {
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger, Frankatur und Zollpapieren.
         Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
-        Auftraggeber ist stets der angemeldete Kunde
-        {customerName ? ` (${customerName})` : ''}.
+        {isCustomer
+          ? ` Auftraggeber: ${customerName || 'angemeldeter Kunde'}.`
+          : ' Admin/Disposition kann Aufträge für Kunden erfassen und bearbeiten.'}
       </p>
 
-      {isCustomer ? (
-        <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 860 }} onSubmit={onSubmit}>
-          <strong>Neuer Verzollungsauftrag</strong>
-          <div className="grid-2">
-            <div className="field">
-              <label>Kennzeichen</label>
-              <input
-                required
-                placeholder="z. B. W-12345T"
-                value={form.kennzeichen}
-                onChange={(e) => setForm({ ...form, kennzeichen: e.target.value })}
-                onBlur={() =>
-                  setForm((f) => ({
-                    ...f,
-                    kennzeichen: normalizeSmartBorderPlate(f.kennzeichen, f.zulassungsland),
-                  }))
-                }
-                autoCapitalize="characters"
-                spellCheck={false}
-              />
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                {smartBorderPlateHint(form.zulassungsland)}
-              </span>
-            </div>
-            <div className="field">
-              <label>Zulassungsland</label>
-              <select
-                required
-                value={form.zulassungsland}
-                onChange={(e) => setForm({ ...form, zulassungsland: e.target.value })}
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} – {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid-2">
-            <div className="field">
-              <label>Kennzeichen Anhänger</label>
-              <input
-                placeholder="optional, z. B. W-98765A"
-                value={form.kennzeichenAnhaenger}
-                onChange={(e) => setForm({ ...form, kennzeichenAnhaenger: e.target.value })}
-                onBlur={() =>
-                  setForm((f) => ({
-                    ...f,
-                    kennzeichenAnhaenger: f.kennzeichenAnhaenger
-                      ? normalizeSmartBorderPlate(f.kennzeichenAnhaenger, f.zulassungslandAnhaenger)
-                      : '',
-                  }))
-                }
-                autoCapitalize="characters"
-                spellCheck={false}
-              />
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                {form.kennzeichenAnhaenger
-                  ? smartBorderPlateHint(form.zulassungslandAnhaenger)
-                  : 'Optional – gleiche Schreibweise wie Kennzeichen (Smart Border Austria).'}
-              </span>
-            </div>
-            <div className="field">
-              <label>Zulassungsland Anhänger</label>
-              <select
-                value={form.zulassungslandAnhaenger}
-                onChange={(e) => setForm({ ...form, zulassungslandAnhaenger: e.target.value })}
-                disabled={!form.kennzeichenAnhaenger.trim()}
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} – {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid-2">
-            <div className="field">
-              <label>Zeit (Grenze)</label>
-              <input
-                required
-                type="datetime-local"
-                value={form.zeit}
-                onChange={(e) => setForm({ ...form, zeit: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>Grenzzollstelle</label>
-              <input
-                placeholder="Freitext, z. B. AT330400"
-                value={form.grenzzollstelle}
-                onChange={(e) => setForm({ ...form, grenzzollstelle: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="grid-2">
-            <div className="field">
-              <label>Grenzübergang (Warenverkehr V / CH)</label>
-              <select
-                required
-                value={form.grenzuebergang}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    grenzuebergang: e.target.value as VorarlbergChGoodsBorder,
-                  })
-                }
-              >
-                {BORDER_PRESETS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Frankatur</label>
-              <select
-                required
-                value={form.frankatur}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    frankatur: e.target.value as Frankatur,
-                  })
-                }
-              >
-                {FRANKATUR_PRESETS.map((f) => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid-2">
-            <div className="field">
-              <label>Importeur</label>
-              <input
-                required
-                placeholder="Firmenname Importeur"
-                value={form.importeur}
-                onChange={(e) => setForm({ ...form, importeur: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>Mandant</label>
-              <select value={form.mandantId} onChange={(e) => setForm({ ...form, mandantId: e.target.value })}>
-                {mandanten.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+      <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 920 }} onSubmit={onSubmit}>
+        <strong>Neuer Verzollungsauftrag</strong>
 
-          <div className="grid-2">
+        {isStaff ? (
+          <div className="field">
+            <label>Kunde</label>
+            <select
+              required
+              value={form.customerId}
+              onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+            >
+              <option value="">– Kunde wählen –</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.customerNumber})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
+        <div className="grid-2">
+          <div className="field">
+            <label>Kennzeichen</label>
+            <input
+              required
+              placeholder="z. B. W-12345T"
+              value={form.kennzeichen}
+              onChange={(e) => setForm({ ...form, kennzeichen: e.target.value })}
+              onBlur={() =>
+                setForm((f) => ({
+                  ...f,
+                  kennzeichen: normalizeSmartBorderPlate(f.kennzeichen, f.zulassungsland),
+                }))
+              }
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+            <span className="muted" style={{ fontSize: '0.8rem' }}>
+              {smartBorderPlateHint(form.zulassungsland)}
+            </span>
+          </div>
+          <div className="field">
+            <label>Zulassungsland</label>
+            <select
+              required
+              value={form.zulassungsland}
+              onChange={(e) => setForm({ ...form, zulassungsland: e.target.value })}
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} – {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <div className="field">
+            <label>Kennzeichen Anhänger</label>
+            <input
+              placeholder="optional, z. B. W-98765A"
+              value={form.kennzeichenAnhaenger}
+              onChange={(e) => setForm({ ...form, kennzeichenAnhaenger: e.target.value })}
+              onBlur={() =>
+                setForm((f) => ({
+                  ...f,
+                  kennzeichenAnhaenger: f.kennzeichenAnhaenger
+                    ? normalizeSmartBorderPlate(f.kennzeichenAnhaenger, f.zulassungslandAnhaenger)
+                    : '',
+                }))
+              }
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+            <span className="muted" style={{ fontSize: '0.8rem' }}>
+              {form.kennzeichenAnhaenger
+                ? smartBorderPlateHint(form.zulassungslandAnhaenger)
+                : 'Optional – gleiche Schreibweise wie Kennzeichen (Smart Border Austria).'}
+            </span>
+          </div>
+          <div className="field">
+            <label>Zulassungsland Anhänger</label>
+            <select
+              value={form.zulassungslandAnhaenger}
+              onChange={(e) => setForm({ ...form, zulassungslandAnhaenger: e.target.value })}
+              disabled={!form.kennzeichenAnhaenger.trim()}
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} – {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <div className="field">
+            <label>Zeit (Grenze)</label>
+            <input
+              required
+              type="datetime-local"
+              value={form.zeit}
+              onChange={(e) => setForm({ ...form, zeit: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Grenzzollstelle</label>
+            <input
+              placeholder="Freitext, z. B. AT330400"
+              value={form.grenzzollstelle}
+              onChange={(e) => setForm({ ...form, grenzzollstelle: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <div className="field">
+            <label>Grenzübergang (Warenverkehr V / CH)</label>
+            <select
+              required
+              value={form.grenzuebergang}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  grenzuebergang: e.target.value as VorarlbergChGoodsBorder,
+                })
+              }
+            >
+              {BORDER_PRESETS.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Frankatur</label>
+            <select
+              required
+              value={form.frankatur}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  frankatur: e.target.value as Frankatur,
+                })
+              }
+            >
+              {FRANKATUR_PRESETS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <div className="field">
+            <label>Importeur</label>
+            <input
+              required
+              placeholder="Firmenname Importeur"
+              value={form.importeur}
+              onChange={(e) => setForm({ ...form, importeur: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Mandant</label>
+            <select
+              value={form.mandantId}
+              onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
+            >
+              {mandanten.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <PartyFields
+            title="Absender"
+            party={absender}
+            setParty={setAbsender}
+            addresses={addresses}
+            defaultCountry="AT"
+          />
+          <PartyFields
+            title="Empfänger"
+            party={empfaenger}
+            setParty={setEmpfaenger}
+            addresses={addresses}
+            defaultCountry="CH"
+          />
+        </div>
+
+        <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
+          <label className="row">
+            <input
+              type="checkbox"
+              checked={abweichend}
+              onChange={(e) => setAbweichend(e.target.checked)}
+            />
+            Abweichender Frachtzahler
+            {isCustomer
+              ? ` (sonst: angemeldeter Kunde${customerName ? ` – ${customerName}` : ''})`
+              : ' (sonst: gewählter Kunde)'}
+          </label>
+          {abweichend && (
             <PartyFields
-              title="Absender"
-              party={absender}
-              setParty={setAbsender}
+              title="Frachtzahler"
+              party={frachtzahler}
+              setParty={setFrachtzahler}
               addresses={addresses}
               defaultCountry="AT"
             />
-            <PartyFields
-              title="Empfänger"
-              party={empfaenger}
-              setParty={setEmpfaenger}
-              addresses={addresses}
-              defaultCountry="CH"
-            />
-          </div>
-
-          <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={abweichend}
-                onChange={(e) => setAbweichend(e.target.checked)}
-              />
-              Abweichender Frachtzahler (sonst: angemeldeter Kunde
-              {customerName ? ` – ${customerName}` : ''})
-            </label>
-            {abweichend && (
-              <PartyFields
-                title="Frachtzahler"
-                party={frachtzahler}
-                setParty={setFrachtzahler}
-                addresses={addresses}
-                defaultCountry="AT"
-              />
-            )}
-          </div>
-
-          <div className="field">
-            <label>Zollpapiere</label>
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
-              onChange={(e) => setPapers(e.target.files)}
-            />
-            {papers && papers.length > 0 && (
-              <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
-                {Array.from(papers).map((f) => (
-                  <li key={f.name}>{f.name} ({formatBytes(f.size)})</li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="field">
-            <label>Hinweis (optional)</label>
-            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </div>
-          {error && <div className="error">{error}</div>}
-          {message && <div className="success">{message}</div>}
-          <button className="btn btn-primary" type="submit">Auftrag übermitteln</button>
-        </form>
-      ) : (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
-          <p className="muted" style={{ margin: 0 }}>
-            Neue Verzollungsaufträge werden vom angemeldeten Kundenkonto erfasst. Disposition sieht und bearbeitet die Aufträge unten.
-          </p>
+          )}
         </div>
-      )}
+
+        <div className="field">
+          <label>Zollpapiere</label>
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
+            onChange={(e) => setPapers(e.target.files)}
+          />
+          {papers && papers.length > 0 && (
+            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+              {Array.from(papers).map((f) => (
+                <li key={f.name}>
+                  {f.name} ({formatBytes(f.size)})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="field">
+          <label>Hinweis (optional)</label>
+          <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </div>
+        {error && <div className="error">{error}</div>}
+        {message && <div className="success">{message}</div>}
+        <button className="btn btn-primary" type="submit">
+          Auftrag übermitteln
+        </button>
+      </form>
 
       <div className="panel">
         <strong>Verzollungsaufträge</strong>
         <table className="table">
           <thead>
             <tr>
+              {isStaff ? <th>Kunde</th> : null}
               <th>Kennzeichen</th>
-              <th>Route</th>
+              <th>Kennzeichen Anhänger</th>
+              <th>Grenze</th>
               <th>Absender → Empfänger</th>
               <th>Frankatur</th>
               <th>Papiere</th>
               <th>Status</th>
-              <th></th>
+              {isStaff ? <th></th> : null}
             </tr>
           </thead>
           <tbody>
             {orders.map((o) => (
               <tr key={o.id}>
+                {isStaff ? (
+                  <td>
+                    <strong>{o.customer?.name || '–'}</strong>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      {o.customer?.customerNumber || ''}
+                    </div>
+                  </td>
+                ) : null}
                 <td>
                   <strong>{o.kennzeichen}</strong>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>
-                    {o.zulassungsland || '–'}
-                    {o.kennzeichenAnhaenger
-                      ? ` · Anhänger ${o.kennzeichenAnhaenger}${o.zulassungslandAnhaenger ? ` (${o.zulassungslandAnhaenger})` : ''}`
-                      : ''}
+                    Zulassungsland: {o.zulassungsland || '–'}
                   </div>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>
                     {new Date(o.zeit).toLocaleString('de-AT')}
                   </div>
                 </td>
                 <td>
-                  {o.grenzuebergang}
+                  {o.kennzeichenAnhaenger ? (
+                    <>
+                      <strong>{o.kennzeichenAnhaenger}</strong>
+                      <div className="muted" style={{ fontSize: '0.8rem' }}>
+                        Zulassungsland: {o.zulassungslandAnhaenger || '–'}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="muted">–</span>
+                  )}
+                </td>
+                <td>
+                  <div>{o.grenzuebergang}</div>
                   {o.grenzzollstelle ? (
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
                       Grenzzollstelle: {o.grenzzollstelle}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      Grenzzollstelle: –
+                    </div>
+                  )}
                 </td>
                 <td>
                   <div>{o.absenderFirma || '–'}</div>
@@ -576,30 +681,30 @@ export default function CustomsPage() {
                       </button>
                     ))}
                     {!o.documents?.length && <span className="muted">keine</span>}
-                    {isCustomer && (
-                      <div className="row">
-                        <input
-                          type="file"
-                          multiple
-                          onChange={(e) =>
-                            setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          disabled={!extraPapers[o.id]?.length}
-                          onClick={() => uploadExtra(o.id)}
-                        >
-                          Hochladen
-                        </button>
-                      </div>
-                    )}
+                    <div className="row">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) =>
+                          setExtraPapers((prev) => ({ ...prev, [o.id]: e.target.files }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={!extraPapers[o.id]?.length}
+                        onClick={() => uploadExtra(o.id)}
+                      >
+                        Hochladen
+                      </button>
+                    </div>
                   </div>
                 </td>
-                <td><span className="badge">{o.status}</span></td>
                 <td>
-                  {(user?.role === 'ORG_ADMIN' || user?.role === 'MANDANT_DISPATCHER') && (
+                  <span className="badge">{STATUS_LABEL[o.status] || o.status}</span>
+                </td>
+                {isStaff ? (
+                  <td>
                     <select
                       value={o.status}
                       onChange={async (e) => {
@@ -615,12 +720,16 @@ export default function CustomsPage() {
                       <option value="DONE">Erledigt</option>
                       <option value="CANCELLED">Storniert</option>
                     </select>
-                  )}
-                </td>
+                  </td>
+                ) : null}
               </tr>
             ))}
             {!orders.length && (
-              <tr><td colSpan={7} className="muted">Noch keine Verzollungsaufträge.</td></tr>
+              <tr>
+                <td colSpan={isStaff ? 9 : 7} className="muted">
+                  Noch keine Verzollungsaufträge.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

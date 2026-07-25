@@ -60,6 +60,11 @@ class CreateCustomsDto {
   @IsString()
   mandantId?: string;
 
+  /** Für Admin/Disposition: Auftrag für diesen Kunden anlegen */
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
@@ -164,7 +169,7 @@ export class CustomsController {
   }
 
   @Post()
-  @Roles(UserRole.CUSTOMER_USER)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   @UseInterceptors(papersUpload)
   create(
     @CurrentUser() user: AuthUser,
