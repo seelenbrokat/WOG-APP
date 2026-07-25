@@ -1,0 +1,3397 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "shippingNET PublicApi Order Service",
+        "version": "1.0",
+        "x-logo": {
+            "url": "https://shippingnet03.ondot.at/WOG/DataService/node/assets/shippingnet-logo-openapi.png",
+            "altText": "shipping.NET logo",
+            "backgroundColor": "#3B3B41",
+            "href": "https://www.ondot.at"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://shippingnet03.ondot.at/WOG/DataService/PublicApi/v1/Order"
+        }
+    ],
+    "security": [
+        {
+            "clientID": [],
+            "orgUnitID": [],
+            "authToken": []
+        }
+    ],
+    "paths": {
+        "/import": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/importResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "description": "Import Order",
+                "operationId": "import",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/importRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/importStatus": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/importStatusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "description": "Importiert Status für einen Auftrag",
+                "operationId": "importStatus",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/importStatusRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/retrieve": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/retrieveResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "description": "",
+                "operationId": "retrieve",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/retrieveRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "responses": {
+            "InternalError": {
+                "description": "Internal error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/InternalError"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "InternalError": {
+                "type": "object",
+                "properties": {
+                    "ExceptionCode": {
+                        "type": "string"
+                    },
+                    "ExceptionType": {
+                        "type": "string"
+                    },
+                    "ExceptionMessage": {
+                        "type": "string"
+                    },
+                    "Source": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ArticleImportResult": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderPosImportResult": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResult"
+                            }
+                        ]
+                    }
+                }
+            },
+            "OrderImportResult": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "OrderPositionList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderPosImportResult"
+                        },
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderImportResponse": {
+                "type": "object",
+                "properties": {
+                    "Order": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderImportResult"
+                            }
+                        ]
+                    }
+                }
+            },
+            "importResponse": {
+                "$ref": "#/components/schemas/OrderImportResponse"
+            },
+            "OrderType": {
+                "type": "string",
+                "enum": [
+                    "SalesOrder",
+                    "PurchaseOrder",
+                    "ReturnMaterialAuthorization",
+                    "ReturnToVendor",
+                    "SalesOrderReclamation",
+                    "SalesOrderInternal",
+                    "BlanketSalesOrder",
+                    "ManufacturingOrder",
+                    "SubsequentBillingOverdelivery",
+                    "ManufacturingReturnOrder",
+                    "UnannouncedArticlesOrder",
+                    "Offer",
+                    "PurchaseOrderInternal",
+                    "ReplacementOrder",
+                    "RepairOrder",
+                    "DestructionOrder",
+                    "StockTransfer",
+                    "ReturnToCustomer",
+                    "BulkSalesOrder",
+                    "RMAReject",
+                    "RepairOrderIncoming",
+                    "ConsignmentOrder",
+                    "SalesOrderIntercompany",
+                    "PurchaseOrderIntercompany",
+                    "Relocation",
+                    "RelocationPrivate",
+                    "FurnitureDelivery",
+                    "RelocateOUT",
+                    "RelocateIN",
+                    "DismantlingIN",
+                    "DismantlingOUT",
+                    "StockRelocationInternal",
+                    "Maintenance",
+                    "ReplenishmentSalesOrder",
+                    "ReplenishmentPurchaseOrder",
+                    "ReturnOfGoods"
+                ]
+            },
+            "Date": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2017-07-21T17:32:28Z"
+            },
+            "OrgUnitReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder BusinessPartnerNumber befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "BusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ApiAddress": {
+                "type": "object",
+                "properties": {
+                    "Name1": {
+                        "type": "string"
+                    },
+                    "Name2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name3": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name4": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AddressLine1": {
+                        "type": "string"
+                    },
+                    "HouseNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AddressLine2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PostalCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ProvinceCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "City": {
+                        "type": "string"
+                    },
+                    "GLN": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "EORINumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CountryID": {
+                        "type": "string",
+                        "description": "ISO-2-Code"
+                    },
+                    "Tel1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Tel2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AddressCategoryID": {
+                        "type": "string",
+                        "enum": [
+                            "COM",
+                            "CON",
+                            "PRI",
+                            "PSH",
+                            "PST",
+                            "WAR"
+                        ],
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Name1",
+                    "AddressLine1",
+                    "City",
+                    "CountryID"
+                ]
+            },
+            "ApiThirdPartyApplication": {
+                "type": "object",
+                "properties": {
+                    "ThirdPartyApplicationID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "ReferenceID": {
+                        "type": "string"
+                    },
+                    "UName": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "ReferenceID"
+                ]
+            },
+            "TaxLiabilityType": {
+                "type": "string",
+                "enum": [
+                    "CompanyWithVATID",
+                    "CompanyWithoutVATID",
+                    "PrivatePerson",
+                    "TaxExempt",
+                    "TransportCompanyWithVATID"
+                ]
+            },
+            "ApiAccount": {
+                "type": "object",
+                "properties": {
+                    "Number": {
+                        "type": "string"
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Number"
+                ]
+            },
+            "ApiOrgUnitAccounting": {
+                "type": "object",
+                "properties": {
+                    "CreditorAccount": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiAccount"
+                            }
+                        ]
+                    },
+                    "DebitorAccount": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiAccount"
+                            }
+                        ]
+                    }
+                }
+            },
+            "ApiOrgUnit": {
+                "type": "object",
+                "properties": {
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Address": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiAddress"
+                            }
+                        ]
+                    },
+                    "BusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyApplicationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiThirdPartyApplication"
+                        },
+                        "nullable": true
+                    },
+                    "VATID": {
+                        "type": "string",
+                        "description": "Umsatzsteuernummer",
+                        "nullable": true
+                    },
+                    "TaxLiabilityType": {
+                        "description": "Steuerpflichtigkeit",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/TaxLiabilityType"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "Accounting": {
+                        "description": "Verrechnungsinformationen",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnitAccounting"
+                            }
+                        ],
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiContactPerson": {
+                "type": "object",
+                "properties": {
+                    "FirstName": {
+                        "type": "string"
+                    },
+                    "LastName": {
+                        "type": "string"
+                    },
+                    "Title": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Phone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "MobilePhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Fax": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "FirstName",
+                    "LastName"
+                ]
+            },
+            "DispatchType": {
+                "type": "string",
+                "enum": [
+                    "Relocation",
+                    "Package",
+                    "PieceOfGood",
+                    "FullLoad",
+                    "SpecialTransport",
+                    "Document",
+                    "ContainerTransport",
+                    "KeyCustomer",
+                    "ReturnShipment",
+                    "PalletPickup"
+                ]
+            },
+            "IDNameReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder Name befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CarrierServiceReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID, Name oder ShippingNETReferenceID befüllt sein",
+                "properties": {
+                    "ShippingNETReferenceID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "IDNameThirdPartyReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID, Name oder ThirdPartyID befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "IDReference": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "ID"
+                ],
+                "additionalProperties": false
+            },
+            "ArticleReference": {
+                "type": "object",
+                "properties": {
+                    "Number": {
+                        "type": "string"
+                    },
+                    "Customer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "Owner": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "Number"
+                ],
+                "additionalProperties": false
+            },
+            "IDNameNumberReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss eines der drei Felder befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "StringIDNameReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder Name befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UserMatchingData": {
+                "type": "object",
+                "properties": {
+                    "UserID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "UserName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Firstname": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Lastname": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Email": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "PickingOperation": {
+                "type": "string",
+                "enum": [
+                    "FIFO-optimized",
+                    "FEFO-optimized"
+                ]
+            },
+            "PickingOptimization": {
+                "type": "string",
+                "enum": [
+                    "Free location-optimized",
+                    "Pick-optimized (Article preferred)",
+                    "Pick-optimized (Collo preferred)"
+                ]
+            },
+            "RefrigeratedCargoType": {
+                "type": "string",
+                "enum": [
+                    "TransportWarehouse",
+                    "Transport",
+                    "Warehouse"
+                ]
+            },
+            "RefrigeratedCargo": {
+                "type": "string",
+                "enum": [
+                    "FrozenGoods",
+                    "ChilledGoods",
+                    "RoomTemperature",
+                    "DryIce"
+                ]
+            },
+            "ApiArticlePart": {
+                "type": "object",
+                "properties": {
+                    "Child": {
+                        "$ref": "#/components/schemas/ApiArticle"
+                    },
+                    "Quantity": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "Child",
+                    "Quantity"
+                ]
+            },
+            "ApiArticlePackageType": {
+                "type": "object",
+                "properties": {
+                    "PackageType": {
+                        "$ref": "#/components/schemas/StringIDNameReference"
+                    },
+                    "SystemUnitQuantity": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "GrossWeight": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "NetWeight": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Length": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Width": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Height": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Volume": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Tare": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsUsedForGoodsReceipt": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForPicking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForCompleteColloPicking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForSupplyManagement": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Barcode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AssemblyTime": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "StackingFactor": {
+                        "type": "number",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "PackageType"
+                ]
+            },
+            "PartyType": {
+                "type": "string",
+                "enum": [
+                    "Alternative",
+                    "Customer",
+                    "Manufacturer",
+                    "Supplier",
+                    "System"
+                ]
+            },
+            "ApiArticleCode": {
+                "type": "object",
+                "properties": {
+                    "Code": {
+                        "type": "string"
+                    },
+                    "NumberType": {
+                        "$ref": "#/components/schemas/IDNameReference"
+                    },
+                    "PartyTypeID": {
+                        "$ref": "#/components/schemas/PartyType"
+                    },
+                    "PartyOrgUnit": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "Code",
+                    "NumberType",
+                    "PartyTypeID"
+                ]
+            },
+            "ApiArticleCustomsInformation": {
+                "type": "object",
+                "properties": {
+                    "CountryID": {
+                        "type": "string"
+                    },
+                    "TariffNumber": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "CountryID",
+                    "TariffNumber"
+                ]
+            },
+            "ApiArticleString": {
+                "type": "object",
+                "properties": {
+                    "LanguageID": {
+                        "type": "string",
+                        "description": "Sprache, ISO-639-1-Code"
+                    },
+                    "Name": {
+                        "type": "string",
+                        "description": "Artikelname in der Sprache",
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "description": "Artikelbeschreibung in der Sprache",
+                        "nullable": true
+                    },
+                    "Operation": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "LanguageID"
+                ]
+            },
+            "ApiArticleWarehouseWorkInstructionType": {
+                "type": "object",
+                "properties": {
+                    "TriggerEvent": {
+                        "type": "string",
+                        "enum": [
+                            "GoodsIssue",
+                            "GoodsReceipt"
+                        ],
+                        "description": "Auslöser der Arbeitsanweisung"
+                    },
+                    "WorkInstruction": {
+                        "$ref": "#/components/schemas/IDNameReference"
+                    }
+                },
+                "required": [
+                    "TriggerEvent",
+                    "WorkInstruction"
+                ]
+            },
+            "DangerousGoodsReference": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PackingGroup": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "TransportCategory": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ClassificationCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ADRRevision": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "Decimal": {
+                "type": "number"
+            },
+            "ApiArticleDangerousGoods": {
+                "type": "object",
+                "properties": {
+                    "DangerousGoodsType": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/DangerousGoodsReference"
+                            }
+                        ]
+                    },
+                    "QtyPackageType": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "PackageTypeID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "IsWarehouseDangerousGoods": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsTransportationDangerousGoods": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsDangerousGoodsLimitedQuantity": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DangerousGoodsDescription": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Mass": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "UnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "NetExplosiveMass": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "FlashPoint": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsAccessible": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsCargoAirOnly": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsExceptedQuantity": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsEnvironmentallyHazardous": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsMarinePolluting": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsWaste": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "EuropeanWasteCode": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiArticle": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string"
+                    },
+                    "Name": {
+                        "type": "string"
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PackingInstructions": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ArticleGroup": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberReference"
+                            }
+                        ]
+                    },
+                    "ProductGroup": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberReference"
+                            }
+                        ]
+                    },
+                    "Active": {
+                        "type": "boolean",
+                        "description": "Um Artikel zu deaktivieren, Default: True",
+                        "nullable": true
+                    },
+                    "CountryOfOriginID": {
+                        "type": "string",
+                        "description": "Herstellungsland, ISO-2-Code",
+                        "nullable": true
+                    },
+                    "HSTariffNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SystemUnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SystemUnitNetWeight": {
+                        "type": "number",
+                        "description": "Nettogewicht pro Systemeinheit",
+                        "nullable": true
+                    },
+                    "DefaultGoodsReceiptPackageType": {
+                        "description": "Standard-Lademittel für Wareneingang",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/StringIDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "DefaultGoodsIssuePackageType": {
+                        "description": "Standard-Lademittel für Warenausgang",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/StringIDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "Customer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "Owner": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "Supplier": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "ProductManager": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/UserMatchingData"
+                            }
+                        ]
+                    },
+                    "SerialNumberRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "SerialNumberRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ChargeRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "ChargeRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "BestBeforeDateRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "BestBeforeDateRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ExpirationDateRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "ExpirationDateRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode1RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode1RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode2RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode2RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode3RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode3RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode4RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode4RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantQuantityRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantQuantityRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantQuantityUnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantQuantityAllowedNumberOfDecimalPlaces": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "RequireScanOnArticleWarehouseTransports": {
+                        "type": "boolean",
+                        "description": "Gibt an ob der Artikel bei Artikel Fahrbefehlen gescannt werden muss",
+                        "nullable": true
+                    },
+                    "CompleteColloOnly": {
+                        "type": "boolean",
+                        "description": "Nur Ganzpaletten-Entnahme für diesen Artikel",
+                        "nullable": true
+                    },
+                    "PickingOperation": {
+                        "description": "Entnahmeverfahren",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/PickingOperation"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "PickingOptimization": {
+                        "description": "Optimierungsverfahren",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/PickingOptimization"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "ShelfLifeInDays": {
+                        "type": "number",
+                        "description": "Haltbarkeit in Tagen",
+                        "nullable": true
+                    },
+                    "LockDaysBeforeExpiration": {
+                        "type": "number",
+                        "description": "Artikel sperren X-Tage bevor die Haltbarkeit endet",
+                        "nullable": true
+                    },
+                    "SalesPricePerUnit": {
+                        "type": "number",
+                        "description": "Verkaufspreis",
+                        "nullable": true
+                    },
+                    "SalesCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des Verkaufspreises",
+                        "nullable": true
+                    },
+                    "InternalSalesPricePerUnit": {
+                        "type": "number",
+                        "description": "interner Verkaufspreis",
+                        "nullable": true
+                    },
+                    "InternalSalesCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des internen Verkaufspreises",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsPerUnit": {
+                        "type": "number",
+                        "description": "Warenwert",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des Warenwerts",
+                        "nullable": true
+                    },
+                    "IsInventoryTracked": {
+                        "type": "boolean",
+                        "description": "Bestandsgeführt, Default: true",
+                        "nullable": true
+                    },
+                    "RefrigeratedCargoType": {
+                        "description": "Kühlgutart",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RefrigeratedCargoType"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "RefrigeratedCargoTemperatureType": {
+                        "description": "Kühlgut-Temperatur",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RefrigeratedCargo"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "IsBulkyGoods": {
+                        "type": "boolean",
+                        "description": "Sperrgut",
+                        "nullable": true
+                    },
+                    "IsNarcoticGoods": {
+                        "type": "boolean",
+                        "description": "Suchtmittel",
+                        "nullable": true
+                    },
+                    "IsDangerousGoods": {
+                        "type": "boolean",
+                        "description": "Gefahrgut",
+                        "nullable": true
+                    },
+                    "IsFragileGoods": {
+                        "type": "boolean",
+                        "description": "Zerbrechlich",
+                        "nullable": true
+                    },
+                    "IsOrganic": {
+                        "type": "boolean",
+                        "description": "BIO-Artikel",
+                        "nullable": true
+                    },
+                    "ChildList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticlePart"
+                        },
+                        "description": "Unterartikel",
+                        "nullable": true
+                    },
+                    "PackageTypeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticlePackageType"
+                        },
+                        "description": "Lademittel",
+                        "nullable": true
+                    },
+                    "CodeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleCode"
+                        },
+                        "description": "Zusätzliche Barcodes",
+                        "nullable": true
+                    },
+                    "CustomsInformationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleCustomsInformation"
+                        },
+                        "description": "Zoll-Informationen pro Land",
+                        "nullable": true
+                    },
+                    "TranslationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleString"
+                        },
+                        "description": "Übersetzungen von Artikelname & -Beschreibung",
+                        "nullable": true
+                    },
+                    "WarehouseWorkInstructionTypeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleWarehouseWorkInstructionType"
+                        },
+                        "description": "Lager-Arbeitsanweisungen",
+                        "nullable": true
+                    },
+                    "DangerousGoodsList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleDangerousGoods"
+                        },
+                        "nullable": true
+                    },
+                    "ABCCategory": {
+                        "type": "string",
+                        "description": "ABC Kategorie",
+                        "nullable": true
+                    },
+                    "IsMedicine": {
+                        "type": "boolean",
+                        "description": "Medizin",
+                        "nullable": true
+                    },
+                    "IsBiocide": {
+                        "type": "boolean",
+                        "description": "Biozid",
+                        "nullable": true
+                    },
+                    "UprightTransportOnly": {
+                        "type": "boolean",
+                        "description": "Artikel muss stehend transportiert werden",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Number",
+                    "Name"
+                ]
+            },
+            "ApiOrderPos": {
+                "type": "object",
+                "properties": {
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "IsPartialDeliveryAllowed": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Article": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/IDReference"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ArticleReference"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ApiArticle"
+                            }
+                        ]
+                    },
+                    "SerialNumberFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SerialNumberTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ChargeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ChargeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "BestBeforeDateFrom": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "BestBeforeDateTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ExpirationDateFrom": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ExpirationDateTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "VariantCode1From": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode1To": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode2From": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode2To": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode3From": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode3To": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode4From": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantCode4To": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantQuantityFrom": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "VariantQuantityTo": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "QuantityOrdered": {
+                        "type": "number"
+                    },
+                    "UpperDeviationPercentage": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "UpperDeviationQuantity": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsUpperDeviationQuantityUnlimited": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "LowerDeviationPercentage": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "LowerDeviationQuantity": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsLowerDeviationQuantityUnlimited": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "GoodsOwnerBusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PackingInstructions": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCurrencyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsPerUnit": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "ThirdPartyApplicationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiThirdPartyApplication"
+                        },
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ChildList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiOrderPos"
+                        },
+                        "nullable": true
+                    },
+                    "ActualDeliveryDateTime": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledShippingDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledPickingDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledDeliveryDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledDeliveryTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "RequestedDeliveryDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "RequestedDeliveryTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "RequestedDeliveryTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledGoodsReceiptCalendarWeek": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledGoodsReceiptDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "CompleteColloOnly": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "SalesPricePerUnit": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "SalesPriceCurrencyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "FixedPrice": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "AcquisitionPricePerUnit": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "AcquisitionPriceCurrencyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "FixedAcquisitionPrice": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataVC1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC3": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC4": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AssemblyTime": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Priority": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "QuantityAvailable": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "QuantityAvailableCalcExternal": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "SupplierConfirmationNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataINT1": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataINT2": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataINT3": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataINT4": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsExcludedFromPicking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ExternalWarehouseLocationName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "IsAdditionalConsumptionPossible": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsDropshipping": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "SalesPricePerUnitCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "AcquisitionPricePerUnitCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Article",
+                    "QuantityOrdered"
+                ]
+            },
+            "Requirement": {
+                "type": "string",
+                "enum": [
+                    "DeliveryBWCounter",
+                    "DeliveryColorCounter",
+                    "DeliveryColloScan",
+                    "DeliveryDoorNumber",
+                    "DeliveryGPSCheck",
+                    "DeliveryMileage",
+                    "DeliveryPhoto",
+                    "DeliveryPackageTypeClearing",
+                    "DeliveryReceiverCleartext",
+                    "DeliveryReturnShipment",
+                    "DeliverySignatureOnDeliveryNote",
+                    "DeliveryDigitalSignature",
+                    "PickupBWCounter",
+                    "PickupColorCounter",
+                    "PickupColloGeneration",
+                    "PickupColloScan",
+                    "PickupDoorNumber",
+                    "PickupGPSCheck",
+                    "PickupMileage",
+                    "PickupPhoto",
+                    "PickupPackageTypeClearing",
+                    "PickupShipperCleartext",
+                    "PickupSerialNumber",
+                    "PickupSignatureOnDeliveryNote",
+                    "PickupDigitalSignature"
+                ]
+            },
+            "ApiRequirement": {
+                "type": "object",
+                "properties": {
+                    "Requirement": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Requirement"
+                            }
+                        ]
+                    },
+                    "InputValueString": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "InputValueNumeric": {
+                        "type": "number",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiAdditionalInformationRow": {
+                "type": "object",
+                "properties": {
+                    "ThirdPartyID": {
+                        "type": "string"
+                    },
+                    "AdditionalField1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AdditionalField2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AdditionalField3": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AdditionalField4": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "ThirdPartyID"
+                ]
+            },
+            "IDNameNumberThirdPartyReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss eines der vier Felder befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "IDNameCodeReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss eines der drei Felder befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Code": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ApiOrderImportAviso": {
+                "type": "object",
+                "properties": {
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryNoteNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Reference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Reference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Location": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameCodeReference"
+                            }
+                        ]
+                    },
+                    "IsUnannouncedArticleAllowed": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledDeliveryTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiOrder": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "description": "Order-ID\r\nNur notwendig um Order zu bearbeiten",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "OrderType": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderType"
+                            }
+                        ]
+                    },
+                    "OrderDate": {
+                        "description": "Auftragsdatum",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "OrderTime": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PartialDeliveryAllowed": {
+                        "type": "string",
+                        "enum": [
+                            "yes",
+                            "no",
+                            "once"
+                        ],
+                        "description": "Teillieferung erlaubt",
+                        "nullable": true
+                    },
+                    "Owner": {
+                        "description": "Zuständige Abteilung",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "Customer": {
+                        "description": "Kunde",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "SoldFrom": {
+                        "$ref": "#/components/schemas/ApiOrgUnit"
+                    },
+                    "SoldFromReference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SoldFromReference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SoldTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "SoldToReference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SoldToReference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "BillTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "BillToReference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "BillToReference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "LoadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "LoadingPointReference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "LoadingPointReference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "LoadingPointContactPerson": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiContactPerson"
+                            }
+                        ]
+                    },
+                    "UnloadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "UnloadingPointReference1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "UnloadingPointReference2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "UnloadingPointContactPerson": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiContactPerson"
+                            }
+                        ]
+                    },
+                    "RoutingType": {
+                        "type": "string",
+                        "enum": [
+                            "Pickup",
+                            "Delivery",
+                            "PickupDelivery"
+                        ],
+                        "nullable": true
+                    },
+                    "DispatchType": {
+                        "description": "Versandart",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/DispatchType"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "CustomerDispatchTypeThirdPartyID": {
+                        "type": "string",
+                        "description": "Kundenversandart",
+                        "nullable": true
+                    },
+                    "DeliveryCarrier": {
+                        "description": "Zustellfrächter",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "DeliveryService": {
+                        "description": "Zustellservice\r\nZur Verwendung muss der DeliveryCarrier befüllt sein",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/CarrierServiceReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "DeliveryCarrierCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryDepot": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "DeliveryDepotCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryRelation": {
+                        "description": "Zustellrelation",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameThirdPartyReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "DeliveryRelationCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryInternalInstruction": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryInstruction": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PickupCarrier": {
+                        "description": "Abholfrächter",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "PickupCarrierCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupService": {
+                        "description": "Abholservice\r\nZur Verwendung muss der PickupCarrier befüllt sein",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/CarrierServiceReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "PickupDepot": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "PickupDepotCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupRelation": {
+                        "description": "Abholrelation",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameThirdPartyReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "PickupRelationCalcAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupInternalInstruction": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PickupInstruction": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "MultipleOrdersInShipment": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "MultipleOrdersInCollo": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CreateReturnShipment": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PackingInstructions": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PositionList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiOrderPos"
+                        },
+                        "nullable": true
+                    },
+                    "ScheduledShippingDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledShippingTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledShippingTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ScheduledDeliveryTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ScheduledDeliveryCalendarWeek": {
+                        "type": "string",
+                        "description": "Kalenderwoche im Format YYYYWW (WW = Kalenderwoche)",
+                        "nullable": true
+                    },
+                    "RequestedDeliveryDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "RequestedDeliveryTimeFrom": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "RequestedDeliveryTimeTo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "RequestedDeliveryCalendarWeek": {
+                        "type": "string",
+                        "description": "Kalenderwoche im Format YYYYWW (WW = Kalenderwoche)",
+                        "nullable": true
+                    },
+                    "ActualDeliveryDateTime": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "ActualDeliveryCalendarWeek": {
+                        "type": "string",
+                        "description": "Kalenderwoche im Format YYYYWW (WW = Kalenderwoche)",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCODMeansOfPaymentID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCOD": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCODCurrencyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "RequirementList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiRequirement"
+                        },
+                        "nullable": true
+                    },
+                    "AdditionalInformationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiAdditionalInformationRow"
+                        },
+                        "nullable": true
+                    },
+                    "Priority": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "TermsOfDeliveryID": {
+                        "type": "string",
+                        "enum": [
+                            "100",
+                            "900",
+                            "901",
+                            "902",
+                            "903",
+                            "CFR",
+                            "CIF",
+                            "CIP",
+                            "CPT",
+                            "DAF",
+                            "DAP",
+                            "DAT",
+                            "DDP",
+                            "DDU",
+                            "DEQ",
+                            "DES",
+                            "DPU",
+                            "DXV",
+                            "EXW",
+                            "FAS",
+                            "FCA",
+                            "FOB",
+                            "G40",
+                            "SDV",
+                            "GB1"
+                        ],
+                        "nullable": true
+                    },
+                    "TermsOfDeliveryCountryID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "TermsOfDeliveryCity": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC1": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC2": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC3": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC4": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC5": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC6": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC7": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC8": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataVC9": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomDataINT1": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataINT2": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomDataINT3": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "ThirdPartyApplicationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiThirdPartyApplication"
+                        },
+                        "nullable": true
+                    },
+                    "CostCenterAccount": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberThirdPartyReference"
+                            }
+                        ]
+                    },
+                    "CostObjectAccount": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberThirdPartyReference"
+                            }
+                        ]
+                    },
+                    "DeliveryAssemblyTime": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "GrossAmount": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "NetAmount": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "TaxAmount": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "DueDays": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "SendTrackingMailNotification": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PrintColloPackingListLabel": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "GrossWeight": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CalcGrossWeightAutomatic": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsAdditionalConsumptionPossible": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "AllowDifferentUnloadingPointConsolidation": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CODPaymentReference": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Aviso": {
+                        "description": "Automatisch ein Aviso anlegen und den Auftrag darauf hinzufügen",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrderImportAviso"
+                            }
+                        ],
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "SoldFrom"
+                ]
+            },
+            "OrderImportResultFields": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderPosImportResultFields": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "ArticleImportResultFields": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderImportResponseFields": {
+                "type": "object",
+                "properties": {
+                    "Order": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderImportResultFields"
+                            }
+                        ]
+                    },
+                    "OrderPosition": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderPosImportResultFields"
+                            }
+                        ]
+                    },
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResultFields"
+                            }
+                        ]
+                    }
+                }
+            },
+            "importRequest": {
+                "type": "object",
+                "properties": {
+                    "Order": {
+                        "$ref": "#/components/schemas/ApiOrder"
+                    },
+                    "RequestedFields": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderImportResponseFields"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "Order"
+                ]
+            },
+            "importStatusResponse": {
+                "type": "object"
+            },
+            "OrderMatchingData": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyApplicationReference": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiStatusImportData": {
+                "type": "object",
+                "properties": {
+                    "StatusID": {
+                        "type": "string"
+                    },
+                    "SubStatusThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "StatusID"
+                ]
+            },
+            "importStatusRequest": {
+                "type": "object",
+                "properties": {
+                    "OrderMatching": {
+                        "description": "Suchparameter-Pflichtfeld um Aufträge zu suchen",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderMatchingData"
+                            }
+                        ]
+                    },
+                    "StatusData": {
+                        "description": "Zu importierender Status/SubStatus",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiStatusImportData"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "OrderMatching",
+                    "StatusData"
+                ]
+            },
+            "ArticleRetrieveResult": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiStatusRetrieveResult": {
+                "type": "object",
+                "properties": {
+                    "SubStatusName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusFileUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusData": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusID": {
+                        "type": "string"
+                    },
+                    "SubStatusThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusDate": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "StatusID"
+                ]
+            },
+            "OrderPosRetrieveResult": {
+                "type": "object",
+                "properties": {
+                    "QuantityOrdered": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "QuantityPacked": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleRetrieveResult"
+                            }
+                        ]
+                    },
+                    "StatusList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiStatusRetrieveResult"
+                        },
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiColloShipmentCode": {
+                "type": "object",
+                "properties": {
+                    "Code": {
+                        "type": "string"
+                    },
+                    "NumberTypeName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "NumberTypeID": {
+                        "type": "number",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Code"
+                ]
+            },
+            "OrderShipmentRetrieveResult": {
+                "type": "object",
+                "properties": {
+                    "Shipper": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "FreightPayer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "Recipient": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "CustomsDutyPayer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "LoadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "UnloadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "StartDepot": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "EndDepot": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "StatusList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiStatusRetrieveResult"
+                        },
+                        "nullable": true
+                    },
+                    "CodeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiColloShipmentCode"
+                        },
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "TrackingNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryCarrierID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "DeliveryCarrier": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryServiceID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "DeliveryService": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryServiceThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PickupCarrierID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "PickupCarrier": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "DeliveryDateTimeFrom": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "DeliveryDateTimeTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Date"
+                            }
+                        ]
+                    },
+                    "DurationInDays": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "CustomerDispatchType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomerDispatchTypeThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ErrorMessage": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderRetrieveResult": {
+                "type": "object",
+                "properties": {
+                    "OrderPositionList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderPosRetrieveResult"
+                        },
+                        "nullable": true
+                    },
+                    "DeliveryCarrierID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "PickupCarrierID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Customer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "SoldFrom": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "SoldTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "BillTo": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "LoadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "UnloadingPoint": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiOrgUnit"
+                            }
+                        ]
+                    },
+                    "StatusList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiStatusRetrieveResult"
+                        },
+                        "nullable": true
+                    },
+                    "ShipmentList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderShipmentRetrieveResult"
+                        },
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderRetrieveResponse": {
+                "type": "object",
+                "properties": {
+                    "Order": {
+                        "$ref": "#/components/schemas/OrderRetrieveResult"
+                    }
+                },
+                "required": [
+                    "Order"
+                ]
+            },
+            "retrieveResponse": {
+                "$ref": "#/components/schemas/OrderRetrieveResponse"
+            },
+            "OrderRetrieveResultFields": {
+                "type": "object",
+                "properties": {
+                    "DeliveryCarrierID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupCarrierID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Customer": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "SoldFrom": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "SoldTo": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "BillTo": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "LoadingPoint": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "UnloadingPoint": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Status": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderPosRetrieveResultFields": {
+                "type": "object",
+                "properties": {
+                    "QuantityOrdered": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "QuantityPacked": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Status": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "ArticleRetrieveResultFields": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderShipmentRetrieveResultFields": {
+                "type": "object",
+                "properties": {
+                    "Shipper": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "FreightPayer": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Recipient": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomsDutyPayer": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "LoadingPoint": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "UnloadingPoint": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "StartDepot": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "EndDepot": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "TrackingNumber": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryCarrierID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryCarrier": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryServiceID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryService": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryServiceThirdPartyID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupCarrierID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "PickupCarrier": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryDateTimeFrom": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DeliveryDateTimeTo": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DurationInDays": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomerDispatchType": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomerDispatchTypeThirdPartyID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ErrorMessage": {
+                        "type": "boolean",
+                        "description": "Fehlermeldung für Fehlerfrächter-Sendung",
+                        "nullable": true
+                    },
+                    "Codes": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Status": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "OrderRetrieveResponseFields": {
+                "type": "object",
+                "properties": {
+                    "Order": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderRetrieveResultFields"
+                            }
+                        ]
+                    },
+                    "OrderPosition": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderPosRetrieveResultFields"
+                            }
+                        ]
+                    },
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleRetrieveResultFields"
+                            }
+                        ]
+                    },
+                    "Shipment": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderShipmentRetrieveResultFields"
+                            }
+                        ]
+                    }
+                }
+            },
+            "retrieveRequest": {
+                "type": "object",
+                "properties": {
+                    "OrderMatching": {
+                        "$ref": "#/components/schemas/OrderMatchingData"
+                    },
+                    "RequestedFields": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrderRetrieveResponseFields"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "OrderMatching"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "clientID": {
+                "name": "client-id",
+                "type": "apiKey",
+                "in": "header",
+                "description": "Client ID"
+            },
+            "orgUnitID": {
+                "name": "orgunit-id",
+                "type": "apiKey",
+                "in": "header",
+                "description": "OrgUnit ID"
+            },
+            "authToken": {
+                "name": "auth-token",
+                "type": "apiKey",
+                "in": "header",
+                "description": "Auth Token (GUID)"
+            }
+        }
+    }
+}
