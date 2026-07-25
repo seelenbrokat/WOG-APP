@@ -107,12 +107,12 @@ async function bootstrap() {
   };
 
   await tick();
-  // Einmalig: vor Parser-Existenz archivierte WareneingangXML nachziehen
+  // Einmalig: archivierte WE-XML + Order-Feedback-JSON (ExternalNumber→OrderNumber) nachziehen
   try {
-    const backfill = await wareneingang.reimportFromProcessed(undefined, 30);
-    if (backfill.processed || backfill.failed) {
+    const backfill = await wareneingang.reimportFromProcessed(undefined, 80);
+    if (backfill.processed || backfill.failed || backfill.linked) {
       console.log(
-        `Wareneingang Reimport: ${backfill.processed} importiert, ${backfill.failed} fehlgeschlagen`,
+        `Wareneingang Reimport: ${backfill.processed} verarbeitet, ${backfill.linked || 0} verknüpft, ${backfill.failed} fehlgeschlagen`,
       );
     }
   } catch (err) {

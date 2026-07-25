@@ -14,6 +14,8 @@ export type WareneingangItem = {
 
 export type WareneingangConsignment = {
   consignmentNumber?: string;
+  /** Soloplan Consignment ExternalNumber (oft VLB… oder Portal-Referenz) */
+  externalNumber?: string;
   absName?: string;
   absStreet?: string;
   absZip?: string;
@@ -32,6 +34,8 @@ export type WareneingangConsignment = {
 
 export type ParsedWareneingangOrder = {
   orderNumber: string;
+  /** Soloplan Order ExternalNumber = Portal-VLB (Referenz für Rückverknüpfung) */
+  externalNumber?: string;
   action?: string;
   date?: string;
   businessPartnerId?: string;
@@ -169,6 +173,7 @@ export function parseWareneingangXml(xml: string): ParsedWareneingangOrder | nul
     );
     consignments.push({
       consignmentNumber: str(c.ConsignmentNumber),
+      externalNumber: str(c.ExternalNumber),
       absName: str(c.AbsName1),
       absStreet: streetLine(str(c.AbsStreet), str(c.AbsHouseNumber)),
       absZip: str(c.AbsZipCode),
@@ -186,8 +191,13 @@ export function parseWareneingangXml(xml: string): ParsedWareneingangOrder | nul
     });
   }
 
+  const orderExternal =
+    str(order.ExternalNumber) ||
+    consignments.find((c) => c.externalNumber?.startsWith('VLB'))?.externalNumber;
+
   return {
     orderNumber,
+    externalNumber: orderExternal,
     action: str(order['@_Action']) || str(order.Action),
     date: str(order.Date),
     businessPartnerId: str(order.BusinessPartnerId),

@@ -20,6 +20,10 @@ import {
   parseWareneingangXml,
   type ParsedWareneingangOrder,
 } from './wareneingang-xml.parser';
+import {
+  isWareneingangOrderJson,
+  parseWareneingangJson,
+} from './wareneingang-json.parser';
 
 function trackingNumber() {
   const d = new Date();
@@ -32,7 +36,10 @@ function trackingNumber() {
 @Injectable()
 export class WareneingangService {
   private readonly logger = new Logger(WareneingangService.name);
+  /** Intouch: WareneingangXML */
   private inboundDir: string;
+  /** Soloplan Order-Feedback JSON (ExternalNumber → OrderNumber) */
+  private orderFeedbackDir: string;
   private uploadDir: string;
 
   constructor(
@@ -42,22 +49,64 @@ export class WareneingangService {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
     this.inboundDir = join(sftpInbound, 'intouch', 'dokumente');
+    this.orderFeedbackDir = join(sftpInbound, 'wareneingang', 'rechnungen');
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     if (!existsSync(this.uploadDir)) mkdirSync(this.uploadDir, { recursive: true });
+    for (const d of [
+      this.orderFeedbackDir,
+      join(this.orderFeedbackDir, 'processed'),
+      join(this.orderFeedbackDir, 'failed'),
+    ]) {
+      if (!existsSync(d)) mkdirSync(d, { recursive: true });
+    }
   }
 
-  /** Worker: WareneingangXML.v1 aus Intouch dokumente/ importieren. */
+  /** Worker: WareneingangXML + Soloplan-Order-JSON (ExternalNumber-Rückkopplung). */
   async processInboundDir(organizationId?: string, limit = 50) {
     const org =
       (organizationId
         ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
         : null) ||
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
-    if (!org) return { processed: 0, skipped: 0, failed: 0 };
+    if (!org) return { processed: 0, skipped: 0, failed: 0, linked: 0 };
+
+    let processed = 0;
+    let skipped = 0;
+    let failed = 0;
+    let linked = 0;
+
+    const xmlResult = await this.processXmlInbox(org.id, limit);
+    processed += xmlResult.processed;
+    skipped += xmlResult.skipped;
+    failed += xmlResult.failed;
+    linked += xmlResult.linked;
+
+    const remaining = Math.max(0, limit - processed);
+    if (remaining > 0) {
+      const jsonResult = await this.processOrderFeedbackJson(org.id, remaining);
+      processed += jsonResult.processed;
+      skipped += jsonResult.skipped;
+      failed += jsonResult.failed;
+      linked += jsonResult.linked;
+    }
+
+    if (processed || failed || linked) {
+      this.logger.log(
+        `Wareneingang: ${processed} verarbeitet (${linked} verknüpft), ${failed} fehlgeschlagen`,
+      );
+    }
+    return { processed, skipped, failed, linked };
+  }
+
+  private async processXmlInbox(organizationId: string, limit: number) {
+    let processed = 0;
+    let skipped = 0;
+    let failed = 0;
+    let linked = 0;
 
     if (!existsSync(this.inboundDir)) {
-      return { processed: 0, skipped: 0, failed: 0 };
+      return { processed, skipped, failed, linked };
     }
 
     const processedDir = join(this.inboundDir, 'processed');
@@ -66,10 +115,6 @@ export class WareneingangService {
     const files = readdirSync(this.inboundDir)
       .filter((f) => f !== 'processed' && !f.startsWith('.') && f.toLowerCase().endsWith('.xml'))
       .sort();
-
-    let processed = 0;
-    let skipped = 0;
-    let failed = 0;
 
     for (const fileName of files) {
       if (processed >= limit) break;
@@ -94,23 +139,30 @@ export class WareneingangService {
           continue;
         }
 
-        await this.importOrder(org.id, parsed, fileName);
+        const result = await this.importOrder(organizationId, parsed, fileName);
+        if (result?.linked) linked += 1;
 
         const dest = join(processedDir, `${Date.now()}_${fileName}`);
         renameSync(full, dest);
         await this.prisma.intouchFile.create({
           data: {
-            organizationId: org.id,
+            organizationId,
             channel: 'dokumente',
             fileName,
             storagePath: dest,
             sizeBytes: statSync(dest).size,
             status: 'PROCESSED',
-            note: `Wareneingang Order ${parsed.orderNumber}`,
+            note: parsed.externalNumber
+              ? `Wareneingang Order ${parsed.orderNumber} ↔ ${parsed.externalNumber}`
+              : `Wareneingang Order ${parsed.orderNumber}`,
           },
         });
         processed += 1;
-        this.logger.log(`Wareneingang importiert: ${parsed.orderNumber} (${fileName})`);
+        this.logger.log(
+          `Wareneingang XML: ${parsed.orderNumber}` +
+            (parsed.externalNumber ? ` ↔ ${parsed.externalNumber}` : '') +
+            ` (${fileName})`,
+        );
       } catch (err: unknown) {
         failed += 1;
         this.logger.error(
@@ -120,15 +172,83 @@ export class WareneingangService {
       }
     }
 
-    if (processed || failed) {
-      this.logger.log(`Wareneingang: ${processed} importiert, ${failed} fehlgeschlagen`);
-    }
-    return { processed, skipped, failed };
+    return { processed, skipped, failed, linked };
   }
 
   /**
-   * Bereits archivierte Wareneingang-XMLs aus processed/ nachziehen
-   * (z. B. vor Parser-Existenz als „sonstige“ abgelegt).
+   * Soloplan legt Order-Feedback als JSON unter inbound/wareneingang/rechnungen ab
+   * (OrderNumber + ExternalNumber=VLB…). Verknüpft soloplanRef, ohne Doppel-WE anzulegen.
+   */
+  private async processOrderFeedbackJson(organizationId: string, limit: number) {
+    let processed = 0;
+    let skipped = 0;
+    let failed = 0;
+    let linked = 0;
+
+    if (!existsSync(this.orderFeedbackDir)) {
+      return { processed, skipped, failed, linked };
+    }
+
+    const processedDir = join(this.orderFeedbackDir, 'processed');
+    if (!existsSync(processedDir)) mkdirSync(processedDir, { recursive: true });
+
+    const files = readdirSync(this.orderFeedbackDir)
+      .filter((f) => f !== 'processed' && f !== 'failed' && !f.startsWith('.') && f.toLowerCase().endsWith('.json'))
+      .sort();
+
+    for (const fileName of files) {
+      if (processed >= limit) break;
+      const full = join(this.orderFeedbackDir, fileName);
+      let raw = '';
+      try {
+        raw = readFileSync(full, 'utf8');
+      } catch {
+        continue;
+      }
+      if (!isWareneingangOrderJson(fileName, raw.slice(0, 1200))) {
+        skipped += 1;
+        continue;
+      }
+
+      try {
+        const parsed = parseWareneingangJson(raw);
+        if (!parsed) {
+          failed += 1;
+          this.logger.warn(`Wareneingang JSON parse leer: ${fileName}`);
+          continue;
+        }
+
+        const result = await this.importOrder(organizationId, parsed, fileName);
+        if (result?.linked) linked += 1;
+
+        const dest = join(processedDir, `${Date.now()}_${fileName}`);
+        renameSync(full, dest);
+        processed += 1;
+        this.logger.log(
+          `Wareneingang JSON: Soloplan ${parsed.orderNumber}` +
+            (parsed.externalNumber ? ` ↔ ${parsed.externalNumber}` : '') +
+            ` (${fileName})`,
+        );
+      } catch (err: unknown) {
+        failed += 1;
+        this.logger.error(
+          `Wareneingang JSON failed ${fileName}`,
+          err instanceof Error ? err.message : err,
+        );
+        try {
+          renameSync(full, join(this.orderFeedbackDir, 'failed', `${Date.now()}_${fileName}`));
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    return { processed, skipped, failed, linked };
+  }
+
+  /**
+   * Bereits archivierte Wareneingang-XMLs/JSONs nachziehen
+   * (Verknüpfung ExternalNumber → Soloplan OrderNumber).
    */
   async reimportFromProcessed(organizationId?: string, limit = 20) {
     const org =
@@ -136,81 +256,264 @@ export class WareneingangService {
         ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
         : null) ||
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
-    if (!org) return { processed: 0, failed: 0 };
-
-    const processedDir = join(this.inboundDir, 'processed');
-    if (!existsSync(processedDir)) return { processed: 0, failed: 0 };
-
-    const files = readdirSync(processedDir)
-      .filter((f) => f.toLowerCase().endsWith('.xml'))
-      .sort()
-      .reverse();
+    if (!org) return { processed: 0, failed: 0, linked: 0 };
 
     let processed = 0;
     let failed = 0;
+    let linked = 0;
 
-    for (const storedName of files) {
-      if (processed >= limit) break;
-      const full = join(processedDir, storedName);
-      let xml: string;
-      try {
-        xml = readFileSync(full, 'utf8');
-      } catch {
-        continue;
-      }
-      if (!isWareneingangXml(storedName, xml.slice(0, 800))) continue;
+    // 1) XML aus Intouch processed/
+    const xmlDir = join(this.inboundDir, 'processed');
+    if (existsSync(xmlDir)) {
+      const files = readdirSync(xmlDir)
+        .filter((f) => f.toLowerCase().endsWith('.xml'))
+        .sort()
+        .reverse();
 
-      try {
-        const parsed = parseWareneingangXml(xml);
-        if (!parsed) {
-          failed += 1;
+      for (const storedName of files) {
+        if (processed >= limit) break;
+        const full = join(xmlDir, storedName);
+        let xml: string;
+        try {
+          xml = readFileSync(full, 'utf8');
+        } catch {
           continue;
         }
-        // schon als Sendung vorhanden?
-        const existing = await this.prisma.shipment.findFirst({
-          where: {
-            organizationId: org.id,
-            OR: [
-              { reference: `WE-${parsed.orderNumber}` },
-              { soloplanRef: parsed.orderNumber },
-            ],
-          },
-          select: { id: true },
-        });
-        if (existing) continue;
+        if (!isWareneingangXml(storedName, xml.slice(0, 800))) continue;
 
-        await this.importOrder(org.id, parsed, storedName);
-        await this.prisma.intouchFile.create({
-          data: {
-            organizationId: org.id,
-            channel: 'dokumente',
-            fileName: storedName.includes('_')
-              ? storedName.replace(/^\d+_/, '')
-              : storedName,
-            storagePath: full,
-            sizeBytes: statSync(full).size,
-            status: 'PROCESSED',
-            note: `Wareneingang Order ${parsed.orderNumber} (Reimport)`,
-          },
-        });
-        processed += 1;
-      } catch (err: unknown) {
-        failed += 1;
-        this.logger.error(
-          `Wareneingang reimport failed ${storedName}`,
-          err instanceof Error ? err.message : err,
-        );
+        try {
+          const parsed = parseWareneingangXml(xml);
+          if (!parsed) {
+            failed += 1;
+            continue;
+          }
+          // Ohne ExternalNumber: nur nachziehen, wenn noch keine WE-Sendung existiert
+          if (!parsed.externalNumber) {
+            const existing = await this.prisma.shipment.findFirst({
+              where: {
+                organizationId: org.id,
+                OR: [
+                  { reference: `WE-${parsed.orderNumber}` },
+                  { soloplanRef: parsed.orderNumber },
+                ],
+              },
+              select: { id: true },
+            });
+            if (existing) continue;
+          }
+          const result = await this.importOrder(org.id, parsed, storedName);
+          if (result?.linked) linked += 1;
+          if (result) processed += 1;
+        } catch (err: unknown) {
+          failed += 1;
+          this.logger.error(
+            `Wareneingang reimport failed ${storedName}`,
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
     }
 
-    return { processed, failed };
+    // 2) Order-Feedback JSON aus rechnungen/ (+ processed/)
+    const jsonDirs = [
+      this.orderFeedbackDir,
+      join(this.orderFeedbackDir, 'processed'),
+    ];
+    for (const dir of jsonDirs) {
+      if (!existsSync(dir) || processed >= limit) continue;
+      const files = readdirSync(dir)
+        .filter((f) => f !== 'processed' && f !== 'failed' && f.toLowerCase().endsWith('.json'))
+        .sort()
+        .reverse();
+      for (const storedName of files) {
+        if (processed >= limit) break;
+        const full = join(dir, storedName);
+        let raw: string;
+        try {
+          raw = readFileSync(full, 'utf8');
+        } catch {
+          continue;
+        }
+        if (!isWareneingangOrderJson(storedName, raw.slice(0, 1200))) continue;
+        try {
+          const parsed = parseWareneingangJson(raw);
+          if (!parsed) {
+            failed += 1;
+            continue;
+          }
+          const result = await this.importOrder(org.id, parsed, storedName);
+          if (result?.updated) {
+            linked += 1;
+            processed += 1;
+          } else if (result?.linked) {
+            // bereits verknüpft – nicht erneut auf Limit zählen
+          } else if (result && !parsed.externalNumber) {
+            processed += 1;
+          } else if (result && parsed.externalNumber && !result.linked) {
+            // kein Portal-Treffer
+            processed += 1;
+          }
+          // Inbox-JSON nach processed verschieben
+          if (dir === this.orderFeedbackDir) {
+            const dest = join(this.orderFeedbackDir, 'processed', `${Date.now()}_${storedName}`);
+            try {
+              renameSync(full, dest);
+            } catch {
+              /* ignore */
+            }
+          }
+        } catch (err: unknown) {
+          failed += 1;
+          this.logger.error(
+            `Wareneingang JSON reimport failed ${storedName}`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+    }
+
+    return { processed, failed, linked };
+  }
+
+  /**
+   * Soloplan OrderNumber anhand ExternalNumber (VLB…) an Portal-Aufträge schreiben.
+   * Trifft CustomsOrder und/oder TransportOrder (+ zugehörige Shipments).
+   */
+  private async linkSoloplanOrderNumber(
+    organizationId: string,
+    parsed: ParsedWareneingangOrder,
+  ): Promise<{
+    matched: number;
+    updated: number;
+    customsId?: string;
+    transportOrderId?: string;
+    shipmentIds: string[];
+  }> {
+    const orderNumber = String(parsed.orderNumber).trim();
+    const ext = parsed.externalNumber?.trim() || undefined;
+    const consExt = parsed.consignments
+      .map((c) => c.externalNumber?.trim())
+      .find((v) => v && v !== ext);
+
+    let matched = 0;
+    let updated = 0;
+    let customsId: string | undefined;
+    let transportOrderId: string | undefined;
+    const shipmentIds: string[] = [];
+
+    if (ext) {
+      const customs = await this.prisma.customsOrder.findFirst({
+        where: { organizationId, externalNumber: ext },
+        select: { id: true, soloplanRef: true },
+      });
+      if (customs) {
+        matched += 1;
+        customsId = customs.id;
+        if (customs.soloplanRef !== orderNumber) {
+          await this.prisma.customsOrder.update({
+            where: { id: customs.id },
+            data: { soloplanRef: orderNumber },
+          });
+          updated += 1;
+        }
+      }
+
+      const transport = await this.prisma.transportOrder.findFirst({
+        where: { organizationId, externalNumber: ext },
+        select: { id: true, soloplanRef: true, shipments: { select: { id: true, soloplanRef: true } } },
+      });
+      if (transport) {
+        matched += 1;
+        transportOrderId = transport.id;
+        if (transport.soloplanRef !== orderNumber) {
+          await this.prisma.transportOrder.update({
+            where: { id: transport.id },
+            data: { soloplanRef: orderNumber },
+          });
+          updated += 1;
+        }
+        for (const s of transport.shipments) {
+          shipmentIds.push(s.id);
+          if (s.soloplanRef !== orderNumber) {
+            await this.prisma.shipment.update({
+              where: { id: s.id },
+              data: { soloplanRef: orderNumber },
+            });
+            updated += 1;
+          }
+        }
+      }
+    }
+
+    // Consignment-ExternalNumber kann Portal-Referenz sein (z. B. N04-…)
+    if (consExt) {
+      const byRef = await this.prisma.shipment.findFirst({
+        where: { organizationId, reference: consExt },
+        select: { id: true, orderId: true, soloplanRef: true },
+      });
+      if (byRef) {
+        matched += 1;
+        if (byRef.soloplanRef !== orderNumber) {
+          await this.prisma.shipment.update({
+            where: { id: byRef.id },
+            data: { soloplanRef: orderNumber },
+          });
+          updated += 1;
+        }
+        if (!shipmentIds.includes(byRef.id)) shipmentIds.push(byRef.id);
+        if (byRef.orderId) {
+          const to = await this.prisma.transportOrder.findUnique({
+            where: { id: byRef.orderId },
+            select: { soloplanRef: true },
+          });
+          if (to && to.soloplanRef !== orderNumber) {
+            await this.prisma.transportOrder.update({
+              where: { id: byRef.orderId },
+              data: { soloplanRef: orderNumber },
+            });
+            updated += 1;
+          }
+          transportOrderId = transportOrderId || byRef.orderId;
+        }
+      }
+    }
+
+    if (updated > 0) {
+      this.logger.log(
+        `Soloplan OrderNumber ${orderNumber} verknüpft` +
+          (ext ? ` über ExternalNumber ${ext}` : '') +
+          (customsId ? ` Customs=${customsId}` : '') +
+          (transportOrderId ? ` TO=${transportOrderId}` : '') +
+          (shipmentIds.length ? ` Shipments=${shipmentIds.length}` : ''),
+      );
+    }
+
+    return { matched, updated, customsId, transportOrderId, shipmentIds };
   }
 
   private async importOrder(
     organizationId: string,
     parsed: ParsedWareneingangOrder,
     sourceFile: string,
-  ) {
+  ): Promise<{ id?: string; linked?: boolean; updated?: boolean } | null> {
+    // 1) Rückkopplung: ExternalNumber (VLB) → Soloplan OrderNumber speichern
+    const link = await this.linkSoloplanOrderNumber(organizationId, parsed);
+    if (link.matched > 0) {
+      return {
+        id: link.shipmentIds[0] || link.customsId || link.transportOrderId,
+        linked: true,
+        updated: link.updated > 0,
+      };
+    }
+
+    // Feedback mit VLB, aber kein Portal-Treffer → keinen neuen WE-Auftrag erfinden
+    if (parsed.externalNumber?.trim()) {
+      this.logger.warn(
+        `Wareneingang: Soloplan ${parsed.orderNumber} ExternalNumber ${parsed.externalNumber} ohne Portal-Treffer (${sourceFile})`,
+      );
+      return { linked: false };
+    }
+
     const existing = await this.prisma.shipment.findFirst({
       where: {
         organizationId,
@@ -218,7 +521,7 @@ export class WareneingangService {
       },
       select: { id: true },
     });
-    if (existing) return existing;
+    if (existing) return { id: existing.id, linked: false };
 
     const mandant = await this.resolveMandant(organizationId, parsed.orgaNumber);
     const customer = await this.resolveCustomer(organizationId, parsed);
@@ -376,7 +679,7 @@ export class WareneingangService {
       await this.writeLabels(shipment, customer.id, createdColli, admin?.id);
     }
 
-    return shipment;
+    return { id: shipment.id, linked: false };
   }
 
   private async writeLabels(
