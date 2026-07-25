@@ -12,6 +12,7 @@ export type AuthUser = {
   customerId?: string | null;
   partnerId?: string | null;
   mandantIds: string[];
+  mustChangePassword?: boolean;
 };
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {

@@ -141,14 +141,58 @@ if [[ ! -f .env ]]; then
   cp .env.example .env
   JWT=$(openssl rand -hex 32)
   ADMIN_PW=$(openssl rand -base64 12)
+  SFTPGO_PW=$(openssl rand -base64 18)
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
   sed -i "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$ADMIN_PW|" .env
   sed -i "s|^APP_URL=.*|APP_URL=https://$DOMAIN|" .env
   sed -i "s|^API_URL=.*|API_URL=https://$DOMAIN/api|" .env
   sed -i "s|^NODE_ENV=.*|NODE_ENV=production|" .env
+  # Erstes Setup: Admin einmal setzen, danach nicht mehr überschreiben
+  if grep -q '^SEED_RESET_ADMIN_PASSWORD=' .env; then
+    sed -i "s|^SEED_RESET_ADMIN_PASSWORD=.*|SEED_RESET_ADMIN_PASSWORD=true|" .env
+  else
+    echo "SEED_RESET_ADMIN_PASSWORD=true" >> .env
+  fi
+  if grep -q '^SFTPGO_ADMIN_PASSWORD=' .env; then
+    sed -i "s|^SFTPGO_ADMIN_PASSWORD=.*|SFTPGO_ADMIN_PASSWORD=$SFTPGO_PW|" .env
+  else
+    echo "SFTPGO_ADMIN_PASSWORD=$SFTPGO_PW" >> .env
+  fi
   echo "$ADMIN_PW" > /root/wog-portal-admin-password.txt
   chmod 600 /root/wog-portal-admin-password.txt
+  echo "$SFTPGO_PW" > /root/wog-portal-sftpgo-password.txt
+  chmod 600 /root/wog-portal-sftpgo-password.txt
   log "Admin-Passwort in /root/wog-portal-admin-password.txt"
+  log "SFTPGo-Passwort in /root/wog-portal-sftpgo-password.txt"
+fi
+
+# Bestehende .env absichern (keine Passwort-Resets bei Redeploy)
+ensure_env() {
+  local key="$1"
+  local value="$2"
+  if ! grep -q "^${key}=" .env; then
+    echo "${key}=${value}" >> .env
+    log ".env ergänzt: ${key}"
+  fi
+}
+ensure_env "SEED_RESET_ADMIN_PASSWORD" "false"
+# Nach dem allerersten Deploy Flag wieder auf false drehen, damit Redeploys das Admin-PW nicht überschreiben
+if grep -q '^SEED_RESET_ADMIN_PASSWORD=true$' .env && [[ -f /root/wog-portal-admin-password.txt ]]; then
+  # Beim ersten erfolgreichen Seed einmal true, danach dauerhaft false
+  if [[ -f /root/wog-portal-seed-initialized ]]; then
+    sed -i "s|^SEED_RESET_ADMIN_PASSWORD=.*|SEED_RESET_ADMIN_PASSWORD=false|" .env
+  fi
+fi
+if ! grep -q '^SFTPGO_ADMIN_PASSWORD=.\+' .env; then
+  SFTPGO_PW=$(openssl rand -base64 18)
+  if grep -q '^SFTPGO_ADMIN_PASSWORD=' .env; then
+    sed -i "s|^SFTPGO_ADMIN_PASSWORD=.*|SFTPGO_ADMIN_PASSWORD=$SFTPGO_PW|" .env
+  else
+    echo "SFTPGO_ADMIN_PASSWORD=$SFTPGO_PW" >> .env
+  fi
+  echo "$SFTPGO_PW" > /root/wog-portal-sftpgo-password.txt
+  chmod 600 /root/wog-portal-sftpgo-password.txt
+  log "SFTPGo-Admin-Passwort erzeugt → /root/wog-portal-sftpgo-password.txt"
 fi
 
 mkdir -p data/uploads \
@@ -179,6 +223,13 @@ docker compose build api worker web
 docker compose up -d api worker web sftpgo
 docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npx ts-node --transpile-only prisma/seed.ts" || \
   docker compose run --rm --no-deps api sh -c "npx prisma migrate deploy && npm run prisma:seed"
+touch /root/wog-portal-seed-initialized
+# Nach erstem Seed: Admin-Passwort bei künftigen Deploys nicht mehr überschreiben
+if grep -q '^SEED_RESET_ADMIN_PASSWORD=' .env; then
+  sed -i "s|^SEED_RESET_ADMIN_PASSWORD=.*|SEED_RESET_ADMIN_PASSWORD=false|" .env
+else
+  echo "SEED_RESET_ADMIN_PASSWORD=false" >> .env
+fi
 # API nach Seed neu starten (Schema ggf. geändert)
 docker compose up -d api worker
 

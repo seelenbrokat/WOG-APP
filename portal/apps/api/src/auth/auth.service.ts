@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { NotificationEvent, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../audit/audit.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private notifications: NotificationsService,
+    private audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -88,6 +90,10 @@ export class AuthService {
       'WOG Portal – E-Mail bestätigen',
       `Hallo ${user.firstName},\n\nbitte bestätigen Sie Ihre E-Mail:\n${appUrl}/verify-email?token=${verifyToken}\n`,
     );
+    await this.audit.log(user.id, 'auth.register', 'User', user.id, {
+      email: user.email,
+      customerId: customer.id,
+    });
 
     return { message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' };
   }
@@ -99,22 +105,41 @@ export class AuthService {
       where: { id: user.id },
       data: { emailVerifiedAt: new Date(), verifyToken: null },
     });
+    await this.audit.log(user.id, 'auth.verifyEmail', 'User', user.id, { email: user.email });
     return { message: 'E-Mail bestätigt. Sie können sich anmelden.' };
   }
 
   async login(dto: LoginDto) {
+    const email = dto.email.toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
       include: { mandantAccess: true, customer: true, partner: true },
     });
-    if (!user || !user.active) throw new UnauthorizedException('Ungültige Anmeldedaten');
+    if (!user || !user.active) {
+      await this.audit.log(null, 'auth.login.failed', 'User', undefined, {
+        email,
+        reason: 'unknown_or_inactive',
+      });
+      throw new UnauthorizedException('Ungültige Anmeldedaten');
+    }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Ungültige Anmeldedaten');
+    if (!ok) {
+      await this.audit.log(user.id, 'auth.login.failed', 'User', user.id, {
+        email: user.email,
+        reason: 'bad_password',
+      });
+      throw new UnauthorizedException('Ungültige Anmeldedaten');
+    }
     if (!user.emailVerifiedAt && user.role === UserRole.CUSTOMER_USER) {
+      await this.audit.log(user.id, 'auth.login.failed', 'User', user.id, {
+        email: user.email,
+        reason: 'email_unverified',
+      });
       throw new UnauthorizedException('E-Mail noch nicht bestätigt');
     }
 
     const token = await this.jwt.signAsync({ sub: user.id, role: user.role });
+    await this.audit.log(user.id, 'auth.login', 'User', user.id, { email: user.email });
     return {
       accessToken: token,
       mustChangePassword: user.mustChangePassword,
@@ -150,6 +175,7 @@ export class AuthService {
         mustChangePassword: false,
       },
     });
+    await this.audit.log(user.id, 'auth.changePassword', 'User', user.id, { email: user.email });
     return { message: 'Passwort geändert.' };
   }
 
@@ -170,6 +196,7 @@ export class AuthService {
       'WOG Portal – Passwort zurücksetzen',
       `Hallo ${user.firstName},\n\nPasswort zurücksetzen:\n${appUrl}/reset-password?token=${token}\n`,
     );
+    await this.audit.log(user.id, 'auth.forgotPassword', 'User', user.id, { email: user.email });
     return { message: 'Falls die E-Mail existiert, wurde ein Link gesendet.' };
   }
 
@@ -187,6 +214,7 @@ export class AuthService {
         mustChangePassword: false,
       },
     });
+    await this.audit.log(user.id, 'auth.resetPassword', 'User', user.id, { email: user.email });
     return { message: 'Passwort aktualisiert.' };
   }
 

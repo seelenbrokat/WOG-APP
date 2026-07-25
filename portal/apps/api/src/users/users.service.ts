@@ -24,8 +24,9 @@ export class UsersService {
     private businessPartners: BusinessPartnerService,
   ) {}
 
-  private defaultPassword() {
-    return this.config.get('DEFAULT_USER_PASSWORD') || 'WillkommenWOG1!';
+  /** Einmaliges Zufallspasswort – kein gemeinsames Default mehr. */
+  private generateTempPassword() {
+    return randomBytes(9).toString('base64url');
   }
 
   list(user: AuthUser) {
@@ -145,7 +146,7 @@ export class UsersService {
       });
     }
 
-    const tempPassword = this.defaultPassword();
+    const tempPassword = this.generateTempPassword();
     const user = await this.prisma.user.create({
       data: {
         organizationId: actor.organizationId,
@@ -178,7 +179,7 @@ export class UsersService {
     await this.notifications.sendRaw(
       user.email,
       'WOG Portal – Zugang angelegt',
-      `Hallo ${user.firstName},\n\nIhr Zugang zum WOG Portal wurde angelegt.\n\nE-Mail: ${user.email}\nStandardpasswort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem ersten Login.\n`,
+      `Hallo ${user.firstName},\n\nIhr Zugang zum WOG Portal wurde angelegt.\n\nE-Mail: ${user.email}\nEinmal-Passwort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem ersten Login.\n`,
     );
     await this.audit.log(actor.id, 'user.invite', 'User', user.id, {
       email: user.email,
@@ -202,7 +203,7 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException();
 
-    const tempPassword = this.defaultPassword();
+    const tempPassword = this.generateTempPassword();
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -217,7 +218,7 @@ export class UsersService {
     await this.notifications.sendRaw(
       user.email,
       'WOG Portal – Passwort zurückgesetzt',
-      `Hallo ${user.firstName},\n\nIhr Passwort wurde vom Administrator zurückgesetzt.\n\nNeues Standardpasswort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem Login.\n`,
+      `Hallo ${user.firstName},\n\nIhr Passwort wurde vom Administrator zurückgesetzt.\n\nNeues Einmal-Passwort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem Login.\n`,
     );
     await this.audit.log(actor.id, 'user.passwordReset', 'User', user.id, { email: user.email });
 

@@ -6,7 +6,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { api, statusLabel } from '@/lib/api';
 
 export default function TrackPage() {
-  const [tn, setTn] = useState('WOGDEMO0001');
+  const [tn, setTn] = useState('');
   const [pin, setPin] = useState('');
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
@@ -15,8 +15,7 @@ export default function TrackPage() {
     e.preventDefault();
     setError('');
     try {
-      const q = new URLSearchParams({ tn });
-      if (pin) q.set('pin', pin);
+      const q = new URLSearchParams({ tn: tn.trim(), pin: pin.trim() });
       const data = await api(`/tracking?${q.toString()}`, { auth: false });
       setResult(data);
     } catch (err: any) {
@@ -37,7 +36,7 @@ export default function TrackPage() {
             Track & Trace
           </h1>
           <p className="brand-sub">
-            Sendungsstatus öffentlich abrufen – mit Sendungsnummer und optionaler PIN.
+            Sendungsstatus öffentlich abrufen – mit Sendungsnummer und PIN.
           </p>
         </div>
       </div>
@@ -46,11 +45,22 @@ export default function TrackPage() {
           <div className="grid-2">
             <div className="field">
               <label>Sendungsnummer</label>
-              <input value={tn} onChange={(e) => setTn(e.target.value)} required />
+              <input
+                value={tn}
+                onChange={(e) => setTn(e.target.value)}
+                required
+                autoComplete="off"
+              />
             </div>
             <div className="field">
-              <label>PIN (optional)</label>
-              <input value={pin} onChange={(e) => setPin(e.target.value)} />
+              <label>PIN</label>
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                required
+                inputMode="numeric"
+                autoComplete="off"
+              />
             </div>
           </div>
           {error && <div className="error">{error}</div>}

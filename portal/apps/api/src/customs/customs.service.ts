@@ -527,8 +527,8 @@ export class CustomsService {
 
   async updateStatus(user: AuthUser, id: string, status: string) {
     if (user.role === UserRole.CUSTOMER_USER) throw new ForbiddenException();
-    await this.get(user, id);
-    return this.prisma.customsOrder.update({
+    const current = await this.get(user, id);
+    const updated = await this.prisma.customsOrder.update({
       where: { id },
       data: { status },
       include: {
@@ -539,6 +539,12 @@ export class CustomsService {
         },
       },
     });
+    await this.audit.log(user.id, 'customs.status', 'CustomsOrder', id, {
+      from: current.status,
+      to: status,
+      externalNumber: updated.externalNumber,
+    });
+    return updated;
   }
 
   /**

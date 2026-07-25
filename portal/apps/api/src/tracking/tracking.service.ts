@@ -18,8 +18,16 @@ export class TrackingService {
       },
     });
     if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
-    if (shipment.trackingPin && pin && pin !== shipment.trackingPin) {
-      throw new UnauthorizedException('PIN ungültig');
+
+    // PIN ist Pflicht, sobald eine hinterlegt ist – ohne PIN keine Status-/Adressdaten.
+    if (shipment.trackingPin) {
+      const provided = String(pin || '').trim();
+      if (!provided) {
+        throw new UnauthorizedException('PIN erforderlich');
+      }
+      if (provided !== shipment.trackingPin) {
+        throw new UnauthorizedException('PIN ungültig');
+      }
     }
 
     return {
@@ -37,8 +45,8 @@ export class TrackingService {
         location: e.location,
         createdAt: e.createdAt,
       })),
-      documents: shipment.trackingPin && !pin ? [] : shipment.documents,
-      pinRequired: Boolean(shipment.trackingPin) && !pin,
+      documents: shipment.documents,
+      pinRequired: false,
     };
   }
 }

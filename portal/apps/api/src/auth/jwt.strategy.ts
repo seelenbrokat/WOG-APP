@@ -32,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       customerId: user.customerId,
       partnerId: user.partner?.id ?? null,
       mandantIds: user.mandantAccess.map((a) => a.mandantId),
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

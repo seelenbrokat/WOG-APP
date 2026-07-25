@@ -23,6 +23,7 @@ import { ToursModule } from './tours/tours.module';
 import { DriverModule } from './driver/driver.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { PasswordChangeGuard } from './auth/password-change.guard';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PasswordChangeGuard },
   ],
 })
 export class AppModule {}

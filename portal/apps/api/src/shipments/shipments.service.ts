@@ -522,7 +522,8 @@ export class ShipmentsService {
         customerId,
         orderId: transportOrder.id,
         trackingNumber: trackingNumber(),
-        trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
+        // 8-stellige PIN – erschwert Brute-Force gegenüber 4 Stellen
+        trackingPin: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
         // Sendungsreferenz optional; Auftragsnummer nur am TransportOrder (VLB…)
         reference: data.reference,
         status,

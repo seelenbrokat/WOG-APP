@@ -86,7 +86,7 @@ services:
     depends_on:
       - api
 
-  # Intouch/Soloplan-Uploads: OpenSSH :22 ist primär; SFTPGo :12022 parallel.
+  # Intouch/Soloplan-Uploads: OpenSSH :22 ist primär; SFTPGo nur localhost (kein öffentliches Bind).
   # Ohne Profil, damit Teil-Deploys (api/web) den Dienst nicht „vergessen“.
   sftpgo:
     image: drakkan/sftpgo:v2
@@ -94,15 +94,16 @@ services:
     environment:
       SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
       SFTPGO_DEFAULT_ADMIN_USERNAME: admin
-      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-admin_change_me}
+      # Kein schwaches Default – Deploy setzt SFTPGO_ADMIN_PASSWORD in .env
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:?SFTPGO_ADMIN_PASSWORD muss in .env gesetzt sein}
       # Home der User liegt unter /srv/sftpgo/data (gemountetes ./data/sftp)
       SFTPGO_COMMON__PROXY_PROTOCOL: 0
     volumes:
       - ./data/sftp:/srv/sftpgo/data
       - sftpgo_data:/var/lib/sftpgo
     ports:
-      # Optional zusätzlich zu OpenSSH:22; Soloplan/Intouch oft Port 22 (sshd internal-sftp)
-      - "0.0.0.0:12022:2022"
+      # Nur localhost – Soloplan/Intouch nutzen primär OpenSSH :22
+      - "127.0.0.1:12022:2022"
       - "127.0.0.1:18080:8080"
 
 volumes:

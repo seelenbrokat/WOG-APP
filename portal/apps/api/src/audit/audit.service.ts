@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -22,23 +23,28 @@ export class AuditService {
     opts?: { take?: number; entityType?: string; action?: string; q?: string },
   ) {
     const take = Math.min(Math.max(opts?.take ?? 100, 1), 500);
-    const where: Record<string, unknown> = {
-      actorId: { in: organizationUserIds },
-    };
-    if (opts?.entityType?.trim()) where.entityType = opts.entityType.trim();
+    const and: Prisma.AuditLogWhereInput[] = [
+      // inkl. System-/fehlgeschlagene Auth-Events ohne Actor
+      { OR: [{ actorId: { in: organizationUserIds } }, { actorId: null }] },
+    ];
+    if (opts?.entityType?.trim()) {
+      and.push({ entityType: opts.entityType.trim() });
+    }
     if (opts?.action?.trim()) {
-      where.action = { contains: opts.action.trim(), mode: 'insensitive' };
+      and.push({ action: { contains: opts.action.trim(), mode: 'insensitive' } });
     }
     if (opts?.q?.trim()) {
       const q = opts.q.trim();
-      where.OR = [
-        { action: { contains: q, mode: 'insensitive' } },
-        { entityType: { contains: q, mode: 'insensitive' } },
-        { entityId: { contains: q, mode: 'insensitive' } },
-      ];
+      and.push({
+        OR: [
+          { action: { contains: q, mode: 'insensitive' } },
+          { entityType: { contains: q, mode: 'insensitive' } },
+          { entityId: { contains: q, mode: 'insensitive' } },
+        ],
+      });
     }
     return this.prisma.auditLog.findMany({
-      where,
+      where: { AND: and },
       orderBy: { createdAt: 'desc' },
       take,
       include: { actor: { select: { email: true, firstName: true, lastName: true } } },
