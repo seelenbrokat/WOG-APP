@@ -74,7 +74,7 @@ export type PortalShipmentForSoloplan = {
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
    * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
-   * importeurVLBPortal, zAZVLBPortal. (warenortVLBPortal fehlt im Schema → nicht senden)
+   * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -85,7 +85,7 @@ export type PortalShipmentForSoloplan = {
   importeurVLBPortal?: string | null;
   /** ZAZ-Konto → Soloplan zAZVLBPortal */
   zAZVLBPortal?: string | null;
-  /** Portal-intern; Soloplan-Feld fehlt aktuell im PORTAL-v6-Schema */
+  /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
@@ -636,8 +636,7 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6.
  * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal.
- * warenortVLBPortal bewusst nicht – fehlt im Schema (NoAdditionalPropertiesAllowed).
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -653,6 +652,7 @@ function applyCustomsConsignmentFields(
   }
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
+  if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
   return consignment;
 }
 
