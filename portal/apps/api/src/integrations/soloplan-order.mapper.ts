@@ -73,19 +73,19 @@ export type PortalShipmentForSoloplan = {
   extras?: unknown;
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
-   * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
-   * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+   * Schema-Keys (Automate): kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze.
+   * Importeur/ZAZ/Warenort → information.info1/2/3 (VLBPortal-Keys werden von Automate abgelehnt).
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
   grenzuebergang?: string | null;
   grenzzollstelle?: string | null;
   zeitpunktGrenze?: Date | string | null;
-  /** Importeur-Name → Soloplan importeurVLBPortal */
+  /** Importeur-Name → information.info1 (bis importeurVLBPortal freigeschaltet) */
   importeurVLBPortal?: string | null;
-  /** ZAZ-Konto → Soloplan zAZVLBPortal */
+  /** ZAZ-Konto → information.info2 */
   zAZVLBPortal?: string | null;
-  /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
+  /** Warenort/Verzollungsort → information.info3 */
   warenortVLBPortal?: string | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
