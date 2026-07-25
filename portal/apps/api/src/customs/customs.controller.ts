@@ -27,7 +27,23 @@ class CreateCustomsDto {
 
   @IsString()
   @MinLength(2)
+  zulassungsland!: string;
+
+  @IsOptional()
+  @IsString()
+  kennzeichenAnhaenger?: string;
+
+  @IsOptional()
+  @IsString()
+  zulassungslandAnhaenger?: string;
+
+  @IsString()
+  @MinLength(2)
   grenzuebergang!: string;
+
+  @IsOptional()
+  @IsString()
+  grenzzollstelle?: string;
 
   @IsDateString()
   zeit!: string;

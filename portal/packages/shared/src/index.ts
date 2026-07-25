@@ -82,6 +82,13 @@ export { SHIPMENT_EXTRA_OPTIONS, shipmentExtrasLabels } from './shipment-extras'
 export type { ShipmentExtraCode, ShipmentExtras } from './shipment-extras';
 
 export {
+  normalizeSmartBorderPlate,
+  isValidSmartBorderPlate,
+  smartBorderPlateHint,
+  SMART_BORDER_PLATE_COUNTRIES,
+} from './smart-border-plates';
+
+export {
   COUNTRIES,
   countryLabel,
   zipPatternForCountry,

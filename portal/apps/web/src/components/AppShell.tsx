@@ -17,7 +17,6 @@ const NAV = [
   { href: '/dashboard', label: 'Übersicht', roles: ['*'] },
   { href: '/shipments', label: 'Sendungen', roles: ['*'] },
   { href: '/shipments/new', label: 'Neuer Auftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
-  { href: '/customs/new', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/tours/dashboard', label: 'Dispo-Dashboard', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours', label: 'Touren & Fahrzeuge', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/partner/tours', label: 'Meine Touren', roles: ['PARTNER'] },
@@ -27,7 +26,7 @@ const NAV = [
   { href: '/scanning/we-tc57', label: 'WE TC57', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning/entladeberichte', label: 'Entladeberichte', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/map', label: 'Kartenmonitor', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
-  { href: '/customs', label: 'Verzollung', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/customs', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -99,10 +98,7 @@ export function AppShell({
                 (l.href === '/tours/map' && pathname.startsWith('/tours/map')) ||
                 (l.href === '/partner/tours' && pathname.startsWith('/partner/')) ||
                 (l.href === '/audit' && pathname.startsWith('/audit')) ||
-                (l.href === '/customs/new' && pathname.startsWith('/customs/new')) ||
-                (l.href === '/customs' &&
-                  pathname.startsWith('/customs') &&
-                  !pathname.startsWith('/customs/new'));
+                (l.href === '/customs' && pathname.startsWith('/customs'));
               return (
                 <Link key={l.href} href={l.href} className={active ? 'active' : undefined}>
                   {l.label}

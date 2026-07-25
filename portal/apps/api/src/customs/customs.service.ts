@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentType, UserRole } from '@prisma/client';
-import { isVorarlbergChGoodsBorder, isFrankatur } from '@wog/shared';
+import {
+  isVorarlbergChGoodsBorder,
+  isFrankatur,
+  normalizeSmartBorderPlate,
+  isValidSmartBorderPlate,
+} from '@wog/shared';
 import { createWriteStream, createReadStream, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -21,7 +26,11 @@ export type PartyAddress = {
 
 export type CreateCustomsInput = {
   kennzeichen: string;
+  zulassungsland: string;
+  kennzeichenAnhaenger?: string;
+  zulassungslandAnhaenger?: string;
   grenzuebergang: string;
+  grenzzollstelle?: string;
   zeit: string;
   importeur: string;
   frankatur: string;
@@ -129,6 +138,36 @@ export class CustomsService {
       );
     }
 
+    const zulassungsland = (data.zulassungsland || 'AT').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(zulassungsland)) {
+      throw new BadRequestException('Zulassungsland muss ein ISO-Ländercode (2 Buchstaben) sein');
+    }
+
+    const kennzeichen = normalizeSmartBorderPlate(data.kennzeichen, zulassungsland);
+    if (!isValidSmartBorderPlate(kennzeichen, zulassungsland)) {
+      throw new BadRequestException(
+        'Kennzeichen entspricht nicht den Smart-Border-Austria-Eingaberichtlinien (keine Leerzeichen; landesspezifisches Format)',
+      );
+    }
+
+    let kennzeichenAnhaenger: string | null = null;
+    let zulassungslandAnhaenger: string | null = null;
+    const rawTrailer = (data.kennzeichenAnhaenger || '').trim();
+    if (rawTrailer) {
+      zulassungslandAnhaenger = (data.zulassungslandAnhaenger || zulassungsland).trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(zulassungslandAnhaenger)) {
+        throw new BadRequestException(
+          'Zulassungsland Anhänger muss ein ISO-Ländercode (2 Buchstaben) sein',
+        );
+      }
+      kennzeichenAnhaenger = normalizeSmartBorderPlate(rawTrailer, zulassungslandAnhaenger);
+      if (!isValidSmartBorderPlate(kennzeichenAnhaenger, zulassungslandAnhaenger)) {
+        throw new BadRequestException(
+          'Kennzeichen Anhänger entspricht nicht den Smart-Border-Austria-Eingaberichtlinien',
+        );
+      }
+    }
+
     const frankatur = data.frankatur.trim();
     if (!isFrankatur(frankatur)) {
       throw new BadRequestException('Ungültige Frankatur');
@@ -166,8 +205,12 @@ export class CustomsService {
         organizationId: user.organizationId,
         customerId,
         mandantId: data.mandantId,
-        kennzeichen: data.kennzeichen.trim().toUpperCase(),
+        kennzeichen,
+        zulassungsland,
+        kennzeichenAnhaenger,
+        zulassungslandAnhaenger,
         grenzuebergang,
+        grenzzollstelle: data.grenzzollstelle?.trim() || null,
         zeit: new Date(data.zeit),
         importeur: data.importeur.trim(),
         frankatur,
@@ -214,8 +257,12 @@ export class CustomsService {
       [
         'Neuer Verzollungsauftrag:',
         `Kunde: ${full.customer.name}`,
-        `Kennzeichen: ${order.kennzeichen}`,
+        `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
+        order.kennzeichenAnhaenger
+          ? `Kennzeichen Anhänger: ${order.kennzeichenAnhaenger} (${order.zulassungslandAnhaenger || '–'})`
+          : '',
         `Grenzübergang: ${order.grenzuebergang}`,
+        order.grenzzollstelle ? `Grenzzollstelle: ${order.grenzzollstelle}` : '',
         `Zeit: ${when}`,
         `Frankatur: ${order.frankatur}`,
         `Importeur: ${order.importeur}`,

@@ -1,10 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import {
   VORARLBERG_CH_GOODS_BORDERS,
   FRANKATUREN,
+  COUNTRIES,
+  normalizeSmartBorderPlate,
+  smartBorderPlateHint,
   type VorarlbergChGoodsBorder,
   type Frankatur,
 } from '@wog/shared';
@@ -142,7 +144,11 @@ export default function CustomsPage() {
   const [frachtzahler, setFrachtzahler] = useState<Party>(emptyParty('AT'));
   const [form, setForm] = useState({
     kennzeichen: '',
+    zulassungsland: 'AT',
+    kennzeichenAnhaenger: '',
+    zulassungslandAnhaenger: 'AT',
     grenzuebergang: BORDER_PRESETS[0],
+    grenzzollstelle: '',
     zeit: '',
     importeur: '',
     frankatur: FRANKATUR_PRESETS[0],
@@ -211,8 +217,18 @@ export default function CustomsPage() {
     setMessage('');
     try {
       const fd = new FormData();
-      fd.append('kennzeichen', form.kennzeichen);
+      const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
+      fd.append('kennzeichen', kennzeichen);
+      fd.append('zulassungsland', form.zulassungsland.trim().toUpperCase());
+      if (form.kennzeichenAnhaenger.trim()) {
+        fd.append(
+          'kennzeichenAnhaenger',
+          normalizeSmartBorderPlate(form.kennzeichenAnhaenger, form.zulassungslandAnhaenger),
+        );
+        fd.append('zulassungslandAnhaenger', form.zulassungslandAnhaenger.trim().toUpperCase());
+      }
       fd.append('grenzuebergang', form.grenzuebergang);
+      if (form.grenzzollstelle.trim()) fd.append('grenzzollstelle', form.grenzzollstelle.trim());
       fd.append('zeit', new Date(form.zeit).toISOString());
       fd.append('importeur', form.importeur);
       fd.append('frankatur', form.frankatur);
@@ -243,7 +259,14 @@ export default function CustomsPage() {
       await api('/customs', { method: 'POST', body: fd });
       setMessage('Verzollungsauftrag übermittelt.');
       setPapers(null);
-      setForm((f) => ({ ...f, kennzeichen: '', importeur: '', notes: '' }));
+      setForm((f) => ({
+        ...f,
+        kennzeichen: '',
+        kennzeichenAnhaenger: '',
+        grenzzollstelle: '',
+        importeur: '',
+        notes: '',
+      }));
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -261,16 +284,12 @@ export default function CustomsPage() {
   }
 
   return (
-    <AppShell title="Verzollung">
+    <AppShell title="Verzollungsauftrag">
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger, Frankatur und Zollpapieren.
+        Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
         Auftraggeber ist stets der angemeldete Kunde
         {customerName ? ` (${customerName})` : ''}.
-      </p>
-      <p style={{ marginBottom: '1.25rem' }}>
-        <Link className="btn btn-primary" href="/customs/new">
-          Neuer Verzollungsauftrag (Sendung)
-        </Link>
       </p>
 
       {isCustomer ? (
@@ -281,11 +300,77 @@ export default function CustomsPage() {
               <label>Kennzeichen</label>
               <input
                 required
-                placeholder="z.B. W-12345"
+                placeholder="z. B. W-12345T"
                 value={form.kennzeichen}
                 onChange={(e) => setForm({ ...form, kennzeichen: e.target.value })}
+                onBlur={() =>
+                  setForm((f) => ({
+                    ...f,
+                    kennzeichen: normalizeSmartBorderPlate(f.kennzeichen, f.zulassungsland),
+                  }))
+                }
+                autoCapitalize="characters"
+                spellCheck={false}
               />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                {smartBorderPlateHint(form.zulassungsland)}
+              </span>
             </div>
+            <div className="field">
+              <label>Zulassungsland</label>
+              <select
+                required
+                value={form.zulassungsland}
+                onChange={(e) => setForm({ ...form, zulassungsland: e.target.value })}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} – {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid-2">
+            <div className="field">
+              <label>Kennzeichen Anhänger</label>
+              <input
+                placeholder="optional, z. B. W-98765A"
+                value={form.kennzeichenAnhaenger}
+                onChange={(e) => setForm({ ...form, kennzeichenAnhaenger: e.target.value })}
+                onBlur={() =>
+                  setForm((f) => ({
+                    ...f,
+                    kennzeichenAnhaenger: f.kennzeichenAnhaenger
+                      ? normalizeSmartBorderPlate(f.kennzeichenAnhaenger, f.zulassungslandAnhaenger)
+                      : '',
+                  }))
+                }
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                {form.kennzeichenAnhaenger
+                  ? smartBorderPlateHint(form.zulassungslandAnhaenger)
+                  : 'Optional – gleiche Schreibweise wie Kennzeichen (Smart Border Austria).'}
+              </span>
+            </div>
+            <div className="field">
+              <label>Zulassungsland Anhänger</label>
+              <select
+                value={form.zulassungslandAnhaenger}
+                onChange={(e) => setForm({ ...form, zulassungslandAnhaenger: e.target.value })}
+                disabled={!form.kennzeichenAnhaenger.trim()}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} – {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid-2">
             <div className="field">
               <label>Zeit (Grenze)</label>
               <input
@@ -293,6 +378,14 @@ export default function CustomsPage() {
                 type="datetime-local"
                 value={form.zeit}
                 onChange={(e) => setForm({ ...form, zeit: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label>Grenzzollstelle</label>
+              <input
+                placeholder="Freitext, z. B. AT330400"
+                value={form.grenzzollstelle}
+                onChange={(e) => setForm({ ...form, grenzzollstelle: e.target.value })}
               />
             </div>
           </div>
@@ -442,10 +535,23 @@ export default function CustomsPage() {
                 <td>
                   <strong>{o.kennzeichen}</strong>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>
+                    {o.zulassungsland || '–'}
+                    {o.kennzeichenAnhaenger
+                      ? ` · Anhänger ${o.kennzeichenAnhaenger}${o.zulassungslandAnhaenger ? ` (${o.zulassungslandAnhaenger})` : ''}`
+                      : ''}
+                  </div>
+                  <div className="muted" style={{ fontSize: '0.8rem' }}>
                     {new Date(o.zeit).toLocaleString('de-AT')}
                   </div>
                 </td>
-                <td>{o.grenzuebergang}</td>
+                <td>
+                  {o.grenzuebergang}
+                  {o.grenzzollstelle ? (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      Grenzzollstelle: {o.grenzzollstelle}
+                    </div>
+                  ) : null}
+                </td>
                 <td>
                   <div>{o.absenderFirma || '–'}</div>
                   <div className="muted">→ {o.empfaengerFirma || '–'}</div>

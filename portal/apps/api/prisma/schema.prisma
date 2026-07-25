@@ -921,8 +921,17 @@ model CustomsOrder {
   organizationId String
   customerId     String
   mandantId      String?
+  /// Kfz-Kennzeichen Zugfahrzeug (Smart Border Austria Schreibweise)
   kennzeichen    String
+  /// Zulassungsland Zugfahrzeug (ISO-3166-1 alpha-2)
+  zulassungsland String  @default("AT")
+  /// Kennzeichen Anhänger (optional, Smart Border Austria)
+  kennzeichenAnhaenger String?
+  /// Zulassungsland Anhänger (ISO-3166-1 alpha-2), wenn Anhänger angegeben
+  zulassungslandAnhaenger String?
   grenzuebergang String
+  /// Freitext Grenzzollstelle (zusätzlich zum Grenzübergang)
+  grenzzollstelle String?
   zeit           DateTime
   importeur      String
   frankatur      String
