@@ -692,6 +692,8 @@ export default function CustomsPage() {
             ? `${orders.length} Auftrag${orders.length === 1 ? '' : 'e'} – Soloplan-Nummer erscheint nach Rückmeldung.`
             : 'Noch keine Aufträge erfasst.'}
         </p>
+        {error && <div className="error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
+        {message && <div className="success" style={{ marginBottom: '0.75rem' }}>{message}</div>}
         <table className="table table-compact">
           <thead>
             <tr>

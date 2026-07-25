@@ -420,12 +420,11 @@ export class WareneingangService {
       if (customs) {
         matched += 1;
         customsId = customs.id;
-        const accept =
-          WareneingangService.CUSTOMS_ACCEPT_FROM.has(customs.status) ||
-          customs.status === 'ACCEPTED';
         const data: { soloplanRef?: string; status?: string } = {};
         if (customs.soloplanRef !== orderNumber) data.soloplanRef = orderNumber;
-        if (accept && customs.status !== 'ACCEPTED') data.status = 'ACCEPTED';
+        if (WareneingangService.CUSTOMS_ACCEPT_FROM.has(customs.status)) {
+          data.status = 'ACCEPTED';
+        }
         if (Object.keys(data).length) {
           await this.prisma.customsOrder.update({ where: { id: customs.id }, data });
           updated += 1;
