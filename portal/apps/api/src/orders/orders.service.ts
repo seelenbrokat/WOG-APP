@@ -236,9 +236,14 @@ export class OrdersService {
 
   /** Benachrichtigung an Dispo, wenn eine Ladeliste erzeugt wurde. */
   private async notifyLoadingListCreated(user: AuthUser, orders: any[], doc: { id: string; fileName: string; storagePath: string }) {
-    const to =
-      this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') || 'mb@logistikberater.at';
-    if (!to.trim()) return;
+    const raw =
+      this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') ||
+      'info@worldofgreen.ch';
+    const recipients = raw
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!recipients.length) return;
 
     const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
     const numbers = orders.map((o) => o.externalNumber).join(', ');
@@ -264,13 +269,16 @@ export class OrdersService {
       .filter((line) => line != null)
       .join('\n');
 
-    await this.notifications.sendRaw(to.trim(), subject, body, undefined, [
+    const attachments = [
       {
         filename: doc.fileName,
         path: doc.storagePath,
         contentType: 'application/pdf',
       },
-    ]);
+    ];
+    for (const to of recipients) {
+      await this.notifications.sendRaw(to, subject, body, undefined, attachments);
+    }
   }
 
   /**
