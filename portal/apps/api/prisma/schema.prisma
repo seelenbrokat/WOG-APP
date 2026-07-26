@@ -312,7 +312,12 @@ model TourStop {
 model TourConsignment {
   id                         String    @id @default(cuid())
   tourId                     String
+  /// Soloplan TransportOrder.Number (z. B. 929094)
   soloplanOrderNumber        String
+  /// Soloplan OrderData.OrderNumber (z. B. 432984) – Basis für Sendungsnummer
+  orderNumber                String?
+  /// Soloplan ConsignmentData.Number (meist 1) → Sendungsnummer = orderNumber.consignmentIndex
+  consignmentIndex           Int?
   externalConsignmentNumber  String?
   senderName                 String?
   senderBpNumber             String?
@@ -330,6 +335,7 @@ model TourConsignment {
 
   @@index([tourId])
   @@index([soloplanOrderNumber])
+  @@index([orderNumber])
 }
 
 /// Soloplan StdTelematics-Ereignis (TourStatus / TransportOrderStatus / Location)

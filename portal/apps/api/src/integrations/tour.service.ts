@@ -246,6 +246,8 @@ export class TourService {
         data: parsed.consignments.map((c) => ({
           tourId: tour.id,
           soloplanOrderNumber: c.soloplanOrderNumber,
+          orderNumber: c.orderNumber,
+          consignmentIndex: c.consignmentIndex ?? 1,
           externalConsignmentNumber: c.externalConsignmentNumber,
           senderName: c.senderName,
           senderBpNumber: c.senderBpNumber,

@@ -44,13 +44,38 @@ export type ParsedTourStop = {
 };
 
 export type ParsedTourConsignment = {
+  /** TransportOrder.Number */
   soloplanOrderNumber: string;
+  /** OrderData.OrderNumber – Basis Sendungsnummer */
+  orderNumber?: string;
+  /** ConsignmentData.Number (meist 1) */
+  consignmentIndex?: number;
   externalConsignmentNumber?: string;
   senderName?: string;
   senderBpNumber?: string;
   receiverName?: string;
   loadingUnits?: Array<{ matchcode: string; quantity: number; description?: string }>;
 };
+
+/** Sendungsnummer = OrderNumber.ConsignmentIndex (z. B. 432984.1) */
+export function formatSendungsnummer(opts: {
+  orderNumber?: string | null;
+  consignmentIndex?: number | null;
+  externalConsignmentNumber?: string | null;
+  soloplanOrderNumber?: string | null;
+}): string {
+  const order = opts.orderNumber?.trim();
+  if (order) {
+    const idx =
+      opts.consignmentIndex != null && Number.isFinite(opts.consignmentIndex)
+        ? opts.consignmentIndex
+        : 1;
+    return `${order}.${idx}`;
+  }
+  const ext = opts.externalConsignmentNumber?.trim();
+  if (ext && /^\d+\.\d+$/.test(ext)) return ext;
+  return opts.soloplanOrderNumber?.trim() || '—';
+}
 
 export type ParsedTour = {
   header: ParsedTourHeader;
@@ -240,13 +265,20 @@ export function parseTourXml(xml: string, fileName?: string): ParsedTour | null 
     .map((o) => {
       const order = o as Record<string, unknown>;
       const cd = (order.ConsignmentData || {}) as Record<string, unknown>;
+      const od = (order.OrderData || {}) as Record<string, unknown>;
       const sender = (order.Sender || {}) as Record<string, unknown>;
       const receiver = (order.Receiver || {}) as Record<string, unknown>;
       const number = str(order.Number);
       if (!number) return null;
       const loadingUnits = parseLoadingUnits(order);
+      const consignmentIndex = num(cd.Number);
       return {
         soloplanOrderNumber: number,
+        orderNumber: str(od.OrderNumber) || undefined,
+        consignmentIndex:
+          consignmentIndex != null && consignmentIndex > 0
+            ? Math.floor(consignmentIndex)
+            : 1,
         externalConsignmentNumber: str(cd.ExternalConsignmentNumber) || undefined,
         senderName: str(sender.Name1) || undefined,
         senderBpNumber: str(sender.BusinessPartnerNumber) || undefined,

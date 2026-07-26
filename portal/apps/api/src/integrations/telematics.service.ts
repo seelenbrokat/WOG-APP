@@ -26,6 +26,7 @@ import {
   isSignatureDocumentName,
   writeZustellnachweisPdf,
 } from './zustellnachweis-pdf';
+import { formatSendungsnummer } from './tour-xml.parser';
 
 const TOUR_STATUS_MAP: Record<string, string> = {
   Started: 'ACTIVE',
@@ -950,6 +951,7 @@ export class TelematicsService {
     const deliveryMeta = deliveryStatusFromEvents([
       consignment?.status,
       ...toEvents.map((e) => e.status),
+      'DocumentReceived', // Unterschrift = zugestellt (auch wenn Status-Race)
     ]);
     const deliveryAt =
       opts.signedAt ||
@@ -963,16 +965,35 @@ export class TelematicsService {
         .pop() ||
       signatureDoc.createdAt;
 
+    const deliveredEvent = toEvents
+      .filter((e) =>
+        ['UnloadingFinished', 'UnloadingPlaceLeft', 'DocumentReceived'].includes(e.status || ''),
+      )
+      .slice()
+      .reverse()
+      .find((e) => e.latitude != null && e.longitude != null);
+
+    const deliveryLatitude =
+      deliveredEvent?.latitude ??
+      consignment?.lastLatitude ??
+      unloadStop?.latitude ??
+      null;
+    const deliveryLongitude =
+      deliveredEvent?.longitude ??
+      consignment?.lastLongitude ??
+      unloadStop?.longitude ??
+      null;
+
     const receiverName =
-      opts.signedByName ||
       consignment?.receiverName ||
       unloadStop?.name ||
+      opts.signedByName ||
       null;
     const receiverAddress = unloadStop
       ? [unloadStop.street, [unloadStop.zip, unloadStop.city].filter(Boolean).join(' '), unloadStop.country]
           .filter(Boolean)
           .join(', ')
-      : consignment?.statusText || null;
+      : null;
     const senderName = consignment?.senderName || loadStop?.name || null;
     const senderAddress = loadStop
       ? [loadStop.street, [loadStop.zip, loadStop.city].filter(Boolean).join(' '), loadStop.country]
@@ -990,6 +1011,14 @@ export class TelematicsService {
       transportOrderNumber: toNumber,
     });
 
+    const sendungsnummer = formatSendungsnummer({
+      orderNumber: (consignment as { orderNumber?: string | null } | null)?.orderNumber,
+      consignmentIndex: (consignment as { consignmentIndex?: number | null } | null)
+        ?.consignmentIndex,
+      externalConsignmentNumber: consignment?.externalConsignmentNumber,
+      soloplanOrderNumber: toNumber || consignment?.soloplanOrderNumber,
+    });
+
     const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
     if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
     const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1002,20 +1031,25 @@ export class TelematicsService {
         title: 'Ablieferbeleg',
         tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
         transportOrderNumber: toNumber || consignment?.soloplanOrderNumber,
+        sendungsnummer,
         externalConsignmentNumber: consignment?.externalConsignmentNumber,
-        receiverName: consignment?.receiverName || unloadStop?.name || receiverName,
+        receiverName,
         receiverAddress,
         senderName,
         senderAddress,
-        deliveryStatus: deliveryMeta.status,
+        deliveryStatus: deliveryMeta.delivered ? 'Zugestellt' : deliveryMeta.status,
         deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
+        deliveryLatitude,
+        deliveryLongitude,
         signaturePath: isSignatureDocumentName(signatureDoc.fileName)
           ? signatureDoc.storagePath
           : signatureDoc.mimeType.startsWith('image/')
             ? signatureDoc.storagePath
             : null,
         signatureFileName: signatureDoc.fileName,
-        loadingUnitExchange,
+        loadingUnitExchange:
+          loadingUnitExchange.status === 'UNKNOWN' ? null : loadingUnitExchange,
+        noLoadingUnitExchangeRequired: true,
         events: timeline,
         companyLine: opts.signedByName
           ? `Empfangsbestätigung: ${opts.signedByName}`

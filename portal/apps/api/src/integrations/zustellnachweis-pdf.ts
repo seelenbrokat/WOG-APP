@@ -13,6 +13,8 @@ import {
 export type ZustellnachweisInput = {
   tourNumber?: string | null;
   transportOrderNumber?: string | null;
+  /** Soloplan Sendungsnummer = OrderNumber.ConsignmentIndex (z. B. 432984.1) */
+  sendungsnummer?: string | null;
   externalConsignmentNumber?: string | null;
   position?: string | number | null;
   receiverName?: string | null;
@@ -22,9 +24,14 @@ export type ZustellnachweisInput = {
   identCodes?: string[];
   deliveryStatus?: string | null;
   deliveryAt?: Date | null;
+  /** GPS wo „Zugestellt“ gesetzt wurde */
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   signaturePath?: string | null;
   signatureFileName?: string | null;
   loadingUnitExchange?: PdfLoadingUnitExchangeNote | null;
+  /** Wenn kein Tausch: Text „Kein Lademitteltausch erforderlich“ */
+  noLoadingUnitExchangeRequired?: boolean;
   events: Array<{
     at: Date | null;
     label: string;
@@ -231,9 +238,16 @@ export function writeZustellnachweisPdf(
     const stream = createWriteStream(storagePath);
     doc.pipe(stream);
 
+    const sendungsnummer =
+      input.sendungsnummer ||
+      input.externalConsignmentNumber ||
+      input.transportOrderNumber ||
+      '—';
+    const receiverLabel = input.receiverName?.trim() || 'Empfänger';
+
     drawA4BrandHeader(doc, {
       title: input.title || 'Ablieferbeleg',
-      subtitle: 'WOG Logistics AG · World of Green Logistics',
+      subtitle: receiverLabel,
     });
 
     const left = doc.page.margins.left;
@@ -251,17 +265,22 @@ export function writeZustellnachweisPdf(
     doc.moveDown(0.8);
 
     sectionTitle(doc, 'Referenzen');
+    kvRow(doc, 'Sendungsnummer', sendungsnummer);
     kvRow(doc, 'Tour', input.tourNumber || '—');
     kvRow(doc, 'Transportauftrag', input.transportOrderNumber || '—');
     if (input.position != null && input.position !== '') {
       kvRow(doc, 'Position', String(input.position));
     }
-    kvRow(doc, 'Sendungsnummer', input.transportOrderNumber || '—');
-    kvRow(doc, 'Externe Sendungsnummer', input.externalConsignmentNumber || '—');
+    if (
+      input.externalConsignmentNumber &&
+      input.externalConsignmentNumber !== sendungsnummer
+    ) {
+      kvRow(doc, 'Externe Sendungsnummer', input.externalConsignmentNumber);
+    }
     doc.moveDown(0.6);
 
-    sectionTitle(doc, 'Sendung');
-    kvRow(doc, 'Empfänger', input.receiverName || '—');
+    sectionTitle(doc, 'Empfänger');
+    kvRow(doc, 'Name', input.receiverName || '—');
     kvRow(doc, 'Adresse', input.receiverAddress || '—');
     if (input.senderName) {
       kvRow(doc, 'Absender', input.senderName);
@@ -276,7 +295,12 @@ export function writeZustellnachweisPdf(
 
     sectionTitle(doc, 'Zustellung');
     const boxY = doc.y;
-    const boxH = 52;
+    const hasCoords =
+      input.deliveryLatitude != null &&
+      input.deliveryLongitude != null &&
+      Number.isFinite(input.deliveryLatitude) &&
+      Number.isFinite(input.deliveryLongitude);
+    const boxH = hasCoords ? 78 : 52;
     doc
       .roundedRect(left, boxY, contentW, boxH, 6)
       .lineWidth(1)
@@ -303,11 +327,46 @@ export function writeZustellnachweisPdf(
       .font('Helvetica-Bold')
       .fontSize(14)
       .text(fmtDt(input.deliveryAt), left + colW + 8, boxY + 24, { width: colW - 20 });
+    if (hasCoords) {
+      const coordText = `${Number(input.deliveryLatitude).toFixed(6)} / ${Number(input.deliveryLongitude).toFixed(6)}`;
+      doc
+        .fillColor(WOG_PDF.muted)
+        .font('Helvetica')
+        .fontSize(8)
+        .text('Koordinaten (Zustellstatus)', left + 14, boxY + 48, { width: contentW - 28 });
+      doc
+        .fillColor(WOG_PDF.ink)
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .text(coordText, left + 14, boxY + 60, { width: contentW - 28 });
+    }
     doc.y = boxY + boxH + 16;
 
+    sectionTitle(doc, 'Lademittel');
     if (input.loadingUnitExchange && input.loadingUnitExchange.status !== 'UNKNOWN') {
-      sectionTitle(doc, 'Lademittel');
       drawLoadingUnitExchangeBox(doc, input.loadingUnitExchange);
+    } else {
+      // Standard-Hinweis auf POD, wenn kein Tausch gemeldet / erforderlich
+      const noteY = doc.y;
+      doc
+        .roundedRect(left, noteY, contentW, 40, 6)
+        .lineWidth(1)
+        .strokeColor(WOG_PDF.line)
+        .fillColor(WOG_PDF.soft)
+        .fillAndStroke();
+      doc
+        .fillColor(WOG_PDF.green)
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .text(
+          input.noLoadingUnitExchangeRequired !== false
+            ? 'Kein Lademitteltausch erforderlich'
+            : 'Kein Lademitteltausch gemeldet',
+          left + 12,
+          noteY + 13,
+          { width: contentW - 24 },
+        );
+      doc.y = noteY + 52;
     }
 
     if (input.signaturePath && existsSync(input.signaturePath)) {
