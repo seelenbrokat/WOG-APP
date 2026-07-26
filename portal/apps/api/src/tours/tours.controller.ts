@@ -200,7 +200,7 @@ export class ToursController {
   }
 
   @Get('documents/:docId/download')
-  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.PARTNER)
   async downloadDoc(
     @CurrentUser() user: AuthUser,
     @Param('docId') docId: string,
@@ -210,12 +210,13 @@ export class ToursController {
     res.set({
       'Content-Type': mimeType,
       'Content-Disposition': `inline; filename="${fileName.replace(/"/g, '')}"`,
+      'Cache-Control': 'private, no-store',
     });
     return file;
   }
 
   @Get('documents/:docId/zustellnachweis')
-  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.PARTNER)
   async zustellnachweis(
     @CurrentUser() user: AuthUser,
     @Param('docId') docId: string,
@@ -225,6 +226,7 @@ export class ToursController {
     res.set({
       'Content-Type': mimeType,
       'Content-Disposition': `inline; filename="${fileName.replace(/"/g, '')}"`,
+      'Cache-Control': 'private, no-store',
     });
     return file;
   }

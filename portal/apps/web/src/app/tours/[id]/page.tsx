@@ -128,19 +128,40 @@ function isSignatureDoc(fileName: string) {
   );
 }
 
+/** Blob im neuen Tab öffnen (Safari: Object-URL nicht sofort revoke). */
+function openBlobInNewTab(blob: Blob, fileName: string, mimeHint?: string) {
+  const type =
+    blob.type && blob.type !== 'application/octet-stream'
+      ? blob.type
+      : mimeHint ||
+        (fileName.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : fileName.toLowerCase().match(/\.(png|jpe?g|gif|webp)$/)
+            ? `image/${fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg') ? 'jpeg' : fileName.split('.').pop()}`
+            : 'application/octet-stream');
+  const typed = blob.type === type ? blob : new Blob([blob], { type });
+  const url = URL.createObjectURL(typed);
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    // Popup blockiert → Download als Fallback
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+}
+
 async function openDocument(docId: string, fileName: string) {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/tours/documents/${docId}/download`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error('Download fehlgeschlagen');
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.target = '_blank';
-  a.click();
-  URL.revokeObjectURL(url);
+  openBlobInNewTab(blob, fileName, res.headers.get('content-type') || undefined);
 }
 
 async function openZustellnachweis(docId: string) {
@@ -150,13 +171,7 @@ async function openZustellnachweis(docId: string) {
   );
   if (!res.ok) throw new Error('Zustellnachweis konnte nicht erzeugt werden');
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Zustellnachweis.pdf`;
-  a.target = '_blank';
-  a.click();
-  URL.revokeObjectURL(url);
+  openBlobInNewTab(blob, 'Ablieferbeleg.pdf', 'application/pdf');
 }
 
 export default function TourDetailPage() {
