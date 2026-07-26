@@ -425,8 +425,8 @@ export default function LademittelPage() {
 
           <p className="muted" style={{ marginBottom: '0.75rem' }}>
             Stops ohne Lademitteltausch inkl. <strong>Anzahl nicht getauschter</strong> Stück
-            (aus Sendung, sonst mindestens 1 je gemeldetem Typ). Nur tauschrelevante Typen
-            (z. B. EUP). <strong>EWP/HP werden nicht gebucht</strong>.
+            (aus Sendung, sonst mindestens 1 je gemeldetem Typ). Nur Typen mit Soloplan
+            <strong> LM-Buchungen erzeugen = Ja</strong> (z. B. EUP; nicht DIV/GL/CR/EWP/HP).
           </p>
 
           <div className="row" style={{ gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>

@@ -396,6 +396,8 @@ model PackagingType {
   content        String?
   article        String?
   active         Boolean  @default(true)
+  /// Soloplan „LM-Buchungen erzeugen“ – nur bei true in Partner-Saldo buchen
+  createBookings Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -404,6 +406,7 @@ model PackagingType {
 
   @@unique([organizationId, soloplanNumber])
   @@index([organizationId, matchcode])
+  @@index([organizationId, createBookings])
 }
 
 /// Lademitteltausch aus TourStopStatus / LoadingUnitExchange (nur CSV-PackagingTypes)

@@ -36,10 +36,17 @@ export type LoadingUnitExchangeNote = {
 };
 
 /**
- * Keine Lademittel-Buchung / kein „Nicht getauscht“:
- * EWP (Einwegpalette), HP (Halbpalette), Alias EINWEGPALE.
+ * Fallback-Denylist, falls Stammdaten/CSV noch kein createBookings=false setzen.
+ * Primär gilt PackagingType.createBookings (Soloplan „LM-Buchungen erzeugen“).
  */
-export const NON_EXCHANGEABLE_MATCHCODES = ['EWP', 'HP', 'EINWEGPALE'] as const;
+export const NON_EXCHANGEABLE_MATCHCODES = [
+  'EWP',
+  'HP',
+  'EINWEGPALE',
+  'DIV',
+  'GL',
+  'CR',
+] as const;
 
 export function isExchangeBookableMatchcode(matchcode: string): boolean {
   return !NON_EXCHANGEABLE_MATCHCODES.includes(
@@ -58,7 +65,7 @@ export class LoadingUnitService {
 
   /**
    * Bucht LoadingUnitExchange aus TourStopStatus.
-   * Nur aktive PackagingType-Matchcodes (CSV) werden real gebucht.
+   * Nur aktive PackagingTypes mit createBookings=true (Soloplan „LM-Buchungen erzeugen = Ja“).
    */
   async bookTourStopStatus(
     organizationId: string,
@@ -109,10 +116,11 @@ export class LoadingUnitService {
     for (const ex of parsed.exchanges) {
       const matchcode = ex.matchcode.trim();
       if (!matchcode) continue;
-      // EWP/HP: keine Buchung, kein Nicht-Tausch-Eintrag
+      // Fallback-Denylist (EWP/HP/DIV/…) + Stammdaten createBookings
       if (!isExchangeBookableMatchcode(matchcode)) continue;
 
       const packaging = await this.resolvePackagingType(organizationId, matchcode);
+      if (packaging && !packaging.createBookings) continue;
       const canonicalCode = packaging?.matchcode || matchcode;
 
       const existing = await this.prisma.loadingUnitPosting.findUnique({
@@ -324,7 +332,7 @@ export class LoadingUnitService {
         if (packaging) break;
       }
       const matchcode = packaging?.matchcode || line.preferred;
-      if (!isExchangeBookableMatchcode(matchcode)) {
+      if (!isExchangeBookableMatchcode(matchcode) || (packaging && !packaging.createBookings)) {
         skipped += 1;
         continue;
       }
@@ -908,7 +916,7 @@ export class LoadingUnitService {
             const matchcode = ex.matchcode.trim();
             if (!matchcode || !isExchangeBookableMatchcode(matchcode)) continue;
             const packaging = await this.resolvePackagingType(org.id, matchcode);
-            if (!packaging) continue;
+            if (!packaging || !packaging.createBookings) continue;
 
             const existing = await this.prisma.loadingUnitPosting.findUnique({
               where: {

@@ -62,6 +62,25 @@ function cell(row: Record<string, string>, ...keys: string[]): string {
   return '';
 }
 
+/** Header-Teiltreffer (UI kürzt z. B. „LM-Buchungen erzeuge“). */
+function cellIncludes(row: Record<string, string>, ...needles: string[]): string {
+  for (const needle of needles) {
+    const n = needle.toLowerCase();
+    const hit = Object.keys(row).find((h) => h.toLowerCase().includes(n));
+    if (hit && String(row[hit]).trim()) return String(row[hit]).trim();
+  }
+  return '';
+}
+
+/** Soloplan Ja/Nein → boolean; null wenn Spalte fehlt/unlesbar. */
+export function parseSoloplanJaNein(raw: string): boolean | null {
+  const v = raw.trim().toLowerCase();
+  if (!v) return null;
+  if (['ja', 'yes', 'true', '1', 'j'].includes(v)) return true;
+  if (['nein', 'no', 'false', '0', 'n'].includes(v)) return false;
+  return null;
+}
+
 @Injectable()
 export class MasterDataService {
   private readonly logger = new Logger(MasterDataService.name);
@@ -137,6 +156,18 @@ export class MasterDataService {
       const soloplanNumber = Number(numberRaw);
       if (!Number.isFinite(soloplanNumber)) continue;
 
+      const createBookingsRaw =
+        cell(
+          row,
+          'LM-Buchungen erzeugen',
+          'LM-Buchungen erzeuge',
+          'CreateLoadingUnitBookings',
+          'Create bookings',
+        ) || cellIncludes(row, 'lm-buchungen', 'buchungen erzeug');
+      const createBookingsParsed = parseSoloplanJaNein(createBookingsRaw);
+      // Ohne Spalte: Default true (bestehende Exporte); Nein typen müssen explizit Nein sein
+      const createBookings = createBookingsParsed ?? true;
+
       await this.prisma.packagingType.upsert({
         where: {
           organizationId_soloplanNumber: { organizationId, soloplanNumber },
@@ -149,6 +180,7 @@ export class MasterDataService {
           content: cell(row, 'Inhalt', 'Content') || null,
           article: cell(row, 'Artikel', 'Article') || null,
           active: true,
+          createBookings,
         },
         update: {
           matchcode,
@@ -156,6 +188,7 @@ export class MasterDataService {
           content: cell(row, 'Inhalt', 'Content') || null,
           article: cell(row, 'Artikel', 'Article') || null,
           active: true,
+          createBookings,
         },
       });
       count += 1;
@@ -225,6 +258,7 @@ export class MasterDataService {
         soloplanNumber: r.soloplanNumber,
         content: r.content,
         article: r.article,
+        createBookings: r.createBookings,
       }));
   }
 
