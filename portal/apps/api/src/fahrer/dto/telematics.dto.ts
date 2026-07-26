@@ -106,6 +106,14 @@ export class DocumentDto {
   @IsOptional()
   @IsString()
   fileSignature?: string;
+
+  @IsOptional()
+  @IsString()
+  signedByName?: string;
+
+  @IsOptional()
+  @IsString()
+  signedAt?: string;
 }
 
 export class SsccItemDto {

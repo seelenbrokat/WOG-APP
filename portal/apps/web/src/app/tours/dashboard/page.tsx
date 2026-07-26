@@ -80,6 +80,7 @@ type Exceptions = {
 function fmtShort(value?: string | null) {
   if (!value) return '—';
   return new Date(value).toLocaleString('de-CH', {
+    timeZone: 'Europe/Zurich',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

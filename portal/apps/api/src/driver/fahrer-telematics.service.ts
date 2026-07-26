@@ -15,6 +15,7 @@ import { AuthUser } from '../auth/auth.types';
 import { TelematicsOutboundService } from '../integrations/telematics-outbound.service';
 import { LoadingUnitService } from '../integrations/loading-unit.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import { TelematicsService } from '../integrations/telematics.service';
 import { DocumentsService } from '../documents/documents.service';
 import {
   OutDocument,
@@ -48,6 +49,7 @@ export class FahrerTelematicsService {
     private loadingUnits: LoadingUnitService,
     @Inject(forwardRef(() => SoloplanService)) private soloplan: SoloplanService,
     @Inject(forwardRef(() => DocumentsService)) private documents: DocumentsService,
+    @Inject(forwardRef(() => TelematicsService)) private telematics: TelematicsService,
   ) {
     const inboundRoot =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -211,11 +213,15 @@ export class FahrerTelematicsService {
 
     let ablieferbeleg: Awaited<ReturnType<DocumentsService['generateDeliveryReceiptFromSignature']>> | null =
       null;
+    let zustellnachweis: Awaited<
+      ReturnType<TelematicsService['createZustellnachweisFromSignature']>
+    > | null = null;
     const isSignature =
       isSignatureDocumentName(body.fileName) ||
       this.mimeFromName(body.fileName).startsWith('image/');
 
-    if (isSignature) {
+    if (isSignature && !/^Signature_KeinTausch/i.test(body.fileName)) {
+      const signedAt = body.signedAt ? new Date(body.signedAt) : new Date();
       try {
         ablieferbeleg = await this.documents.generateDeliveryReceiptFromSignature({
           organizationId: user.organizationId,
@@ -226,22 +232,31 @@ export class FahrerTelematicsService {
           signaturePath: storagePath,
           signatureFileName: body.fileName,
           signedByName: body.signedByName,
-          signedAt: body.signedAt ? new Date(body.signedAt) : new Date(),
+          signedAt,
         });
-        // Ablieferbeleg-PDF zusätzlich als StdTelematics Document an Soloplan
-        if (ablieferbeleg?.fileName) {
-          const pdfPath = join(this.uploadDir(), ablieferbeleg.fileName);
-          if (existsSync(pdfPath)) {
-            const pdfB64 = readFileSync(pdfPath).toString('base64');
-            this.outbound.sendDocument({
-              vehicleId: body.vehicleId,
-              tourNumber: body.tourNumber,
-              transportOrderNumber: body.transportOrderNumber,
-              tourStopId: body.tourStopId,
-              fileName: ablieferbeleg.fileName,
-              contentBase64: pdfB64,
-            });
-          }
+      } catch (err: any) {
+        this.logger.debug(`Portal-Ablieferbeleg nicht möglich: ${err?.message || err}`);
+      }
+      try {
+        zustellnachweis = await this.telematics.createZustellnachweisFromSignature({
+          organizationId: user.organizationId,
+          signatureDocId: tourDoc.id,
+          signedByName: body.signedByName,
+          signedAt,
+        });
+        const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
+        const pdfPath = ablieferbeleg?.fileName
+          ? join(this.uploadDir(), ablieferbeleg.fileName)
+          : zustellnachweis?.storagePath;
+        if (pdfFileName && pdfPath && existsSync(pdfPath)) {
+          this.outbound.sendDocument({
+            vehicleId: body.vehicleId,
+            tourNumber: body.tourNumber,
+            transportOrderNumber: body.transportOrderNumber,
+            tourStopId: body.tourStopId,
+            fileName: pdfFileName,
+            contentBase64: readFileSync(pdfPath).toString('base64'),
+          });
         }
       } catch (err: any) {
         this.logger.warn(
@@ -255,6 +270,7 @@ export class FahrerTelematicsService {
       ...written,
       tourDocumentId: tourDoc.id,
       ablieferbeleg,
+      zustellnachweis,
     };
   }
 
@@ -326,7 +342,7 @@ export class FahrerTelematicsService {
           const safe = `${Date.now()}_${parsed.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
           const storagePath = join(dir, safe);
           writeFileSync(storagePath, buffer);
-          await this.prisma.tourDocument.create({
+          const tourDoc = await this.prisma.tourDocument.create({
             data: {
               organizationId: orgId,
               tourNumber: parsed.tourNumber,
@@ -340,31 +356,51 @@ export class FahrerTelematicsService {
             },
           });
           if (
-            isSignatureDocumentName(parsed.fileName) ||
-            this.mimeFromName(parsed.fileName).startsWith('image/')
+            (isSignatureDocumentName(parsed.fileName) ||
+              this.mimeFromName(parsed.fileName).startsWith('image/')) &&
+            !/^Signature_KeinTausch/i.test(parsed.fileName)
           ) {
             try {
-              const receipt = await this.documents.generateDeliveryReceiptFromSignature({
+              try {
+                const receipt = await this.documents.generateDeliveryReceiptFromSignature({
+                  organizationId: orgId,
+                  transportOrderNumber: parsed.transportOrderNumber,
+                  tourNumber: parsed.tourNumber,
+                  tourStopId: parsed.tourStopId,
+                  signaturePath: storagePath,
+                  signatureFileName: parsed.fileName,
+                  signedAt: new Date(),
+                });
+                if (receipt?.fileName && parsed.vehicleId) {
+                  const pdfPath = join(this.uploadDir(), receipt.fileName);
+                  if (existsSync(pdfPath)) {
+                    this.outbound.sendDocument({
+                      vehicleId: parsed.vehicleId,
+                      tourNumber: parsed.tourNumber,
+                      transportOrderNumber: parsed.transportOrderNumber,
+                      tourStopId: parsed.tourStopId,
+                      fileName: receipt.fileName,
+                      contentBase64: readFileSync(pdfPath).toString('base64'),
+                    });
+                  }
+                }
+              } catch {
+                /* Tour ohne Portal-Shipment */
+              }
+              const zn = await this.telematics.createZustellnachweisFromSignature({
                 organizationId: orgId,
-                transportOrderNumber: parsed.transportOrderNumber,
-                tourNumber: parsed.tourNumber,
-                tourStopId: parsed.tourStopId,
-                signaturePath: storagePath,
-                signatureFileName: parsed.fileName,
+                signatureDocId: tourDoc.id,
                 signedAt: new Date(),
               });
-              if (receipt?.fileName && parsed.vehicleId) {
-                const pdfPath = join(this.uploadDir(), receipt.fileName);
-                if (existsSync(pdfPath)) {
-                  this.outbound.sendDocument({
-                    vehicleId: parsed.vehicleId,
-                    tourNumber: parsed.tourNumber,
-                    transportOrderNumber: parsed.transportOrderNumber,
-                    tourStopId: parsed.tourStopId,
-                    fileName: receipt.fileName,
-                    contentBase64: readFileSync(pdfPath).toString('base64'),
-                  });
-                }
+              if (zn?.fileName && parsed.vehicleId && existsSync(zn.storagePath)) {
+                this.outbound.sendDocument({
+                  vehicleId: parsed.vehicleId,
+                  tourNumber: parsed.tourNumber,
+                  transportOrderNumber: parsed.transportOrderNumber,
+                  tourStopId: parsed.tourStopId,
+                  fileName: zn.fileName,
+                  contentBase64: readFileSync(zn.storagePath).toString('base64'),
+                });
               }
             } catch (err: any) {
               this.logger.warn(`Ablieferbeleg (inbound) fehlgeschlagen: ${err?.message || err}`);

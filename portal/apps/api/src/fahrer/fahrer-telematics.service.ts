@@ -1,10 +1,20 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
+  forwardRef,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { TelematicsOutboundService } from '../integrations/telematics-outbound.service';
+import { LoadingUnitService } from '../integrations/loading-unit.service';
+import { TelematicsService } from '../integrations/telematics.service';
+import { DocumentsService } from '../documents/documents.service';
+import { ParsedTourStopStatus } from '../integrations/telematics-xml.parser';
+import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
 import { PrismaService } from '../prisma/prisma.service';
 import { DriverAuthUser } from './fahrer.types';
 import { FahrerSmartborderService } from './fahrer-smartborder.service';
@@ -34,6 +44,10 @@ export class FahrerTelematicsService {
     private outbound: TelematicsOutboundService,
     private prisma: PrismaService,
     private smartborder: FahrerSmartborderService,
+    private loadingUnits: LoadingUnitService,
+    private config: ConfigService,
+    @Inject(forwardRef(() => DocumentsService)) private documents: DocumentsService,
+    @Inject(forwardRef(() => TelematicsService)) private telematics: TelematicsService,
   ) {}
 
   private loc(dto?: { latitude: number; longitude: number; information?: string }) {
@@ -44,6 +58,28 @@ export class FahrerTelematicsService {
       information: dto.information,
       at: new Date(),
     };
+  }
+
+  private uploadDir() {
+    return this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
+  }
+
+  private mimeFromName(fileName: string) {
+    const n = fileName.toLowerCase();
+    if (n.endsWith('.pdf')) return 'application/pdf';
+    if (n.endsWith('.png')) return 'image/png';
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
+    return 'application/octet-stream';
+  }
+
+  /** Signature_Name_184395_941380.png → Name; KeinTausch-Dateien überspringen */
+  private signedByFromFileName(fileName: string): string | undefined {
+    const base = fileName.replace(/\.[^.]+$/, '');
+    const m = /^Signature_(.+?)_\d{5,}/i.exec(base);
+    if (!m) return undefined;
+    const name = m[1].replace(/_/g, ' ').trim();
+    if (!name || /^KeinTausch/i.test(name)) return undefined;
+    return name;
   }
 
   private async assertConsignmentEditable(
@@ -89,6 +125,48 @@ export class FahrerTelematicsService {
     }
   }
 
+  /**
+   * Bei „Kein Lademitteltausch“ ohne Exchange-Zeilen: Null-Tausch aus Sendungs-Lademitteln.
+   */
+  private async resolveExchangesForStop(
+    organizationId: string,
+    dto: TourStopStatusDto,
+  ): Promise<Array<{ matchcode: string; given: number; taken: number }>> {
+    const fromDto = (dto.loadingUnitExchanges || [])
+      .filter((e) => e?.matchcode?.trim())
+      .map((e) => ({
+        matchcode: e.matchcode.trim(),
+        given: Number(e.given) || 0,
+        taken: Number(e.taken) || 0,
+      }));
+    if (fromDto.length) return fromDto;
+
+    const noExchange = /kein\s*lademitteltausch/i.test(dto.statusText || '');
+    if (!noExchange) return [];
+
+    const stop = await this.prisma.tourStop.findFirst({
+      where: {
+        soloplanTourStopId: dto.tourStopId,
+        tour: { organizationId, tourNumber: dto.tourNumber },
+      },
+      select: { transportOrderNumber: true, tourId: true },
+    });
+    const cons = stop?.transportOrderNumber
+      ? await this.prisma.tourConsignment.findFirst({
+          where: {
+            tourId: stop.tourId,
+            soloplanOrderNumber: stop.transportOrderNumber,
+          },
+          select: { loadingUnits: true },
+        })
+      : null;
+    const units = Array.isArray(cons?.loadingUnits) ? (cons!.loadingUnits as any[]) : [];
+    return units
+      .map((u) => String(u?.matchcode || u?.Matchcode || '').trim())
+      .filter(Boolean)
+      .map((matchcode) => ({ matchcode, given: 0, taken: 0 }));
+  }
+
   async sendTourStatus(driver: DriverAuthUser, dto: TourStatusDto) {
     const isZollfahrt = dto.status === 'Zollfahrt';
     const outboundStatus = isZollfahrt ? 'Finished' : dto.status;
@@ -108,12 +186,15 @@ export class FahrerTelematicsService {
       throw new BadRequestException(`Ungültiger Tour-Status: ${dto.status}`);
     }
 
+    const now = new Date();
     const result = this.outbound.sendTourStatus({
       vehicleId: driver.vehicleSoloplanId,
       driverId: driver.driverTelematicsId,
       tourNumber: dto.tourNumber,
       status: outboundStatus,
       statusText,
+      statusDate: now,
+      sendDate: now,
       location: this.loc(dto.location),
     });
 
@@ -127,7 +208,7 @@ export class FahrerTelematicsService {
       },
       data: {
         telematicsStatus,
-        lastStatusAt: new Date(),
+        lastStatusAt: now,
         ...(completed ? { status: 'COMPLETED' } : {}),
         ...(dto.status === 'Started' ? { status: 'ACTIVE' } : {}),
         ...(dto.location
@@ -143,20 +224,61 @@ export class FahrerTelematicsService {
   }
 
   async sendTourStopStatus(driver: DriverAuthUser, dto: TourStopStatusDto) {
-    return this.outbound.sendTourStopStatus({
+    const now = new Date();
+    const exchanges = await this.resolveExchangesForStop(driver.organizationId, dto);
+
+    const result = this.outbound.sendTourStopStatus({
       vehicleId: driver.vehicleSoloplanId,
       driverId: driver.driverTelematicsId,
       tourNumber: dto.tourNumber,
       tourStopId: dto.tourStopId,
       status: dto.status,
       statusText: dto.statusText,
+      statusDate: now,
+      sendDate: now,
       location: this.loc(dto.location),
-      loadingUnitExchanges: dto.loadingUnitExchanges,
+      loadingUnitExchanges: exchanges,
     });
+
+    if (exchanges.length) {
+      try {
+        const parsed: ParsedTourStopStatus = {
+          kind: 'TourStopStatus',
+          tourStopId: dto.tourStopId,
+          tourNumber: dto.tourNumber,
+          vehicleId: driver.vehicleSoloplanId,
+          driverId: driver.driverTelematicsId || undefined,
+          sendDate: now,
+          statusDate: now,
+          status: dto.status,
+          statusText: dto.statusText,
+          exchanges,
+          location: dto.location
+            ? {
+                latitude: dto.location.latitude,
+                longitude: dto.location.longitude,
+              }
+            : undefined,
+        };
+        const booked = await this.loadingUnits.bookTourStopStatus(
+          driver.organizationId,
+          parsed,
+          `vlbportal:${result.fileName}`,
+        );
+        this.log.log(
+          `Lademittel gebucht Stop ${dto.tourStopId}: ${JSON.stringify(booked)}`,
+        );
+      } catch (err: any) {
+        this.log.warn(`Lademittel-Buchung fehlgeschlagen: ${err?.message || err}`);
+      }
+    }
+
+    return { ...result, loadingUnits: exchanges.length };
   }
 
   async sendTransportOrderStatus(driver: DriverAuthUser, dto: TransportOrderStatusDto) {
     await this.assertConsignmentEditable(driver, dto.transportOrderNumber);
+    const now = new Date();
 
     const result = this.outbound.sendTransportOrderStatus({
       vehicleId: driver.vehicleSoloplanId,
@@ -164,6 +286,8 @@ export class FahrerTelematicsService {
       transportOrderNumber: dto.transportOrderNumber,
       status: dto.status,
       statusText: dto.statusText,
+      statusDate: now,
+      sendDate: now,
       location: this.loc(dto.location),
     });
 
@@ -175,7 +299,7 @@ export class FahrerTelematicsService {
       data: {
         status: dto.status,
         statusText: dto.statusText || null,
-        lastStatusAt: new Date(),
+        lastStatusAt: now,
         ...(dto.location
           ? {
               lastLatitude: dto.location.latitude,
@@ -189,7 +313,11 @@ export class FahrerTelematicsService {
   }
 
   async sendDocument(driver: DriverAuthUser, dto: DocumentDto) {
-    return this.outbound.sendDocument({
+    if (!dto.contentBase64?.trim()) {
+      throw new BadRequestException('contentBase64 fehlt');
+    }
+
+    const written = this.outbound.sendDocument({
       vehicleId: driver.vehicleSoloplanId,
       tourNumber: dto.tourNumber,
       transportOrderNumber: dto.transportOrderNumber,
@@ -198,6 +326,110 @@ export class FahrerTelematicsService {
       contentBase64: dto.contentBase64,
       fileSignature: dto.fileSignature,
     });
+
+    const buffer = Buffer.from(dto.contentBase64.replace(/\s/g, ''), 'base64');
+    const dir = join(this.uploadDir(), 'telematics', 'vlbportal');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const safe = `${Date.now()}_${dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storagePath = join(dir, safe);
+    writeFileSync(storagePath, buffer);
+
+    const tour = dto.tourNumber
+      ? await this.prisma.tour.findFirst({
+          where: { organizationId: driver.organizationId, tourNumber: dto.tourNumber },
+          orderBy: { updatedAt: 'desc' },
+        })
+      : null;
+
+    const tourDoc = await this.prisma.tourDocument.create({
+      data: {
+        organizationId: driver.organizationId,
+        tourId: tour?.id,
+        tourNumber: dto.tourNumber,
+        transportOrderNumber: dto.transportOrderNumber,
+        vehicleSoloplanId: driver.vehicleSoloplanId,
+        fileName: dto.fileName,
+        mimeType: this.mimeFromName(dto.fileName),
+        storagePath,
+        sizeBytes: buffer.length,
+        sourceFile: `vlbportal:${written.fileName}`,
+      },
+    });
+
+    let ablieferbeleg: Awaited<
+      ReturnType<DocumentsService['generateDeliveryReceiptFromSignature']>
+    > | null = null;
+    let zustellnachweis: Awaited<
+      ReturnType<TelematicsService['createZustellnachweisFromSignature']>
+    > | null = null;
+
+    const isSignature =
+      isSignatureDocumentName(dto.fileName) ||
+      this.mimeFromName(dto.fileName).startsWith('image/');
+    const signedByName = dto.signedByName || this.signedByFromFileName(dto.fileName);
+    const signedAt = dto.signedAt ? new Date(dto.signedAt) : new Date();
+
+    if (isSignature && !/^Signature_KeinTausch/i.test(dto.fileName)) {
+      try {
+        ablieferbeleg = await this.documents.generateDeliveryReceiptFromSignature({
+          organizationId: driver.organizationId,
+          transportOrderNumber: dto.transportOrderNumber,
+          tourNumber: dto.tourNumber,
+          tourStopId: dto.tourStopId,
+          signaturePath: storagePath,
+          signatureFileName: dto.fileName,
+          signedByName,
+          signedAt,
+        });
+      } catch (err: any) {
+        // Tour-Sendungen ohne Portal-Shipment → Zustellnachweis (TourDocument)
+        this.log.debug(
+          `Portal-Ablieferbeleg nicht möglich (${err?.message || err}) – Zustellnachweis`,
+        );
+      }
+
+      try {
+        zustellnachweis = await this.telematics.createZustellnachweisFromSignature({
+          organizationId: driver.organizationId,
+          signatureDocId: tourDoc.id,
+          signedByName,
+          signedAt,
+        });
+      } catch (err: any) {
+        this.log.warn(`Zustellnachweis/Ablieferbeleg fehlgeschlagen: ${err?.message || err}`);
+      }
+
+      const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
+      const pdfPath = ablieferbeleg?.fileName
+        ? join(this.uploadDir(), ablieferbeleg.fileName)
+        : zustellnachweis?.storagePath;
+      if (pdfFileName && pdfPath && existsSync(pdfPath)) {
+        try {
+          this.outbound.sendDocument({
+            vehicleId: driver.vehicleSoloplanId,
+            tourNumber: dto.tourNumber,
+            transportOrderNumber: dto.transportOrderNumber,
+            tourStopId: dto.tourStopId,
+            fileName: pdfFileName,
+            contentBase64: readFileSync(pdfPath).toString('base64'),
+          });
+        } catch (err: any) {
+          this.log.warn(`Ablieferbeleg-Outbound fehlgeschlagen: ${err?.message || err}`);
+        }
+      }
+    }
+
+    return {
+      ...written,
+      tourDocumentId: tourDoc.id,
+      ablieferbeleg,
+      zustellnachweis: zustellnachweis
+        ? {
+            documentId: zustellnachweis.documentId,
+            fileName: zustellnachweis.fileName,
+          }
+        : null,
+    };
   }
 
   async sendSsccStatus(driver: DriverAuthUser, dto: SsccStatusDto) {
@@ -238,7 +470,6 @@ export class FahrerTelematicsService {
       },
     });
 
-    // Bei offener Verzollung GPS auch an SmartBorder (Warenort-Geofence)
     try {
       const sb = await this.smartborder.forwardLocation(driver, {
         latitude: dto.location.latitude,

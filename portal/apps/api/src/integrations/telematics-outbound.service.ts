@@ -19,6 +19,7 @@ import {
   OutVehicleLocations,
   OutMessage,
 } from './telematics-xml.builder';
+import { formatZurichFileStamp } from '../common/zurich-date';
 
 /**
  * Schreibt StdTelematics-Rückmeldungen in den SFTP-Outbound.
@@ -78,7 +79,7 @@ export class TelematicsOutboundService {
 
   private write(kind: string, xml: string, vehicleId: string, ref?: string) {
     this.ensureOutDir();
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const stamp = formatZurichFileStamp();
     const safeRef = (ref || 'na').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
     const fileName = `StdTelematics_${kind}_${safeRef}_${stamp}.xml`;
     const full = join(this.outDir, fileName);
@@ -106,7 +107,7 @@ export class TelematicsOutboundService {
    */
   writeRawXml(kind: string, xml: string, preferredName?: string) {
     this.ensureOutDir();
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const stamp = formatZurichFileStamp();
     const base = (preferredName || `StdTelematics_${kind}_${stamp}.xml`)
       .replace(/[/\\]/g, '_')
       .replace(/[^\w.\-]+/g, '_');

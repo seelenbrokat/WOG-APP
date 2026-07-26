@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { FahrerController } from './fahrer.controller';
 import { FahrerAuthService } from './fahrer-auth.service';
 import { FahrerToursService } from './fahrer-tours.service';
@@ -12,7 +13,8 @@ import { FahrerAuthGuard } from './fahrer-auth.guard';
 
 @Module({
   imports: [
-    IntegrationsModule,
+    forwardRef(() => IntegrationsModule),
+    forwardRef(() => DocumentsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

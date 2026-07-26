@@ -30,6 +30,8 @@ export type ZustellnachweisInput = {
     label: string;
   }>;
   companyLine?: string;
+  /** PDF-Titel, Standard: Digitaler Zustellnachweis */
+  title?: string;
 };
 
 const FOOTER_LEFT = 'WOG Logistics AG · Wildenaustraße 22 · 9444 Diepoldsau';
@@ -221,7 +223,7 @@ export function writeZustellnachweisPdf(
       size: 'A4',
       bufferPages: true,
       info: {
-        Title: 'Digitaler Zustellnachweis',
+        Title: input.title || 'Ablieferbeleg',
         Author: 'WOG Logistics AG',
         Subject: input.transportOrderNumber || input.tourNumber || '',
       },
@@ -230,7 +232,7 @@ export function writeZustellnachweisPdf(
     doc.pipe(stream);
 
     drawA4BrandHeader(doc, {
-      title: 'Digitaler Zustellnachweis',
+      title: input.title || 'Ablieferbeleg',
       subtitle: 'WOG Logistics AG · World of Green Logistics',
     });
 

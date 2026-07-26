@@ -323,6 +323,8 @@ model TourConsignment {
   lastStatusAt               DateTime?
   lastLatitude               Float?
   lastLongitude              Float?
+  /// Lademittel laut Soloplan-Tour (Matchcode/Menge)
+  loadingUnits               Json?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
 

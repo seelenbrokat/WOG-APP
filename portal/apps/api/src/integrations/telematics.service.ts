@@ -834,8 +834,31 @@ export class TelematicsService {
   async generateZustellnachweis(user: AuthUser, docId: string) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
 
+    const created = await this.createZustellnachweisFromSignature({
+      organizationId: user.organizationId,
+      signatureDocId: docId,
+    });
+    const stream = createReadStream(created.storagePath);
+    return {
+      file: new StreamableFile(stream),
+      fileName: created.fileName,
+      mimeType: 'application/pdf',
+      documentId: created.documentId,
+    };
+  }
+
+  /**
+   * Ablieferbeleg/Zustellnachweis aus Unterschrift (VLB-Zustellapp / Dispo).
+   * Speichert als TourDocument – auch ohne Portal-Shipment.
+   */
+  async createZustellnachweisFromSignature(opts: {
+    organizationId: string;
+    signatureDocId: string;
+    signedByName?: string | null;
+    signedAt?: Date | null;
+  }) {
     const signatureDoc = await this.prisma.tourDocument.findFirst({
-      where: { id: docId, organizationId: user.organizationId },
+      where: { id: opts.signatureDocId, organizationId: opts.organizationId },
     });
     if (!signatureDoc || !existsSync(signatureDoc.storagePath)) {
       throw new NotFoundException('Unterschriftsdokument nicht gefunden');
@@ -845,14 +868,14 @@ export class TelematicsService {
     const tour =
       (signatureDoc.tourId
         ? await this.prisma.tour.findFirst({
-            where: { id: signatureDoc.tourId, organizationId: user.organizationId },
+            where: { id: signatureDoc.tourId, organizationId: opts.organizationId },
             include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
           })
         : null) ||
       (signatureDoc.tourNumber
         ? await this.prisma.tour.findFirst({
             where: {
-              organizationId: user.organizationId,
+              organizationId: opts.organizationId,
               tourNumber: signatureDoc.tourNumber,
             },
             include: { stops: { orderBy: { sequence: 'asc' } }, consignments: true },
@@ -908,7 +931,7 @@ export class TelematicsService {
     const events = eventOr.length
       ? await this.prisma.telematicsEvent.findMany({
           where: {
-            organizationId: user.organizationId,
+            organizationId: opts.organizationId,
             kind: { in: ['TransportOrderStatus', 'TourStatus', 'Document'] },
             OR: eventOr,
           },
@@ -917,7 +940,6 @@ export class TelematicsService {
         })
       : [];
 
-    // Für Status/Datum alle TO-Events nutzen; im PDF nur Ankunft + Zugestellt
     const toEvents = events.filter(
       (e) =>
         e.kind === 'TransportOrderStatus' &&
@@ -930,6 +952,7 @@ export class TelematicsService {
       ...toEvents.map((e) => e.status),
     ]);
     const deliveryAt =
+      opts.signedAt ||
       consignment?.lastStatusAt ||
       toEvents
         .filter((e) =>
@@ -940,7 +963,11 @@ export class TelematicsService {
         .pop() ||
       signatureDoc.createdAt;
 
-    const receiverName = consignment?.receiverName || unloadStop?.name || null;
+    const receiverName =
+      opts.signedByName ||
+      consignment?.receiverName ||
+      unloadStop?.name ||
+      null;
     const receiverAddress = unloadStop
       ? [unloadStop.street, [unloadStop.zip, unloadStop.city].filter(Boolean).join(' '), unloadStop.country]
           .filter(Boolean)
@@ -954,27 +981,29 @@ export class TelematicsService {
       : null;
 
     const loadingUnitExchange = await this.loadingUnits.resolveExchangeNote({
-      organizationId: user.organizationId,
+      organizationId: opts.organizationId,
       tourStopId: unloadStop?.id,
       tourStopExternalId: unloadStop?.soloplanTourStopId,
       tourId: tour?.id,
       tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
-      partnerName: receiverName,
+      partnerName: consignment?.receiverName || receiverName,
       transportOrderNumber: toNumber,
     });
 
     const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
     if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
     const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileName = `Zustellnachweis-${safeTo}.pdf`;
+    // Tour-Ablieferbeleg (ohne Portal-Shipment); Dateiname bewusst Ablieferbeleg
+    const fileName = `Ablieferbeleg-${safeTo}.pdf`;
     const storagePath = join(outDir, fileName);
 
     await writeZustellnachweisPdf(
       {
+        title: 'Ablieferbeleg',
         tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
         transportOrderNumber: toNumber || consignment?.soloplanOrderNumber,
         externalConsignmentNumber: consignment?.externalConsignmentNumber,
-        receiverName,
+        receiverName: consignment?.receiverName || unloadStop?.name || receiverName,
         receiverAddress,
         senderName,
         senderAddress,
@@ -988,14 +1017,16 @@ export class TelematicsService {
         signatureFileName: signatureDoc.fileName,
         loadingUnitExchange,
         events: timeline,
+        companyLine: opts.signedByName
+          ? `Empfangsbestätigung: ${opts.signedByName}`
+          : undefined,
       },
       storagePath,
     );
 
-    // Als TourDocument speichern (oder aktualisieren), damit es in der Tour sichtbar ist
     const existing = await this.prisma.tourDocument.findFirst({
       where: {
-        organizationId: user.organizationId,
+        organizationId: opts.organizationId,
         tourId: tour?.id || signatureDoc.tourId || undefined,
         fileName,
         mimeType: 'application/pdf',
@@ -1009,12 +1040,12 @@ export class TelematicsService {
             sizeBytes: statSync(storagePath).size,
             transportOrderNumber: toNumber,
             tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
-            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+            sourceFile: `ablieferbeleg:${signatureDoc.id}`,
           },
         })
       : await this.prisma.tourDocument.create({
           data: {
-            organizationId: user.organizationId,
+            organizationId: opts.organizationId,
             tourId: tour?.id || signatureDoc.tourId,
             tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
             transportOrderNumber: toNumber,
@@ -1022,16 +1053,15 @@ export class TelematicsService {
             mimeType: 'application/pdf',
             storagePath,
             sizeBytes: statSync(storagePath).size,
-            sourceFile: `zustellnachweis:${signatureDoc.id}`,
+            sourceFile: `ablieferbeleg:${signatureDoc.id}`,
           },
         });
 
-    const stream = createReadStream(storagePath);
     return {
-      file: new StreamableFile(stream),
-      fileName,
-      mimeType: 'application/pdf',
       documentId: pdfDoc.id,
+      fileName,
+      storagePath,
+      mimeType: 'application/pdf' as const,
     };
   }
 }

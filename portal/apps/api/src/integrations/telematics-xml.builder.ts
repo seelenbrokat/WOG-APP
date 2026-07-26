@@ -7,6 +7,8 @@
  * VehicleId in den XMLs bleibt die echte Soloplan-Fahrzeug-ID (z. B. 103).
  */
 
+import { formatZurichStatusDate } from '../common/zurich-date';
+
 export const TELEMATTICS_NS = 'http://www.soloplan.de/StdTelematics';
 
 /** Name der Soloplan-Telematikkonfiguration (kein Fahrzeug) */
@@ -20,8 +22,17 @@ function esc(v: string | number | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-function iso(d: Date = new Date()): string {
+/** SendDate: UTC mit Z (Soloplan-Upload-Zeit). */
+function isoUtc(d: Date = new Date()): string {
   return d.toISOString();
+}
+
+/**
+ * StatusDate / LocationDate: lokale Europe/Zurich-Zeit ohne Z.
+ * UTC-Z auf StatusDate erscheint in Soloplan oft zwei Stunden zu spät (MESZ).
+ */
+function isoStatus(d: Date = new Date()): string {
+  return formatZurichStatusDate(d);
 }
 
 function requireVehicleId(vehicleId: string | undefined | null): string {
@@ -41,11 +52,12 @@ function geoXml(loc?: { latitude: number; longitude: number; information?: strin
   if (!loc) return '';
   return `
   <VehicleLocation>
-    <LocationDate>${esc(iso(loc.at || new Date()))}</LocationDate>
+    <LocationDate>${esc(isoStatus(loc.at || new Date()))}</LocationDate>
     <GeoCoordinate>
       <Longitude>${esc(loc.longitude)}</Longitude>
       <Latitude>${esc(loc.latitude)}</Latitude>
     </GeoCoordinate>
+    <TimeZone>Europe/Zurich</TimeZone>
     ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
   </VehicleLocation>`;
 }
@@ -75,8 +87,8 @@ export function buildTourStatusXml(input: OutTourStatus): string {
 <TourStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   <VehicleId>${esc(vehicleId)}</VehicleId>
 ${driver}
-  <SendDate>${esc(iso(sendDate))}</SendDate>
-  <StatusDate>${esc(iso(statusDate))}</StatusDate>
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
   <TourNumber>${esc(input.tourNumber)}</TourNumber>
   <Status>${esc(input.status)}</Status>
   ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
@@ -139,8 +151,8 @@ export function buildTourStopStatusXml(input: OutTourStopStatus): string {
   <TourNumber>${esc(input.tourNumber)}</TourNumber>
   <VehicleId>${esc(vehicleId)}</VehicleId>
 ${driver}
-  <SendDate>${esc(iso(sendDate))}</SendDate>
-  <StatusDate>${esc(iso(statusDate))}</StatusDate>
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
   <Status>${esc(input.status)}</Status>
   ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
 ${luXml}
@@ -183,8 +195,8 @@ export function buildTransportOrderStatusXml(input: OutTransportOrderStatus): st
 <TransportOrderStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   <VehicleId>${esc(vehicleId)}</VehicleId>
 ${driver}
-  <SendDate>${esc(iso(sendDate))}</SendDate>
-  <StatusDate>${esc(iso(statusDate))}</StatusDate>
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
   <TransportOrderNumber>${esc(input.transportOrderNumber)}</TransportOrderNumber>
   <Status>${esc(input.status)}</Status>
   ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
@@ -246,7 +258,7 @@ export function buildSsccStatusXml(input: OutSsccStatus): string {
       return `    <Sscc>
       <Code>${esc(s.code)}</Code>
       ${s.status != null ? `<Status>${esc(s.status)}</Status>` : ''}
-      <StatusTimestamp>${esc(iso(ts))}</StatusTimestamp>
+      <StatusTimestamp>${esc(isoStatus(ts))}</StatusTimestamp>
       ${s.transportStatus != null ? `<TransportStatus>${esc(s.transportStatus)}</TransportStatus>` : ''}
       ${s.scanPoint ? `<ScanPoint>${esc(s.scanPoint)}</ScanPoint>` : ''}
       ${s.comment ? `<Comment>${esc(s.comment)}</Comment>` : ''}
@@ -286,11 +298,12 @@ export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
     .map((loc) => {
       const at = loc.at || new Date();
       return `  <VehicleLocation>
-    <LocationDate>${esc(iso(at))}</LocationDate>
+    <LocationDate>${esc(isoStatus(at))}</LocationDate>
     <GeoCoordinate>
       <Longitude>${esc(loc.longitude)}</Longitude>
       <Latitude>${esc(loc.latitude)}</Latitude>
     </GeoCoordinate>
+    <TimeZone>Europe/Zurich</TimeZone>
     ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
   </VehicleLocation>`;
     })
@@ -300,7 +313,7 @@ export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
   <VehicleId>${esc(vehicleId)}</VehicleId>
   ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
   ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
-  <SendDate>${esc(iso(new Date()))}</SendDate>
+  <SendDate>${esc(isoUtc(new Date()))}</SendDate>
 ${locs}
 </VehicleLocations>
 `;
@@ -326,7 +339,7 @@ export function buildMessageXml(input: OutMessage): string {
   <VehicleId>${esc(vehicleId)}</VehicleId>
   ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
   ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
-  <SendDate>${esc(iso(sendDate))}</SendDate>
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
   <Text>${esc(input.text)}</Text>
 </Message>
 `;

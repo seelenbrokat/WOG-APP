@@ -18,7 +18,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
-import { drawA4BrandHeader, drawA4Footer, drawLoadingUnitExchangeBox } from '../common/pdf-brand';
+import {
+  drawA4BrandHeader,
+  drawA4Footer,
+  drawLoadingUnitExchangeBox,
+  formatPdfDateTime,
+} from '../common/pdf-brand';
 import { SoloplanService } from '../integrations/soloplan.service';
 import {
   LoadingUnitExchangeNote,
@@ -459,7 +464,7 @@ export class DocumentsService {
         doc.fontSize(12).fillColor('#111').text('Empfangsbestätigung (digital)');
         if (signature.signedByName) doc.text(`Empfänger: ${signature.signedByName}`);
         if (signature.signedAt) {
-          doc.text(`Datum: ${signature.signedAt.toLocaleString('de-CH')}`);
+          doc.text(`Datum: ${formatPdfDateTime(signature.signedAt)}`);
         }
         doc.moveDown(0.5);
         const left = doc.page.margins.left;

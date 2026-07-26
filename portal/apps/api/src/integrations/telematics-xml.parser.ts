@@ -5,6 +5,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
+import { parseTelematicsDateTime } from '../common/zurich-date';
 
 export type GeoPoint = { latitude: number; longitude: number; locationAt?: Date; timeZone?: string };
 
@@ -156,8 +157,7 @@ function intOrZero(v: unknown): number {
 function dt(v: unknown): Date | undefined {
   const s = str(v);
   if (!s) return undefined;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  return parseTelematicsDateTime(s);
 }
 
 function parseLocation(node: Record<string, unknown> | undefined): GeoPoint | undefined {
