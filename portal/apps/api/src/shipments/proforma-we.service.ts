@@ -136,7 +136,12 @@ export class ProformaWeService {
 
     for (const dir of [this.inboundDir, this.legacyInboundDir]) {
       if (!existsSync(dir)) continue;
-      const files = readdirSync(dir).filter((f) => /\.(pdf|txt)$/i.test(f));
+      const files = readdirSync(dir).filter((f) => {
+        if (!/\.(pdf|txt)$/i.test(f)) return false;
+        // Soloplan-Fehlerlogs / Telematik-Reports ≠ Proforma
+        if (/^fehler_/i.test(f) || /telematik/i.test(f)) return false;
+        return true;
+      });
       for (const fileName of files) {
         const full = join(dir, fileName);
         try {

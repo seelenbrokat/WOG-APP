@@ -294,34 +294,37 @@ export type OutVehicleLocations = {
 
 export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
   const vehicleId = requireVehicleId(input.vehicleId);
+  // Soloplan-XSD: VehicleLocations → VehicleId, DriverId?, Locations/Location… (kein SendDate!)
   const locs = input.locations
     .map((loc) => {
       const at = loc.at || new Date();
-      return `  <VehicleLocation>
-    <LocationDate>${esc(isoStatus(at))}</LocationDate>
-    <GeoCoordinate>
-      <Longitude>${esc(loc.longitude)}</Longitude>
-      <Latitude>${esc(loc.latitude)}</Latitude>
-    </GeoCoordinate>
-    <TimeZone>Europe/Zurich</TimeZone>
-    ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
-  </VehicleLocation>`;
+      return `    <Location>
+      <LocationDate>${esc(isoStatus(at))}</LocationDate>
+      <GeoCoordinate>
+        <Longitude>${esc(loc.longitude)}</Longitude>
+        <Latitude>${esc(loc.latitude)}</Latitude>
+      </GeoCoordinate>
+      ${loc.information ? `<Information>${esc(loc.information)}</Information>` : '<Information xsi:nil="true" />'}
+      <TimeZone>Europe/Zurich</TimeZone>
+    </Location>`;
     })
     .join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <VehicleLocations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   <VehicleId>${esc(vehicleId)}</VehicleId>
   ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
-  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
-  <SendDate>${esc(isoUtc(new Date()))}</SendDate>
+  <Locations>
 ${locs}
+  </Locations>
 </VehicleLocations>
 `;
 }
 
 /**
- * Freitext-Chat Fahrer ↔ Disposition (StdTelematics Message).
- * Mapping kann Soloplan-seitig für VLBPortal angepasst werden.
+ * Freitext-Chat Fahrer ↔ Disposition.
+ * Achtung: Soloplan CarLo Automate (StandardTelematicsJob) kennt kein Root-Element
+ * „Message“ im XSD → Dateien werden mit „element is not declared“ abgelehnt.
+ * Chat bleibt lokal im Portal; Soloplan-Upload nur wenn Mapping freigeschaltet.
  */
 export type OutMessage = {
   vehicleId: string;
