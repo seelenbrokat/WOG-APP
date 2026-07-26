@@ -1,0 +1,1278 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TourData xmlns="http://soloplan.de/SoloplanTourInOutBTSwiss.v3">
+  <Header>
+    <SendDate>2026-07-26T11:15:16</SendDate>
+    <ExportItemReference>86ad48c4-0b15-4653-98ac-ce8bce122f2e</ExportItemReference>
+  </Header>
+  <Tour>
+    <TourNumber>184491</TourNumber>
+    <ExtTourNumber>56440</ExtTourNumber>
+    <PlannedStartTime>2026-07-24T08:00:00</PlannedStartTime>
+    <PlannedEndTime>2026-07-24T08:00:00</PlannedEndTime>
+    <TourStatus>3</TourStatus>
+    <Organisation>
+      <Number>2</Number>
+      <Matchcode>WOGDIEPO</Matchcode>
+      <Designation>WOG Logistics AG</Designation>
+      <Client>
+        <Id>2</Id>
+        <Matchcode>WOGDIEPO</Matchcode>
+        <Name1>WOG Logistics AG</Name1>
+        <BusinessPartner>
+          <BusinessPartnerId>2</BusinessPartnerId>
+          <Matchcode>WOGDIEPO</Matchcode>
+          <Name1>WOG Logistics AG</Name1>
+          <Street>Wildenaustraße</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </BusinessPartner>
+      </Client>
+    </Organisation>
+    <Carrier>
+      <BusinessPartnerId>2853</BusinessPartnerId>
+      <Matchcode>BTDIELS</Matchcode>
+      <Name1>BT SWISS AG</Name1>
+      <Name2>Transport &amp; Logistik</Name2>
+      <Street>Industriestrasse</Street>
+      <HouseNumber>28</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>8157</ZipCode>
+      <City1>Dielsdorf</City1>
+    </Carrier>
+    <Truck>
+      <Number>66</Number>
+      <LicensePlate>BT-SWISS</LicensePlate>
+      <Matchcode>BTSWISS</Matchcode>
+    </Truck>
+    <Driver1>
+      <FirstName>Btswiss</FirstName>
+      <LastName>BT-Swiss</LastName>
+    </Driver1>
+    <TransportOrders>
+      <TransportOrderNumber>942216</TransportOrderNumber>
+      <Sender>
+        <Name1>Muparo AG</Name1>
+        <Street>Bahnhofstrasse</Street>
+        <HouseNumber>34</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9470</ZipCode>
+        <City1>Buchs (SG)</City1>
+        <City2>Buchs SG</City2>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>833</BusinessPartnerId>
+          <Matchcode>MUPARBUCHS</Matchcode>
+          <Name1>Muparo AG</Name1>
+          <Street>Bahnhofstrasse</Street>
+          <HouseNumber>34</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9470</ZipCode>
+          <City1>Buchs (SG)</City1>
+          <City2>Buchs SG</City2>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>Müroll GmbH</Name1>
+        <Name2>Klebebänder/Papierrollen/Etiketten</Name2>
+        <Street>Satteinser Straße</Street>
+        <HouseNumber>12</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6820</ZipCode>
+        <City1>Frastanz</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>834</BusinessPartnerId>
+          <Matchcode>MÜROLFRAST</Matchcode>
+          <Name1>Müroll GmbH</Name1>
+          <Name2>Klebebänder/Papierrollen/Etiketten</Name2>
+          <Street>Satteinser Straße</Street>
+          <HouseNumber>12</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6820</ZipCode>
+          <City1>Frastanz</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>IKEA AG</Name1>
+        <Street>Moorstrasse</Street>
+        <HouseNumber>3</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>8305</ZipCode>
+        <City1>Dietlikon</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2002616</BusinessPartnerId>
+          <Matchcode>IKEADIETL</Matchcode>
+          <Name1>IKEA AG</Name1>
+          <Street>Moorstrasse</Street>
+          <HouseNumber>3</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>8305</ZipCode>
+          <City1>Dietlikon</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>1</LoadingSequenceNumber>
+      <DeliverySequenceNumber>2</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <ArticleNumber>6</ArticleNumber>
+        <Package>
+          <Number>3</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europal.</Designation>
+        </Package>
+        <Content1>= 72 Krt</Content1>
+        <StoragePlaces>1</StoragePlaces>
+        <Mark>114200</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>493</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>493</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>493</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>1.2</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+          <HeightInMeters>0</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>2</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europalette</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <Information>
+        <Info9>EUP 0</Info9>
+      </Information>
+      <SenderInfo2>IKEA AG-CH-8305-Dietlikon</SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439199</OrderNumberPart1>
+        <OrderNumberPart2>4</OrderNumberPart2>
+        <ExternalOrderNumber1>Zollakt</ExternalOrderNumber1>
+        <ExternalOrderNumber2>114200</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-28T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942280</TransportOrderNumber>
+      <Sender>
+        <Name1>Muparo AG</Name1>
+        <Street>Bahnhofstrasse</Street>
+        <HouseNumber>34</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9470</ZipCode>
+        <City1>Buchs (SG)</City1>
+        <City2>Buchs SG</City2>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>833</BusinessPartnerId>
+          <Matchcode>MUPARBUCHS</Matchcode>
+          <Name1>Muparo AG</Name1>
+          <Street>Bahnhofstrasse</Street>
+          <HouseNumber>34</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9470</ZipCode>
+          <City1>Buchs (SG)</City1>
+          <City2>Buchs SG</City2>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>Logett GmbH</Name1>
+        <Street>Sonnenberger Straße</Street>
+        <HouseNumber>27a</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6820</ZipCode>
+        <City1>Frastanz</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>1818</BusinessPartnerId>
+          <Matchcode>LOGETFRAST</Matchcode>
+          <Name1>Logett GmbH</Name1>
+          <Street>Sonnenberger Straße</Street>
+          <HouseNumber>27a</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6820</ZipCode>
+          <City1>Frastanz</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>Coop</Name1>
+        <Street>Rte. de la Plaine</Street>
+        <HouseNumber>4</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>1123</ZipCode>
+        <City1>Aclens</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2001062</BusinessPartnerId>
+          <Matchcode>COOPACLEN</Matchcode>
+          <Name1>Coop</Name1>
+          <Street>Rte. de la Plaine</Street>
+          <HouseNumber>4</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>1123</ZipCode>
+          <City1>Aclens</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>13</LoadingSequenceNumber>
+      <DeliverySequenceNumber>14</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <ArticleNumber>6</ArticleNumber>
+        <Package>
+          <Number>3</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europal.</Designation>
+        </Package>
+        <Content1>= 12 Krt</Content1>
+        <StoragePlaces>1</StoragePlaces>
+        <Mark>114166</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>225</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>250</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>225</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>1.2</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+          <HeightInMeters>0</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>2</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europalette</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <Information>
+        <Info9>EUP 0</Info9>
+      </Information>
+      <SenderInfo2>Coop-CH-1123-Aclens</SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439254</OrderNumberPart1>
+        <OrderNumberPart2>6</OrderNumberPart2>
+        <ExternalOrderNumber1>Zollakt</ExternalOrderNumber1>
+        <ExternalOrderNumber2>114168</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-28T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942283</TransportOrderNumber>
+      <Sender>
+        <Name1>Muparo AG</Name1>
+        <Street>Bahnhofstrasse</Street>
+        <HouseNumber>34</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9470</ZipCode>
+        <City1>Buchs (SG)</City1>
+        <City2>Buchs SG</City2>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>833</BusinessPartnerId>
+          <Matchcode>MUPARBUCHS</Matchcode>
+          <Name1>Muparo AG</Name1>
+          <Street>Bahnhofstrasse</Street>
+          <HouseNumber>34</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9470</ZipCode>
+          <City1>Buchs (SG)</City1>
+          <City2>Buchs SG</City2>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>Logett GmbH</Name1>
+        <Street>Sonnenberger Straße</Street>
+        <HouseNumber>27a</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6820</ZipCode>
+        <City1>Frastanz</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>1818</BusinessPartnerId>
+          <Matchcode>LOGETFRAST</Matchcode>
+          <Name1>Logett GmbH</Name1>
+          <Street>Sonnenberger Straße</Street>
+          <HouseNumber>27a</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6820</ZipCode>
+          <City1>Frastanz</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>Coop NVZ Jumbo</Name1>
+        <Street>Industriestrasse</Street>
+        <HouseNumber>9</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>4625</ZipCode>
+        <City1>Oberbuchsiten</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2023362</BusinessPartnerId>
+          <Matchcode>COOPOBERB</Matchcode>
+          <Name1>Coop NVZ Jumbo</Name1>
+          <Street>Industriestrasse</Street>
+          <HouseNumber>9</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>4625</ZipCode>
+          <City1>Oberbuchsiten</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>11</LoadingSequenceNumber>
+      <DeliverySequenceNumber>12</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <ArticleNumber>6</ArticleNumber>
+        <Package>
+          <Number>3</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europal.</Designation>
+        </Package>
+        <Content1>= 16 Krt</Content1>
+        <StoragePlaces>1</StoragePlaces>
+        <Mark>114149</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>265</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>265</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>265</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>1.2</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+          <HeightInMeters>0</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>2</Number>
+          <Matchcode>EUP</Matchcode>
+          <Designation>Europalette</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <SenderInfo2>Coop NVZ Jumbo-CH-4625-Oberbuchsiten</SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439254</OrderNumberPart1>
+        <OrderNumberPart2>3</OrderNumberPart2>
+        <ExternalOrderNumber1>Zollakt</ExternalOrderNumber1>
+        <ExternalOrderNumber2>114149</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-27T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942284</TransportOrderNumber>
+      <Sender>
+        <Name1>Muparo AG</Name1>
+        <Street>Bahnhofstrasse</Street>
+        <HouseNumber>34</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9470</ZipCode>
+        <City1>Buchs (SG)</City1>
+        <City2>Buchs SG</City2>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>833</BusinessPartnerId>
+          <Matchcode>MUPARBUCHS</Matchcode>
+          <Name1>Muparo AG</Name1>
+          <Street>Bahnhofstrasse</Street>
+          <HouseNumber>34</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9470</ZipCode>
+          <City1>Buchs (SG)</City1>
+          <City2>Buchs SG</City2>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>Logett GmbH</Name1>
+        <Street>Sonnenberger Straße</Street>
+        <HouseNumber>27a</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6820</ZipCode>
+        <City1>Frastanz</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>1818</BusinessPartnerId>
+          <Matchcode>LOGETFRAST</Matchcode>
+          <Name1>Logett GmbH</Name1>
+          <Street>Sonnenberger Straße</Street>
+          <HouseNumber>27a</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6820</ZipCode>
+          <City1>Frastanz</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>Peyer Marking Romandie SA</Name1>
+        <Street>Chemin des Quatre-Vents 11 F</Street>
+        <Country>CH</Country>
+        <ZipCode>1166</ZipCode>
+        <City1>perroy</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2022421</BusinessPartnerId>
+          <Matchcode>PEYERPERRO</Matchcode>
+          <Name1>Peyer Marking Romandie SA</Name1>
+          <Street>Chemin des Quatre-Vents 11 F</Street>
+          <Country>CH</Country>
+          <ZipCode>1166</ZipCode>
+          <City1>perroy</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>15</LoadingSequenceNumber>
+      <DeliverySequenceNumber>16</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <Package>
+          <Number>7</Number>
+          <Matchcode>HP</Matchcode>
+          <Designation>Halbpal.</Designation>
+        </Package>
+        <Content1>= 6 Krt</Content1>
+        <StoragePlaces>0.5</StoragePlaces>
+        <Mark>114218</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>70</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>70</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>70</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>0.8</LengthInMeters>
+          <WidthInMeters>0.6</WidthInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>6</Number>
+          <Matchcode>HP</Matchcode>
+          <Designation>Halbpalette</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <SenderInfo2>Peyer Marking Romandie SA-CH-1166-perroy</SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439254</OrderNumberPart1>
+        <OrderNumberPart2>2</OrderNumberPart2>
+        <ExternalOrderNumber1>Zollakt</ExternalOrderNumber1>
+        <ExternalOrderNumber2>114218</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-28T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>937705</TransportOrderNumber>
+      <Sender>
+        <Name1>WOG Logistics AG</Name1>
+        <Street>Wildenaustraße</Street>
+        <HouseNumber>22</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9444</ZipCode>
+        <City1>Diepoldsau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2</BusinessPartnerId>
+          <Matchcode>WOGDIEPO</Matchcode>
+          <Name1>WOG Logistics AG</Name1>
+          <Street>Wildenaustraße</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>Unitec Energietechnik GmbH</Name1>
+        <Street>Lindauer Straße</Street>
+        <HouseNumber>29</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6911</ZipCode>
+        <City1>Lochau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>1313</BusinessPartnerId>
+          <Matchcode>UNITELOCHA</Matchcode>
+          <Name1>Unitec Energietechnik GmbH</Name1>
+          <Street>Lindauer Straße</Street>
+          <HouseNumber>29</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6911</ZipCode>
+          <City1>Lochau</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>Projekt 6161</Name1>
+        <Street>Hürdliweg 3</Street>
+        <HouseNumber>3</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>8155</ZipCode>
+        <City1>Nassenwil</City1>
+      </Receiver>
+      <LoadingSequenceNumber>9</LoadingSequenceNumber>
+      <DeliverySequenceNumber>10</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <ArticleNumber>7</ArticleNumber>
+        <Package>
+          <Number>2</Number>
+          <Matchcode>EWP</Matchcode>
+          <Designation>Einwegpal.</Designation>
+        </Package>
+        <Content1>EWS1 600 WP</Content1>
+        <Content2>300456.01</Content2>
+        <StoragePlaces>0.64</StoragePlaces>
+        <Mark>BK2601872</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>190.5</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>320</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>190.5</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>0.8</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+          <HeightInMeters>2.14</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>12</Number>
+          <Matchcode>EWP</Matchcode>
+          <Designation>Einwegpal.</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <SenderInfo1>Hoval AG8706 Feldmeilen Caroline Kind +41 44 925 6244 Auftragsnummer:  4502601636,  Kommissionsnummer1202119117 - 1101610627     Hürdliweg 3, 8155 Nassenwil</SenderInfo1>
+      <SenderInfo2>Projekt 6161-CH-8155-Nassenwil</SenderInfo2>
+      <ReceiverInfo1> Aviso für Lieferadresse, mind. 2 h vor Zustellung! +41432662288 Roger Meier
+Zustelltermin fix: 27.07.2026   bis 08:30 
+</ReceiverInfo1>
+      <AdditionalInformation>
+        <OrderNumberPart1>437091</OrderNumberPart1>
+        <OrderNumberPart2>1</OrderNumberPart2>
+        <ExternalOrderNumber1>TR2601769</ExternalOrderNumber1>
+        <ExternalOrderNumber2>BK2601872</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>true</CustomBool1>
+          <ConsignmentReference1>+41432662288</ConsignmentReference1>
+        </CustomTypeValues>
+        <ReceiverPhoneNumber>+41432662288</ReceiverPhoneNumber>
+        <Telephone>+41432662288</Telephone>
+        <LastName>Roger Meier</LastName>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-27T08:30:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942831</TransportOrderNumber>
+      <Sender>
+        <Name1>WOG Logistics AG</Name1>
+        <Street>Wildenaustrasse</Street>
+        <HouseNumber>22</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9444</ZipCode>
+        <City1>Diepoldsau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2006955</BusinessPartnerId>
+          <Matchcode>WOGLODIEPO</Matchcode>
+          <Name1>WOG Logistics AG</Name1>
+          <Street>Wildenaustrasse</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </OriginalBusinessPartner>
+      </Sender>
+      <Receiver>
+        <Name1>Ramseier AG</Name1>
+        <Street>Moosstrasse</Street>
+        <HouseNumber>2</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>3113</ZipCode>
+        <City1>Rubigen</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2010047</BusinessPartnerId>
+          <Matchcode>RAMSERUBIG</Matchcode>
+          <Name1>Ramseier AG</Name1>
+          <Street>Moosstrasse</Street>
+          <HouseNumber>2</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>3113</ZipCode>
+          <City1>Rubigen</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>7</LoadingSequenceNumber>
+      <DeliverySequenceNumber>8</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>3</Quantity>
+        <Package>
+          <Number>36</Number>
+          <Matchcode>BND</Matchcode>
+          <Designation>Bund</Designation>
+        </Package>
+        <Content1>Grundwetterschenkel</Content1>
+        <StoragePlaces>7</StoragePlaces>
+        <Mark>436745</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>1347.9</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>3600</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>1347.9</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>6.5</LengthInMeters>
+          <WidthInMeters>0.5</WidthInMeters>
+          <HeightInMeters>0.5</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+      </TransportOrderItems>
+      <SenderInfo1>EUP + Rahmen  tauschen
+keine prov. VZ mehr bis auf 
+Widerruf JW ab 08.01.24</SenderInfo1>
+      <SenderInfo2>Ramseier AG-CH-3113-Rubigen</SenderInfo2>
+      <ReceiverInfo1>Zustellung FIX 27.07.</ReceiverInfo1>
+      <AdditionalInformation>
+        <OrderNumberPart1>439066</OrderNumberPart1>
+        <OrderNumberPart2>1</OrderNumberPart2>
+        <ExternalOrderNumber1>5466</ExternalOrderNumber1>
+        <ExternalOrderNumber2>5466</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-27T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942833</TransportOrderNumber>
+      <Sender>
+        <Name1>WOG Logistics AG</Name1>
+        <Street>Wildenaustrasse</Street>
+        <HouseNumber>22</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9444</ZipCode>
+        <City1>Diepoldsau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2006955</BusinessPartnerId>
+          <Matchcode>WOGLODIEPO</Matchcode>
+          <Name1>WOG Logistics AG</Name1>
+          <Street>Wildenaustrasse</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </OriginalBusinessPartner>
+      </Sender>
+      <Receiver>
+        <Name1>SwissExtract AG</Name1>
+        <Street>Dorfstrasse</Street>
+        <HouseNumber>78</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>3216</ZipCode>
+        <City1>Ried bei Kerzers</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2018913</BusinessPartnerId>
+          <Matchcode>SWISSRIED</Matchcode>
+          <Name1>SwissExtract AG</Name1>
+          <Street>Dorfstrasse</Street>
+          <HouseNumber>78</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>3216</ZipCode>
+          <City1>Ried bei Kerzers</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>3</LoadingSequenceNumber>
+      <DeliverySequenceNumber>4</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>2</Quantity>
+        <Package>
+          <Number>1</Number>
+          <Matchcode>ENP</Matchcode>
+          <Designation>Euronormp.</Designation>
+        </Package>
+        <Content1>Verpackungsmaterial</Content1>
+        <StoragePlaces>2</StoragePlaces>
+        <Weights>
+          <EffectiveWeightInKilogram>220</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>220</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>220</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>1.2</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+          <HeightInMeters>1.1</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+      </TransportOrderItems>
+      <SenderInfo1>Wird von Morawa bei WOG angeliefert</SenderInfo1>
+      <SenderInfo2>SwissExtract AG-CH-3216-Ried bei Kerzers</SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439053</OrderNumberPart1>
+        <OrderNumberPart2>1</OrderNumberPart2>
+        <ExternalOrderNumber1>342-380959/381135</ExternalOrderNumber1>
+        <ExternalOrderNumber2>342-380959/381135</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-28T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>943024</TransportOrderNumber>
+      <Sender>
+        <Name1>Robotunits GmbH</Name1>
+        <Street>Doktor-Walter-Zumtobel-Straße</Street>
+        <HouseNumber>2</HouseNumber>
+        <Country>AT</Country>
+        <ZipCode>6850</ZipCode>
+        <City1>Dornbirn</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>505</BusinessPartnerId>
+          <Matchcode>ROBOTDORNB</Matchcode>
+          <Name1>Robotunits GmbH</Name1>
+          <Street>Doktor-Walter-Zumtobel-Straße</Street>
+          <HouseNumber>2</HouseNumber>
+          <Country>AT</Country>
+          <ZipCode>6850</ZipCode>
+          <City1>Dornbirn</City1>
+        </OriginalBusinessPartner>
+      </Sender>
+      <Receiver>
+        <Name1>Stöcklin Logistik AG</Name1>
+        <Street>Wahlenstrasse</Street>
+        <HouseNumber>161</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>4242</ZipCode>
+        <City1>Laufen</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2009117</BusinessPartnerId>
+          <Matchcode>STÖCKLAUFE</Matchcode>
+          <Name1>Stöcklin Logistik AG</Name1>
+          <Street>Wahlenstrasse</Street>
+          <HouseNumber>161</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>4242</ZipCode>
+          <City1>Laufen</City1>
+        </OriginalBusinessPartner>
+      </Receiver>
+      <LoadingSequenceNumber>17</LoadingSequenceNumber>
+      <DeliverySequenceNumber>18</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <ArticleNumber>7</ArticleNumber>
+        <Package>
+          <Number>2</Number>
+          <Matchcode>EWP</Matchcode>
+          <Designation>Einwegpal.</Designation>
+        </Package>
+        <Content1>Aluminiumprofile und/oder Zubehör</Content1>
+        <StoragePlaces>0.5</StoragePlaces>
+        <Mark>TRO4092049</Mark>
+        <Weights>
+          <EffectiveWeightInKilogram>22</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>22</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>22</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>0.8</LengthInMeters>
+          <WidthInMeters>0.6</WidthInMeters>
+          <HeightInMeters>0.35</HeightInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+        <LoadingUnitItemNumber>1</LoadingUnitItemNumber>
+      </TransportOrderItems>
+      <TransportOrderLoadingUnits>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <LoadingUnit>
+          <Number>12</Number>
+          <Matchcode>EWP</Matchcode>
+          <Designation>Einwegpal.</Designation>
+        </LoadingUnit>
+      </TransportOrderLoadingUnits>
+      <Information>
+        <Info5>Duplikat</Info5>
+      </Information>
+      <SenderInfo1>Beladezeiten:
+MO-DO: 08:00 - 12:00 / 13:00 - 16:00 Uhr
+Freitags nur bis 16:00 Uhr</SenderInfo1>
+      <SenderInfo2>Stöcklin Logistik AG-CH-4242-Laufen</SenderInfo2>
+      <ReceiverInfo1>+41 61 705 82 50 +41 61 705 82 50 TRO4092049 Liefertermin: 2026-07-27 -</ReceiverInfo1>
+      <AdditionalInformation>
+        <OrderNumberPart1>439083</OrderNumberPart1>
+        <OrderNumberPart2>1</OrderNumberPart2>
+        <ExternalOrderNumber1>S260709069</ExternalOrderNumber1>
+        <ExternalOrderNumber2>K260703083</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-24T00:00:00</Start>
+      <End>2026-07-24T00:00:00</End>
+    </TransportOrders>
+    <TransportOrders>
+      <TransportOrderNumber>942815</TransportOrderNumber>
+      <Sender>
+        <Name1>A.Gasser Transport AG</Name1>
+        <Street>Wildenaustrasse</Street>
+        <HouseNumber>22</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9444</ZipCode>
+        <City1>Diepoldsau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>998</BusinessPartnerId>
+          <Matchcode>GASSEDIEPO</Matchcode>
+          <Name1>A.Gasser Transport AG</Name1>
+          <Street>Wildenaustrasse</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </OriginalBusinessPartner>
+      </Sender>
+      <DifferentLoadingPoint>
+        <Name1>WOG Logistics AG</Name1>
+        <Street>Wildenaustraße</Street>
+        <HouseNumber>22</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>9444</ZipCode>
+        <City1>Diepoldsau</City1>
+        <OriginalBusinessPartner>
+          <BusinessPartnerId>2</BusinessPartnerId>
+          <Matchcode>WOGDIEPO</Matchcode>
+          <Name1>WOG Logistics AG</Name1>
+          <Street>Wildenaustraße</Street>
+          <HouseNumber>22</HouseNumber>
+          <Country>CH</Country>
+          <ZipCode>9444</ZipCode>
+          <City1>Diepoldsau</City1>
+        </OriginalBusinessPartner>
+      </DifferentLoadingPoint>
+      <Receiver>
+        <Name1>Emmi Langnau AG</Name1>
+        <Street>Bahnhofstrasse</Street>
+        <HouseNumber>32</HouseNumber>
+        <Country>CH</Country>
+        <ZipCode>3550</ZipCode>
+        <City1>Langnau i. E. </City1>
+      </Receiver>
+      <LoadingSequenceNumber>5</LoadingSequenceNumber>
+      <DeliverySequenceNumber>6</DeliverySequenceNumber>
+      <TransportOrderItems>
+        <ItemNumber>1</ItemNumber>
+        <Quantity>1</Quantity>
+        <Package>
+          <Number>1</Number>
+          <Matchcode>ENP</Matchcode>
+          <Designation>Euronormp.</Designation>
+        </Package>
+        <Content1>Folien</Content1>
+        <StoragePlaces>1</StoragePlaces>
+        <Weights>
+          <EffectiveWeightInKilogram>540</EffectiveWeightInKilogram>
+          <FreightWeightInKilogram>540</FreightWeightInKilogram>
+          <CarrierWeightInKilogram>540</CarrierWeightInKilogram>
+        </Weights>
+        <Size>
+          <LengthInMeters>1.2</LengthInMeters>
+          <WidthInMeters>0.8</WidthInMeters>
+        </Size>
+        <DangerousGoods>
+          <AreDangerToEnvironment>false</AreDangerToEnvironment>
+          <LimitedAmount>false</LimitedAmount>
+        </DangerousGoods>
+      </TransportOrderItems>
+      <SenderInfo1>Tel.: +41 71 733 14 46
+Ab Lager WOG Diepoldsau</SenderInfo1>
+      <SenderInfo2>Emmi Langnau AG-CH-3550-Langnau i. E. </SenderInfo2>
+      <AdditionalInformation>
+        <OrderNumberPart1>439434</OrderNumberPart1>
+        <OrderNumberPart2>1</OrderNumberPart2>
+        <ExternalOrderNumber1>Langnau</ExternalOrderNumber1>
+        <ExternalOrderNumber2>Langnau</ExternalOrderNumber2>
+        <CustomTypeValues>
+          <CustomBool1>false</CustomBool1>
+        </CustomTypeValues>
+      </AdditionalInformation>
+      <Start>2026-07-27T00:00:00</Start>
+      <End>2026-07-27T00:00:00</End>
+    </TransportOrders>
+    <TourStops>
+      <Sequence>1</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>Muparo AG</Name1>
+      <Street>Bahnhofstrasse</Street>
+      <HouseNumber>34</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9470</ZipCode>
+      <City1>Buchs (SG)</City1>
+      <City2>Buchs SG</City2>
+      <GeoCoord>
+        <Latitude>47.39409</Latitude>
+        <Longitude>9.651744</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-24T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-24T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>942216</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>2</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>IKEA AG</Name1>
+      <Street>Moorstrasse</Street>
+      <HouseNumber>3</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>8305</ZipCode>
+      <City1>Dietlikon</City1>
+      <GeoCoord>
+        <Latitude>47.4137875</Latitude>
+        <Longitude>8.6222631</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-24T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-25T00:00:00</PlannedEndTime>
+      <DurationPlanned>00:00:00</DurationPlanned>
+      <TransportOrderNumber>942216</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>3</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>WOG Logistics AG</Name1>
+      <Street>Wildenaustrasse</Street>
+      <HouseNumber>22</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9444</ZipCode>
+      <City1>Diepoldsau</City1>
+      <GeoCoord>
+        <Latitude>47.3940899</Latitude>
+        <Longitude>9.6517444</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-25T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-26T00:00:00</PlannedEndTime>
+      <DurationPlanned>00:00:00</DurationPlanned>
+      <TransportOrderNumber>942833</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>4</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>SwissExtract AG</Name1>
+      <Street>Dorfstrasse</Street>
+      <HouseNumber>78</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>3216</ZipCode>
+      <City1>Ried bei Kerzers</City1>
+      <GeoCoord>
+        <Latitude>46.9520998</Latitude>
+        <Longitude>7.1876961</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-26T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <DurationPlanned>00:00:00</DurationPlanned>
+      <TransportOrderNumber>942833</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>5</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>A.Gasser Transport AG</Name1>
+      <Street>Wildenaustrasse</Street>
+      <HouseNumber>22</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9444</ZipCode>
+      <City1>Diepoldsau</City1>
+      <GeoCoord>
+        <Latitude>47.3935412</Latitude>
+        <Longitude>9.6545826</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>942815</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>6</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Emmi Langnau AG</Name1>
+      <Street>Bahnhofstrasse</Street>
+      <HouseNumber>32</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>3550</ZipCode>
+      <City1>Langnau i. E. </City1>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>942815</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>7</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>WOG Logistics AG</Name1>
+      <Street>Wildenaustrasse</Street>
+      <HouseNumber>22</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9444</ZipCode>
+      <City1>Diepoldsau</City1>
+      <GeoCoord>
+        <Latitude>47.3940899</Latitude>
+        <Longitude>9.6517444</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>942831</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>8</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Ramseier AG</Name1>
+      <Street>Moosstrasse</Street>
+      <HouseNumber>2</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>3113</ZipCode>
+      <City1>Rubigen</City1>
+      <GeoCoord>
+        <Latitude>46.8950467</Latitude>
+        <Longitude>7.5439869</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>942831</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>9</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>WOG Logistics AG</Name1>
+      <Street>Wildenaustraße</Street>
+      <HouseNumber>22</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9444</ZipCode>
+      <City1>Diepoldsau</City1>
+      <GeoCoord>
+        <Latitude>47.3940899</Latitude>
+        <Longitude>9.6517444</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T00:00:00</PlannedEndTime>
+      <TransportOrderNumber>937705</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>10</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Projekt 6161</Name1>
+      <Street>Hürdliweg 3</Street>
+      <HouseNumber>3</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>8155</ZipCode>
+      <City1>Nassenwil</City1>
+      <PlannedStartTime>2026-07-27T00:00:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T08:30:00</PlannedEndTime>
+      <DurationPlanned>08:30:00</DurationPlanned>
+      <TransportOrderNumber>937705</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>11</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>Muparo AG</Name1>
+      <Street>Bahnhofstrasse</Street>
+      <HouseNumber>34</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9470</ZipCode>
+      <City1>Buchs (SG)</City1>
+      <City2>Buchs SG</City2>
+      <GeoCoord>
+        <Latitude>47.39409</Latitude>
+        <Longitude>9.651744</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>942283</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>12</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Coop NVZ Jumbo</Name1>
+      <Street>Industriestrasse</Street>
+      <HouseNumber>9</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>4625</ZipCode>
+      <City1>Oberbuchsiten</City1>
+      <PlannedStartTime>2026-07-27T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>942283</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>13</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>Muparo AG</Name1>
+      <Street>Bahnhofstrasse</Street>
+      <HouseNumber>34</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9470</ZipCode>
+      <City1>Buchs (SG)</City1>
+      <City2>Buchs SG</City2>
+      <GeoCoord>
+        <Latitude>47.39409</Latitude>
+        <Longitude>9.651744</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-27T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>942280</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>14</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Coop</Name1>
+      <Street>Rte. de la Plaine</Street>
+      <HouseNumber>4</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>1123</ZipCode>
+      <City1>Aclens</City1>
+      <GeoCoord>
+        <Latitude>46.5678155</Latitude>
+        <Longitude>6.5099036</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-27T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-28T08:30:00</PlannedEndTime>
+      <DurationPlanned>00:00:00</DurationPlanned>
+      <TransportOrderNumber>942280</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>15</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>Muparo AG</Name1>
+      <Street>Bahnhofstrasse</Street>
+      <HouseNumber>34</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>9470</ZipCode>
+      <City1>Buchs (SG)</City1>
+      <City2>Buchs SG</City2>
+      <GeoCoord>
+        <Latitude>47.39409</Latitude>
+        <Longitude>9.651744</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-28T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-28T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>942284</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>16</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Peyer Marking Romandie SA</Name1>
+      <Street>Chemin des Quatre-Vents 11 F</Street>
+      <Country>CH</Country>
+      <ZipCode>1166</ZipCode>
+      <City1>perroy</City1>
+      <PlannedStartTime>2026-07-28T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-29T08:30:00</PlannedEndTime>
+      <DurationPlanned>00:00:00</DurationPlanned>
+      <TransportOrderNumber>942284</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>17</Sequence>
+      <Type>0</Type>
+      <ActivityDescription1>Ladung</ActivityDescription1>
+      <Name1>Robotunits GmbH</Name1>
+      <Street>Doktor-Walter-Zumtobel-Straße</Street>
+      <HouseNumber>2</HouseNumber>
+      <Country>AT</Country>
+      <ZipCode>6850</ZipCode>
+      <City1>Dornbirn</City1>
+      <GeoCoord>
+        <Latitude>47.4348355</Latitude>
+        <Longitude>9.7472632</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-29T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-29T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>943024</TransportOrderNumber>
+    </TourStops>
+    <TourStops>
+      <Sequence>18</Sequence>
+      <Type>1</Type>
+      <ActivityDescription1>Lieferung</ActivityDescription1>
+      <Name1>Stöcklin Logistik AG</Name1>
+      <Street>Wahlenstrasse</Street>
+      <HouseNumber>161</HouseNumber>
+      <Country>CH</Country>
+      <ZipCode>4242</ZipCode>
+      <City1>Laufen</City1>
+      <GeoCoord>
+        <Latitude>47.4098706</Latitude>
+        <Longitude>7.5095747</Longitude>
+      </GeoCoord>
+      <PlannedStartTime>2026-07-29T08:30:00</PlannedStartTime>
+      <PlannedEndTime>2026-07-29T08:30:00</PlannedEndTime>
+      <TransportOrderNumber>943024</TransportOrderNumber>
+    </TourStops>
+    <AdditionalInfo>
+      <Info15>BT</Info15>
+    </AdditionalInfo>
+    <Dispatcher>
+      <FirstName>Marcel</FirstName>
+      <LastName>Burtscher</LastName>
+      <EmailAddress>marcel.burtscher@worldofgreen.ch</EmailAddress>
+      <Phone>+41(71)7337700</Phone>
+      <Fax>+41(71)7337704</Fax>
+    </Dispatcher>
+  </Tour>
+</TourData>
