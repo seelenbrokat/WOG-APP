@@ -24,6 +24,8 @@ export class TourService {
       join(sftpInbound, 'soloplan', 'business-partners'),
       // Intouch liefert StdTelematics-Touren hierher
       join(sftpInbound, 'intouch', 'meldungen'),
+      // Soloplan legt Touren ggf. auch in die VLBPortal-Telematik-Inbox
+      join(sftpInbound, 'vlbportal', 'telematics'),
     ];
   }
 

@@ -321,6 +321,11 @@ export class FahrerTelematicsService {
 
     for (const fileName of files) {
       const full = join(this.appInboundDir, fileName);
+      const lower = fileName.toLowerCase();
+      // Tour-XMLs / Fahrzeugkonfiguration → TourService bzw. ignorieren (kein App-Status)
+      if (lower.includes('tour_') || lower.includes('vehicleconfiguration')) {
+        continue;
+      }
       try {
         const xml = readFileSync(full, 'utf8');
         const parsed = parseTelematicsXml(xml);
