@@ -302,12 +302,17 @@ code {
   color: #1a3648;
 }
 .btn-secondary:hover { background: var(--wog-blue); color: white; }
+/* Ghost auf hellem Content (Tabellen, Formulare) – lesbar */
 .btn-ghost {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  color: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
 }
-.btn-ghost:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.65); }
+.btn-ghost:hover {
+  background: var(--soft);
+  border-color: var(--wog-green);
+  color: var(--wog-green-deep);
+}
 .btn-danger { background: var(--danger); color: white; }
 
 /* ---------- App shell ---------- */
@@ -420,9 +425,15 @@ code {
 .sidebar .btn-ghost {
   margin-top: 0.85rem;
   width: 100%;
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
   font-size: 0.85rem;
   padding: 0.6rem 0.85rem;
+}
+.sidebar .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.65);
+  color: white;
 }
 
 .main {
