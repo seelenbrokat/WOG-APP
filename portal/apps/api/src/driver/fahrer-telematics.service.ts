@@ -29,7 +29,10 @@ import {
   parseTelematicsXml,
   ParsedTourStopStatus,
 } from '../integrations/telematics-xml.parser';
-import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
+import {
+  isSignatureDocumentName,
+  signedByFromSignatureFileName,
+} from '../integrations/zustellnachweis-pdf';
 
 /**
  * Nimmt Telematik-Status der VLB-Zustellapp entgegen:
@@ -222,6 +225,8 @@ export class FahrerTelematicsService {
 
     if (isSignature && !/^Signature_KeinTausch/i.test(body.fileName)) {
       const signedAt = body.signedAt ? new Date(body.signedAt) : new Date();
+      const signedByName =
+        body.signedByName || signedByFromSignatureFileName(body.fileName);
       try {
         ablieferbeleg = await this.documents.generateDeliveryReceiptFromSignature({
           organizationId: user.organizationId,
@@ -231,7 +236,7 @@ export class FahrerTelematicsService {
           tourStopId: body.tourStopId,
           signaturePath: storagePath,
           signatureFileName: body.fileName,
-          signedByName: body.signedByName,
+          signedByName,
           signedAt,
         });
       } catch (err: any) {
@@ -241,7 +246,7 @@ export class FahrerTelematicsService {
         zustellnachweis = await this.telematics.createZustellnachweisFromSignature({
           organizationId: user.organizationId,
           signatureDocId: tourDoc.id,
-          signedByName: body.signedByName,
+          signedByName,
           signedAt,
         });
         const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
