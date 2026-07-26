@@ -54,6 +54,12 @@ export type ParsedTourConsignment = {
   senderName?: string;
   senderBpNumber?: string;
   receiverName?: string;
+  /** TransportOrder.Customer – Auftraggeber (z. B. DHL Paket) */
+  customerName?: string;
+  customerBpNumber?: string;
+  /** TransportOrder.FreightPayer – Fallback Auftraggeber */
+  freightPayerName?: string;
+  freightPayerBpNumber?: string;
   loadingUnits?: Array<{ matchcode: string; quantity: number; description?: string }>;
 };
 
@@ -266,8 +272,15 @@ export function parseTourXml(xml: string, fileName?: string): ParsedTour | null 
       const order = o as Record<string, unknown>;
       const cd = (order.ConsignmentData || {}) as Record<string, unknown>;
       const od = (order.OrderData || {}) as Record<string, unknown>;
-      const sender = (order.Sender || {}) as Record<string, unknown>;
-      const receiver = (order.Receiver || {}) as Record<string, unknown>;
+      // Sender/Receiver können auf TO-Ebene oder in ConsignmentData liegen
+      const sender = (order.Sender ||
+        (cd as Record<string, unknown>).Sender ||
+        {}) as Record<string, unknown>;
+      const receiver = (order.Receiver ||
+        (cd as Record<string, unknown>).Receiver ||
+        {}) as Record<string, unknown>;
+      const customer = (order.Customer || {}) as Record<string, unknown>;
+      const freightPayer = (order.FreightPayer || {}) as Record<string, unknown>;
       const number = str(order.Number);
       if (!number) return null;
       const loadingUnits = parseLoadingUnits(order);
@@ -283,6 +296,10 @@ export function parseTourXml(xml: string, fileName?: string): ParsedTour | null 
         senderName: str(sender.Name1) || undefined,
         senderBpNumber: str(sender.BusinessPartnerNumber) || undefined,
         receiverName: str(receiver.Name1) || undefined,
+        customerName: str(customer.Name1) || undefined,
+        customerBpNumber: str(customer.BusinessPartnerNumber) || undefined,
+        freightPayerName: str(freightPayer.Name1) || undefined,
+        freightPayerBpNumber: str(freightPayer.BusinessPartnerNumber) || undefined,
         loadingUnits: loadingUnits.length ? loadingUnits : undefined,
       } as ParsedTourConsignment;
     })

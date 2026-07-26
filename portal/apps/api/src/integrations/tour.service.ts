@@ -252,6 +252,10 @@ export class TourService {
           senderName: c.senderName,
           senderBpNumber: c.senderBpNumber,
           receiverName: c.receiverName,
+          customerName: c.customerName,
+          customerBpNumber: c.customerBpNumber,
+          freightPayerName: c.freightPayerName,
+          freightPayerBpNumber: c.freightPayerBpNumber,
           loadingUnits: c.loadingUnits ?? undefined,
         })),
       });

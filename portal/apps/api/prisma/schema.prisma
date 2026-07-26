@@ -322,6 +322,12 @@ model TourConsignment {
   senderName                 String?
   senderBpNumber             String?
   receiverName               String?
+  /// Soloplan TransportOrder.Customer (Auftraggeber, z. B. DHL)
+  customerName               String?
+  customerBpNumber           String?
+  /// Soloplan TransportOrder.FreightPayer (Fallback Auftraggeber)
+  freightPayerName           String?
+  freightPayerBpNumber       String?
   /// LoadingStart | LoadingFinished | UnloadingStart | …
   status                     String?
   statusText                 String?
@@ -336,6 +342,7 @@ model TourConsignment {
   @@index([tourId])
   @@index([soloplanOrderNumber])
   @@index([orderNumber])
+  @@index([customerBpNumber])
 }
 
 /// Soloplan StdTelematics-Ereignis (TourStatus / TransportOrderStatus / Location)

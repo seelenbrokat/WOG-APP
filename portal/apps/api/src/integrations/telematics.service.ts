@@ -1004,9 +1004,16 @@ export class TelematicsService {
       signedByFromSignatureFileName(signatureDoc.fileName) ||
       null;
 
-    // Auftraggeber: Portal-Kunde falls vorhanden, sonst Absender / Mandant
-    let auftraggeber: string | null = null;
-    if (toNumber) {
+    // Auftraggeber: Soloplan Customer (z. B. DHL) > FreightPayer > Portal-Kunde > Absender
+    const consAny = consignment as {
+      customerName?: string | null;
+      freightPayerName?: string | null;
+    } | null;
+    let auftraggeber: string | null =
+      consAny?.customerName?.trim() ||
+      consAny?.freightPayerName?.trim() ||
+      null;
+    if (!auftraggeber && toNumber) {
       const portalShipment = await this.prisma.shipment.findFirst({
         where: {
           organizationId: opts.organizationId,
