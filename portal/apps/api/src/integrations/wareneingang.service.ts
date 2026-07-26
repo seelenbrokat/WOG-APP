@@ -542,6 +542,14 @@ export class WareneingangService {
       return { linked: false };
     }
 
+    // Soloplan Orga 1 = WOG GmbH (Mandant1) – im Portal deaktiviert, nicht importieren
+    if (parsed.orgaNumber === '1') {
+      this.logger.warn(
+        `Wareneingang übersprungen (OrgaNumber 1 / Mandant GMBH): ${parsed.orderNumber} (${sourceFile})`,
+      );
+      return { linked: false };
+    }
+
     const existing = await this.prisma.shipment.findFirst({
       where: {
         organizationId,
@@ -797,17 +805,17 @@ export class WareneingangService {
   }
 
   private async resolveMandant(organizationId: string, orgaNumber?: string) {
-    // OrgaNumber 2 ≈ WOG Logistics AG, 1 ≈ WOG GmbH (Soloplan-Org)
+    // OrgaNumber 2 ≈ WOG Logistics AG, 1 ≈ WOG GmbH (Soloplan-Org).
+    // Kein Fallback von inaktivem GMBH → AG (sonst werden Mandant1-Aufträge falsch importiert).
     const preferredCode = orgaNumber === '2' ? 'AG' : orgaNumber === '1' ? 'GMBH' : 'AG';
-    const mandant =
-      (await this.prisma.mandant.findFirst({
-        where: { organizationId, code: preferredCode, active: true },
-      })) ||
-      (await this.prisma.mandant.findFirst({
-        where: { organizationId, active: true },
-        orderBy: { code: 'asc' },
-      }));
-    if (!mandant) throw new Error('Kein Mandant für Wareneingang');
+    const mandant = await this.prisma.mandant.findFirst({
+      where: { organizationId, code: preferredCode, active: true },
+    });
+    if (!mandant) {
+      throw new Error(
+        `Kein aktiver Mandant für OrgaNumber ${orgaNumber || '–'} (${preferredCode})`,
+      );
+    }
     return mandant;
   }
 
