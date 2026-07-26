@@ -95,6 +95,15 @@ export type ParsedReceipt = {
   referenceId?: string;
 };
 
+export type ParsedMessage = {
+  kind: 'Message';
+  vehicleId?: string;
+  driverId?: string;
+  tourNumber?: string;
+  text?: string;
+  sendDate?: Date;
+};
+
 export type ParsedDriverActivities = {
   kind: 'DriverActivities';
   driverId?: string;
@@ -111,7 +120,8 @@ export type ParsedTelematics =
   | ParsedTelematicsDocument
   | ParsedSsccStatus
   | ParsedReceipt
-  | ParsedDriverActivities;
+  | ParsedDriverActivities
+  | ParsedMessage;
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
   if (v == null) return [];
@@ -174,6 +184,7 @@ export function detectTelematicsKind(fileName: string): ParsedTelematics['kind']
   if (lower.includes('_ssccstatus_')) return 'SsccStatus';
   if (lower.includes('_receipt_')) return 'Receipt';
   if (lower.includes('_driveractivities_')) return 'DriverActivities';
+  if (lower.includes('_message_')) return 'Message';
   return null;
 }
 
@@ -347,7 +358,19 @@ export function parseTelematicsXml(xml: string, fileName?: string): ParsedTelema
     };
   }
 
-  if (raw.DriverActivities) {
+  if (raw.Message) {
+    const n = raw.Message as Record<string, unknown>;
+    return {
+      kind: 'Message',
+      vehicleId: str(n.VehicleId) || undefined,
+      driverId: str(n.DriverId) || undefined,
+      tourNumber: str(n.TourNumber) || undefined,
+      text: str(n.Text) || str(n.StatusText) || str(n.MessageText) || undefined,
+      sendDate: dt(n.SendDate),
+    };
+  }
+
+    if (raw.DriverActivities) {
     const n = raw.DriverActivities as Record<string, unknown>;
     const activities = asArray(
       (n.Activities as Record<string, unknown> | undefined)?.Activity as

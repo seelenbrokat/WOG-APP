@@ -265,3 +265,70 @@ ${lines}
 </SsccStatus>
 `;
 }
+
+/** Appended builders for Zustell-App: VehicleLocations + Message (Chat) */
+
+export type OutVehicleLocations = {
+  vehicleId: string;
+  driverId?: string | null;
+  tourNumber?: string;
+  locations: Array<{
+    latitude: number;
+    longitude: number;
+    information?: string;
+    at?: Date;
+  }>;
+};
+
+export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const locs = input.locations
+    .map((loc) => {
+      const at = loc.at || new Date();
+      return `  <VehicleLocation>
+    <LocationDate>${esc(iso(at))}</LocationDate>
+    <GeoCoordinate>
+      <Longitude>${esc(loc.longitude)}</Longitude>
+      <Latitude>${esc(loc.latitude)}</Latitude>
+    </GeoCoordinate>
+    ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
+  </VehicleLocation>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<VehicleLocations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+  ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
+  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
+  <SendDate>${esc(iso(new Date()))}</SendDate>
+${locs}
+</VehicleLocations>
+`;
+}
+
+/**
+ * Freitext-Chat Fahrer ↔ Disposition (StdTelematics Message).
+ * Mapping kann Soloplan-seitig für VLBPortal angepasst werden.
+ */
+export type OutMessage = {
+  vehicleId: string;
+  driverId?: string | null;
+  tourNumber?: string;
+  text: string;
+  sendDate?: Date;
+};
+
+export function buildMessageXml(input: OutMessage): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const sendDate = input.sendDate || new Date();
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Message xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+  ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
+  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
+  <SendDate>${esc(iso(sendDate))}</SendDate>
+  <Text>${esc(input.text)}</Text>
+</Message>
+`;
+}
+

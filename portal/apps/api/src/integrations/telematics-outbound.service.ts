@@ -9,11 +9,15 @@ import {
   buildTourStatusXml,
   buildTourStopStatusXml,
   buildTransportOrderStatusXml,
+  buildVehicleLocationsXml,
+  buildMessageXml,
   OutDocument,
   OutSsccStatus,
   OutTourStatus,
   OutTourStopStatus,
   OutTransportOrderStatus,
+  OutVehicleLocations,
+  OutMessage,
 } from './telematics-xml.builder';
 
 /**
@@ -161,4 +165,14 @@ export class TelematicsOutboundService {
       input.transportOrderNumber,
     );
   }
+  sendVehicleLocations(input: OutVehicleLocations) {
+    const xml = buildVehicleLocationsXml(input);
+    return this.write('VehicleLocations', xml, input.vehicleId, input.tourNumber);
+  }
+
+  sendMessage(input: OutMessage) {
+    const xml = buildMessageXml(input);
+    return this.write('Message', xml, input.vehicleId, input.tourNumber || 'chat');
+  }
+
 }

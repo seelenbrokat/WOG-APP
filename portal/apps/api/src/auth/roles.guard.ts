@@ -14,6 +14,9 @@ export class RolesGuard implements CanActivate {
     ]);
     if (!roles?.length) return true;
     const { user } = context.switchToHttp().getRequest();
+    if (user?.typ === 'driver') {
+      throw new ForbiddenException('Keine Berechtigung für diese Aktion');
+    }
     if (!user || !roles.includes(user.role)) {
       throw new ForbiddenException('Keine Berechtigung für diese Aktion');
     }

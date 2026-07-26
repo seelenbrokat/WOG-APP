@@ -74,6 +74,7 @@ export class TelematicsService {
         ssccStatus: 0,
         receipts: 0,
         driverActivities: 0,
+      messages: 0,
         failed: 0,
       };
     }
@@ -88,6 +89,7 @@ export class TelematicsService {
       ssccStatus: 0,
       receipts: 0,
       driverActivities: 0,
+      messages: 0,
       failed: 0,
     };
 
@@ -160,6 +162,7 @@ export class TelematicsService {
         else if (result.kind === 'SsccStatus') counts.ssccStatus += 1;
         else if (result.kind === 'Receipt') counts.receipts += 1;
         else if (result.kind === 'DriverActivities') counts.driverActivities += 1;
+        else if (result.kind === 'Message') counts.messages += 1;
         renameSync(full, join(processedDir, `${Date.now()}_${fileName}`));
       } catch (err: any) {
         counts.failed += 1;
@@ -494,6 +497,49 @@ export class TelematicsService {
           statusText:
             [parsed.vehicleLicensePlate, statusText].filter(Boolean).join(' · ') || undefined,
           eventAt: primary?.end || primary?.start || new Date(),
+          sourceFile: fileName,
+        },
+      });
+      return parsed;
+    }
+
+    if (parsed.kind === 'Message') {
+      const vehicle = parsed.vehicleId
+        ? await this.resolveVehicle(organizationId, parsed.vehicleId, parsed.driverId)
+        : null;
+      let driverId: string | undefined;
+      if (parsed.driverId) {
+        const d = await this.prisma.driver.findFirst({
+          where: { organizationId, telematicsId: parsed.driverId },
+          select: { id: true },
+        });
+        driverId = d?.id;
+      }
+      const text = (parsed.text || '').trim();
+      if (text) {
+        await this.prisma.driverChatMessage.create({
+          data: {
+            organizationId,
+            vehicleId: vehicle?.id,
+            driverId,
+            driverTelematicsId: parsed.driverId || undefined,
+            tourNumber: parsed.tourNumber || undefined,
+            direction: 'IN',
+            text,
+            sourceFile: fileName,
+          },
+        });
+      }
+      await this.prisma.telematicsEvent.create({
+        data: {
+          organizationId,
+          kind: 'Message',
+          vehicleId: vehicle?.id,
+          tourNumber: parsed.tourNumber,
+          status: 'Message',
+          statusText: text.slice(0, 500) || undefined,
+          eventAt: parsed.sendDate || new Date(),
+          sendDate: parsed.sendDate,
           sourceFile: fileName,
         },
       });

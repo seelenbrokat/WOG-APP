@@ -49,6 +49,7 @@ export type ParsedTourConsignment = {
   senderName?: string;
   senderBpNumber?: string;
   receiverName?: string;
+  loadingUnits?: Array<{ matchcode: string; quantity: number; description?: string }>;
 };
 
 export type ParsedTour = {
@@ -140,6 +141,22 @@ function phoneFromStopLines(lines: unknown): string | undefined {
   return undefined;
 }
 
+
+function parseLoadingUnits(order: Record<string, unknown>) {
+  return asArray(order.LoadingUnits as Record<string, unknown> | Record<string, unknown>[] | undefined)
+    .map((lu) => {
+      const matchcode = str(lu.Matchcode);
+      const quantity = num(lu.Quantity) ?? 0;
+      if (!matchcode || quantity <= 0) return null;
+      return {
+        matchcode,
+        quantity,
+        description: str(lu.Description) || undefined,
+      };
+    })
+    .filter(Boolean) as Array<{ matchcode: string; quantity: number; description?: string }>;
+}
+
 export function parseTourXml(xml: string, fileName?: string): ParsedTour | null {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -227,12 +244,14 @@ export function parseTourXml(xml: string, fileName?: string): ParsedTour | null 
       const receiver = (order.Receiver || {}) as Record<string, unknown>;
       const number = str(order.Number);
       if (!number) return null;
+      const loadingUnits = parseLoadingUnits(order);
       return {
         soloplanOrderNumber: number,
         externalConsignmentNumber: str(cd.ExternalConsignmentNumber) || undefined,
         senderName: str(sender.Name1) || undefined,
         senderBpNumber: str(sender.BusinessPartnerNumber) || undefined,
         receiverName: str(receiver.Name1) || undefined,
+        loadingUnits: loadingUnits.length ? loadingUnits : undefined,
       } as ParsedTourConsignment;
     })
     .filter(Boolean) as ParsedTourConsignment[];

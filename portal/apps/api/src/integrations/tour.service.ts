@@ -248,6 +248,7 @@ export class TourService {
           senderName: c.senderName,
           senderBpNumber: c.senderBpNumber,
           receiverName: c.receiverName,
+          loadingUnits: c.loadingUnits ?? undefined,
         })),
       });
     }
