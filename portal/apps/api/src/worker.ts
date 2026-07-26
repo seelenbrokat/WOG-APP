@@ -38,15 +38,22 @@ async function bootstrap() {
   );
 
   let lastEtbPurgeAt = 0;
+  let ticking = false;
 
   const tick = async () => {
+    // Überlappende Ticks stapeln sonst Worker+Postgres-CPU
+    if (ticking) {
+      console.warn('Worker tick übersprungen – vorheriger Lauf noch aktiv');
+      return;
+    }
+    ticking = true;
     try {
       await partnerImport.processInbound();
       await businessPartners.processInboundDir();
       await masterData.processInboundDir();
       // Intouch-Ordner werden von Tour/Telematics/Wareneingang mitgelesen; Intouch katalogisiert danach
       await tours.processInboundDir();
-      await telematics.processInboundDir(undefined, 250);
+      await telematics.processInboundDir(undefined, 80);
       // VLB-Zustellapp → Soloplan-FTP (outbound/soloplan/telematics) + Lademittel/Ablieferbeleg
       const vlb = await fahrerTelematics.processAppInboundDir();
       if (vlb.processed || vlb.failed) {
@@ -73,7 +80,7 @@ async function bootstrap() {
           `Lademittelschein: ${lms.processed} verarbeitet, ${lms.failed} fehlgeschlagen`,
         );
       }
-      await intouch.processInboundDir(undefined, 200);
+      await intouch.processInboundDir(undefined, 50);
       await soloplan.syncPending();
       const archived = soloplan.archiveDownloadedOrders();
       if (archived.archived > 0) {
@@ -111,44 +118,50 @@ async function bootstrap() {
       }
     } catch (err) {
       console.error('Worker tick failed', err);
+    } finally {
+      ticking = false;
     }
   };
 
   await tick();
-  // Einmalig: archivierte WE-XML + Order-Feedback-JSON (ExternalNumber→OrderNumber) nachziehen
-  try {
-    const backfill = await wareneingang.reimportFromProcessed(undefined, 80);
-    if (backfill.processed || backfill.failed || backfill.linked) {
-      console.log(
-        `Wareneingang Reimport: ${backfill.processed} verarbeitet, ${backfill.linked || 0} verknüpft, ${backfill.failed} fehlgeschlagen`,
-      );
+
+  // Schwere Einmal-Backfills nur auf Anforderung (sonst nach jedem Deploy hohe CPU)
+  if (process.env.WORKER_STARTUP_BACKFILL === '1') {
+    try {
+      const backfill = await wareneingang.reimportFromProcessed(undefined, 40);
+      if (backfill.processed || backfill.failed || backfill.linked) {
+        console.log(
+          `Wareneingang Reimport: ${backfill.processed} verarbeitet, ${backfill.linked || 0} verknüpft, ${backfill.failed} fehlgeschlagen`,
+        );
+      }
+    } catch (err) {
+      console.error('Wareneingang Reimport failed', err);
     }
-  } catch (err) {
-    console.error('Wareneingang Reimport failed', err);
-  }
-  // Einmalig: zuvor als „sonstige“ archivierte SsccStatus/Receipt/DriverActivities
-  try {
-    const telematicsBackfill = await telematics.reimportUnrecognizedFromProcessed(undefined, 500);
-    if (telematicsBackfill.processed || telematicsBackfill.failed) {
-      console.log(
-        `Telematics Reimport: ${telematicsBackfill.processed} nachgezogen, ${telematicsBackfill.failed} fehlgeschlagen`,
-      );
+    try {
+      const telematicsBackfill = await telematics.reimportUnrecognizedFromProcessed(undefined, 80);
+      if (telematicsBackfill.processed || telematicsBackfill.failed) {
+        console.log(
+          `Telematics Reimport: ${telematicsBackfill.processed} nachgezogen, ${telematicsBackfill.failed} fehlgeschlagen`,
+        );
+      }
+    } catch (err) {
+      console.error('Telematics Reimport failed', err);
     }
-  } catch (err) {
-    console.error('Telematics Reimport failed', err);
-  }
-  // Einmalig: Receipts mit Soloplan-TourId an Tour.tourNumber koppeln
-  try {
-    const relink = await telematics.relinkOrphanTourRefs(undefined, 3000);
-    if (relink.linked) {
-      console.log(
-        `Telematics Relink: ${relink.linked} Events, ${relink.toursUpdated} Touren aktualisiert`,
-      );
+    try {
+      const relink = await telematics.relinkOrphanTourRefs(undefined, 200);
+      if (relink.linked) {
+        console.log(
+          `Telematics Relink: ${relink.linked} Events, ${relink.toursUpdated} Touren aktualisiert`,
+        );
+      }
+    } catch (err) {
+      console.error('Telematics Relink failed', err);
     }
-  } catch (err) {
-    console.error('Telematics Relink failed', err);
+  } else {
+    console.log('Startup-Backfill übersprungen (WORKER_STARTUP_BACKFILL=1 zum Aktivieren)');
   }
-  setInterval(tick, 30_000);
+
+  setInterval(tick, 45_000);
 }
 
 bootstrap();

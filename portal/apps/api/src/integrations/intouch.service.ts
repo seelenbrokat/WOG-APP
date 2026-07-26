@@ -32,6 +32,8 @@ export function isIntouchTelematicsFile(fileName: string): boolean {
 export class IntouchService {
   private readonly logger = new Logger(IntouchService.name);
   private rootDir: string;
+  /** Nach vollständiger Katalogisierung kurz pausieren (vermeidet 30k× DB-Lookups). */
+  private catalogCooldownUntil = 0;
 
   constructor(
     private prisma: PrismaService,
@@ -156,7 +158,14 @@ export class IntouchService {
       }
 
       // Katalog: Dateien, die Tour/Telematics bereits nach processed/ verschoben haben
-      cataloged += await this.catalogProcessed(org.id, ch, processedDir, limit);
+      // (Cooldown: processed/dokumente hat zehntausende Dateien – nicht jeden Tick voll scannen)
+      if (Date.now() >= this.catalogCooldownUntil) {
+        cataloged += await this.catalogProcessed(org.id, ch, processedDir, limit);
+      }
+    }
+
+    if (Date.now() >= this.catalogCooldownUntil && cataloged === 0 && archivedOther === 0) {
+      this.catalogCooldownUntil = Date.now() + 5 * 60_000;
     }
 
     if (archivedOther || cataloged) {
@@ -174,7 +183,11 @@ export class IntouchService {
     };
   }
 
-  /** IntouchFile-Einträge für bereits fachlich verarbeitete Dateien nachziehen. */
+  /**
+   * IntouchFile-Einträge für bereits fachlich verarbeitete Dateien nachziehen.
+   * Neueste zuerst; bei vielen bereits katalogisierten Dateien Early-Exit
+   * (sonst O(n) DB-Lookups über zehntausende processed/-Dateien pro Tick).
+   */
   private async catalogProcessed(
     organizationId: string,
     channel: IntouchChannel,
@@ -183,13 +196,19 @@ export class IntouchService {
   ): Promise<number> {
     if (!existsSync(processedDir)) return 0;
     let count = 0;
+    let scanned = 0;
+    let consecutiveExisting = 0;
+    const maxScan = Math.min(Math.max(limit * 3, 80), 200);
+    const existingStreakStop = 20;
+
     const files = readdirSync(processedDir)
       .filter((f) => !f.startsWith('.'))
       .sort()
-      .reverse(); // neueste zuerst
+      .reverse(); // neueste zuerst (Timestamp-Prefix)
 
     for (const storedName of files) {
-      if (count >= limit) break;
+      if (count >= limit || scanned >= maxScan) break;
+      scanned += 1;
       const full = join(processedDir, storedName);
       let st;
       try {
@@ -203,7 +222,12 @@ export class IntouchService {
         where: { organizationId, storagePath: full },
         select: { id: true },
       });
-      if (existing) continue;
+      if (existing) {
+        consecutiveExisting += 1;
+        if (consecutiveExisting >= existingStreakStop) break;
+        continue;
+      }
+      consecutiveExisting = 0;
 
       const originalName = stripTimestampPrefix(storedName);
       await this.prisma.intouchFile.create({

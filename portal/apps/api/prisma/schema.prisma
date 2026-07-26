@@ -517,6 +517,7 @@ model IntouchFile {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, channel, createdAt])
+  @@index([organizationId, storagePath])
   @@index([status])
 }
 
