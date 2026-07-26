@@ -724,6 +724,16 @@ function NewShipmentInner() {
         });
       }
 
+      // Wie Verzollung: bei angehängten Papieren Auftragsbestätigung inkl. Anhänge per Mail
+      const orderId = created.orderId || created.order?.id;
+      if (uploads.length > 0 && orderId) {
+        try {
+          await api(`/orders/${orderId}/loading-list`, { method: 'POST' });
+        } catch {
+          // Auftrag ist gespeichert – Mail-/PDF-Fehler soll die Erfassung nicht abbrechen
+        }
+      }
+
       router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);

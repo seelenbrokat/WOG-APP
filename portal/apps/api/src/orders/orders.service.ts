@@ -234,8 +234,61 @@ export class OrdersService {
     return { orders, order: primaryOrder, document: doc };
   }
 
+  /** Kundenpapiere (wie Verzollung) – mit Auftragsbestätigung per Mail. */
+  private static readonly PAPER_DOC_TYPES: DocumentType[] = [
+    DocumentType.INVOICE,
+    DocumentType.CUSTOMER_UPLOAD,
+    DocumentType.CMR,
+    DocumentType.CUSTOMS_PAPER,
+    DocumentType.OTHER,
+  ];
+
+  private async collectCustomerPaperDocs(orders: Array<{ shipments?: Array<{ id: string }> }>) {
+    const shipmentIds = [
+      ...new Set(
+        (orders || []).flatMap((o) => (o.shipments || []).map((s) => s.id)).filter(Boolean),
+      ),
+    ];
+    if (!shipmentIds.length) return [];
+
+    const docs = await this.prisma.document.findMany({
+      where: {
+        shipmentId: { in: shipmentIds },
+        type: { in: OrdersService.PAPER_DOC_TYPES },
+      },
+      orderBy: [{ createdAt: 'asc' }],
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        storagePath: true,
+        type: true,
+      },
+    });
+
+    const seen = new Set<string>();
+    const papers: Array<{
+      id: string;
+      fileName: string;
+      mimeType: string;
+      storagePath: string;
+    }> = [];
+    for (const d of docs) {
+      if (!d.storagePath || !existsSync(d.storagePath)) continue;
+      const key = `${d.fileName}|${d.storagePath}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      papers.push(d);
+    }
+    return papers;
+  }
+
   /** Benachrichtigung an Dispo, wenn eine Ladeliste erzeugt wurde. */
-  private async notifyLoadingListCreated(user: AuthUser, orders: any[], doc: { id: string; fileName: string; storagePath: string }) {
+  private async notifyLoadingListCreated(
+    user: AuthUser,
+    orders: any[],
+    doc: { id: string; fileName: string; storagePath: string },
+  ) {
     const raw =
       this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') ||
       'info@worldofgreen.ch';
@@ -244,6 +297,8 @@ export class OrdersService {
       .map((s) => s.trim())
       .filter(Boolean);
     if (!recipients.length) return;
+
+    const paperDocs = await this.collectCustomerPaperDocs(orders);
 
     const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
     const numbers = orders.map((o) => o.externalNumber).join(', ');
@@ -264,6 +319,12 @@ export class OrdersService {
       `Datei: ${doc.fileName}`,
       `Erstellt von: ${user.email || user.id}`,
       '',
+      paperDocs.length
+        ? `Anhänge: ${paperDocs.length + 1} Datei(en) (inkl. Auftragsbestätigung)`
+        : null,
+      ...paperDocs.map((d) => `- ${d.fileName}`),
+      paperDocs.length ? `- ${doc.fileName}` : null,
+      '',
       `Portal: ${appUrl}`,
     ]
       .filter((line) => line != null)
@@ -275,6 +336,11 @@ export class OrdersService {
         path: doc.storagePath,
         contentType: 'application/pdf',
       },
+      ...paperDocs.map((d) => ({
+        filename: d.fileName,
+        path: d.storagePath,
+        contentType: d.mimeType || 'application/octet-stream',
+      })),
     ];
     for (const to of recipients) {
       await this.notifications.sendRaw(to, subject, body, undefined, attachments);
