@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
+import { createRequire } from 'module';
 import { PrismaService } from '../prisma/prisma.service';
 import { VLB_PORTAL_TELEMATICS_CONFIG } from '../integrations/telematics-xml.builder';
 import { PinLoginDto, QrLoginDto } from './dto/auth.dto';
@@ -13,6 +14,17 @@ import { DriverAuthUser } from './fahrer.types';
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
+
+const nodeRequire = createRequire(__filename);
+const bwipjs = nodeRequire('bwip-js') as {
+  toBuffer: (opts: {
+    bcid: string;
+    text: string;
+    scale?: number;
+    height?: number;
+    includetext?: boolean;
+  }) => Promise<Buffer>;
+};
 
 @Injectable()
 export class FahrerAuthService {
@@ -217,6 +229,15 @@ export class FahrerAuthService {
       data: { usedAt: new Date() },
     });
 
+    await this.prisma.vehicle.update({
+      where: { id: qr.vehicle.id },
+      data: { lastDriverId: driver.telematicsId },
+    });
+    await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: { lastVehicleId: qr.vehicle.id },
+    });
+
     return this.issueSession({
       organizationId: qr.organizationId,
       tenant: qr.organization.slug,
@@ -254,7 +275,7 @@ export class FahrerAuthService {
     });
   }
 
-  /** Dispo: QR-Token erzeugen */
+  /** Dispo: QR-Token erzeugen (einmalig, für Zustellapp-Login ohne PIN) */
   async createQrToken(
     organizationId: string,
     opts: { vehicleId: string; driverId?: string; createdByUserId?: string; ttlHours?: number },
@@ -264,29 +285,76 @@ export class FahrerAuthService {
     });
     if (!vehicle) throw new BadRequestException('Fahrzeug nicht gefunden');
 
+    let driver = opts.driverId
+      ? await this.prisma.driver.findFirst({
+          where: { id: opts.driverId, organizationId, active: true },
+        })
+      : null;
+
+    if (!driver && vehicle.lastDriverId) {
+      driver = await this.prisma.driver.findFirst({
+        where: {
+          organizationId,
+          telematicsId: vehicle.lastDriverId,
+          active: true,
+        },
+      });
+    }
+
+    if (!driver) {
+      driver = await this.prisma.driver.findFirst({
+        where: { organizationId, active: true, lastVehicleId: vehicle.id },
+      });
+    }
+
+    if (!driver) {
+      throw new BadRequestException(
+        'Kein Fahrer dem Fahrzeug zugeordnet – bitte Fahrer auswählen',
+      );
+    }
+
     const raw = randomBytes(24).toString('hex');
     const ttlHours = opts.ttlHours ?? 72;
     const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000);
+    const payload = `vlb-zustell://login?token=${raw}`;
+
     await this.prisma.driverQrToken.create({
       data: {
         organizationId,
         vehicleId: vehicle.id,
-        driverId: opts.driverId,
+        driverId: driver.id,
         tokenHash: hashToken(raw),
         expiresAt,
         createdByUserId: opts.createdByUserId,
       },
     });
 
+    const png = await bwipjs.toBuffer({
+      bcid: 'qrcode',
+      text: payload,
+      scale: 6,
+      includetext: false,
+    });
+
     return {
       token: raw,
       expiresAt: expiresAt.toISOString(),
+      ttlHours,
       vehicle: {
         id: vehicle.id,
         soloplanVehicleId: vehicle.soloplanVehicleId,
         licensePlate: vehicle.licensePlate,
+        number: vehicle.number,
       },
-      payload: `vlb-zustell://login?token=${raw}`,
+      driver: {
+        id: driver.id,
+        telematicsId: driver.telematicsId,
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+      },
+      payload,
+      qrPngBase64: png.toString('base64'),
+      qrDataUrl: `data:image/png;base64,${png.toString('base64')}`,
     };
   }
 }
