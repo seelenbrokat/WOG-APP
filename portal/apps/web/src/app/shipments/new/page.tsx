@@ -559,7 +559,6 @@ function NewShipmentInner() {
     setError('');
     try {
       if (extras.verzollung && !invoiceFile) {
-        setTab('zusatz');
         throw new Error('Bei Verzollung muss eine Rechnung hochgeladen werden.');
       }
       if (!form.pickupCountry || !form.deliveryCountry) {
@@ -728,10 +727,13 @@ function NewShipmentInner() {
       router.push(`/shipments/${created.id}?handover=1`);
     } catch (err: any) {
       setError(err.message);
-      if (String(err.message || '').toLowerCase().includes('rechnung') ||
-          String(err.message || '').toLowerCase().includes('verzoll')) {
-        setTab('zusatz');
-      } else {
+      const msg = String(err.message || '').toLowerCase();
+      // Papiere sind immer sichtbar; bei Adressfehlern zurück zu Allgemein
+      if (
+        !msg.includes('rechnung') &&
+        !msg.includes('verzoll') &&
+        !msg.includes('dokument')
+      ) {
         setTab('allgemein');
       }
     }
@@ -746,6 +748,7 @@ function NewShipmentInner() {
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <p className="muted" style={{ margin: 0 }}>
             Ein Auftrag = eine Sendung. Adressen und Vorlagen aus dem Adressbuch vorausfüllen.
+            Begleitpapiere unten direkt in der Erfassung anhängen.
           </p>
           <Link href="/addresses">Adressbuch verwalten</Link>
         </div>
@@ -1469,104 +1472,6 @@ function NewShipmentInner() {
               </div>
             )}
 
-            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: '0.75rem' }}>
-              <strong style={{ fontSize: '0.95rem' }}>Dokumente</strong>
-              <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-                Laden Sie Begleitpapiere zum Auftrag hoch (PDF, Bilder). Bei Verzollung ist eine Rechnung Pflicht.
-              </p>
-
-              {extras.verzollung && (
-                <div
-                  className="field"
-                  style={{
-                    padding: '0.85rem 1rem',
-                    border: '1px solid var(--line)',
-                    borderRadius: 8,
-                    background: 'var(--soft, #f4f7f5)',
-                  }}
-                >
-                  <label>
-                    Rechnung <span style={{ color: 'var(--danger, #b42318)' }}>*</span>
-                  </label>
-                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                    Verzollung erfordert eine Rechnung (Dokumenttyp Rechnung).
-                  </p>
-                  <input
-                    type="file"
-                    required={Boolean(extras.verzollung)}
-                    accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
-                    onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
-                  />
-                  {invoiceFile && (
-                    <div className="muted" style={{ fontSize: '0.85rem' }}>
-                      Ausgewählt: {invoiceFile.name} ({formatBytes(invoiceFile.size)})
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="field">
-                <label>Weitere Dokumente (optional)</label>
-                <input
-                  type="file"
-                  multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
-                  onChange={(e) => {
-                    addPendingDocs(e.target.files, 'CUSTOMER_UPLOAD');
-                    e.target.value = '';
-                  }}
-                />
-              </div>
-
-              {pendingDocs.length > 0 && (
-                <div className="stack" style={{ gap: '0.5rem' }}>
-                  {pendingDocs.map((d) => (
-                    <div
-                      key={d.id}
-                      className="row"
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        flexWrap: 'wrap',
-                        padding: '0.5rem 0',
-                        borderBottom: '1px solid var(--line)',
-                      }}
-                    >
-                      <span style={{ flex: '1 1 12rem' }}>
-                        {d.file.name}{' '}
-                        <span className="muted">({formatBytes(d.file.size)})</span>
-                      </span>
-                      <select
-                        value={d.type}
-                        onChange={(e) =>
-                          setPendingDocs((prev) =>
-                            prev.map((x) =>
-                              x.id === d.id ? { ...x, type: e.target.value as UploadDocType } : x,
-                            ),
-                          )
-                        }
-                        style={{ minWidth: '10rem' }}
-                      >
-                        {DOC_TYPE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => setPendingDocs((prev) => prev.filter((x) => x.id !== d.id))}
-                      >
-                        Entfernen
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <div className="field">
               <label>Hinweise / Bemerkungen</label>
               <textarea
@@ -1578,6 +1483,131 @@ function NewShipmentInner() {
             </div>
           </div>
         )}
+
+        {/* Papiere immer in der Erfassung – nicht erst in der Sendungsübersicht */}
+        <div
+          className="stack"
+          style={{
+            borderTop: '1px solid var(--line)',
+            paddingTop: '1rem',
+            marginTop: '0.25rem',
+          }}
+        >
+          <strong style={{ fontSize: '0.95rem' }}>Papiere / Dokumente</strong>
+          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+            Begleitpapiere hier direkt mit dem Auftrag anhängen (PDF, Bilder). Sie werden beim
+            Übermitteln mitgesendet – nicht erst später in der Sendungsübersicht.
+            {extras.verzollung || extras.begleitpapiere
+              ? ' Bei Verzollung bzw. Begleitpapieren bitte die Unterlagen jetzt auswählen.'
+              : ''}
+          </p>
+
+          {(extras.verzollung || isSwitzerlandOrLiechtenstein(form.deliveryCountry)) && (
+            <div
+              className="field"
+              style={{
+                padding: '0.85rem 1rem',
+                border: '1px solid var(--line)',
+                borderRadius: 8,
+                background: 'var(--soft, #f4f7f5)',
+              }}
+            >
+              <label>
+                Rechnung{' '}
+                {extras.verzollung ? (
+                  <span style={{ color: 'var(--danger, #b42318)' }}>*</span>
+                ) : null}
+              </label>
+              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                {extras.verzollung
+                  ? 'Verzollung erfordert eine Rechnung (Dokumenttyp Rechnung).'
+                  : 'Für Zustellung CH/FL empfohlen – bei Verzollung Pflicht.'}
+              </p>
+              <input
+                type="file"
+                required={Boolean(extras.verzollung)}
+                accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,application/pdf,image/*"
+                onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+              />
+              {invoiceFile && (
+                <div className="muted" style={{ fontSize: '0.85rem' }}>
+                  Ausgewählt: {invoiceFile.name} ({formatBytes(invoiceFile.size)})
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="field">
+            <label>Begleitpapiere anhängen</label>
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.xml,.zip,application/pdf,image/*"
+              onChange={(e) => {
+                addPendingDocs(e.target.files, 'CUSTOMER_UPLOAD');
+                e.target.value = '';
+              }}
+            />
+          </div>
+
+          {pendingDocs.length > 0 && (
+            <div className="stack" style={{ gap: '0.5rem' }}>
+              {pendingDocs.map((d) => (
+                <div
+                  key={d.id}
+                  className="row"
+                  style={{
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    flexWrap: 'wrap',
+                    padding: '0.5rem 0',
+                    borderBottom: '1px solid var(--line)',
+                  }}
+                >
+                  <span style={{ flex: '1 1 12rem' }}>
+                    {d.file.name}{' '}
+                    <span className="muted">({formatBytes(d.file.size)})</span>
+                  </span>
+                  <select
+                    value={d.type}
+                    onChange={(e) =>
+                      setPendingDocs((prev) =>
+                        prev.map((x) =>
+                          x.id === d.id ? { ...x, type: e.target.value as UploadDocType } : x,
+                        ),
+                      )
+                    }
+                    style={{ minWidth: '10rem' }}
+                  >
+                    {DOC_TYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setPendingDocs((prev) => prev.filter((x) => x.id !== d.id))}
+                  >
+                    Entfernen
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(invoiceFile || pendingDocs.length > 0) && (
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              {invoiceFile ? 1 : 0} Rechnung
+              {pendingDocs.length > 0
+                ? ` · ${pendingDocs.length} weitere Datei${pendingDocs.length === 1 ? '' : 'en'}`
+                : ''}{' '}
+              bereit zum Mitversenden.
+            </p>
+          )}
+        </div>
 
         {tab === 'allgemein' && (
           <div className="field">
@@ -1608,11 +1638,13 @@ function NewShipmentInner() {
                 className="btn btn-secondary"
                 onClick={() => setTab('zusatz')}
               >
-                Weiter
+                Weiter zu Zusatzinfos
               </button>
             )}
           </div>
-          <button className="btn btn-primary" type="submit">Auftrag übermitteln</button>
+          <button className="btn btn-primary" type="submit">
+            Auftrag inkl. Papiere übermitteln
+          </button>
         </div>
       </form>
     </AppShell>
