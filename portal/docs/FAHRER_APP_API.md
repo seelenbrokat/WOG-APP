@@ -17,10 +17,25 @@ Die App-API liegt im Portal-Repo unter `apps/api/src/fahrer/`.
 | Session | `GET /fahrer/me` (Bearer Driver-JWT) |
 | Touren | `GET /fahrer/tours`, `GET /fahrer/tours/:tourNumber` |
 | Telematik | `POST /fahrer/telematics/*` |
+| Live-ETA | `POST /fahrer/telematics/eta` |
 | Chat | `GET/POST /fahrer/chat` |
 | SmartBorder | `GET /fahrer/smartborder/status` |
 
 Telematikconfig: **VLBPortal** · VehicleId = Soloplan-Fahrzeug-ID · DriverId = TelematicsId (z. B. THNE)
+
+## Live-ETA (`POST /fahrer/telematics/eta`)
+
+Strukturierte ETA für Dispo + Endkunde im Portal:
+
+```json
+{
+  "tourNumber": "184200",
+  "text": "Erwartete Zustellung Tour 184200: ca. 23:41 (Fahrzeit 2 Std. 4 Min + 2×15 Min Stop)",
+  "etaAt": "2026-07-26T21:41:00.000Z"
+}
+```
+
+Zusätzlich werden ETA-Texte aus `POST /fahrer/chat` und Location-`information` erkannt und gespeichert (nur bei Änderung).
 
 ## Tour-Detail (`GET /fahrer/tours/:tourNumber`)
 

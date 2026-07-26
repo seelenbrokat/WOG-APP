@@ -262,6 +262,12 @@ model Tour {
   orderCount         Int       @default(0)
   lastSendDate       DateTime?
   lastFileName       String?
+  /// Live-ETA von Zustellapp (erwartet Zustellung)
+  etaAt              DateTime?
+  etaText            String?
+  etaUpdatedAt       DateTime?
+  /// app | chat | location
+  etaSource          String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -278,6 +284,7 @@ model Tour {
   @@unique([organizationId, soloplanTourId])
   @@index([organizationId, tourNumber])
   @@index([organizationId, status, targetStart])
+  @@index([organizationId, etaAt])
   @@index([mandantId, status])
   @@index([vehicleId])
 }

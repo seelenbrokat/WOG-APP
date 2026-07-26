@@ -8,6 +8,7 @@ import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-a
 import { BusinessPartnerService } from './business-partner.service';
 import { MasterDataService } from './master-data.service';
 import { TourService } from './tour.service';
+import { TourEtaService } from './tour-eta.service';
 import { TelematicsService } from './telematics.service';
 import { TelematicsOutboundService } from './telematics-outbound.service';
 import { IntouchService } from './intouch.service';
@@ -25,6 +26,7 @@ import { WareneingangService } from './wareneingang.service';
     BusinessPartnerService,
     MasterDataService,
     TourService,
+    TourEtaService,
     LoadingUnitService,
     TelematicsService,
     TelematicsOutboundService,
@@ -42,6 +44,7 @@ import { WareneingangService } from './wareneingang.service';
     BusinessPartnerService,
     MasterDataService,
     TourService,
+    TourEtaService,
     LoadingUnitService,
     TelematicsService,
     TelematicsOutboundService,

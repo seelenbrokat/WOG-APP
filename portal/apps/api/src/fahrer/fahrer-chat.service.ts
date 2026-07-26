@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelematicsOutboundService } from '../integrations/telematics-outbound.service';
+import { TourEtaService } from '../integrations/tour-eta.service';
 import { DriverAuthUser } from './fahrer.types';
 import { SendChatDto } from './dto/chat.dto';
 
@@ -14,6 +15,7 @@ export class FahrerChatService {
   constructor(
     private prisma: PrismaService,
     private outbound: TelematicsOutboundService,
+    private tourEta: TourEtaService,
   ) {}
 
   async list(driver: DriverAuthUser, since?: string) {
@@ -54,6 +56,14 @@ export class FahrerChatService {
         text,
         soloplanRef: out.fileName,
       },
+    });
+
+    // ETA-Chat auch strukturiert für Dispo/Endkunde speichern
+    await this.tourEta.ingestFreeText({
+      organizationId: driver.organizationId,
+      text,
+      tourNumber: dto.tourNumber,
+      source: 'chat',
     });
 
     return { message: stored, outbound: out };

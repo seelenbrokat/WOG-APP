@@ -33,6 +33,8 @@ type Tour = {
   dispatcherName: string | null;
   targetStart: string | null;
   targetEnd: string | null;
+  etaAt?: string | null;
+  etaText?: string | null;
   stopCount: number;
   orderCount: number;
   mandant?: Mandant | null;
@@ -280,6 +282,7 @@ export default function ToursPage() {
                   <th>Fahrer</th>
                   <th>Disponent</th>
                   <th>Start</th>
+                  <th>ETA</th>
                   <th>Stops / TO</th>
                   <th />
                 </tr>
@@ -287,13 +290,13 @@ export default function ToursPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="muted">
+                    <td colSpan={9} className="muted">
                       Laden…
                     </td>
                   </tr>
                 ) : tours.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="muted">
+                    <td colSpan={9} className="muted">
                       Keine Touren für dieses Startdatum. Anderen Tag wählen oder XMLs nach{' '}
                       <code>inbound/soloplan/tours</code> importieren.
                     </td>
@@ -318,6 +321,20 @@ export default function ToursPage() {
                       <td>{t.driverName || '—'}</td>
                       <td>{t.dispatcherName || '—'}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{fmt(t.targetStart)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {t.etaAt ? (
+                          <>
+                            <strong>{fmt(t.etaAt)}</strong>
+                            {t.etaText ? (
+                              <div className="muted" style={{ maxWidth: 220, fontSize: '0.8rem' }}>
+                                {t.etaText}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>
                         {t._count?.stops ?? t.stopCount} / {t._count?.consignments ?? t.orderCount}
                       </td>

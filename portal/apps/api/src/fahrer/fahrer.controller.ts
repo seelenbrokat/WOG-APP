@@ -27,6 +27,7 @@ import {
   TourStopStatusDto,
   TransportOrderStatusDto,
   VehicleLocationDto,
+  TourEtaDto,
 } from './dto/telematics.dto';
 import { SendChatDto } from './dto/chat.dto';
 
@@ -148,6 +149,13 @@ export class FahrerController {
   @UseGuards(FahrerAuthGuard)
   location(@CurrentDriver() driver: DriverAuthUser, @Body() dto: VehicleLocationDto) {
     return this.telematics.sendLocation(driver, dto);
+  }
+
+  /** Live-ETA → Portal (Dispo + Endkunde); zusätzlich weiter Chat/Location möglich */
+  @Post('telematics/eta')
+  @UseGuards(FahrerAuthGuard)
+  eta(@CurrentDriver() driver: DriverAuthUser, @Body() dto: TourEtaDto) {
+    return this.telematics.sendEta(driver, dto);
   }
 
   // ── Chat (Soloplan Relay) ────────────────────────────────────

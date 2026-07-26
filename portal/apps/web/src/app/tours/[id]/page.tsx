@@ -22,6 +22,10 @@ type TourDetail = {
   targetStart: string | null;
   targetEnd: string | null;
   targetLoadKm: number | null;
+  etaAt: string | null;
+  etaText: string | null;
+  etaUpdatedAt: string | null;
+  etaSource: string | null;
   lastSendDate: string | null;
   lastFileName: string | null;
   vehicle: {
@@ -253,6 +257,23 @@ export default function TourDetailPage() {
           <div>
             <div className="muted">Ziel-Ende</div>
             <strong>{fmt(tour.targetEnd)}</strong>
+          </div>
+          <div>
+            <div className="muted">Live-ETA Zustellung</div>
+            <strong style={{ color: tour.etaAt ? 'var(--wog-green, #1a6b3c)' : undefined }}>
+              {fmt(tour.etaAt)}
+            </strong>
+            {tour.etaText ? (
+              <div className="muted" style={{ maxWidth: 360, marginTop: 4 }}>
+                {tour.etaText}
+              </div>
+            ) : null}
+            {tour.etaUpdatedAt ? (
+              <div className="muted" style={{ fontSize: '0.8rem' }}>
+                aktualisiert {fmt(tour.etaUpdatedAt)}
+                {tour.etaSource ? ` · ${tour.etaSource}` : ''}
+              </div>
+            ) : null}
           </div>
           <div>
             <div className="muted">km (Soll)</div>

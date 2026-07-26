@@ -156,3 +156,18 @@ export class VehicleLocationDto {
   @IsString()
   tourNumber?: string;
 }
+
+/** Live-ETA von der Zustellapp (für Dispo + Endkunde im Portal) */
+export class TourEtaDto {
+  @IsString()
+  tourNumber!: string;
+
+  /** Freitext z. B. „Erwartete Zustellung Tour 184200: ca. 23:41 (…)“ */
+  @IsString()
+  text!: string;
+
+  /** Optional ISO-Zeitpunkt; sonst aus Freitext geparst */
+  @IsOptional()
+  @IsString()
+  etaAt?: string;
+}

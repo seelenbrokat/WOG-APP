@@ -21,6 +21,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { DriverAuthUser } from './fahrer.types';
 import { FahrerSmartborderService } from './fahrer-smartborder.service';
+import { TourEtaService } from '../integrations/tour-eta.service';
 import {
   DocumentDto,
   SsccStatusDto,
@@ -28,6 +29,7 @@ import {
   TourStopStatusDto,
   TransportOrderStatusDto,
   VehicleLocationDto,
+  TourEtaDto,
 } from './dto/telematics.dto';
 
 /** Endstatus einer Sendung – nur noch Admin/Dispo darf ändern */
@@ -49,6 +51,7 @@ export class FahrerTelematicsService {
     private smartborder: FahrerSmartborderService,
     private loadingUnits: LoadingUnitService,
     private config: ConfigService,
+    private tourEta: TourEtaService,
     @Inject(forwardRef(() => DocumentsService)) private documents: DocumentsService,
     @Inject(forwardRef(() => TelematicsService)) private telematics: TelematicsService,
   ) {}
@@ -468,6 +471,15 @@ export class FahrerTelematicsService {
       },
     });
 
+    if (dto.location.information) {
+      await this.tourEta.ingestFreeText({
+        organizationId: driver.organizationId,
+        text: dto.location.information,
+        tourNumber: dto.tourNumber,
+        source: 'location',
+      });
+    }
+
     try {
       const sb = await this.smartborder.forwardLocation(driver, {
         latitude: dto.location.latitude,
@@ -483,5 +495,15 @@ export class FahrerTelematicsService {
     }
 
     return result;
+  }
+
+  async sendEta(driver: DriverAuthUser, dto: TourEtaDto) {
+    return this.tourEta.upsertFromApp({
+      organizationId: driver.organizationId,
+      tourNumber: dto.tourNumber,
+      text: dto.text,
+      etaAt: dto.etaAt,
+      source: 'app',
+    });
   }
 }

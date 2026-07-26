@@ -73,6 +73,40 @@ export default function TrackPage() {
               <span className="badge ok">{statusLabel(result.status)}</span>
             </div>
             <div className="muted">{result.mandant?.name} · {result.pickupCity} → {result.deliveryCity}</div>
+            {result.eta?.etaAt || result.eta?.etaText ? (
+              <div
+                className="panel"
+                style={{
+                  marginTop: '1rem',
+                  background: 'rgba(26,107,60,0.08)',
+                  border: '1px solid rgba(26,107,60,0.25)',
+                }}
+              >
+                <div className="muted">Erwartete Zustellung</div>
+                <strong style={{ fontSize: '1.2rem' }}>
+                  {result.eta.etaAt
+                    ? new Date(result.eta.etaAt).toLocaleString('de-CH', {
+                        timeZone: 'Europe/Zurich',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'}
+                </strong>
+                {result.eta.etaText ? (
+                  <div className="muted" style={{ marginTop: '0.35rem' }}>
+                    {result.eta.etaText}
+                  </div>
+                ) : null}
+                {result.eta.tourNumber ? (
+                  <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                    Tour {result.eta.tourNumber}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <ul className="timeline" style={{ marginTop: '1.25rem' }}>
               {result.events?.map((e: any, idx: number) => (
                 <li key={idx}>

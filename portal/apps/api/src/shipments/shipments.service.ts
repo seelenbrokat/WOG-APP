@@ -17,6 +17,7 @@ import { mandantFilter, customerFilter, assertMandantAccess } from '../common/ac
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
+import { TourEtaService } from '../integrations/tour-eta.service';
 import { LabelsService } from '../labels/labels.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
 import { allocateVlbExternalNumber } from './order-number';
@@ -79,6 +80,7 @@ export class ShipmentsService {
     private notifications: NotificationsService,
     private soloplan: SoloplanService,
     private labels: LabelsService,
+    private tourEta: TourEtaService,
   ) {}
 
   private scope(user: AuthUser) {
@@ -178,7 +180,14 @@ export class ShipmentsService {
     ) {
       throw new ForbiddenException();
     }
-    return shipment;
+    const eta = await this.tourEta.findEtaForShipment({
+      organizationId: shipment.organizationId,
+      soloplanRef: shipment.soloplanRef || shipment.order?.soloplanRef,
+      trackingNumber: shipment.trackingNumber,
+      reference: shipment.reference,
+      orderExternalNumber: shipment.order?.externalNumber,
+    });
+    return { ...shipment, eta };
   }
 
   /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */

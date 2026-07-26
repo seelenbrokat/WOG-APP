@@ -177,6 +177,41 @@ function ShipmentDetailInner() {
             </div>
             <div><strong>Frachtzahler:</strong> {shipment.order?.freightPayer?.name || shipment.customer?.name || '–'}</div>
             <div><strong>Referenz:</strong> {shipment.reference || '–'}</div>
+            {(shipment.eta?.etaAt || shipment.eta?.etaText) && (
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  padding: '0.65rem 0.75rem',
+                  borderRadius: 8,
+                  background: 'rgba(26,107,60,0.08)',
+                  border: '1px solid rgba(26,107,60,0.22)',
+                }}
+              >
+                <div className="muted">Erwartete Zustellung (Live-ETA)</div>
+                <strong>
+                  {shipment.eta.etaAt
+                    ? new Date(shipment.eta.etaAt).toLocaleString('de-CH', {
+                        timeZone: 'Europe/Zurich',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'}
+                </strong>
+                {shipment.eta.etaText ? (
+                  <div className="muted" style={{ marginTop: 4, fontSize: '0.85rem' }}>
+                    {shipment.eta.etaText}
+                  </div>
+                ) : null}
+                {shipment.eta.tourNumber ? (
+                  <div className="muted" style={{ fontSize: '0.8rem' }}>
+                    Tour {shipment.eta.tourNumber}
+                  </div>
+                ) : null}
+              </div>
+            )}
             <div>
               <strong>Soloplan:</strong>{' '}
               {tms.orderNumber ? <strong>{tms.orderNumber}</strong> : <span className="muted">–</span>}
