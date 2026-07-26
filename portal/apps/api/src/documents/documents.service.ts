@@ -426,14 +426,21 @@ export class DocumentsService {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const stream = createWriteStream(storagePath);
       doc.pipe(stream);
+      const auftraggeber =
+        shipment.customer?.name ||
+        shipment.pickupCompany ||
+        shipment.mandant?.name ||
+        null;
       drawA4BrandHeader(doc, {
         title: 'Ablieferbeleg',
-        subtitle: shipment.trackingNumber,
+        subtitle: auftraggeber
+          ? `Auftraggeber: ${auftraggeber}`
+          : shipment.trackingNumber,
       });
       doc.fontSize(12).fillColor('#111').text(`Mandant: ${shipment.mandant.name}`);
       doc.text(`Sendungsnummer: ${shipment.trackingNumber}`);
       doc.text(`Referenz: ${shipment.reference || '-'}`);
-      doc.text(`Kunde: ${shipment.customer.name}`);
+      doc.text(`Auftraggeber: ${auftraggeber || '-'}`);
       doc.moveDown();
       doc.text('Abholung:');
       doc.text(`${shipment.pickupCompany || ''}`);
@@ -462,7 +469,7 @@ export class DocumentsService {
 
       if (signature?.path && existsSync(signature.path)) {
         doc.fontSize(12).fillColor('#111').text('Empfangsbestätigung (digital)');
-        if (signature.signedByName) doc.text(`Empfänger: ${signature.signedByName}`);
+        if (signature.signedByName) doc.text(`Übernehmer: ${signature.signedByName}`);
         if (signature.signedAt) {
           doc.text(`Datum: ${formatPdfDateTime(signature.signedAt)}`);
         }

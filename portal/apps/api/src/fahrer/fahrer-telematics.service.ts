@@ -14,7 +14,10 @@ import { LoadingUnitService } from '../integrations/loading-unit.service';
 import { TelematicsService } from '../integrations/telematics.service';
 import { DocumentsService } from '../documents/documents.service';
 import { ParsedTourStopStatus } from '../integrations/telematics-xml.parser';
-import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
+import {
+  isSignatureDocumentName,
+  signedByFromSignatureFileName,
+} from '../integrations/zustellnachweis-pdf';
 import { PrismaService } from '../prisma/prisma.service';
 import { DriverAuthUser } from './fahrer.types';
 import { FahrerSmartborderService } from './fahrer-smartborder.service';
@@ -74,12 +77,7 @@ export class FahrerTelematicsService {
 
   /** Signature_Name_184395_941380.png → Name; KeinTausch-Dateien überspringen */
   private signedByFromFileName(fileName: string): string | undefined {
-    const base = fileName.replace(/\.[^.]+$/, '');
-    const m = /^Signature_(.+?)_\d{5,}/i.exec(base);
-    if (!m) return undefined;
-    const name = m[1].replace(/_/g, ' ').trim();
-    if (!name || /^KeinTausch/i.test(name)) return undefined;
-    return name;
+    return signedByFromSignatureFileName(fileName);
   }
 
   private async assertConsignmentEditable(

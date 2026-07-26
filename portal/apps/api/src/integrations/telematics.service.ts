@@ -24,6 +24,7 @@ import {
   buildZustellTimeline,
   deliveryStatusFromEvents,
   isSignatureDocumentName,
+  signedByFromSignatureFileName,
   writeZustellnachweisPdf,
 } from './zustellnachweis-pdf';
 import { formatSendungsnummer } from './tour-xml.parser';
@@ -984,11 +985,7 @@ export class TelematicsService {
       unloadStop?.longitude ??
       null;
 
-    const receiverName =
-      consignment?.receiverName ||
-      unloadStop?.name ||
-      opts.signedByName ||
-      null;
+    const receiverName = consignment?.receiverName || unloadStop?.name || null;
     const receiverAddress = unloadStop
       ? [unloadStop.street, [unloadStop.zip, unloadStop.city].filter(Boolean).join(' '), unloadStop.country]
           .filter(Boolean)
@@ -1000,6 +997,41 @@ export class TelematicsService {
           .filter(Boolean)
           .join(', ')
       : null;
+
+    // Übernehmer = unterschreibende Person (nicht Empfängerfirma)
+    const uebernehmerName =
+      opts.signedByName?.trim() ||
+      signedByFromSignatureFileName(signatureDoc.fileName) ||
+      null;
+
+    // Auftraggeber: Portal-Kunde falls vorhanden, sonst Absender / Mandant
+    let auftraggeber: string | null = null;
+    if (toNumber) {
+      const portalShipment = await this.prisma.shipment.findFirst({
+        where: {
+          organizationId: opts.organizationId,
+          OR: [
+            { soloplanRef: toNumber },
+            { trackingNumber: toNumber },
+            { reference: toNumber },
+            { order: { externalNumber: toNumber } },
+          ],
+        },
+        include: { customer: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      auftraggeber = portalShipment?.customer?.name?.trim() || null;
+    }
+    if (!auftraggeber && senderName?.trim()) {
+      auftraggeber = senderName.trim();
+    }
+    if (!auftraggeber && tour?.mandantId) {
+      const mandant = await this.prisma.mandant.findFirst({
+        where: { id: tour.mandantId },
+        select: { name: true },
+      });
+      auftraggeber = mandant?.name?.trim() || null;
+    }
 
     const loadingUnitExchange = await this.loadingUnits.resolveExchangeNote({
       organizationId: opts.organizationId,
@@ -1037,6 +1069,8 @@ export class TelematicsService {
         receiverAddress,
         senderName,
         senderAddress,
+        auftraggeber,
+        uebernehmerName,
         deliveryStatus: deliveryMeta.delivered ? 'Zugestellt' : deliveryMeta.status,
         deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
         deliveryLatitude,
@@ -1051,8 +1085,8 @@ export class TelematicsService {
           loadingUnitExchange.status === 'UNKNOWN' ? null : loadingUnitExchange,
         noLoadingUnitExchangeRequired: true,
         events: timeline,
-        companyLine: opts.signedByName
-          ? `Empfangsbestätigung: ${opts.signedByName}`
+        companyLine: uebernehmerName
+          ? `Übernehmer: ${uebernehmerName}`
           : undefined,
       },
       storagePath,

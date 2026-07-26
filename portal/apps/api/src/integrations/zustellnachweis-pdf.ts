@@ -17,10 +17,15 @@ export type ZustellnachweisInput = {
   sendungsnummer?: string | null;
   externalConsignmentNumber?: string | null;
   position?: string | number | null;
+  /** Empfängerfirma (Zustelladresse) */
   receiverName?: string | null;
   receiverAddress?: string | null;
   senderName?: string | null;
   senderAddress?: string | null;
+  /** Auftraggeber – oben rechts im Header */
+  auftraggeber?: string | null;
+  /** Person, die die Ware übernommen hat (Unterschrift) */
+  uebernehmerName?: string | null;
   identCodes?: string[];
   deliveryStatus?: string | null;
   deliveryAt?: Date | null;
@@ -40,6 +45,17 @@ export type ZustellnachweisInput = {
   /** PDF-Titel, Standard: Digitaler Zustellnachweis */
   title?: string;
 };
+
+/** Signature_Max_Mustermann_184515_929094.png → „Max Mustermann“ */
+export function signedByFromSignatureFileName(fileName?: string | null): string | undefined {
+  if (!fileName) return undefined;
+  const base = fileName.replace(/\.[^.]+$/, '');
+  const m = /^Signature_(.+?)_\d{5,}/i.exec(base);
+  if (!m) return undefined;
+  const name = m[1].replace(/_/g, ' ').trim();
+  if (!name || /^KeinTausch/i.test(name)) return undefined;
+  return name;
+}
 
 const FOOTER_LEFT = 'WOG Logistics AG · Wildenaustraße 22 · 9444 Diepoldsau';
 
@@ -243,11 +259,20 @@ export function writeZustellnachweisPdf(
       input.externalConsignmentNumber ||
       input.transportOrderNumber ||
       '—';
-    const receiverLabel = input.receiverName?.trim() || 'Empfänger';
+    const uebernehmer =
+      input.uebernehmerName?.trim() ||
+      signedByFromSignatureFileName(input.signatureFileName) ||
+      null;
+    const auftraggeber =
+      input.auftraggeber?.trim() ||
+      input.senderName?.trim() ||
+      null;
 
     drawA4BrandHeader(doc, {
       title: input.title || 'Ablieferbeleg',
-      subtitle: receiverLabel,
+      subtitle: auftraggeber
+        ? `Auftraggeber: ${auftraggeber}`
+        : undefined,
     });
 
     const left = doc.page.margins.left;
@@ -282,6 +307,9 @@ export function writeZustellnachweisPdf(
     sectionTitle(doc, 'Empfänger');
     kvRow(doc, 'Name', input.receiverName || '—');
     kvRow(doc, 'Adresse', input.receiverAddress || '—');
+    if (uebernehmer) {
+      kvRow(doc, 'Übernehmer', uebernehmer);
+    }
     if (input.senderName) {
       kvRow(doc, 'Absender', input.senderName);
     }
@@ -371,6 +399,10 @@ export function writeZustellnachweisPdf(
 
     if (input.signaturePath && existsSync(input.signaturePath)) {
       sectionTitle(doc, 'Empfangsunterschrift');
+      if (uebernehmer) {
+        kvRow(doc, 'Übernehmer', uebernehmer);
+        doc.moveDown(0.3);
+      }
       const sigBoxY = doc.y;
       const sigBoxH = 110;
       doc
