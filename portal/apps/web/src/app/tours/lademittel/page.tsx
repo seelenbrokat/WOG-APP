@@ -162,7 +162,7 @@ function currentMonth() {
 }
 
 export default function LademittelPage() {
-  const [tab, setTab] = useState<'no-exchange' | 'balances'>('no-exchange');
+  const [tab, setTab] = useState<'no-exchange' | 'balances'>('balances');
   const [q, setQ] = useState('');
   const [matchcode, setMatchcode] = useState('');
   const [balances, setBalances] = useState<BalanceRow[]>([]);
@@ -174,11 +174,66 @@ export default function LademittelPage() {
   const [showSkipped, setShowSkipped] = useState(false);
 
   const [month, setMonth] = useState(currentMonth);
-  const [groupBy, setGroupBy] = useState<'day' | 'customer'>('day');
+  const [groupBy, setGroupBy] = useState<'day' | 'customer'>('customer');
   const [overview, setOverview] = useState<NoExchangeOverview | null>(null);
   const [openDay, setOpenDay] = useState<string | null>(null);
 
   const monthLabel = useMemo(() => fmtDay(month), [month]);
+
+  /** Eine Zeile pro Kunde/Partner – Typen kommuliert */
+  const partnersAgg = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        partnerName: string;
+        partnerNumber: string | null;
+        partnerCity: string | null;
+        given: number;
+        taken: number;
+        balance: number;
+        owedQuantity: number;
+        postings: number;
+        lastAt: string | null;
+        types: BalanceRow[];
+      }
+    >();
+    for (const r of balances) {
+      const key = r.partnerName;
+      let row = map.get(key);
+      if (!row) {
+        row = {
+          partnerName: r.partnerName,
+          partnerNumber: r.partnerNumber,
+          partnerCity: r.partnerCity,
+          given: 0,
+          taken: 0,
+          balance: 0,
+          owedQuantity: 0,
+          postings: 0,
+          lastAt: null,
+          types: [],
+        };
+        map.set(key, row);
+      }
+      row.given += r.given;
+      row.taken += r.taken;
+      row.balance += r.balance;
+      row.owedQuantity += r.owedQuantity ?? Math.max(0, r.balance);
+      row.postings += r.postings;
+      row.types.push(r);
+      if (!row.partnerNumber && r.partnerNumber) row.partnerNumber = r.partnerNumber;
+      if (!row.partnerCity && r.partnerCity) row.partnerCity = r.partnerCity;
+      if (r.lastAt && (!row.lastAt || r.lastAt > row.lastAt)) row.lastAt = r.lastAt;
+    }
+    return [...map.values()].sort((a, b) =>
+      a.partnerName.localeCompare(b.partnerName, 'de'),
+    );
+  }, [balances]);
+
+  const selectedTypes = useMemo(
+    () => partnersAgg.find((p) => p.partnerName === selectedPartner)?.types ?? [],
+    [partnersAgg, selectedPartner],
+  );
 
   async function loadBalances(next?: {
     q?: string;
@@ -194,20 +249,11 @@ export default function LademittelPage() {
       const balParams = new URLSearchParams();
       if (qq.trim()) balParams.set('q', qq.trim());
       if (mc.trim()) balParams.set('matchcode', mc.trim());
-      const postParams = new URLSearchParams();
-      if (qq.trim()) postParams.set('q', qq.trim());
-      if (mc.trim()) postParams.set('matchcode', mc.trim());
-      if (partnerName) postParams.set('partnerName', partnerName);
-      if (showSkipped) postParams.set('includeSkipped', '1');
-      postParams.set('take', '150');
 
-      const [bal, posts] = await Promise.all([
-        api<{
-          balances: BalanceRow[];
-          totals: { given: number; taken: number; balance: number; owedQuantity: number };
-        }>(`/tours/loading-units/balances?${balParams}`),
-        api<Posting[]>(`/tours/loading-units/postings?${postParams}`),
-      ]);
+      const bal = await api<{
+        balances: BalanceRow[];
+        totals: { given: number; taken: number; balance: number; owedQuantity: number };
+      }>(`/tours/loading-units/balances?${balParams}`);
       setBalances(bal.balances);
       setTotals({
         given: bal.totals.given,
@@ -215,7 +261,18 @@ export default function LademittelPage() {
         balance: bal.totals.balance,
         owedQuantity: bal.totals.owedQuantity ?? Math.max(0, bal.totals.balance),
       });
-      setPostings(posts);
+
+      // Einzelbuchungen nur wenn ein Kunde gewählt ist
+      if (partnerName) {
+        const postParams = new URLSearchParams();
+        postParams.set('partnerName', partnerName);
+        if (mc.trim()) postParams.set('matchcode', mc.trim());
+        if (showSkipped) postParams.set('includeSkipped', '1');
+        postParams.set('take', '80');
+        setPostings(await api<Posting[]>(`/tours/loading-units/postings?${postParams}`));
+      } else {
+        setPostings([]);
+      }
     } catch (e: any) {
       setError(e.message || 'Laden fehlgeschlagen');
     } finally {
@@ -688,36 +745,46 @@ export default function LademittelPage() {
             )}
           </div>
 
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Partner-Salden</h2>
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+            Saldo nach Kunde
+            <span className="muted" style={{ fontWeight: 400, fontSize: '0.9rem' }}>
+              {' '}
+              · {partnersAgg.length} Kunde{partnersAgg.length === 1 ? '' : 'n'}
+            </span>
+          </h2>
+          <p className="muted" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+            Eine Zeile je Kunde (Totals). Klick öffnet die Aufschlüsselung nach Lademittel.
+          </p>
           {loading ? (
             <p className="muted">Laden…</p>
-          ) : balances.length === 0 ? (
+          ) : partnersAgg.length === 0 ? (
             <p className="muted">Noch keine gebuchten Lademitteltäusche.</p>
           ) : (
             <div style={{ marginBottom: '1.5rem', overflowX: 'auto' }}>
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Partner</th>
+                    <th>Kunde</th>
                     <th>Nr.</th>
                     <th>Ort</th>
-                    <th>Typ</th>
-                    <th>Given</th>
-                    <th>Taken</th>
-                    <th>Anzahl</th>
+                    <th>Lademittel</th>
+                    <th>Übergabe</th>
+                    <th>Übernahme</th>
+                    <th>Offen</th>
                     <th>Saldo</th>
                     <th>Buchungen</th>
                     <th>Zuletzt</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {balances.map((r) => {
-                    const key = `${r.partnerName}|${r.packagingMatchcode}|${r.partnerNumber || ''}`;
+                  {partnersAgg.map((r) => {
                     const active = selectedPartner === r.partnerName;
-                    const owed = r.owedQuantity ?? Math.max(0, r.balance);
+                    const typeSummary = r.types
+                      .map((t) => `${t.packagingMatchcode} ${t.given}/${t.taken}`)
+                      .join(' · ');
                     return (
                       <tr
-                        key={key}
+                        key={r.partnerName}
                         style={{
                           cursor: 'pointer',
                           background: active ? 'var(--wog-green-soft)' : undefined,
@@ -728,19 +795,23 @@ export default function LademittelPage() {
                           void loadBalances({ partnerName: next });
                         }}
                       >
-                        <td>{r.partnerName}</td>
+                        <td>
+                          <strong>{r.partnerName}</strong>
+                          <span className="muted" style={{ marginLeft: '0.35rem' }}>
+                            {active ? '▲' : '▼'}
+                          </span>
+                        </td>
                         <td>{r.partnerNumber || '—'}</td>
                         <td>{r.partnerCity || '—'}</td>
                         <td>
-                          <code>{r.packagingMatchcode}</code>
-                          {r.packagingLabel ? (
-                            <span className="muted"> · {r.packagingLabel}</span>
-                          ) : null}
+                          <span className="muted" style={{ fontSize: '0.9em' }}>
+                            {typeSummary || '—'}
+                          </span>
                         </td>
                         <td>{r.given}</td>
                         <td>{r.taken}</td>
                         <td>
-                          <strong>{owed}</strong>
+                          <strong>{r.owedQuantity}</strong>
                         </td>
                         <td>{r.balance}</td>
                         <td>{r.postings}</td>
@@ -753,93 +824,127 @@ export default function LademittelPage() {
             </div>
           )}
 
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-            Einzelbuchungen
-            {selectedPartner ? (
-              <span className="muted" style={{ fontWeight: 400 }}>
-                {' '}
-                · {selectedPartner}{' '}
+          {selectedPartner ? (
+            <>
+              <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                {selectedPartner}
                 <button
                   type="button"
-                  className="btn-ghost"
+                  className="btn btn-ghost"
                   style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem' }}
                   onClick={() => {
                     setSelectedPartner(null);
                     void loadBalances({ partnerName: null });
                   }}
                 >
-                  Filter lösen
+                  Schliessen
                 </button>
-              </span>
-            ) : null}
-          </h2>
-          {postings.length === 0 ? (
-            <p className="muted">Keine Buchungen für die aktuelle Auswahl.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Zeit</th>
-                    <th>Partner</th>
-                    <th>Typ</th>
-                    <th>Given</th>
-                    <th>Taken</th>
-                    <th>Anzahl</th>
-                    <th>Δ</th>
-                    <th>Tour</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {postings.map((p) => (
-                    <tr key={p.id}>
-                      <td>{fmt(p.occurredAt)}</td>
-                      <td>
-                        {p.partnerName || '—'}
-                        {p.partnerCity ? (
-                          <div className="muted" style={{ fontSize: '0.85em' }}>
-                            {p.partnerCity}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>
-                        <code>{p.packagingMatchcode}</code>
-                      </td>
-                      <td>{p.given}</td>
-                      <td>{p.taken}</td>
-                      <td>
-                        <strong>
-                          {fmtOwed(p.owedQuantity ?? Math.max(0, p.balanceDelta))}
-                        </strong>
-                      </td>
-                      <td>{p.balanceDelta}</td>
-                      <td>
-                        {p.tour?.id ? (
-                          <Link href={`/tours/${p.tour.id}`}>{p.tour.tourNumber}</Link>
-                        ) : (
-                          p.tourNumber || '—'
-                        )}
-                      </td>
-                      <td>
-                        {p.status === 'BOOKED'
-                          ? 'Gebucht'
-                          : p.status === 'SKIPPED_ZERO'
-                            ? 'Kein Tausch'
-                            : (
-                              <span title={p.skipReason || undefined} className="muted">
-                                {p.status === 'SKIPPED_UNKNOWN_TYPE'
-                                  ? 'Unbekannter Typ'
-                                  : p.status}
-                              </span>
+              </h2>
+
+              <h3 style={{ fontSize: '1rem', margin: '0.75rem 0 0.4rem' }}>
+                Total je Lademittel
+              </h3>
+              {selectedTypes.length === 0 ? (
+                <p className="muted">Keine Typen.</p>
+              ) : (
+                <div style={{ marginBottom: '1.25rem', overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Typ</th>
+                        <th>Übergabe</th>
+                        <th>Übernahme</th>
+                        <th>Offen</th>
+                        <th>Saldo</th>
+                        <th>Buchungen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedTypes.map((t) => (
+                        <tr key={t.packagingMatchcode}>
+                          <td>
+                            <code>{t.packagingMatchcode}</code>
+                            {t.packagingLabel ? (
+                              <span className="muted"> · {t.packagingLabel}</span>
+                            ) : null}
+                          </td>
+                          <td>{t.given}</td>
+                          <td>{t.taken}</td>
+                          <td>
+                            <strong>{t.owedQuantity ?? Math.max(0, t.balance)}</strong>
+                          </td>
+                          <td>{t.balance}</td>
+                          <td>{t.postings}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <h3 style={{ fontSize: '1rem', margin: '0.75rem 0 0.4rem' }}>
+                Einzelbuchungen
+              </h3>
+              {postings.length === 0 ? (
+                <p className="muted">Keine Einzelbuchungen.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Zeit</th>
+                        <th>Typ</th>
+                        <th>Übergabe</th>
+                        <th>Übernahme</th>
+                        <th>Offen</th>
+                        <th>Δ</th>
+                        <th>Tour</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {postings.map((p) => (
+                        <tr key={p.id}>
+                          <td>{fmt(p.occurredAt)}</td>
+                          <td>
+                            <code>{p.packagingMatchcode}</code>
+                          </td>
+                          <td>{p.given}</td>
+                          <td>{p.taken}</td>
+                          <td>
+                            <strong>
+                              {fmtOwed(p.owedQuantity ?? Math.max(0, p.balanceDelta))}
+                            </strong>
+                          </td>
+                          <td>{p.balanceDelta}</td>
+                          <td>
+                            {p.tour?.id ? (
+                              <Link href={`/tours/${p.tour.id}`}>{p.tour.tourNumber}</Link>
+                            ) : (
+                              p.tourNumber || '—'
                             )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          </td>
+                          <td>
+                            {p.status === 'BOOKED'
+                              ? 'Gebucht'
+                              : p.status === 'SKIPPED_ZERO'
+                                ? 'Kein Tausch'
+                                : (
+                                  <span title={p.skipReason || undefined} className="muted">
+                                    {p.status === 'SKIPPED_UNKNOWN_TYPE'
+                                      ? 'Unbekannter Typ'
+                                      : p.status}
+                                  </span>
+                                )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : null}
         </>
       )}
     </AppShell>
