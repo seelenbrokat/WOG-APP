@@ -300,6 +300,8 @@ model TourStop {
   targetEnd            DateTime?
   activityDescription  String?
   phone                String?
+  /// Extra Soloplan-Stopfelder (Name2, ActivityDescription2, TourStopLines, …)
+  details              Json?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
   loadingUnitPostings LoadingUnitPosting[]
@@ -336,6 +338,9 @@ model TourConsignment {
   lastLongitude              Float?
   /// Lademittel laut Soloplan-Tour (Matchcode/Menge)
   loadingUnits               Json?
+  /// Vollständige Soloplan-Sendungsdetails für Zustellapp
+  /// (Adressen, Kontakte, Freight, Items/SSCC, Hinweise, Zeitfenster, Referenzen)
+  details                    Json?
 
   tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
 

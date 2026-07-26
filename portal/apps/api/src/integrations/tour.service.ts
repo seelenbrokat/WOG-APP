@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'fs';
 import { join } from 'path';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { zurichDayKey, zurichDayRange } from '../common/zurich-date';
@@ -237,6 +237,7 @@ export class TourService {
           targetEnd: s.targetEnd,
           activityDescription: s.activityDescription,
           phone: s.phone,
+          details: (s.details as Prisma.InputJsonValue | undefined) ?? undefined,
         })),
       });
     }
@@ -256,7 +257,8 @@ export class TourService {
           customerBpNumber: c.customerBpNumber,
           freightPayerName: c.freightPayerName,
           freightPayerBpNumber: c.freightPayerBpNumber,
-          loadingUnits: c.loadingUnits ?? undefined,
+          loadingUnits: (c.loadingUnits as Prisma.InputJsonValue | undefined) ?? undefined,
+          details: (c.details as Prisma.InputJsonValue | undefined) ?? undefined,
         })),
       });
     }
