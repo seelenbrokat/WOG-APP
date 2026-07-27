@@ -68,6 +68,8 @@ export type CreateCustomsInput = {
   weightKg?: number | string;
   /** Nettogewicht kg */
   netWeightKg?: number | string;
+  /** Wareninhalt / Inhaltsbeschreibung */
+  goodsDescription?: string;
   /** Legacy – nicht mehr im Formular, optional */
   frankatur?: string;
   mandantId?: string;
@@ -290,6 +292,11 @@ export class CustomsService {
       throw new BadRequestException('Nettogewicht darf nicht größer als Bruttogewicht sein');
     }
 
+    const goodsDescription = (data.goodsDescription || '').trim();
+    if (!goodsDescription) {
+      throw new BadRequestException('Inhalt / Warenbeschreibung bitte angeben');
+    }
+
     const externalNumber = await allocateVlbExternalNumber(
       this.prisma,
       user.organizationId,
@@ -315,6 +322,7 @@ export class CustomsService {
         packageCount,
         weightKg,
         netWeightKg,
+        goodsDescription,
         frankatur,
         abweichenderFrachtzahler: abweichend,
         frachtzahlerFirma: abweichend ? data.frachtzahlerFirma?.trim() : null,
@@ -376,6 +384,7 @@ export class CustomsService {
         `Colli: ${order.packageCount ?? '–'}`,
         `Bruttogewicht: ${order.weightKg != null ? `${order.weightKg} kg` : '–'}`,
         `Nettogewicht: ${order.netWeightKg != null ? `${order.netWeightKg} kg` : '–'}`,
+        `Inhalt: ${order.goodsDescription || '–'}`,
         `Absender: ${order.absenderFirma}, ${order.absenderStreet}, ${order.absenderZip} ${order.absenderCity}`,
         `Empfänger: ${order.empfaengerFirma}, ${order.empfaengerStreet}, ${order.empfaengerZip} ${order.empfaengerCity}`,
         abweichend
@@ -471,6 +480,7 @@ export class CustomsService {
         packageCount: full.packageCount,
         weightKg: full.weightKg,
         netWeightKg: full.netWeightKg,
+        goodsDescription: full.goodsDescription,
         notes: full.notes,
         customerName: full.customer.name,
         customerNumber: full.customer.customerNumber,
@@ -532,6 +542,7 @@ export class CustomsService {
       full.packageCount != null ? `Colli: ${full.packageCount}` : null,
       full.weightKg != null ? `Bruttogewicht: ${full.weightKg} kg` : null,
       full.netWeightKg != null ? `Nettogewicht: ${full.netWeightKg} kg` : null,
+      full.goodsDescription ? `Inhalt: ${full.goodsDescription}` : null,
       `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
       `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,
       full.mandant ? `Mandant: ${full.mandant.name}` : null,

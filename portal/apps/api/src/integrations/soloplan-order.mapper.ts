@@ -401,7 +401,6 @@ function buildConsignment(
       }
     : null;
 
-  const senderBp = opts.defaultSender || customerBp;
   const pickup: AddressLike = {
     company: shipment.pickupCompany,
     street: shipment.pickupStreet,
@@ -417,19 +416,25 @@ function buildConsignment(
     country: shipment.deliveryCountry,
   };
 
-  // Wenn Default-Sender gesetzt und Pickup vorhanden → Pickup als differentLoadingPoint
-  const useDifferentLoading =
-    Boolean(opts.defaultSender) && Boolean(pickup.company || pickup.street || pickup.city);
+  const extrasObj =
+    shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+      ? (shipment.extras as Record<string, unknown>)
+      : {};
+  /** Verzollung: Formular-Absender = Soloplan-Sender (kein WOG-Default / kein Kunden-BP). */
+  const isCustomsOrder =
+    shipment.verzollungsauftrag === true || extrasObj.verzollung === true;
 
-  const senderAddress: AddressLike = opts.defaultSender
-    ? {
-        company: opts.defaultSender.name || opts.defaultSender.company || 'WOG Logistics AG',
-        street: opts.defaultSender.street || 'Wildenaustraße 22',
-        zip: opts.defaultSender.zip || '9444',
-        city: opts.defaultSender.city || 'Diepoldsau',
-        country: opts.defaultSender.country || 'CH',
-      }
-    : pickup.company || pickup.street
+  const senderBp = isCustomsOrder ? null : opts.defaultSender || customerBp;
+
+  // Wenn Default-Sender gesetzt und Pickup vorhanden → Pickup als differentLoadingPoint
+  // (nicht bei Verzollung – dort ist Pickup der eigentliche Absender)
+  const useDifferentLoading =
+    !isCustomsOrder &&
+    Boolean(opts.defaultSender) &&
+    Boolean(pickup.company || pickup.street || pickup.city);
+
+  const senderAddress: AddressLike = isCustomsOrder
+    ? pickup.company || pickup.street
       ? pickup
       : {
           company: shipment.customer.name,
@@ -437,7 +442,24 @@ function buildConsignment(
           zip: shipment.pickupZip,
           city: shipment.pickupCity,
           country: shipment.pickupCountry,
-        };
+        }
+    : opts.defaultSender
+      ? {
+          company: opts.defaultSender.name || opts.defaultSender.company || 'WOG Logistics AG',
+          street: opts.defaultSender.street || 'Wildenaustraße 22',
+          zip: opts.defaultSender.zip || '9444',
+          city: opts.defaultSender.city || 'Diepoldsau',
+          country: opts.defaultSender.country || 'CH',
+        }
+      : pickup.company || pickup.street
+        ? pickup
+        : {
+            company: shipment.customer.name,
+            street: shipment.pickupStreet,
+            zip: shipment.pickupZip,
+            city: shipment.pickupCity,
+            country: shipment.pickupCountry,
+          };
 
   const loadingDate = formatSoloplanDateTime(shipment.pickupDate) || formatSoloplanDateTime(new Date());
   const deliveryDateStart =

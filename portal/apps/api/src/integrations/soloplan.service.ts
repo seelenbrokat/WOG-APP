@@ -949,11 +949,14 @@ export class SoloplanService implements TransportIntegration {
 
     const packageCount = Math.max(1, order.packageCount || 1);
     const weightKg = order.weightKg ?? undefined;
+    const inhalt =
+      order.goodsDescription?.trim() ||
+      `Verzollungsauftrag ${order.importeur}`.trim();
     const shipmentBase: PortalShipmentForSoloplan = {
       id: order.id,
       trackingNumber: externalNumber,
       reference: externalNumber,
-      goodsDescription: `Verzollung ${order.importeur}`,
+      goodsDescription: inhalt,
       packageCount,
       weightKg,
       pickupCompany: order.absenderFirma,
@@ -1012,7 +1015,7 @@ export class SoloplanService implements TransportIntegration {
       },
       positions: [
         {
-          description: `Verzollungsauftrag ${order.importeur}`,
+          description: inhalt,
           quantity: packageCount,
           packaging: 'KRT',
           weightKg,
@@ -1051,11 +1054,12 @@ export class SoloplanService implements TransportIntegration {
     // Wichtig: Docs-Update NICHT gleichzeitig – alphabetisch kommt "-update-" vor ".json",
     // Soloplan würde sonst das Update vor dem Create verarbeiten.
     if (!createAlreadyPickedUp && !createPendingInPickup) {
+      // Kein defaultSender: Formular-Absender muss Soloplan-Sender sein (nicht WOG)
       const createPayload = buildSoloplanFilePayload(
         { ...shipmentBase, documents: [] },
         {
           format,
-          defaultSender: this.getDefaultSender(),
+          defaultSender: null,
           objectOwnerId,
         },
       );

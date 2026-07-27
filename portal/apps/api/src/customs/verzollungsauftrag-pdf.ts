@@ -27,6 +27,7 @@ export type VerzollungsauftragPdfInput = {
   packageCount?: number | null;
   weightKg?: number | null;
   netWeightKg?: number | null;
+  goodsDescription?: string | null;
   notes?: string | null;
   customerName: string;
   customerNumber?: string | null;
@@ -192,6 +193,7 @@ export function writeVerzollungsauftragPdf(
       'Nettogewicht',
       order.netWeightKg != null ? `${order.netWeightKg} kg` : '–',
     );
+    row('Inhalt', order.goodsDescription || '–');
     doc.moveDown(0.4);
 
     // Absender / Empfänger

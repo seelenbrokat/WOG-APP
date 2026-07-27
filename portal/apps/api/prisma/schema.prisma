@@ -1120,6 +1120,8 @@ model CustomsOrder {
   weightKg       Float?
   /// Nettogewicht in kg
   netWeightKg    Float?
+  /// Wareninhalt / Inhaltsbeschreibung (Soloplan content1)
+  goodsDescription String?
   frankatur      String
   /// true = abweichender Frachtzahler (nicht der angemeldete Kunde)
   abweichenderFrachtzahler Boolean @default(false)

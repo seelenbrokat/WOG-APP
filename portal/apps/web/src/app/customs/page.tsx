@@ -192,6 +192,7 @@ export default function CustomsPage() {
     packageCount: '',
     weightKg: '',
     netWeightKg: '',
+    goodsDescription: '',
     mandantId: '',
     notes: '',
   });
@@ -317,6 +318,9 @@ export default function CustomsPage() {
       if (netWeightKg > weightKg) {
         throw new Error('Nettogewicht darf nicht größer als Bruttogewicht sein');
       }
+      if (!form.goodsDescription.trim()) {
+        throw new Error('Inhalt / Warenbeschreibung bitte angeben');
+      }
       if (!invoice?.length) {
         throw new Error('Rechnung ist Pflicht – bitte die Rechnung hochladen');
       }
@@ -340,6 +344,7 @@ export default function CustomsPage() {
       fd.append('packageCount', String(Math.floor(packageCount)));
       fd.append('weightKg', String(weightKg));
       fd.append('netWeightKg', String(netWeightKg));
+      fd.append('goodsDescription', form.goodsDescription.trim());
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
       fd.append('abweichenderFrachtzahler', abweichend ? 'true' : 'false');
@@ -381,6 +386,7 @@ export default function CustomsPage() {
         packageCount: '',
         weightKg: '',
         netWeightKg: '',
+        goodsDescription: '',
         notes: '',
       }));
       await load();
@@ -680,6 +686,16 @@ export default function CustomsPage() {
           </div>
         </div>
 
+        <div className="field">
+          <label>Inhalt</label>
+          <input
+            required
+            placeholder="Warenbeschreibung / Inhalt"
+            value={form.goodsDescription}
+            onChange={(e) => setForm({ ...form, goodsDescription: e.target.value })}
+          />
+        </div>
+
         <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
           <label className="row">
             <input
@@ -796,6 +812,7 @@ export default function CustomsPage() {
                   o.packageCount != null ? `Colli: ${o.packageCount}` : null,
                   o.weightKg != null ? `Brutto: ${o.weightKg} kg` : null,
                   o.netWeightKg != null ? `Netto: ${o.netWeightKg} kg` : null,
+                  o.goodsDescription ? `Inhalt: ${o.goodsDescription}` : null,
                 ]
                   .filter(Boolean)
                   .join('\n');
@@ -855,12 +872,13 @@ export default function CustomsPage() {
                     <td className="col-border" title={borderTitle}>
                       <span className="cell-clip">{clip(o.grenzuebergang, 20)}</span>
                       <span className="meta cell-clip">{clip(o.importeur, 18)}</span>
-                      {o.packageCount != null || o.weightKg != null ? (
+                      {o.packageCount != null || o.weightKg != null || o.goodsDescription ? (
                         <span className="meta">
                           {[
                             o.packageCount != null ? `${o.packageCount} Colli` : null,
                             o.weightKg != null ? `${o.weightKg} kg brutto` : null,
                             o.netWeightKg != null ? `${o.netWeightKg} kg netto` : null,
+                            o.goodsDescription ? clip(o.goodsDescription, 24) : null,
                           ]
                             .filter(Boolean)
                             .join(' · ')}

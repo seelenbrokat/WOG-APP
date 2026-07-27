@@ -75,6 +75,11 @@ class CreateCustomsDto {
   @IsString()
   netWeightKg?: string;
 
+  /** Wareninhalt / Inhaltsbeschreibung */
+  @IsOptional()
+  @IsString()
+  goodsDescription?: string;
+
   @IsOptional()
   @IsString()
   frankatur?: string;
