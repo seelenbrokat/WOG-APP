@@ -189,6 +189,9 @@ export default function CustomsPage() {
     importeur: '',
     zazKonto: '',
     warenort: '',
+    packageCount: '',
+    weightKg: '',
+    netWeightKg: '',
     mandantId: '',
     notes: '',
   });
@@ -299,6 +302,21 @@ export default function CustomsPage() {
       if (!grenzuebergang || grenzuebergang.length < 2) {
         throw new Error('Grenzübergang bitte auswählen oder als Freitext eingeben');
       }
+      const packageCount = Number(String(form.packageCount).replace(',', '.'));
+      const weightKg = Number(String(form.weightKg).replace(',', '.'));
+      const netWeightKg = Number(String(form.netWeightKg).replace(',', '.'));
+      if (!Number.isFinite(packageCount) || packageCount < 1) {
+        throw new Error('Collianzahl bitte angeben (mindestens 1)');
+      }
+      if (!Number.isFinite(weightKg) || weightKg <= 0) {
+        throw new Error('Bruttogewicht (kg) bitte angeben');
+      }
+      if (!Number.isFinite(netWeightKg) || netWeightKg <= 0) {
+        throw new Error('Nettogewicht (kg) bitte angeben');
+      }
+      if (netWeightKg > weightKg) {
+        throw new Error('Nettogewicht darf nicht größer als Bruttogewicht sein');
+      }
       if (!invoice?.length) {
         throw new Error('Rechnung ist Pflicht – bitte die Rechnung hochladen');
       }
@@ -319,6 +337,9 @@ export default function CustomsPage() {
       fd.append('importeur', form.importeur);
       if (form.zazKonto.trim()) fd.append('zazKonto', form.zazKonto.trim());
       if (form.warenort.trim()) fd.append('warenort', form.warenort.trim());
+      fd.append('packageCount', String(Math.floor(packageCount)));
+      fd.append('weightKg', String(weightKg));
+      fd.append('netWeightKg', String(netWeightKg));
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
       fd.append('abweichenderFrachtzahler', abweichend ? 'true' : 'false');
@@ -357,6 +378,9 @@ export default function CustomsPage() {
         importeur: '',
         zazKonto: '',
         warenort: '',
+        packageCount: '',
+        weightKg: '',
+        netWeightKg: '',
         notes: '',
       }));
       await load();
@@ -614,6 +638,48 @@ export default function CustomsPage() {
           )}
         </div>
 
+        <div className="grid-3">
+          <div className="field">
+            <label>Collianzahl</label>
+            <input
+              required
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              placeholder="z. B. 12"
+              value={form.packageCount}
+              onChange={(e) => setForm({ ...form, packageCount: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Bruttogewicht (kg)</label>
+            <input
+              required
+              type="number"
+              min={0.001}
+              step="any"
+              inputMode="decimal"
+              placeholder="z. B. 1250,5"
+              value={form.weightKg}
+              onChange={(e) => setForm({ ...form, weightKg: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Nettogewicht (kg)</label>
+            <input
+              required
+              type="number"
+              min={0.001}
+              step="any"
+              inputMode="decimal"
+              placeholder="z. B. 1180"
+              value={form.netWeightKg}
+              onChange={(e) => setForm({ ...form, netWeightKg: e.target.value })}
+            />
+          </div>
+        </div>
+
         <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
           <label className="row">
             <input
@@ -727,6 +793,9 @@ export default function CustomsPage() {
                   o.importeur ? `Importeur: ${o.importeur}` : null,
                   o.zazKonto ? `ZAZ: ${o.zazKonto}` : null,
                   o.warenort ? `Warenort: ${o.warenort}` : null,
+                  o.packageCount != null ? `Colli: ${o.packageCount}` : null,
+                  o.weightKg != null ? `Brutto: ${o.weightKg} kg` : null,
+                  o.netWeightKg != null ? `Netto: ${o.netWeightKg} kg` : null,
                 ]
                   .filter(Boolean)
                   .join('\n');
@@ -786,6 +855,17 @@ export default function CustomsPage() {
                     <td className="col-border" title={borderTitle}>
                       <span className="cell-clip">{clip(o.grenzuebergang, 20)}</span>
                       <span className="meta cell-clip">{clip(o.importeur, 18)}</span>
+                      {o.packageCount != null || o.weightKg != null ? (
+                        <span className="meta">
+                          {[
+                            o.packageCount != null ? `${o.packageCount} Colli` : null,
+                            o.weightKg != null ? `${o.weightKg} kg brutto` : null,
+                            o.netWeightKg != null ? `${o.netWeightKg} kg netto` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="col-docs">
                       <div className="docs-summary">

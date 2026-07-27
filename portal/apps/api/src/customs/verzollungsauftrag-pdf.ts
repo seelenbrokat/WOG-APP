@@ -24,6 +24,9 @@ export type VerzollungsauftragPdfInput = {
   importeur: string;
   zazKonto?: string | null;
   warenort?: string | null;
+  packageCount?: number | null;
+  weightKg?: number | null;
+  netWeightKg?: number | null;
   notes?: string | null;
   customerName: string;
   customerNumber?: string | null;
@@ -177,6 +180,18 @@ export function writeVerzollungsauftragPdf(
     row('Importeur', order.importeur);
     row('ZAZ-Konto', order.zazKonto || '–');
     row('Warenort/Verzollungsort', order.warenort || '–');
+    row(
+      'Collianzahl',
+      order.packageCount != null ? String(order.packageCount) : '–',
+    );
+    row(
+      'Bruttogewicht',
+      order.weightKg != null ? `${order.weightKg} kg` : '–',
+    );
+    row(
+      'Nettogewicht',
+      order.netWeightKg != null ? `${order.netWeightKg} kg` : '–',
+    );
     doc.moveDown(0.4);
 
     // Absender / Empfänger

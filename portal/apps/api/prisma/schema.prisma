@@ -1114,6 +1114,12 @@ model CustomsOrder {
   zazKonto       String?
   /// Warenort / Verzollungsort – relevant CH/FL → AT (Soloplan: warenortVLBPortal)
   warenort       String?
+  /// Collianzahl
+  packageCount   Int?
+  /// Bruttogewicht in kg
+  weightKg       Float?
+  /// Nettogewicht in kg
+  netWeightKg    Float?
   frankatur      String
   /// true = abweichender Frachtzahler (nicht der angemeldete Kunde)
   abweichenderFrachtzahler Boolean @default(false)

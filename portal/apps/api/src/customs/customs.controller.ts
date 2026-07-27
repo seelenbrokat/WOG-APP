@@ -60,6 +60,21 @@ class CreateCustomsDto {
   @IsString()
   warenort?: string;
 
+  /** Collianzahl (FormData-String) */
+  @IsOptional()
+  @IsString()
+  packageCount?: string;
+
+  /** Bruttogewicht kg (FormData-String, Dezimal mit . oder ,) */
+  @IsOptional()
+  @IsString()
+  weightKg?: string;
+
+  /** Nettogewicht kg (FormData-String, Dezimal mit . oder ,) */
+  @IsOptional()
+  @IsString()
+  netWeightKg?: string;
+
   @IsOptional()
   @IsString()
   frankatur?: string;

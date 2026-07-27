@@ -29,6 +29,20 @@ import {
   writeVerzollungsauftragPdf,
 } from './verzollungsauftrag-pdf';
 
+function parsePositiveInt(raw: number | string | null | undefined): number | null {
+  if (raw == null || raw === '') return null;
+  const n = typeof raw === 'number' ? raw : Number(String(raw).trim().replace(',', '.'));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.floor(n);
+}
+
+function parsePositiveKg(raw: number | string | null | undefined): number | null {
+  if (raw == null || raw === '') return null;
+  const n = typeof raw === 'number' ? raw : Number(String(raw).trim().replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 1000) / 1000;
+}
+
 export type PartyAddress = {
   firma: string;
   street: string;
@@ -48,6 +62,12 @@ export type CreateCustomsInput = {
   importeur: string;
   zazKonto?: string;
   warenort?: string;
+  /** Collianzahl (Zahl oder FormData-String) */
+  packageCount?: number | string;
+  /** Bruttogewicht kg */
+  weightKg?: number | string;
+  /** Nettogewicht kg */
+  netWeightKg?: number | string;
   /** Legacy – nicht mehr im Formular, optional */
   frankatur?: string;
   mandantId?: string;
@@ -254,6 +274,22 @@ export class CustomsService {
       );
     }
 
+    const packageCount = parsePositiveInt(data.packageCount);
+    const weightKg = parsePositiveKg(data.weightKg);
+    const netWeightKg = parsePositiveKg(data.netWeightKg);
+    if (packageCount == null || packageCount < 1) {
+      throw new BadRequestException('Collianzahl bitte angeben (mindestens 1)');
+    }
+    if (weightKg == null) {
+      throw new BadRequestException('Bruttogewicht (kg) bitte angeben');
+    }
+    if (netWeightKg == null) {
+      throw new BadRequestException('Nettogewicht (kg) bitte angeben');
+    }
+    if (netWeightKg > weightKg) {
+      throw new BadRequestException('Nettogewicht darf nicht größer als Bruttogewicht sein');
+    }
+
     const externalNumber = await allocateVlbExternalNumber(
       this.prisma,
       user.organizationId,
@@ -276,6 +312,9 @@ export class CustomsService {
         importeur: data.importeur.trim(),
         zazKonto: data.zazKonto?.trim() || null,
         warenort: warenort || null,
+        packageCount,
+        weightKg,
+        netWeightKg,
         frankatur,
         abweichenderFrachtzahler: abweichend,
         frachtzahlerFirma: abweichend ? data.frachtzahlerFirma?.trim() : null,
@@ -334,6 +373,9 @@ export class CustomsService {
         `Importeur: ${order.importeur}`,
         order.zazKonto ? `ZAZ-Konto: ${order.zazKonto}` : '',
         order.warenort ? `Warenort/Verzollungsort: ${order.warenort}` : '',
+        `Colli: ${order.packageCount ?? '–'}`,
+        `Bruttogewicht: ${order.weightKg != null ? `${order.weightKg} kg` : '–'}`,
+        `Nettogewicht: ${order.netWeightKg != null ? `${order.netWeightKg} kg` : '–'}`,
         `Absender: ${order.absenderFirma}, ${order.absenderStreet}, ${order.absenderZip} ${order.absenderCity}`,
         `Empfänger: ${order.empfaengerFirma}, ${order.empfaengerStreet}, ${order.empfaengerZip} ${order.empfaengerCity}`,
         abweichend
@@ -426,6 +468,9 @@ export class CustomsService {
         importeur: full.importeur,
         zazKonto: full.zazKonto,
         warenort: full.warenort,
+        packageCount: full.packageCount,
+        weightKg: full.weightKg,
+        netWeightKg: full.netWeightKg,
         notes: full.notes,
         customerName: full.customer.name,
         customerNumber: full.customer.customerNumber,
@@ -484,6 +529,9 @@ export class CustomsService {
       `Importeur: ${full.importeur}`,
       full.zazKonto ? `ZAZ-Konto: ${full.zazKonto}` : null,
       full.warenort ? `Warenort/Verzollungsort: ${full.warenort}` : null,
+      full.packageCount != null ? `Colli: ${full.packageCount}` : null,
+      full.weightKg != null ? `Bruttogewicht: ${full.weightKg} kg` : null,
+      full.netWeightKg != null ? `Nettogewicht: ${full.netWeightKg} kg` : null,
       `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
       `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,
       full.mandant ? `Mandant: ${full.mandant.name}` : null,

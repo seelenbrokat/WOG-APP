@@ -947,12 +947,15 @@ export class SoloplanService implements TransportIntegration {
       )
     ).filter(Boolean) as Array<{ fileName: string; category: string; contentBase64: string }>;
 
+    const packageCount = Math.max(1, order.packageCount || 1);
+    const weightKg = order.weightKg ?? undefined;
     const shipmentBase: PortalShipmentForSoloplan = {
       id: order.id,
       trackingNumber: externalNumber,
       reference: externalNumber,
       goodsDescription: `Verzollung ${order.importeur}`,
-      packageCount: 1,
+      packageCount,
+      weightKg,
       pickupCompany: order.absenderFirma,
       pickupStreet: order.absenderStreet,
       pickupZip: order.absenderZip,
@@ -965,8 +968,16 @@ export class SoloplanService implements TransportIntegration {
       deliveryCity: order.empfaengerCity,
       deliveryCountry: order.empfaengerCountry,
       deliveryDate: order.zeit,
-      notes: order.notes,
-      extras: { verzollung: true },
+      notes: [
+        order.notes,
+        order.netWeightKg != null ? `Nettogewicht: ${order.netWeightKg} kg` : null,
+      ]
+        .filter(Boolean)
+        .join('\n') || null,
+      extras: {
+        verzollung: true,
+        ...(order.netWeightKg != null ? { netWeightKg: order.netWeightKg } : {}),
+      },
       verzollungsauftrag: true,
       kennzeichen: order.kennzeichen,
       kennzeichenAnhaenger: order.kennzeichenAnhaenger,
@@ -1002,8 +1013,9 @@ export class SoloplanService implements TransportIntegration {
       positions: [
         {
           description: `Verzollungsauftrag ${order.importeur}`,
-          quantity: 1,
+          quantity: packageCount,
           packaging: 'KRT',
+          weightKg,
         },
       ],
       documents: [],
