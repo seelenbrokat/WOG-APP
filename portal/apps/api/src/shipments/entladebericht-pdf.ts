@@ -28,6 +28,8 @@ export type EtbColloLine = {
   note?: string | null;
   /** Abmessungen/Gewicht während der Kontrolle geändert */
   dimensionsChanged?: boolean;
+  /** Beschädigungsfoto (WAREHOUSE_PHOTO) */
+  photoPath?: string | null;
 };
 
 export type EtbSurplusLine = {
@@ -131,7 +133,8 @@ function drawSectionTitle(
 function drawColloBlock(doc: PDFKit.PDFDocument, c: EtbColloLine, usable: number) {
   const damaged = c.status === 'DAMAGED';
   const dimsChanged = !!c.dimensionsChanged || noteHasDimsChanged(c.note);
-  ensureSpace(doc, dimsChanged ? 95 : 70);
+  const hasPhoto = !!(c.photoPath && existsSync(c.photoPath));
+  ensureSpace(doc, hasPhoto ? 240 : dimsChanged ? 95 : 70);
   const left = doc.page.margins.left;
   const dest = [c.deliveryZip, c.deliveryCity, c.deliveryCompany].filter(Boolean).join(' ');
   const dims = formatDims(c);
@@ -168,6 +171,20 @@ function drawColloBlock(doc: PDFKit.PDFDocument, c: EtbColloLine, usable: number
   const note = cleanNote(c.note);
   const line2 = [dest, c.content, note].filter(Boolean).join(' · ');
   if (line2) doc.fillColor(muted).font('Helvetica').fontSize(8).text(line2, { width: usable });
+
+  if (hasPhoto && c.photoPath) {
+    try {
+      doc.moveDown(0.2);
+      const imgH = 160;
+      const y0 = doc.y;
+      doc.image(c.photoPath, left, y0, {
+        fit: [usable, imgH],
+      });
+      doc.y = y0 + imgH + 8;
+    } catch {
+      doc.fillColor(WOG_PDF.muted).font('Helvetica').fontSize(8).text('(Foto konnte nicht eingebettet werden)');
+    }
+  }
 
   doc.moveDown(0.12);
   doc

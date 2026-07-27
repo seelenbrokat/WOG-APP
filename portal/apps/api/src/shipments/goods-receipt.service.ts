@@ -1197,6 +1197,22 @@ export class GoodsReceiptService {
       .length;
     const cancelled = session.checks.filter((c) => c.status === 'CANCELLED').length;
 
+    // Beschädigungsfotos (WAREHOUSE_PHOTO) für PDF + Mail-Anhänge
+    const damageDocIds = [
+      ...new Set(
+        session.checks
+          .filter((c) => c.status === 'DAMAGED' && c.documentId)
+          .map((c) => c.documentId!),
+      ),
+    ];
+    const damageDocs = damageDocIds.length
+      ? await this.prisma.document.findMany({
+          where: { id: { in: damageDocIds }, organizationId: session.organizationId },
+          select: { id: true, fileName: true, mimeType: true, storagePath: true },
+        })
+      : [];
+    const damageDocById = new Map(damageDocs.map((d) => [d.id, d]));
+
     const surplusLines: EtbSurplusLine[] = [];
     for (const s of session.surplus) {
       const candidates = ssccMatchCandidates(s.sscc);
@@ -1278,25 +1294,34 @@ export class GoodsReceiptService {
         // Stornierte Colli nicht in den PDF-Positionen (nur Zähler in der Zusammenfassung)
         colli: session.checks
           .filter((c) => c.status !== 'CANCELLED')
-          .map((c) => ({
-            sscc: c.collo.sscc,
-            status: c.status,
-            itemNumber: c.collo.itemNumber,
-            packaging: c.collo.packaging,
-            content: c.collo.content,
-            weightKg: c.collo.weightKg,
-            lengthCm: c.collo.lengthCm,
-            widthCm: c.collo.widthCm,
-            heightCm: c.collo.heightCm,
-            reference: c.collo.shipment.reference,
-            trackingNumber: c.collo.shipment.trackingNumber,
-            deliveryCompany: c.collo.shipment.deliveryCompany,
-            deliveryZip: c.collo.shipment.deliveryZip,
-            deliveryCity: c.collo.shipment.deliveryCity,
-            scannedAt: c.scannedAt,
-            note: c.note,
-            dimensionsChanged: !!(c.note && c.note.includes(ETB_DIMS_CHANGED_MARKER)),
-          })),
+          .map((c) => {
+            const photo =
+              c.status === 'DAMAGED' && c.documentId
+                ? damageDocById.get(c.documentId)
+                : undefined;
+            const photoPath =
+              photo?.storagePath && existsSync(photo.storagePath) ? photo.storagePath : null;
+            return {
+              sscc: c.collo.sscc,
+              status: c.status,
+              itemNumber: c.collo.itemNumber,
+              packaging: c.collo.packaging,
+              content: c.collo.content,
+              weightKg: c.collo.weightKg,
+              lengthCm: c.collo.lengthCm,
+              widthCm: c.collo.widthCm,
+              heightCm: c.collo.heightCm,
+              reference: c.collo.shipment.reference,
+              trackingNumber: c.collo.shipment.trackingNumber,
+              deliveryCompany: c.collo.shipment.deliveryCompany,
+              deliveryZip: c.collo.shipment.deliveryZip,
+              deliveryCity: c.collo.shipment.deliveryCity,
+              scannedAt: c.scannedAt,
+              note: c.note,
+              dimensionsChanged: !!(c.note && c.note.includes(ETB_DIMS_CHANGED_MARKER)),
+              photoPath,
+            };
+          }),
         surplus: surplusLines,
       },
       storagePath,
@@ -1322,6 +1347,21 @@ export class GoodsReceiptService {
 
     const recipients = this.etbNotifyEmails();
     const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
+    const photoAttachments = session.checks
+      .filter((c) => c.status === 'DAMAGED' && c.documentId)
+      .map((c) => {
+        const photo = damageDocById.get(c.documentId!);
+        if (!photo?.storagePath || !existsSync(photo.storagePath)) return null;
+        const ext = (photo.fileName.split('.').pop() || 'jpg').toLowerCase();
+        const safeSscc = String(c.collo.sscc || 'foto').replace(/[^a-zA-Z0-9._-]/g, '_');
+        return {
+          filename: `Schaden-${safeSscc}.${ext}`,
+          path: photo.storagePath,
+          contentType: photo.mimeType || 'image/jpeg',
+        };
+      })
+      .filter((a): a is { filename: string; path: string; contentType: string } => !!a);
+
     const subject = `Entladebericht ${session.externalRef} · ${session.customer?.name || 'WE'} · ${dateStr}`;
     const body = [
       `Entladebericht (ETB) Wareneingangskontrolle`,
@@ -1331,19 +1371,26 @@ export class GoodsReceiptService {
       `Datum: ${dateStr}`,
       `Soll ${session.checks.length} · OK ${ok} · Beschädigt ${damaged} · Fehlend ${missing} · Storniert ${cancelled} · Überzählig ${session.surplus.length}`,
       ``,
-      `PDF liegt bei. Aufbewahrung im Portal: 30 Tage.`,
+      `PDF liegt bei.${photoAttachments.length ? ` Zusätzlich ${photoAttachments.length} Beschädigungsfoto(s) im Anhang.` : ''}`,
+      `Aufbewahrung im Portal: 30 Tage.`,
       `Download: ${appUrl}/api/documents/${doc.id}/download`,
       ``,
       `WOG Portal`,
     ].join('\n');
 
+    const attachments = [
+      { filename: fileName, path: storagePath, contentType: 'application/pdf' },
+      ...photoAttachments,
+    ];
+
     for (const to of recipients) {
-      await this.notifications.sendRaw(to, subject, body, undefined, [
-        { filename: fileName, path: storagePath, contentType: 'application/pdf' },
-      ]);
+      await this.notifications.sendRaw(to, subject, body, undefined, attachments);
     }
 
-    this.logger.log(`ETB ${doc.id} erzeugt und an ${recipients.join(', ')} gesendet`);
+    this.logger.log(
+      `ETB ${doc.id} erzeugt und an ${recipients.join(', ')} gesendet` +
+        (photoAttachments.length ? ` (+${photoAttachments.length} Schadenfoto(s))` : ''),
+    );
     return doc;
   }
 
