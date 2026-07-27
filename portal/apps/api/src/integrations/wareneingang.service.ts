@@ -527,6 +527,10 @@ export class WareneingangService {
     // 1) Rückkopplung: ExternalNumber (VLB) → Soloplan OrderNumber speichern
     const link = await this.linkSoloplanOrderNumber(organizationId, parsed);
     if (link.matched > 0) {
+      // Bereits verknüpft: fehlende SSCCs aus dem JSON nachziehen (z. B. LAK mit falschem Alt-Collo)
+      if (link.shipmentIds[0]) {
+        await this.ensureColliFromParsed(link.shipmentIds[0], parsed);
+      }
       return {
         id: link.shipmentIds[0] || link.customsId || link.transportOrderId,
         linked: true,
@@ -534,8 +538,16 @@ export class WareneingangService {
       };
     }
 
-    // Feedback mit VLB, aber kein Portal-Treffer → keinen neuen WE-Auftrag erfinden
-    if (parsed.externalNumber?.trim()) {
+    const hasImportableColli = parsed.consignments.some((c) =>
+      c.items.some((it) => !!normalizeIncomingSscc(it.sscc || '')),
+    );
+    const consLak = parsed.consignments
+      .map((c) => c.externalNumber?.trim())
+      .find((v) => v && /^LAK/i.test(v));
+
+    // Feedback mit VLB/RPK ohne Portal-Treffer: nur überspringen, wenn keine SSCC-/LAK-Nutzlast
+    // (Sammel-Rechnungsnr. wie RPK… blockiert sonst den Erstimport von Schmidts-WEs)
+    if (parsed.externalNumber?.trim() && !hasImportableColli && !consLak) {
       this.logger.warn(
         `Wareneingang: Soloplan ${parsed.orderNumber} ExternalNumber ${parsed.externalNumber} ohne Portal-Treffer (${sourceFile})`,
       );
@@ -553,11 +565,25 @@ export class WareneingangService {
     const existing = await this.prisma.shipment.findFirst({
       where: {
         organizationId,
-        OR: [{ reference: `WE-${parsed.orderNumber}` }, { soloplanRef: parsed.orderNumber }],
+        OR: [
+          { reference: `WE-${parsed.orderNumber}` },
+          { soloplanRef: parsed.orderNumber },
+          ...(consLak ? [{ reference: { equals: consLak, mode: 'insensitive' as const } }] : []),
+        ],
       },
       select: { id: true },
     });
-    if (existing) return { id: existing.id, linked: false };
+    if (existing) {
+      await this.ensureColliFromParsed(existing.id, parsed);
+      await this.prisma.shipment.update({
+        where: { id: existing.id },
+        data: {
+          soloplanRef: parsed.orderNumber,
+          ...(consLak ? { reference: consLak } : {}),
+        },
+      });
+      return { id: existing.id, linked: false, updated: true };
+    }
 
     const mandant = await this.resolveMandant(organizationId, parsed.orgaNumber);
     const customer = await this.resolveCustomer(organizationId, parsed);
@@ -633,12 +659,18 @@ export class WareneingangService {
         orderId: order.id,
         trackingNumber: track,
         trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
-        reference: `WE-${parsed.orderNumber}`,
+        reference: consLak || `WE-${parsed.orderNumber}`,
         soloplanRef: parsed.orderNumber,
         status: ShipmentStatus.SUBMITTED,
         goodsDescription: 'Wareneingang',
         packageCount: colliPlan.length,
         weightKg,
+        extras: consLak
+          ? {
+              externalShipmentNumber: consLak,
+              soloplanWeReference: `WE-${parsed.orderNumber}`,
+            }
+          : undefined,
         pickupCompany: consignment.absName || parsed.name1,
         pickupStreet: consignment.absStreet || parsed.street,
         pickupZip: consignment.absZip || parsed.zipCode,
@@ -716,6 +748,84 @@ export class WareneingangService {
     }
 
     return { id: shipment.id, linked: false };
+  }
+
+  /** Fehlende Colli/SSCCs aus Soloplan-JSON an bestehende WE-Sendung anhängen. */
+  private async ensureColliFromParsed(shipmentId: string, parsed: ParsedWareneingangOrder) {
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id: shipmentId },
+      select: {
+        id: true,
+        packageCount: true,
+        weightKg: true,
+        colli: { select: { sscc: true, itemNumber: true }, orderBy: { itemNumber: 'desc' } },
+      },
+    });
+    if (!shipment) return;
+
+    const existing = new Set(
+      shipment.colli.flatMap((c) => {
+        const digits = c.sscc.replace(/\D/g, '');
+        return [c.sscc, digits, digits.replace(/^0+/, ''), `0${digits}`.slice(-18)];
+      }),
+    );
+
+    let nextItem = (shipment.colli[0]?.itemNumber || 0) + 1;
+    let added = 0;
+    let addedWeight = 0;
+
+    for (const cons of parsed.consignments) {
+      for (const it of cons.items) {
+        const sscc = normalizeIncomingSscc(it.sscc || '');
+        if (!sscc) continue;
+        const digits = sscc.replace(/\D/g, '');
+        const variants = [sscc, digits, digits.replace(/^0+/, ''), `0${digits}`.slice(-18)];
+        if (variants.some((v) => v && existing.has(v))) continue;
+
+        const clash = await this.prisma.shipmentCollo.findUnique({ where: { sscc } });
+        if (clash) continue;
+
+        await this.prisma.shipmentCollo.create({
+          data: {
+            shipmentId,
+            itemNumber: nextItem,
+            sscc,
+            content: it.content || 'Wareneingang',
+            packaging: it.packaging,
+            quantity: 1,
+            weightKg: it.weightKg,
+            lengthCm: it.lengthCm,
+            widthCm: it.widthCm,
+            heightCm: it.heightCm,
+          },
+        });
+        existing.add(sscc);
+        if (digits) existing.add(digits);
+        nextItem += 1;
+        added += 1;
+        if (it.weightKg != null) addedWeight += it.weightKg;
+      }
+    }
+
+    if (added > 0) {
+      await this.prisma.shipment.update({
+        where: { id: shipmentId },
+        data: {
+          packageCount: (shipment.packageCount || shipment.colli.length) + added,
+          ...(addedWeight
+            ? {
+                weightKg:
+                  shipment.weightKg != null
+                    ? Number(shipment.weightKg) + addedWeight
+                    : addedWeight,
+              }
+            : {}),
+        },
+      });
+      this.logger.log(
+        `Wareneingang: ${added} SSCC(s) an Sendung ${shipmentId} nachgezogen (Order ${parsed.orderNumber})`,
+      );
+    }
   }
 
   private async writeLabels(
