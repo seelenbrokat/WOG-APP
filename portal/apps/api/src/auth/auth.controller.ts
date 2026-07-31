@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import {
@@ -8,9 +9,12 @@ import {
   ResetPasswordDto,
   VerifyEmailDto,
   ChangePasswordDto,
+  CreateLoginQrDto,
+  QrPortalLoginDto,
 } from './dto/auth.dto';
 import { Public } from './public.decorator';
-import { CurrentUser, AuthUser } from './auth.types';
+import { CurrentUser, AuthUser, Roles } from './auth.types';
+import { RolesGuard } from './roles.guard';
 
 @Throttle({ default: { limit: 20, ttl: 60_000 } })
 @Controller('auth')
@@ -29,6 +33,13 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('qr-login')
+  qrLogin(@Body() dto: QrPortalLoginDto) {
+    return this.auth.loginWithQr(dto.token);
   }
 
   @Public()
@@ -59,5 +70,19 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);
+  }
+
+  @Get('login-qr/staff')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  listStaffForQr(@CurrentUser() user: AuthUser) {
+    return this.auth.listStaffForQr(user);
+  }
+
+  @Post('login-qr')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  createLoginQr(@CurrentUser() user: AuthUser, @Body() dto: CreateLoginQrDto) {
+    return this.auth.createLoginQr(user, dto);
   }
 }

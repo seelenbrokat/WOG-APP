@@ -3,16 +3,46 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import { createRequire } from 'module';
 import { NotificationEvent, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { AuthUser } from './auth.types';
+import { RegisterDto, LoginDto, CreateLoginQrDto } from './dto/auth.dto';
+
+function hashToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+const nodeRequire = createRequire(__filename);
+const bwipjs = nodeRequire('bwip-js') as {
+  toBuffer: (opts: {
+    bcid: string;
+    text: string;
+    scale?: number;
+    height?: number;
+    includetext?: boolean;
+  }) => Promise<Buffer>;
+};
+
+const STAFF_ROLES: UserRole[] = [UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER];
+const DEFAULT_LAGER_EMAIL = 'lager@wog.logistikberater.at';
+const DEFAULT_QR_REDIRECT = '/scanning/we-tc57';
+
+function sanitizeRedirectPath(path?: string) {
+  const raw = (path || DEFAULT_QR_REDIRECT).trim();
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) {
+    throw new BadRequestException('Ungültiger Redirect-Pfad');
+  }
+  return raw;
+}
 
 @Injectable()
 export class AuthService {
@@ -109,6 +139,48 @@ export class AuthService {
     return { message: 'E-Mail bestätigt. Sie können sich anmelden.' };
   }
 
+  private async issuePortalSession(
+    user: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      role: UserRole;
+      organizationId: string;
+      customerId: string | null;
+      mustChangePassword: boolean;
+      customer?: { name: string } | null;
+      partner?: { id: string; name: string } | null;
+      mandantAccess: Array<{ mandantId: string }>;
+    },
+    auditAction = 'auth.login',
+    auditMeta: Record<string, unknown> = {},
+  ) {
+    const token = await this.jwt.signAsync({ sub: user.id, role: user.role });
+    await this.audit.log(user.id, auditAction, 'User', user.id, {
+      email: user.email,
+      ...auditMeta,
+    });
+    return {
+      accessToken: token,
+      mustChangePassword: user.mustChangePassword,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        organizationId: user.organizationId,
+        customerId: user.customerId,
+        customerName: user.customer?.name,
+        partnerId: user.partner?.id ?? null,
+        partnerName: user.partner?.name,
+        mandantIds: user.mandantAccess.map((a) => a.mandantId),
+        mustChangePassword: user.mustChangePassword,
+      },
+    };
+  }
+
   async login(dto: LoginDto) {
     const email = dto.email.toLowerCase();
     const user = await this.prisma.user.findUnique({
@@ -138,26 +210,181 @@ export class AuthService {
       throw new UnauthorizedException('E-Mail noch nicht bestätigt');
     }
 
-    const token = await this.jwt.signAsync({ sub: user.id, role: user.role });
-    await this.audit.log(user.id, 'auth.login', 'User', user.id, { email: user.email });
+    return this.issuePortalSession(user);
+  }
+
+  /** Dispo/Admin: QR für Lager-Tablet erzeugen (Standard: lager@… → WE TC57). */
+  async createLoginQr(actor: AuthUser, dto: CreateLoginQrDto) {
+    if (!STAFF_ROLES.includes(actor.role)) {
+      throw new ForbiddenException('Keine Berechtigung');
+    }
+
+    const email = (dto.email || DEFAULT_LAGER_EMAIL).toLowerCase();
+    const target = dto.userId
+      ? await this.prisma.user.findFirst({
+          where: {
+            id: dto.userId,
+            organizationId: actor.organizationId,
+            active: true,
+          },
+        })
+      : await this.prisma.user.findFirst({
+          where: {
+            email,
+            organizationId: actor.organizationId,
+            active: true,
+          },
+        });
+
+    if (!target) {
+      throw new BadRequestException(
+        dto.userId
+          ? 'Benutzer nicht gefunden'
+          : `Lager-Benutzer nicht gefunden (${email})`,
+      );
+    }
+    if (!STAFF_ROLES.includes(target.role)) {
+      throw new BadRequestException(
+        'QR-Login nur für interne Lager-/Dispo-Benutzer (ORG_ADMIN / MANDANT_DISPATCHER)',
+      );
+    }
+
+    const ttlDays = dto.ttlDays ?? 90;
+    const singleUse = dto.singleUse === true;
+    const redirectPath = sanitizeRedirectPath(dto.redirectPath);
+    const label =
+      dto.label?.trim() ||
+      `Lager · ${target.firstName} ${target.lastName}`.trim() ||
+      target.email;
+
+    // Alte Tokens desselben Users widerrufen – ein aktueller Station-QR
+    await this.prisma.userLoginQrToken.updateMany({
+      where: {
+        userId: target.id,
+        organizationId: actor.organizationId,
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+
+    const raw = randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + ttlDays * 24 * 3600 * 1000);
+    await this.prisma.userLoginQrToken.create({
+      data: {
+        organizationId: actor.organizationId,
+        userId: target.id,
+        tokenHash: hashToken(raw),
+        label,
+        redirectPath,
+        singleUse,
+        expiresAt,
+        createdByUserId: actor.id,
+      },
+    });
+
+    const appUrl = (this.config.get<string>('APP_URL') || 'http://localhost:3000').replace(
+      /\/$/,
+      '',
+    );
+    const payload = `${appUrl}/?qr=${raw}`;
+
+    const png = await bwipjs.toBuffer({
+      bcid: 'qrcode',
+      text: payload,
+      scale: 6,
+      includetext: false,
+    });
+
+    await this.audit.log(actor.id, 'auth.loginQr.create', 'User', target.id, {
+      email: target.email,
+      ttlDays,
+      singleUse,
+      redirectPath,
+      label,
+    });
+
     return {
-      accessToken: token,
-      mustChangePassword: user.mustChangePassword,
+      expiresAt: expiresAt.toISOString(),
+      ttlDays,
+      singleUse,
+      redirectPath,
+      label,
+      payload,
+      qrPngBase64: png.toString('base64'),
+      qrDataUrl: `data:image/png;base64,${png.toString('base64')}`,
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        organizationId: user.organizationId,
-        customerId: user.customerId,
-        customerName: user.customer?.name,
-        partnerId: user.partner?.id ?? null,
-        partnerName: user.partner?.name,
-        mandantIds: user.mandantAccess.map((a) => a.mandantId),
-        mustChangePassword: user.mustChangePassword,
+        id: target.id,
+        email: target.email,
+        firstName: target.firstName,
+        lastName: target.lastName,
+        role: target.role,
       },
     };
+  }
+
+  async loginWithQr(token: string) {
+    const qr = await this.prisma.userLoginQrToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: {
+        user: {
+          include: { mandantAccess: true, customer: true, partner: true },
+        },
+      },
+    });
+
+    if (!qr || qr.revokedAt || qr.expiresAt < new Date()) {
+      await this.audit.log(null, 'auth.loginQr.failed', 'User', undefined, {
+        reason: 'invalid_or_expired',
+      });
+      throw new UnauthorizedException('QR-Code ungültig oder abgelaufen');
+    }
+    if (qr.singleUse && qr.usedAt) {
+      await this.audit.log(qr.userId, 'auth.loginQr.failed', 'User', qr.userId, {
+        reason: 'already_used',
+      });
+      throw new UnauthorizedException('QR-Code bereits verwendet');
+    }
+    if (!qr.user.active || !STAFF_ROLES.includes(qr.user.role)) {
+      throw new UnauthorizedException('Benutzer für QR-Login nicht freigeschaltet');
+    }
+
+    if (qr.singleUse || !qr.usedAt) {
+      await this.prisma.userLoginQrToken.update({
+        where: { id: qr.id },
+        data: { usedAt: new Date() },
+      });
+    }
+
+    const session = await this.issuePortalSession(qr.user, 'auth.loginQr', {
+      qrTokenId: qr.id,
+      singleUse: qr.singleUse,
+    });
+
+    return {
+      ...session,
+      redirectPath: qr.redirectPath || DEFAULT_QR_REDIRECT,
+    };
+  }
+
+  async listStaffForQr(actor: AuthUser) {
+    if (!STAFF_ROLES.includes(actor.role)) {
+      throw new ForbiddenException('Keine Berechtigung');
+    }
+    return this.prisma.user.findMany({
+      where: {
+        organizationId: actor.organizationId,
+        active: true,
+        role: { in: STAFF_ROLES },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

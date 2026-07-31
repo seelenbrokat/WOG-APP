@@ -90,6 +90,7 @@ model Organization {
   drivers           Driver[]
   driverDevices     DriverDevice[]
   driverQrTokens    DriverQrToken[]
+  userLoginQrTokens UserLoginQrToken[]
   driverChatMessages DriverChatMessage[]
   tours             Tour[]
   telematicsEvents  TelematicsEvent[]
@@ -679,6 +680,31 @@ model User {
   notificationPrefs    NotificationPreference[]
   auditLogs            AuditLog[]             @relation("AuditActor")
   partner              Partner?
+  loginQrTokens        UserLoginQrToken[]
+}
+
+/// Mehrfach nutzbarer QR-/Barcode-Login für Lager-Tablets (z. B. WE TC57)
+model UserLoginQrToken {
+  id              String    @id @default(cuid())
+  organizationId  String
+  userId          String
+  tokenHash       String    @unique
+  label           String?
+  /// Zielpfad nach Login, z. B. /scanning/we-tc57
+  redirectPath    String    @default("/scanning/we-tc57")
+  /// false = Station-Badge, mehrfach gültig bis expiresAt
+  singleUse       Boolean   @default(false)
+  expiresAt       DateTime
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, expiresAt])
+  @@index([userId, revokedAt])
 }
 
 model UserMandantAccess {

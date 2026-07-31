@@ -34,7 +34,10 @@ const NAV: NavItem[] = [
     href: '/lager',
     label: 'Lager',
     roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'],
-    children: [{ href: '/lager/lademittelscheine', label: 'Lademittelscheine' }],
+    children: [
+      { href: '/lager/lademittelscheine', label: 'Lademittelscheine' },
+      { href: '/lager/login-qr', label: 'Login-QR' },
+    ],
   },
   { href: '/scanning', label: 'Scanning', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning/we-tc57', label: 'WE TC57', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -69,6 +72,7 @@ function isActive(pathname: string, href: string) {
   if (href === '/partner/lademittelscheine' && pathname.startsWith('/partner/lademittelscheine')) return true;
   if (href === '/lager' && pathname.startsWith('/lager')) return true;
   if (href === '/lager/lademittelscheine' && pathname.startsWith('/lager/lademittelscheine')) return true;
+  if (href === '/lager/login-qr' && pathname.startsWith('/lager/login-qr')) return true;
   if (href === '/audit' && pathname.startsWith('/audit')) return true;
   if (href === '/customs' && pathname.startsWith('/customs')) return true;
   return false;
