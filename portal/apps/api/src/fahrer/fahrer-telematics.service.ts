@@ -223,6 +223,20 @@ export class FahrerTelematicsService {
       },
     });
 
+    if (dto.location) {
+      await this.prisma.vehicle.update({
+        where: { id: driver.vehicleId },
+        data: {
+          lastLatitude: dto.location.latitude,
+          lastLongitude: dto.location.longitude,
+          lastLocationAt: now,
+          lastDriverId: driver.driverTelematicsId || undefined,
+          lastLocationSource: 'vlbportal',
+          active: true,
+        },
+      });
+    }
+
     return result;
   }
 
