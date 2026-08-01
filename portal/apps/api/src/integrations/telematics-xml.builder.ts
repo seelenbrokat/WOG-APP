@@ -162,6 +162,12 @@ ${geoXml(input.location)}
 `;
 }
 
+export type OutInformationField = {
+  /** Soloplan-Informationsnummer (z. B. 5 = Sendungsinformation) */
+  number: number;
+  value: string;
+};
+
 export type OutTransportOrderStatus = {
   vehicleId: string;
   driverId?: string | null;
@@ -175,12 +181,33 @@ export type OutTransportOrderStatus = {
     | 'UnloadingStart'
     | 'UnloadingFinished'
     | 'UnloadingPlaceLeft'
+    | 'Other'
     | string;
   statusText?: string;
   statusDate?: Date;
   sendDate?: Date;
   location?: { latitude: number; longitude: number; information?: string; at?: Date };
+  /** Nummerierte Infofelder am Transportauftrag (z. B. Feld 5 Sendungsinformation) */
+  informations?: OutInformationField[];
 };
+
+function informationsXml(fields?: OutInformationField[]): string {
+  const list = (fields || []).filter(
+    (f) => Number.isFinite(f.number) && String(f.value ?? '').trim() !== '',
+  );
+  if (!list.length) return '';
+  const rows = list
+    .map(
+      (f) => `    <Information>
+      <Number>${esc(Math.trunc(f.number))}</Number>
+      <Value>${esc(String(f.value).trim().slice(0, 2000))}</Value>
+    </Information>`,
+    )
+    .join('\n');
+  return `  <Informations>
+${rows}
+  </Informations>`;
+}
 
 /** TransportOrderStatus – Belade-/Entlade-Status je Auftrag */
 export function buildTransportOrderStatusXml(input: OutTransportOrderStatus): string {
@@ -191,6 +218,7 @@ export function buildTransportOrderStatusXml(input: OutTransportOrderStatus): st
     input.driverId == null
       ? '  <DriverId xsi:nil="true" />'
       : `  <DriverId>${esc(input.driverId)}</DriverId>`;
+  const infoXml = informationsXml(input.informations);
   return `<?xml version="1.0" encoding="utf-8"?>
 <TransportOrderStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
   <VehicleId>${esc(vehicleId)}</VehicleId>
@@ -201,6 +229,7 @@ ${driver}
   <Status>${esc(input.status)}</Status>
   ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
 ${geoXml(input.location)}
+${infoXml}
 </TransportOrderStatus>
 `;
 }

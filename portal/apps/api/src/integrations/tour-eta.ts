@@ -105,3 +105,28 @@ export function toTourEtaView(tour: {
     etaSource: tour.etaSource ?? null,
   };
 }
+
+/**
+ * Text für Soloplan Sendungsinformation Feld 5.
+ * Kurz und lesbar, max. 500 Zeichen.
+ */
+export function formatEtaForSoloplanInfo5(opts: {
+  etaText?: string | null;
+  etaAt?: Date | null;
+  tourNumber?: string | null;
+}): string {
+  const raw = String(opts.etaText || '').trim();
+  if (raw) return raw.slice(0, 500);
+
+  if (opts.etaAt && !Number.isNaN(opts.etaAt.getTime())) {
+    const time = new Intl.DateTimeFormat('de-CH', {
+      timeZone: 'Europe/Zurich',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(opts.etaAt);
+    const tour = opts.tourNumber ? ` Tour ${opts.tourNumber}` : '';
+    return `ETA ca. ${time}${tour}`.slice(0, 500);
+  }
+  return '';
+}

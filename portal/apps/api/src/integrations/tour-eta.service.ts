@@ -1,21 +1,30 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelematicsOutboundService } from './telematics-outbound.service';
 import {
+  formatEtaForSoloplanInfo5,
   isEtaText,
   parseEtaMessage,
   toTourEtaView,
   TourEtaView,
 } from './tour-eta';
 
+/** Soloplan ConsignmentInformations / Sendungsinformation Feld 5 */
+const SOLOPLAN_SHIPMENT_INFO_FIELD = 5;
+
 @Injectable()
 export class TourEtaService {
   private readonly log = new Logger(TourEtaService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private outbound: TelematicsOutboundService,
+  ) {}
 
   /**
    * Strukturierte ETA von der Zustellapp.
    * Schreibt nur, wenn sich Text oder Zeit (±60s) geändert hat.
+   * Bei Änderung: Soloplan TransportOrder Feld 5 (Sendungsinformation).
    */
   async upsertFromApp(opts: {
     organizationId: string;
@@ -23,6 +32,8 @@ export class TourEtaService {
     text: string;
     etaAt?: Date | string | null;
     source?: 'app' | 'chat' | 'location';
+    vehicleSoloplanId?: string | null;
+    driverTelematicsId?: string | null;
   }) {
     const tourNumber = String(opts.tourNumber || '').trim();
     if (!tourNumber) throw new NotFoundException('Tournummer fehlt');
@@ -46,6 +57,12 @@ export class TourEtaService {
         tourNumber: true,
         etaAt: true,
         etaText: true,
+        driverTelematicsId: true,
+        vehicle: { select: { soloplanVehicleId: true } },
+        consignments: {
+          select: { soloplanOrderNumber: true },
+          orderBy: { soloplanOrderNumber: 'asc' },
+        },
       },
     });
     if (!tour) {
@@ -84,7 +101,97 @@ export class TourEtaService {
     this.log.log(
       `ETA Tour ${updated.tourNumber}: ${updated.etaText || updated.etaAt?.toISOString()} (${updated.etaSource})`,
     );
-    return { updated: true, reason: 'ok' as const, tour: updated };
+
+    const soloplanOut = await this.pushEtaToSoloplanInfo5({
+      tourNumber: updated.tourNumber,
+      etaText: updated.etaText,
+      etaAt: updated.etaAt,
+      consignments: tour.consignments,
+      vehicleSoloplanId:
+        opts.vehicleSoloplanId || tour.vehicle?.soloplanVehicleId || null,
+      driverTelematicsId:
+        opts.driverTelematicsId || tour.driverTelematicsId || null,
+    });
+
+    return {
+      updated: true,
+      reason: 'ok' as const,
+      tour: updated,
+      soloplan: soloplanOut,
+    };
+  }
+
+  /**
+   * ETA → Soloplan TransportOrderStatus mit Informations Number=5
+   * (Sendungsinformation am Auftrag).
+   */
+  private async pushEtaToSoloplanInfo5(opts: {
+    tourNumber: string;
+    etaText: string | null;
+    etaAt: Date | null;
+    consignments: Array<{ soloplanOrderNumber: string }>;
+    vehicleSoloplanId?: string | null;
+    driverTelematicsId?: string | null;
+  }) {
+    const value = formatEtaForSoloplanInfo5({
+      etaText: opts.etaText,
+      etaAt: opts.etaAt,
+      tourNumber: opts.tourNumber,
+    });
+    if (!value) {
+      return { written: 0, reason: 'empty_value' as const, files: [] as string[] };
+    }
+
+    const vehicleId = String(opts.vehicleSoloplanId || '').trim();
+    if (!vehicleId) {
+      this.log.warn(
+        `ETA Soloplan Feld 5 übersprungen – keine VehicleId für Tour ${opts.tourNumber}`,
+      );
+      return { written: 0, reason: 'no_vehicle' as const, files: [] as string[] };
+    }
+
+    const orderNumbers = [
+      ...new Set(
+        opts.consignments
+          .map((c) => String(c.soloplanOrderNumber || '').trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!orderNumbers.length) {
+      this.log.warn(
+        `ETA Soloplan Feld 5 übersprungen – keine Transportaufträge auf Tour ${opts.tourNumber}`,
+      );
+      return { written: 0, reason: 'no_orders' as const, files: [] as string[] };
+    }
+
+    const files: string[] = [];
+    for (const transportOrderNumber of orderNumbers) {
+      try {
+        const out = this.outbound.sendTransportOrderStatus({
+          vehicleId,
+          driverId: opts.driverTelematicsId || undefined,
+          transportOrderNumber,
+          // Other = Infofeld aktualisieren ohne Belade-/Entlade-Workflow
+          status: 'Other',
+          statusText: 'ETA',
+          informations: [
+            { number: SOLOPLAN_SHIPMENT_INFO_FIELD, value },
+          ],
+        });
+        files.push(out.fileName);
+      } catch (e: any) {
+        this.log.warn(
+          `ETA Soloplan Feld 5 TO=${transportOrderNumber}: ${e?.message || e}`,
+        );
+      }
+    }
+
+    if (files.length) {
+      this.log.log(
+        `ETA → Soloplan Feld 5 (Sendungsinformation) Tour ${opts.tourNumber}: ${files.length} TO · ${value.slice(0, 80)}`,
+      );
+    }
+    return { written: files.length, reason: 'ok' as const, files };
   }
 
   /** Chat-/Location-Freitext auswerten und ggf. speichern */
@@ -93,6 +200,8 @@ export class TourEtaService {
     text: string;
     tourNumber?: string | null;
     source: 'chat' | 'location';
+    vehicleSoloplanId?: string | null;
+    driverTelematicsId?: string | null;
   }) {
     if (!isEtaText(opts.text)) return null;
     const parsed = parseEtaMessage(opts.text);
@@ -105,6 +214,8 @@ export class TourEtaService {
         text: opts.text,
         etaAt: parsed.etaAt,
         source: opts.source,
+        vehicleSoloplanId: opts.vehicleSoloplanId,
+        driverTelematicsId: opts.driverTelematicsId,
       });
     } catch (e: any) {
       this.log.warn(`ETA ingest (${opts.source}) failed: ${e?.message || e}`);

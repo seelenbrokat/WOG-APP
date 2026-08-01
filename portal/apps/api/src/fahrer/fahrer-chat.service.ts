@@ -59,12 +59,14 @@ export class FahrerChatService {
       },
     });
 
-    // ETA-Chat auch strukturiert für Dispo/Endkunde speichern
+    // ETA-Chat → Portal + Soloplan Sendungsinformation Feld 5
     await this.tourEta.ingestFreeText({
       organizationId: driver.organizationId,
       text,
       tourNumber: dto.tourNumber,
       source: 'chat',
+      vehicleSoloplanId: driver.vehicleSoloplanId,
+      driverTelematicsId: driver.driverTelematicsId,
     });
 
     return { message: stored, outbound: out };

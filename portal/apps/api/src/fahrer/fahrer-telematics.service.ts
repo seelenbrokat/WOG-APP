@@ -538,6 +538,8 @@ export class FahrerTelematicsService {
         text: dto.location.information,
         tourNumber: dto.tourNumber,
         source: 'location',
+        vehicleSoloplanId: driver.vehicleSoloplanId,
+        driverTelematicsId: driver.driverTelematicsId,
       });
     }
 
@@ -565,6 +567,8 @@ export class FahrerTelematicsService {
       text: dto.text,
       etaAt: dto.etaAt,
       source: 'app',
+      vehicleSoloplanId: driver.vehicleSoloplanId,
+      driverTelematicsId: driver.driverTelematicsId,
     });
   }
 }
