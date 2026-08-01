@@ -34,6 +34,15 @@ export type ZustellnachweisInput = {
   deliveryLongitude?: number | null;
   signaturePath?: string | null;
   signatureFileName?: string | null;
+  /**
+   * Weitere Fotos zur Zustellung (Entladefotos etc.) – auf denselben Beleg,
+   * nicht als separate digitale Nachweise.
+   */
+  photos?: Array<{
+    path: string;
+    fileName?: string | null;
+    label?: string | null;
+  }>;
   loadingUnitExchange?: PdfLoadingUnitExchangeNote | null;
   /** Wenn kein Tausch: Text „Kein Lademitteltausch erforderlich“ */
   noLoadingUnitExchangeRequired?: boolean;
@@ -435,6 +444,82 @@ export function writeZustellnachweisPdf(
           });
       }
       doc.y = sigBoxY + sigBoxH + 16;
+    }
+
+    const photos = (input.photos || []).filter((p) => p?.path && existsSync(p.path));
+    if (photos.length) {
+      if (doc.y > doc.page.height - 200) {
+        doc.addPage();
+        const logo = resolveWogLogoPath();
+        if (logo) doc.image(logo, left, doc.page.margins.top, { fit: [60, 28] });
+        doc.y = doc.page.margins.top + 36;
+      }
+      sectionTitle(doc, photos.length === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung');
+      const gap = 10;
+      const colW = (contentW - gap) / 2;
+      const photoH = 150;
+      let col = 0;
+      let rowTop = doc.y;
+
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        if (col === 0 && rowTop > doc.page.height - photoH - 70) {
+          doc.addPage();
+          const logo = resolveWogLogoPath();
+          if (logo) doc.image(logo, left, doc.page.margins.top, { fit: [60, 28] });
+          doc.y = doc.page.margins.top + 36;
+          sectionTitle(doc, 'Fotos zur Zustellung (Fortsetzung)');
+          rowTop = doc.y;
+        }
+
+        const x = left + col * (colW + gap);
+        const boxY = rowTop;
+        doc
+          .roundedRect(x, boxY, colW, photoH, 6)
+          .lineWidth(1)
+          .strokeColor('#c5d0c9')
+          .fillColor('#f7faf8')
+          .fillAndStroke();
+        try {
+          doc.image(photo.path, x + 8, boxY + 8, {
+            fit: [colW - 16, photoH - 28],
+            align: 'center',
+            valign: 'center',
+          });
+        } catch {
+          doc
+            .fillColor(WOG_PDF.muted)
+            .font('Helvetica')
+            .fontSize(8)
+            .text('Foto nicht einbettbar', x + 10, boxY + photoH / 2 - 6, {
+              width: colW - 20,
+              align: 'center',
+            });
+        }
+        const caption = (photo.label || photo.fileName || `Foto ${i + 1}`).slice(0, 48);
+        doc
+          .fillColor(WOG_PDF.muted)
+          .font('Helvetica')
+          .fontSize(7)
+          .text(caption, x + 8, boxY + photoH - 16, {
+            width: colW - 16,
+            align: 'right',
+            lineBreak: false,
+          });
+
+        col += 1;
+        if (col >= 2) {
+          col = 0;
+          rowTop = boxY + photoH + 12;
+          doc.y = rowTop;
+        }
+      }
+      if (col !== 0) {
+        doc.y = rowTop + photoH + 12;
+      } else {
+        doc.y = Math.max(doc.y, rowTop);
+      }
+      doc.moveDown(0.4);
     }
 
     sectionTitle(doc, 'Tracking-Verlauf');

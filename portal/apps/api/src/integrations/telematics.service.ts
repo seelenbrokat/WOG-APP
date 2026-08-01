@@ -1058,6 +1058,52 @@ export class TelematicsService {
       soloplanOrderNumber: toNumber || consignment?.soloplanOrderNumber,
     });
 
+    // Alle Bilder derselben Sendung/TO → ein gemeinsamer Ablieferbeleg
+    const relatedImages = await this.prisma.tourDocument.findMany({
+      where: {
+        organizationId: opts.organizationId,
+        mimeType: { startsWith: 'image/' },
+        NOT: [
+          { fileName: { startsWith: 'Ablieferbeleg-' } },
+          { fileName: { startsWith: 'Zustellnachweis-' } },
+        ],
+        OR: [
+          ...(toNumber ? [{ transportOrderNumber: toNumber }] : []),
+          { id: signatureDoc.id },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 40,
+    });
+
+    const imageDocs = relatedImages.filter((d) => existsSync(d.storagePath));
+
+    const isUsableSignature = (fileName: string) =>
+      isSignatureDocumentName(fileName) && !/^Signature_KeinTausch/i.test(fileName);
+
+    const signatureDocs = imageDocs.filter((d) => isUsableSignature(d.fileName));
+    const mainSignature =
+      signatureDocs.find((d) => d.id === signatureDoc.id) ||
+      signatureDocs[signatureDocs.length - 1] ||
+      (signatureDoc.mimeType.startsWith('image/') &&
+      !/^Signature_KeinTausch/i.test(signatureDoc.fileName)
+        ? signatureDoc
+        : null) ||
+      imageDocs[imageDocs.length - 1] ||
+      null;
+
+    const photos = imageDocs
+      .filter((d) => !mainSignature || d.id !== mainSignature.id)
+      .map((d) => ({
+        path: d.storagePath,
+        fileName: d.fileName,
+        label: isUsableSignature(d.fileName)
+          ? 'Weitere Unterschrift'
+          : d.fileName.match(/ENTLAD|FOTO|PHOTO|DAMAGE|BESCHAED/i)
+            ? 'Entladefoto'
+            : 'Foto',
+      }));
+
     const outDir = join(this.uploadDir, 'telematics', 'zustellnachweise');
     if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
     const safeTo = (toNumber || signatureDoc.id).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1082,12 +1128,9 @@ export class TelematicsService {
         deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
         deliveryLatitude,
         deliveryLongitude,
-        signaturePath: isSignatureDocumentName(signatureDoc.fileName)
-          ? signatureDoc.storagePath
-          : signatureDoc.mimeType.startsWith('image/')
-            ? signatureDoc.storagePath
-            : null,
-        signatureFileName: signatureDoc.fileName,
+        signaturePath: mainSignature?.storagePath || null,
+        signatureFileName: mainSignature?.fileName || null,
+        photos,
         loadingUnitExchange:
           loadingUnitExchange.status === 'UNKNOWN' ? null : loadingUnitExchange,
         noLoadingUnitExchangeRequired: true,

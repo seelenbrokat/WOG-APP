@@ -246,6 +246,30 @@ export class DocumentsService {
         ? exchangeNote
         : await this.loadingUnits.resolveExchangeNoteForShipment(opts.organizationId, shipment);
 
+    // Weitere Fotos derselben TO auf denselben Beleg (kein separater Nachweis je Foto)
+    const photos: Array<{ path: string; fileName?: string }> = [];
+    const to = opts.transportOrderNumber?.trim();
+    if (to) {
+      const related = await this.prisma.tourDocument.findMany({
+        where: {
+          organizationId: opts.organizationId,
+          transportOrderNumber: to,
+          mimeType: { startsWith: 'image/' },
+          NOT: [
+            { fileName: { startsWith: 'Ablieferbeleg-' } },
+            { fileName: { startsWith: 'Zustellnachweis-' } },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 40,
+      });
+      for (const d of related) {
+        if (!existsSync(d.storagePath)) continue;
+        if (d.storagePath === opts.signaturePath) continue;
+        photos.push({ path: d.storagePath, fileName: d.fileName });
+      }
+    }
+
     return this.createAblieferbelegForShipment({
       shipment,
       uploadedById: opts.uploadedById,
@@ -257,6 +281,7 @@ export class DocumentsService {
         signedByName: opts.signedByName,
         signedAt: opts.signedAt || new Date(),
       },
+      photos,
     });
   }
 
@@ -271,6 +296,7 @@ export class DocumentsService {
       signedByName?: string | null;
       signedAt?: Date | null;
     } | null;
+    photos?: Array<{ path: string; fileName?: string }> | null;
   }) {
     const shipment = opts.shipment;
     const exchangeNote =
@@ -279,7 +305,13 @@ export class DocumentsService {
 
     const fileName = `Ablieferbeleg-${shipment.trackingNumber}.pdf`;
     const storagePath = join(this.uploadDir, fileName);
-    await this.writeAblieferbelegPdf(shipment, storagePath, exchangeNote, opts.signature);
+    await this.writeAblieferbelegPdf(
+      shipment,
+      storagePath,
+      exchangeNote,
+      opts.signature,
+      opts.photos || [],
+    );
 
     // Alten Ablieferbeleg gleichen Namens ersetzen (ein sauberer Beleg je Sendung)
     const existing = await this.prisma.document.findFirst({
@@ -421,6 +453,7 @@ export class DocumentsService {
       signedByName?: string | null;
       signedAt?: Date | null;
     } | null,
+    photos: Array<{ path: string; fileName?: string }> = [],
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
@@ -467,6 +500,9 @@ export class DocumentsService {
       drawLoadingUnitExchangeBox(doc, exchangeNote);
       doc.moveDown();
 
+      const left = doc.page.margins.left;
+      const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
       if (signature?.path && existsSync(signature.path)) {
         doc.fontSize(12).fillColor('#111').text('Empfangsbestätigung (digital)');
         if (signature.signedByName) doc.text(`Übernehmer: ${signature.signedByName}`);
@@ -474,8 +510,6 @@ export class DocumentsService {
           doc.text(`Datum: ${formatPdfDateTime(signature.signedAt)}`);
         }
         doc.moveDown(0.5);
-        const left = doc.page.margins.left;
-        const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const boxY = doc.y;
         const boxH = 110;
         doc
@@ -499,6 +533,57 @@ export class DocumentsService {
         doc.y = boxY + boxH + 12;
       } else {
         doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
+      }
+
+      const extraPhotos = photos.filter(
+        (p) => p.path && existsSync(p.path) && p.path !== signature?.path,
+      );
+      if (extraPhotos.length) {
+        doc.moveDown(0.4);
+        doc.fontSize(12).fillColor('#111').text(
+          extraPhotos.length === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung',
+        );
+        doc.moveDown(0.3);
+        const gap = 10;
+        const colW = (width - gap) / 2;
+        const photoH = 140;
+        let col = 0;
+        let rowTop = doc.y;
+        for (let i = 0; i < extraPhotos.length; i++) {
+          const photo = extraPhotos[i];
+          if (col === 0 && rowTop > doc.page.height - photoH - 80) {
+            doc.addPage();
+            rowTop = doc.page.margins.top;
+          }
+          const x = left + col * (colW + gap);
+          doc
+            .roundedRect(x, rowTop, colW, photoH, 6)
+            .lineWidth(1)
+            .strokeColor('#c5d0c9')
+            .fillColor('#f7faf8')
+            .fillAndStroke();
+          try {
+            doc.image(photo.path, x + 8, rowTop + 8, {
+              fit: [colW - 16, photoH - 24],
+              align: 'center',
+              valign: 'center',
+            });
+          } catch {
+            doc
+              .fillColor('#666')
+              .fontSize(8)
+              .text(photo.fileName || 'Foto', x + 10, rowTop + photoH / 2, {
+                width: colW - 20,
+              });
+          }
+          col += 1;
+          if (col >= 2) {
+            col = 0;
+            rowTop += photoH + 12;
+            doc.y = rowTop;
+          }
+        }
+        if (col !== 0) doc.y = rowTop + photoH + 12;
       }
 
       const range = doc.bufferedPageRange();
