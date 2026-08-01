@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TransportOrderStatus xmlns="http://www.soloplan.de/StdTelematics">
+  <VehicleId>VehicleId</VehicleId>
+  <SendDate>2014-12-10T12:25:18.89+02:00</SendDate>
+  <StatusDate>2014-12-10T12:25:01+02:00</StatusDate>
+  <TransportOrderNumber>304636</TransportOrderNumber>
+  <Status>UnloadingStart</Status>
+  <StatusText>Arrival at the unloading place</StatusText>
+</TransportOrderStatus>
