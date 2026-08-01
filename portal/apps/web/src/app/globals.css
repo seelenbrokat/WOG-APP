@@ -1131,12 +1131,35 @@ code {
   background: transparent;
   border: none;
 }
+.fleet-marker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+}
 .fleet-marker-dot {
   display: block;
+  flex: 0 0 auto;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   background: var(--wog-green);
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(18, 74, 41, 0.35);
+}
+.fleet-marker-label {
+  display: inline-block;
+  max-width: 9.5rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(18, 74, 41, 0.18);
+  color: #123a22;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgba(18, 40, 28, 0.12);
 }

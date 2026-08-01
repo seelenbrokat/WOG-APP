@@ -146,6 +146,8 @@ model Vehicle {
   lastLocationAt     DateTime?
   /// Letzte bekannte Fahrer-TelematicsId (z. B. THNE)
   lastDriverId       String?
+  /// Herkunft der letzten GPS-Position: vlbportal | soloplan
+  lastLocationSource String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -161,6 +163,7 @@ model Vehicle {
   @@unique([organizationId, soloplanVehicleId])
   @@index([organizationId, licensePlate])
   @@index([organizationId, lastLocationAt])
+  @@index([organizationId, lastLocationSource])
   @@index([mandantId])
 }
 

@@ -11,7 +11,9 @@ export type FleetVehicle = {
   latitude: number | null;
   longitude: number | null;
   locationAt: string | null;
+  locationSource?: string | null;
   driverId: string | null;
+  driverName?: string | null;
   tour: {
     id: string;
     tourNumber: string;
@@ -29,6 +31,18 @@ function fmt(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function esc(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function driverLabel(v: FleetVehicle) {
+  return (v.driverName || v.tour?.driverName || '').trim();
 }
 
 export function FleetMap({ vehicles }: { vehicles: FleetVehicle[] }) {
@@ -70,24 +84,29 @@ export function FleetMap({ vehicles }: { vehicles: FleetVehicle[] }) {
       markersRef.current = [];
 
       const points: [number, number][] = [];
-      const icon = L.divIcon({
-        className: 'fleet-marker',
-        html: '<span class="fleet-marker-dot"></span>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
 
       for (const v of vehicles) {
         if (v.latitude == null || v.longitude == null) continue;
         const latlng: [number, number] = [v.latitude, v.longitude];
         points.push(latlng);
-        const title = v.licensePlate || v.number || v.matchcode || v.id;
+        const plate = v.licensePlate || v.number || v.matchcode || v.id;
+        const name = driverLabel(v);
+        const label = name || plate;
+        const icon = L.divIcon({
+          className: 'fleet-marker',
+          html: `<div class="fleet-marker-wrap"><span class="fleet-marker-dot"></span><span class="fleet-marker-label">${esc(label)}</span></div>`,
+          iconSize: [120, 36],
+          iconAnchor: [9, 9],
+        });
         const tourLine = v.tour
           ? `Tour ${v.tour.tourNumber}${v.tour.telematicsStatus ? ` · ${v.tour.telematicsStatus}` : ''}`
           : 'Keine aktive Tour';
-        const marker = L.marker(latlng, { icon }).addTo(map);
+        const popupName = name ? `<div>${esc(name)}</div>` : '';
+        const marker = L.marker(latlng, { icon, title: name ? `${name} · ${plate}` : plate }).addTo(
+          map,
+        );
         marker.bindPopup(
-          `<strong>${title}</strong><br/>${tourLine}<br/><span style="color:#5e6f65">${fmt(v.locationAt)}</span>`,
+          `<strong>${esc(plate)}</strong>${popupName}<br/>${esc(tourLine)}<br/><span style="color:#5e6f65">${fmt(v.locationAt)}</span>`,
         );
         markersRef.current.push(marker);
       }

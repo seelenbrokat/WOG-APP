@@ -86,7 +86,7 @@ export default function FleetMapPage() {
   return (
     <AppShell title="Kartenmonitor">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Live-Positionen (WOG Logistics AG).{' '}
+        Live-Positionen der VLB-Zustellapp (Telematik VLBPortal).{' '}
         <Link href="/tours/dashboard">Dispo-Dashboard</Link>
         {' · '}
         <Link href="/tours">Touren</Link>
@@ -112,7 +112,9 @@ export default function FleetMapPage() {
             {polling ? 'Importiere…' : 'Rückmeldungen importieren'}
           </button>
         ) : null}
-        <span className="muted">{loading ? 'Laden…' : `${vehicles.length} Fahrzeuge mit Position`}</span>
+        <span className="muted">
+          {loading ? 'Laden…' : `${vehicles.length} VLB-Zustellapp-Fahrzeug${vehicles.length === 1 ? '' : 'e'}`}
+        </span>
       </div>
 
       {error ? <div className="error">{error}</div> : null}
@@ -127,6 +129,7 @@ export default function FleetMapPage() {
           <thead>
             <tr>
               <th>Fahrzeug</th>
+              <th>Fahrer</th>
               <th>Position</th>
               <th>Zuletzt</th>
               <th>Tour</th>
@@ -136,8 +139,9 @@ export default function FleetMapPage() {
           <tbody>
             {vehicles.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted">
-                  Noch keine GPS-Positionen. Rückmeldungen importieren.
+                <td colSpan={6} className="muted">
+                  Keine Positionen von der VLB-Zustellapp. Fahrer muss in der App eingeloggt sein bzw.
+                  GPS senden.
                 </td>
               </tr>
             ) : (
@@ -146,6 +150,10 @@ export default function FleetMapPage() {
                   <td>
                     <strong>{v.licensePlate || v.number || '—'}</strong>
                     <div className="muted">{[v.number, v.matchcode].filter(Boolean).join(' · ')}</div>
+                  </td>
+                  <td>
+                    <strong>{v.driverName || v.tour?.driverName || '—'}</strong>
+                    {v.driverId ? <div className="muted">{v.driverId}</div> : null}
                   </td>
                   <td className="muted">
                     {v.latitude?.toFixed(5)}, {v.longitude?.toFixed(5)}
@@ -157,7 +165,6 @@ export default function FleetMapPage() {
                     ) : (
                       '—'
                     )}
-                    {v.tour?.driverName ? <div className="muted">{v.tour.driverName}</div> : null}
                   </td>
                   <td>
                     <span className="badge">{v.tour?.telematicsStatus || v.tour?.status || '—'}</span>

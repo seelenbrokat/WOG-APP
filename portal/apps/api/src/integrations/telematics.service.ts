@@ -597,6 +597,7 @@ export class TelematicsService {
     longitude: number,
     at: Date,
     driverId?: string,
+    source: 'vlbportal' | 'soloplan' = 'soloplan',
   ) {
     const current = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (current?.lastLocationAt && current.lastLocationAt > at) return;
@@ -607,6 +608,7 @@ export class TelematicsService {
         lastLongitude: longitude,
         lastLocationAt: at,
         lastDriverId: driverId || undefined,
+        lastLocationSource: source,
         active: true,
       },
     });
@@ -725,6 +727,9 @@ export class TelematicsService {
 
   async fleetMap(user: AuthUser, opts?: { mandantId?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
+    const now = new Date();
+    // Livekarte: nur Fahrzeuge mit VLB-Zustellapp-Telematik
+    // (GPS von der App oder aktive App-Session am Fahrzeug)
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
         organizationId: user.organizationId,
@@ -732,9 +737,27 @@ export class TelematicsService {
         lastLatitude: { not: null },
         lastLongitude: { not: null },
         ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
+        OR: [
+          { lastLocationSource: 'vlbportal' },
+          { devices: { some: { expiresAt: { gt: now } } } },
+        ],
       },
       include: {
         mandant: { select: { id: true, code: true, name: true } },
+        drivers: {
+          where: { active: true },
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: { firstName: true, lastName: true, telematicsId: true },
+        },
+        devices: {
+          where: { expiresAt: { gt: now } },
+          orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+          take: 1,
+          include: {
+            driver: { select: { firstName: true, lastName: true, telematicsId: true } },
+          },
+        },
         tours: {
           where: {
             status: { in: ['PLANNED', 'ACTIVE'] },
@@ -748,6 +771,9 @@ export class TelematicsService {
             status: true,
             telematicsStatus: true,
             driverName: true,
+            driverFirstName: true,
+            driverLastName: true,
+            driverTelematicsId: true,
             targetStart: true,
           },
         },
@@ -756,18 +782,64 @@ export class TelematicsService {
       take: 200,
     });
 
-    return vehicles.map((v) => ({
-      id: v.id,
-      number: v.number,
-      licensePlate: v.licensePlate,
-      matchcode: v.matchcode,
-      mandant: v.mandant,
-      latitude: v.lastLatitude,
-      longitude: v.lastLongitude,
-      locationAt: v.lastLocationAt,
-      driverId: v.lastDriverId,
-      tour: v.tours[0] || null,
-    }));
+    const driverIds = [
+      ...new Set(
+        vehicles
+          .map((v) => v.lastDriverId)
+          .filter((id): id is string => Boolean(id?.trim())),
+      ),
+    ];
+    const driversByTelematics =
+      driverIds.length > 0
+        ? await this.prisma.driver.findMany({
+            where: {
+              organizationId: user.organizationId,
+              telematicsId: { in: driverIds },
+              active: true,
+            },
+            select: { telematicsId: true, firstName: true, lastName: true },
+          })
+        : [];
+    const driverNameByTelematics = new Map(
+      driversByTelematics.map((d) => [
+        d.telematicsId,
+        [d.firstName, d.lastName].filter(Boolean).join(' ').trim() || null,
+      ]),
+    );
+
+    return vehicles.map((v) => {
+      const tour = v.tours[0] || null;
+      const sessionDriver = v.devices[0]?.driver;
+      const sessionName = sessionDriver
+        ? [sessionDriver.firstName, sessionDriver.lastName].filter(Boolean).join(' ').trim()
+        : '';
+      const linkedName = v.drivers[0]
+        ? [v.drivers[0].firstName, v.drivers[0].lastName].filter(Boolean).join(' ').trim()
+        : '';
+      const tourName =
+        tour?.driverName?.trim() ||
+        [tour?.driverFirstName, tour?.driverLastName].filter(Boolean).join(' ').trim() ||
+        '';
+      const byLastId = v.lastDriverId
+        ? driverNameByTelematics.get(v.lastDriverId) || ''
+        : '';
+      const driverName = sessionName || byLastId || tourName || linkedName || null;
+
+      return {
+        id: v.id,
+        number: v.number,
+        licensePlate: v.licensePlate,
+        matchcode: v.matchcode,
+        mandant: v.mandant,
+        latitude: v.lastLatitude,
+        longitude: v.lastLongitude,
+        locationAt: v.lastLocationAt,
+        locationSource: v.lastLocationSource || 'vlbportal',
+        driverId: v.lastDriverId || sessionDriver?.telematicsId || tour?.driverTelematicsId || null,
+        driverName,
+        tour,
+      };
+    });
   }
 
   async listEvents(

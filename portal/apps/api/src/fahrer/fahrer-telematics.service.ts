@@ -538,6 +538,9 @@ export class FahrerTelematicsService {
         lastLatitude: dto.location.latitude,
         lastLongitude: dto.location.longitude,
         lastLocationAt: new Date(),
+        lastDriverId: driver.driverTelematicsId || undefined,
+        lastLocationSource: 'vlbportal',
+        active: true,
       },
     });
 
