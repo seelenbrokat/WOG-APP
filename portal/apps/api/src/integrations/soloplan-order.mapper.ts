@@ -720,9 +720,11 @@ export function buildSoloplanUpdatePayload(
     };
   }
 
-  // consignment-Format: nur ABL-taugliche Docs an Sendung
+  // consignment-Format: Ablieferbeleg + Unterschrift (UNTER) an Sendung
   const consignmentsWithDocs = siblings.map((s, idx) => {
-    const documentData = toSoloplanDocumentData(s.documents).filter((d) => d.category === 'ABL');
+    const documentData = toSoloplanDocumentData(s.documents).filter(
+      (d) => d.category === 'ABL' || d.category === 'UNTER',
+    );
     return {
       itemNumber: idx + 1,
       actionAttribute: 'update',
@@ -785,7 +787,11 @@ export function buildSoloplanFilePayload(
       anyVerzollung
         ? []
         : allDocs.filter(
-            (d) => d.category === 'ABL' || d.category === 'AUFABL' || d.category === 'RG',
+            (d) =>
+              d.category === 'ABL' ||
+              d.category === 'AUFABL' ||
+              d.category === 'RG' ||
+              d.category === 'UNTER',
           ),
     );
     return {

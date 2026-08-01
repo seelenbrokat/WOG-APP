@@ -170,7 +170,14 @@ export class FahrerTelematicsService {
     if (!body.contentBase64?.trim()) {
       throw new BadRequestException('contentBase64 fehlt');
     }
+    const isRealSignature =
+      isSignatureDocumentName(body.fileName) && !/^Signature_KeinTausch/i.test(body.fileName);
     const written = this.outbound.sendDocument(body);
+    if (isRealSignature) {
+      this.logger.log(
+        `Unterschrift einzeln an Soloplan: ${body.fileName} TO=${body.transportOrderNumber || '—'} → ${written.fileName}`,
+      );
+    }
 
     // Lokal als TourDocument ablegen
     const buffer = Buffer.from(body.contentBase64.replace(/\s/g, ''), 'base64');
@@ -220,8 +227,7 @@ export class FahrerTelematicsService {
       ReturnType<TelematicsService['createZustellnachweisFromSignature']>
     > | null = null;
     const isSignature =
-      isSignatureDocumentName(body.fileName) ||
-      this.mimeFromName(body.fileName).startsWith('image/');
+      isRealSignature || this.mimeFromName(body.fileName).startsWith('image/');
 
     if (isSignature && !/^Signature_KeinTausch/i.test(body.fileName)) {
       const signedAt = body.signedAt ? new Date(body.signedAt) : new Date();
@@ -275,6 +281,7 @@ export class FahrerTelematicsService {
       ...written,
       tourDocumentId: tourDoc.id,
       ablieferbeleg,
+      signatureSentIndividually: isRealSignature,
       zustellnachweis,
     };
   }

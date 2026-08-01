@@ -379,6 +379,11 @@ export class FahrerTelematicsService {
       throw new BadRequestException('contentBase64 fehlt');
     }
 
+    const isRealSignature =
+      isSignatureDocumentName(dto.fileName) && !/^Signature_KeinTausch/i.test(dto.fileName);
+    const isImage = this.mimeFromName(dto.fileName).startsWith('image/');
+
+    // Rohdatei immer einzeln an Soloplan (Unterschrift UND Fotos)
     const written = this.outbound.sendDocument({
       vehicleId: driver.vehicleSoloplanId,
       tourNumber: dto.tourNumber,
@@ -388,6 +393,11 @@ export class FahrerTelematicsService {
       contentBase64: dto.contentBase64,
       fileSignature: dto.fileSignature,
     });
+    if (isRealSignature) {
+      this.log.log(
+        `Unterschrift einzeln an Soloplan: ${dto.fileName} TO=${dto.transportOrderNumber || '—'} → ${written.fileName}`,
+      );
+    }
 
     const buffer = Buffer.from(dto.contentBase64.replace(/\s/g, ''), 'base64');
     const dir = join(this.uploadDir(), 'telematics', 'vlbportal');
@@ -425,13 +435,11 @@ export class FahrerTelematicsService {
       ReturnType<TelematicsService['createZustellnachweisFromSignature']>
     > | null = null;
 
-    const isSignature =
-      isSignatureDocumentName(dto.fileName) ||
-      this.mimeFromName(dto.fileName).startsWith('image/');
+    // Bilder → gemeinsamen Ablieferbeleg aktualisieren (Unterschrift + Fotogalerie)
     const signedByName = dto.signedByName || this.signedByFromFileName(dto.fileName);
     const signedAt = dto.signedAt ? new Date(dto.signedAt) : new Date();
 
-    if (isSignature && !/^Signature_KeinTausch/i.test(dto.fileName)) {
+    if ((isRealSignature || isImage) && !/^Signature_KeinTausch/i.test(dto.fileName)) {
       try {
         ablieferbeleg = await this.documents.generateDeliveryReceiptFromSignature({
           organizationId: driver.organizationId,
@@ -485,6 +493,7 @@ export class FahrerTelematicsService {
       ...written,
       tourDocumentId: tourDoc.id,
       ablieferbeleg,
+      signatureSentIndividually: isRealSignature,
       zustellnachweis: zustellnachweis
         ? {
             documentId: zustellnachweis.documentId,

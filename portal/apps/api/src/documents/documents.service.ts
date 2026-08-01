@@ -29,6 +29,7 @@ import {
   LoadingUnitExchangeNote,
   LoadingUnitService,
 } from '../integrations/loading-unit.service';
+import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
 
 @Injectable()
 export class DocumentsService {
@@ -353,11 +354,20 @@ export class DocumentsService {
       });
     }
 
+    // Unterschrift zusätzlich als eigenes POD (Soloplan-Kategorie UNTER) ablegen
+    const signaturePod = await this.upsertSignaturePodDocument({
+      shipment,
+      uploadedById: opts.uploadedById,
+      signature: opts.signature,
+    });
+
     if (shipment.soloplanRef || shipment.order?.soloplanRef) {
       try {
         const res = await this.soloplan.exportDocumentsIfReady(shipment.id);
         this.logger.log(
-          `Soloplan nach Ablieferbeleg (mode=${res.mode}${res.reason ? `, ${res.reason}` : ''}) für Sendung ${shipment.id}`,
+          `Soloplan nach Ablieferbeleg (mode=${res.mode}${res.reason ? `, ${res.reason}` : ''}) für Sendung ${shipment.id}${
+            signaturePod ? `, Unterschrift=${signaturePod.fileName}` : ''
+          }`,
         );
       } catch (err: any) {
         this.logger.warn(
@@ -373,7 +383,79 @@ export class DocumentsService {
       fileName: doc.fileName,
       loadingUnitStatus: exchangeNote?.status,
       withSignature: Boolean(opts.signature?.path),
+      signatureDocumentId: signaturePod?.id || null,
+      signatureFileName: signaturePod?.fileName || null,
     };
+  }
+
+  /**
+   * Empfangsunterschrift als separates Portal-Dokument (POD → Soloplan UNTER).
+   * Der digitale Ablieferbeleg bleibt der gemeinsame PDF-Beleg.
+   */
+  private async upsertSignaturePodDocument(opts: {
+    shipment: any;
+    uploadedById?: string;
+    signature?: {
+      path: string;
+      fileName?: string;
+      signedByName?: string | null;
+      signedAt?: Date | null;
+    } | null;
+  }) {
+    const sig = opts.signature;
+    if (!sig?.path || !existsSync(sig.path)) return null;
+    const fileName = (sig.fileName || '').trim();
+    // KeinTausch-Platzhalter und reine Entladefotos nicht als POD speichern
+    if (fileName && /^Signature_KeinTausch/i.test(fileName)) return null;
+    if (fileName && !isSignatureDocumentName(fileName)) return null;
+
+    const shipment = opts.shipment;
+    const podFileName =
+      fileName ||
+      `Unterschrift-${shipment.trackingNumber}${sig.path.toLowerCase().endsWith('.png') ? '.png' : '.jpg'}`;
+    const mimeType = podFileName.toLowerCase().endsWith('.png')
+      ? 'image/png'
+      : podFileName.toLowerCase().endsWith('.pdf')
+        ? 'application/pdf'
+        : 'image/jpeg';
+    const sizeBytes = statSync(sig.path).size;
+
+    const existing = await this.prisma.document.findFirst({
+      where: {
+        organizationId: shipment.organizationId,
+        shipmentId: shipment.id,
+        type: DocumentType.POD,
+        OR: [{ fileName: podFileName }, { storagePath: sig.path }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      return this.prisma.document.update({
+        where: { id: existing.id },
+        data: {
+          fileName: podFileName,
+          mimeType,
+          storagePath: sig.path,
+          sizeBytes,
+          uploadedById: opts.uploadedById || existing.uploadedById,
+        },
+      });
+    }
+
+    return this.prisma.document.create({
+      data: {
+        organizationId: shipment.organizationId,
+        shipmentId: shipment.id,
+        customerId: shipment.customerId,
+        type: DocumentType.POD,
+        fileName: podFileName,
+        mimeType,
+        storagePath: sig.path,
+        sizeBytes,
+        uploadedById: opts.uploadedById,
+      },
+    });
   }
 
   private async resolveShipmentForDelivery(
