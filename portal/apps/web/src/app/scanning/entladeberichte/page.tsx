@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import { downloadAuthenticated } from '@/lib/download';
 
 type EtbRow = {
   sessionId: string;
@@ -17,17 +18,7 @@ type EtbRow = {
 };
 
 async function downloadEtb(docId: string, fileName: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${docId}/download`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Download fehlgeschlagen');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName || `ETB-${docId}.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await downloadAuthenticated(`/documents/${docId}/download`, fileName || `ETB-${docId}.pdf`);
 }
 
 export default function EntladeberichtePage() {

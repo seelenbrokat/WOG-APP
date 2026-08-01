@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api, getToken } from '@/lib/api';
+import { downloadAuthenticated } from '@/lib/download';
 
 type Group = {
   externalRef: string;
@@ -374,18 +375,10 @@ export function GoodsReceiptControl(props: {
 
   async function downloadEtb() {
     if (!session?.documentId) return;
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${session.documentId}/download`,
-      { headers: { Authorization: `Bearer ${getToken()}` } },
+    await downloadAuthenticated(
+      `/documents/${session.documentId}/download`,
+      `ETB-${session.externalRef}.pdf`,
     );
-    if (!res.ok) throw new Error('ETB-Download fehlgeschlagen');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ETB-${session.externalRef}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   const pending = session?.expectedColli.filter((c) => c.status === 'PENDING') || [];

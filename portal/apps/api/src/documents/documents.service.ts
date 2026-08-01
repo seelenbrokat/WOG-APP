@@ -170,6 +170,10 @@ export class DocumentsService {
 
   async openStream(user: AuthUser, id: string) {
     const doc = await this.get(user, id);
+    if (!doc.storagePath || !existsSync(doc.storagePath)) {
+      this.logger.warn(`Dokument ${id}: Datei fehlt (${doc.storagePath || 'ohne Pfad'})`);
+      throw new NotFoundException('Datei nicht gefunden');
+    }
     return { doc, stream: createReadStream(doc.storagePath) };
   }
 

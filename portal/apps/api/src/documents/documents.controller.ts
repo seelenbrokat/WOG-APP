@@ -50,8 +50,17 @@ export class DocumentsController {
   @Get(':id/download')
   async download(@CurrentUser() user: AuthUser, @Param('id') id: string, @Res() res: Response) {
     const { doc, stream } = await this.service.openStream(user, id);
-    res.setHeader('Content-Type', doc.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${doc.fileName}"`);
+    const safeName = String(doc.fileName || 'document').replace(/["\r\n]/g, '');
+    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    stream.on('error', (err) => {
+      if (!res.headersSent) {
+        res.status(404).json({ message: 'Datei nicht lesbar', statusCode: 404 });
+      } else {
+        res.destroy(err);
+      }
+    });
     stream.pipe(res);
   }
 }
