@@ -88,6 +88,7 @@ export class FahrerTelematicsService {
   private async assertConsignmentEditable(
     driver: DriverAuthUser,
     transportOrderNumber: string,
+    dto?: Pick<TransportOrderStatusDto, 'status' | 'statusText'>,
   ) {
     const existing = await this.prisma.tourConsignment.findFirst({
       where: {
@@ -98,9 +99,17 @@ export class FahrerTelematicsService {
       orderBy: { lastStatusAt: 'desc' },
     });
     if (existing?.status && DRIVER_LOCKED_TO_STATUSES.has(existing.status)) {
-      throw new ForbiddenException(
-        `Sendung ${transportOrderNumber} ist bereits „${existing.statusText || existing.status}“. Statusänderung nur noch durch Admin/Dispo.`,
-      );
+      // Gleicher Endstatus mit aktualisiertem Freitext (z. B. „Beschädigt …“) nachziehen
+      const enriching =
+        !!dto &&
+        dto.status === existing.status &&
+        !!dto.statusText?.trim() &&
+        dto.statusText.trim() !== (existing.statusText || '').trim();
+      if (!enriching) {
+        throw new ForbiddenException(
+          `Sendung ${transportOrderNumber} ist bereits „${existing.statusText || existing.status}“. Statusänderung nur noch durch Admin/Dispo.`,
+        );
+      }
     }
   }
 
@@ -294,7 +303,7 @@ export class FahrerTelematicsService {
   }
 
   async sendTransportOrderStatus(driver: DriverAuthUser, dto: TransportOrderStatusDto) {
-    await this.assertConsignmentEditable(driver, dto.transportOrderNumber);
+    await this.assertConsignmentEditable(driver, dto.transportOrderNumber, dto);
     const now = new Date();
 
     const result = this.outbound.sendTransportOrderStatus({
@@ -306,6 +315,15 @@ export class FahrerTelematicsService {
       statusDate: now,
       sendDate: now,
       location: this.loc(dto.location),
+    });
+
+    const tour = await this.prisma.tour.findFirst({
+      where: {
+        organizationId: driver.organizationId,
+        consignments: { some: { soloplanOrderNumber: dto.transportOrderNumber } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, tourNumber: true },
     });
 
     await this.prisma.tourConsignment.updateMany({
@@ -326,8 +344,31 @@ export class FahrerTelematicsService {
       },
     });
 
+    // Event persistieren (Ablieferbeleg-Timeline / Schadenstext)
+    await this.prisma.telematicsEvent.create({
+      data: {
+        organizationId: driver.organizationId,
+        kind: 'TransportOrderStatus',
+        tourId: tour?.id,
+        tourNumber: tour?.tourNumber,
+        transportOrderNumber: dto.transportOrderNumber,
+        status: dto.status,
+        statusText: dto.statusText || null,
+        latitude: dto.location?.latitude,
+        longitude: dto.location?.longitude,
+        eventAt: now,
+        sendDate: now,
+        sourceFile: `vlbportal:${result.fileName}`,
+      },
+    });
+
     // Abholhindernis / Zustellhindernis → Info-Mail
-    if (dto.status === 'LoadingPlaceLeft' || dto.status === 'UnloadingPlaceLeft') {
+    // „Beschädigt zugestellt“ ist kein Hindernis, sondern erfolgreiche Zustellung mit Schaden.
+    const damagedDelivery = /beschädig/i.test(dto.statusText || '');
+    if (
+      !damagedDelivery &&
+      (dto.status === 'LoadingPlaceLeft' || dto.status === 'UnloadingPlaceLeft')
+    ) {
       void this.notifyObstacleEmail(driver, dto, now).catch((err) =>
         this.log.warn(
           `Hindernis-Mail fehlgeschlagen TO=${dto.transportOrderNumber}: ${
@@ -337,7 +378,67 @@ export class FahrerTelematicsService {
       );
     }
 
+    // Bei Schadenstext / Zustellung: bestehenden Ablieferbeleg mit Vermerk neu erzeugen
+    if (
+      damagedDelivery ||
+      dto.status === 'UnloadingFinished' ||
+      dto.status === 'UnloadingPlaceLeft'
+    ) {
+      void this.refreshAblieferbelegAfterStatus(driver, dto).catch((err) =>
+        this.log.warn(
+          `Ablieferbeleg-Refresh nach Status fehlgeschlagen TO=${dto.transportOrderNumber}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      );
+    }
+
     return result;
+  }
+
+  /** Vorhandene Unterschrift/Fotos → Ablieferbeleg inkl. aktuellem statusText neu erzeugen. */
+  private async refreshAblieferbelegAfterStatus(
+    driver: DriverAuthUser,
+    dto: TransportOrderStatusDto,
+  ) {
+    const imageDocs = await this.prisma.tourDocument.findMany({
+      where: {
+        organizationId: driver.organizationId,
+        transportOrderNumber: dto.transportOrderNumber,
+        mimeType: { startsWith: 'image/' },
+        NOT: [
+          { fileName: { startsWith: 'Ablieferbeleg-' } },
+          { fileName: { startsWith: 'Zustellnachweis-' } },
+          { fileName: { startsWith: 'Signature_KeinTausch' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+    const signatureDoc =
+      imageDocs.find((d) => isSignatureDocumentName(d.fileName)) || imageDocs[0];
+    if (!signatureDoc) return;
+
+    const signedByName = this.signedByFromFileName(signatureDoc.fileName);
+    const zustellnachweis = await this.telematics.createZustellnachweisFromSignature({
+      organizationId: driver.organizationId,
+      signatureDocId: signatureDoc.id,
+      signedByName,
+      signedAt: signatureDoc.createdAt,
+    });
+
+    if (zustellnachweis?.storagePath && existsSync(zustellnachweis.storagePath)) {
+      this.outbound.sendDocument({
+        vehicleId: driver.vehicleSoloplanId,
+        tourNumber: signatureDoc.tourNumber || undefined,
+        transportOrderNumber: dto.transportOrderNumber,
+        fileName: zustellnachweis.fileName,
+        contentBase64: readFileSync(zustellnachweis.storagePath).toString('base64'),
+      });
+      this.log.log(
+        `Ablieferbeleg nach Status aktualisiert TO=${dto.transportOrderNumber}: ${zustellnachweis.fileName}`,
+      );
+    }
   }
 
   private async notifyObstacleEmail(

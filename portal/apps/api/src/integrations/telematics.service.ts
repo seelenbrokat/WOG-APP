@@ -24,6 +24,7 @@ import {
   buildZustellTimeline,
   deliveryStatusFromEvents,
   isSignatureDocumentName,
+  resolveZustellStatusLabel,
   signedByFromSignatureFileName,
   writeZustellnachweisPdf,
 } from './zustellnachweis-pdf';
@@ -1019,7 +1020,6 @@ export class TelematicsService {
         e.kind === 'TransportOrderStatus' &&
         (!toNumber || !e.transportOrderNumber || e.transportOrderNumber === toNumber),
     );
-    const timeline = buildZustellTimeline(toEvents, toNumber);
 
     const deliveryMeta = deliveryStatusFromEvents([
       consignment?.status,
@@ -1037,6 +1037,35 @@ export class TelematicsService {
         .filter(Boolean)
         .pop() ||
       signatureDoc.createdAt;
+
+    // Freitext vom Consignment (z. B. „Beschädigt …“) in Timeline übernehmen,
+    // falls der letzte Zustell-Event keinen statusText hat (App-REST ohne Event-Persistenz).
+    const timelineSource = toEvents.map((e) => ({ ...e }));
+    if (consignment?.statusText) {
+      const lastDeliveredIdx = [...timelineSource]
+        .map((e, i) => ({ e, i }))
+        .reverse()
+        .find(({ e }) =>
+          ['UnloadingFinished', 'UnloadingPlaceLeft'].includes(e.status || ''),
+        )?.i;
+      if (lastDeliveredIdx != null) {
+        if (!timelineSource[lastDeliveredIdx].statusText) {
+          timelineSource[lastDeliveredIdx] = {
+            ...timelineSource[lastDeliveredIdx],
+            statusText: consignment.statusText,
+          };
+        }
+      } else if (deliveryMeta.delivered) {
+        timelineSource.push({
+          kind: 'TransportOrderStatus',
+          status: consignment.status || 'UnloadingFinished',
+          statusText: consignment.statusText,
+          transportOrderNumber: toNumber || null,
+          eventAt: deliveryAt ? new Date(deliveryAt) : new Date(),
+        } as (typeof timelineSource)[number]);
+      }
+    }
+    const timeline = buildZustellTimeline(timelineSource, toNumber);
 
     const deliveredEvent = toEvents
       .filter((e) =>
@@ -1196,7 +1225,13 @@ export class TelematicsService {
         senderAddress,
         auftraggeber,
         uebernehmerName,
-        deliveryStatus: deliveryMeta.delivered ? 'Zugestellt' : deliveryMeta.status,
+        deliveryStatus: resolveZustellStatusLabel({
+          delivered: deliveryMeta.delivered,
+          baseStatus: deliveryMeta.status,
+          consignmentStatus: consignment?.status,
+          consignmentStatusText: consignment?.statusText,
+          events: toEvents,
+        }),
         deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
         deliveryLatitude,
         deliveryLongitude,

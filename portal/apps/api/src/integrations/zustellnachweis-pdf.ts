@@ -177,6 +177,40 @@ export function deliveryStatusFromEvents(
   return { status: 'Offen', delivered: false };
 }
 
+/**
+ * Zustellstatus für Ablieferbeleg inkl. Freitext (z. B. „Beschädigt zugestellt“).
+ * Ohne Detail → „Zugestellt“ / Basislabel; mit Detail → „Zugestellt · …“.
+ */
+export function resolveZustellStatusLabel(opts: {
+  delivered: boolean;
+  baseStatus: string;
+  consignmentStatus?: string | null;
+  consignmentStatusText?: string | null;
+  events?: Array<{ status?: string | null; statusText?: string | null }>;
+}): string {
+  if (!opts.delivered) return opts.baseStatus;
+
+  const fromEvents =
+    [...(opts.events || [])]
+      .reverse()
+      .find(
+        (e) =>
+          !!cleanStatusText(e.statusText, e.status) &&
+          ['UnloadingFinished', 'UnloadingPlaceLeft', 'DocumentReceived'].includes(
+            e.status || '',
+          ),
+      )?.statusText || null;
+
+  const statusText = opts.consignmentStatusText || fromEvents || null;
+  const statusCode =
+    opts.consignmentStatus &&
+    ['UnloadingFinished', 'UnloadingPlaceLeft'].includes(opts.consignmentStatus)
+      ? opts.consignmentStatus
+      : 'UnloadingFinished';
+
+  return mapTelematicsStatusLabel(statusCode, statusText);
+}
+
 function fmtDt(date?: Date | null): string {
   if (!date) return '—';
   return date.toLocaleString('de-AT', {
