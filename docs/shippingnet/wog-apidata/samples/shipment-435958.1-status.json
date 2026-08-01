@@ -1,0 +1,88 @@
+[
+  {
+    "Number": "435958.1",
+    "StatusList": [
+      {
+        "StatusID": "SAT",
+        "Description": "183606",
+        "StatusDate": "2026-07-14T11:10:15.810Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "DAC",
+        "Description": " -> Unitec Energietechnik GmbH (28)",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "LAC",
+        "Description": "WOG Logistics AG, Wildenaustraße 22, CH-9444 Diepoldsau -> Unitec Energietechnik GmbH, Lindauer Straße 29, AT-6911 Lochau",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "VAC",
+        "Description": " ->  Aviso für Lieferadresse, mind. 2 h vor Zustellung! \nZustelltermin fix: 16.07.2026   \n",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "RUN",
+        "Description": null,
+        "StatusDate": "2026-07-14T11:10:11.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "DDC",
+        "Description": "2026-07-16 00:00:00 - 2026-07-16 18:00:00 -> 2026-07-15 00:00:00 - 2026-07-15 18:00:00",
+        "StatusDate": "2026-07-13T08:46:16.127Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "NDC",
+        "Description": "00091201014196171901",
+        "StatusDate": "2026-07-13T08:46:16.000Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "CAS",
+        "Description": "Collo: 091201014196171901",
+        "StatusDate": "2026-07-13T08:46:15.470Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "IMP",
+        "Description": null,
+        "StatusDate": "2026-07-13T08:46:15.470Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      }
+    ]
+  }
+]
