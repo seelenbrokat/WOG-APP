@@ -38,6 +38,7 @@ export class FahrerChatService {
     const text = dto.text.trim();
     if (!text) throw new BadRequestException('Nachricht leer');
 
+    // Soloplan-XSD kennt kein <Message> – Upload standardmäßig aus; Chat bleibt im Portal.
     const out = this.outbound.sendMessage({
       vehicleId: driver.vehicleSoloplanId,
       driverId: driver.driverTelematicsId,
@@ -54,7 +55,7 @@ export class FahrerChatService {
         tourNumber: dto.tourNumber,
         direction: 'OUT',
         text,
-        soloplanRef: out.fileName,
+        soloplanRef: out.fileName || undefined,
       },
     });
 

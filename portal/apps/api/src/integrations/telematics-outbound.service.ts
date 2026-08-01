@@ -171,7 +171,33 @@ export class TelematicsOutboundService {
     return this.write('VehicleLocations', xml, input.vehicleId, input.tourNumber);
   }
 
+  /**
+   * Fahrer-Chat / ETA-Freitext.
+   * Soloplan CarLo Automate (StdTelematics-XSD) deklariert kein Root-Element „Message“
+   * → Upload erzeugt Fehler_Telematikeingang („element is not declared“).
+   * Standard: nur lokal im Portal speichern (kein FTP). Opt-in: TELEMATICS_UPLOAD_CHAT=true.
+   */
   sendMessage(input: OutMessage) {
+    const upload =
+      String(this.config.get('TELEMATICS_UPLOAD_CHAT') || '')
+        .trim()
+        .toLowerCase() === 'true';
+    if (!upload) {
+      this.logger.log(
+        `Telematics Message nicht an Soloplan (XSD ohne Message) – lokal belassen` +
+          ` vehicle=${input.vehicleId}` +
+          (input.tourNumber ? ` tour=${input.tourNumber}` : ''),
+      );
+      return {
+        fileName: null as string | null,
+        path: null as string | null,
+        skipped: true as const,
+        reason: 'xsd_message_not_declared',
+        vehicleId: input.vehicleId,
+        telematicsConfig: VLB_PORTAL_TELEMATICS_CONFIG,
+        outDir: this.outDir,
+      };
+    }
     const xml = buildMessageXml(input);
     return this.write('Message', xml, input.vehicleId, input.tourNumber || 'chat');
   }

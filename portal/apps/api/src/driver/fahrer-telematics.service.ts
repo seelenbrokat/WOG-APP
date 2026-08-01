@@ -336,8 +336,16 @@ export class FahrerTelematicsService {
         const parsed = parseTelematicsXml(xml);
         if (!parsed) throw new Error('XML nicht erkannt');
 
-        // 1:1 nach Soloplan-Outbound kopieren (FTP-Download)
-        const out = this.outbound.writeRawXml(parsed.kind, xml, fileName);
+        // Soloplan-XSD kennt kein Root „Message“ → nicht nach Soloplan spiegeln
+        // (sonst Fehler_Telematikeingang: element is not declared).
+        const skipSoloplan =
+          parsed.kind === 'Message' &&
+          String(this.config.get('TELEMATICS_UPLOAD_CHAT') || '')
+            .trim()
+            .toLowerCase() !== 'true';
+        const out = skipSoloplan
+          ? { fileName: null as string | null, skipped: true as const }
+          : this.outbound.writeRawXml(parsed.kind, xml, fileName);
 
         if (parsed.kind === 'TourStopStatus') {
           await this.loadingUnits.bookTourStopStatus(orgId, parsed, `vlbportal:${fileName}`);
@@ -424,7 +432,7 @@ export class FahrerTelematicsService {
           transportOrderNumber:
             'transportOrderNumber' in parsed ? (parsed as any).transportOrderNumber : undefined,
           status: 'status' in parsed ? (parsed as any).status : parsed.kind,
-          sourceFile: out.fileName,
+          sourceFile: out.fileName || `vlbportal:${fileName}`,
           eventAt: new Date(),
         });
 

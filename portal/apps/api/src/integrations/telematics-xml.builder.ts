@@ -294,7 +294,8 @@ export type OutVehicleLocations = {
 
 export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
   const vehicleId = requireVehicleId(input.vehicleId);
-  // Soloplan-XSD: VehicleLocations → VehicleId, DriverId?, Locations/Location… (kein SendDate!)
+  // Soloplan-XSD / Sample: VehicleId, Locations/Location…
+  // Kein SendDate am Root (Fehler_Telematikeingang). Kein TimeZone in Location (Sample ohne).
   const locs = input.locations
     .map((loc) => {
       const at = loc.at || new Date();
@@ -304,15 +305,13 @@ export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
         <Longitude>${esc(loc.longitude)}</Longitude>
         <Latitude>${esc(loc.latitude)}</Latitude>
       </GeoCoordinate>
-      ${loc.information ? `<Information>${esc(loc.information)}</Information>` : '<Information xsi:nil="true" />'}
-      <TimeZone>Europe/Zurich</TimeZone>
+      ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
     </Location>`;
     })
     .join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
-<VehicleLocations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+<VehicleLocations xmlns="${TELEMATTICS_NS}">
   <VehicleId>${esc(vehicleId)}</VehicleId>
-  ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
   <Locations>
 ${locs}
   </Locations>
