@@ -19,6 +19,7 @@ import {
   signedByFromSignatureFileName,
 } from '../integrations/zustellnachweis-pdf';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { DriverAuthUser } from './fahrer.types';
 import { FahrerSmartborderService } from './fahrer-smartborder.service';
 import { TourEtaService } from '../integrations/tour-eta.service';
@@ -54,6 +55,7 @@ export class FahrerTelematicsService {
     private tourEta: TourEtaService,
     @Inject(forwardRef(() => DocumentsService)) private documents: DocumentsService,
     @Inject(forwardRef(() => TelematicsService)) private telematics: TelematicsService,
+    private notifications: NotificationsService,
   ) {}
 
   private loc(dto?: { latitude: number; longitude: number; information?: string }) {
@@ -310,7 +312,66 @@ export class FahrerTelematicsService {
       },
     });
 
+    // Abholhindernis / Zustellhindernis → Info-Mail
+    if (dto.status === 'LoadingPlaceLeft' || dto.status === 'UnloadingPlaceLeft') {
+      void this.notifyObstacleEmail(driver, dto, now).catch((err) =>
+        this.log.warn(
+          `Hindernis-Mail fehlgeschlagen TO=${dto.transportOrderNumber}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      );
+    }
+
     return result;
+  }
+
+  private async notifyObstacleEmail(
+    driver: DriverAuthUser,
+    dto: TransportOrderStatusDto,
+    at: Date,
+  ) {
+    const cons = await this.prisma.tourConsignment.findFirst({
+      where: {
+        soloplanOrderNumber: dto.transportOrderNumber,
+        tour: { organizationId: driver.organizationId },
+      },
+      include: { tour: { select: { tourNumber: true } } },
+    });
+
+    const orderNr =
+      cons?.orderNumber && cons.consignmentIndex != null
+        ? `${cons.orderNumber}.${cons.consignmentIndex}`
+        : cons?.orderNumber || dto.transportOrderNumber;
+    const absender = (cons?.senderName || '—').trim() || '—';
+    const empfaenger = (cons?.receiverName || '—').trim() || '—';
+    const grund = (dto.statusText || 'ohne Angabe').trim() || 'ohne Angabe';
+    const art =
+      dto.status === 'LoadingPlaceLeft' ? 'Abholhindernis' : 'Zustellhindernis';
+
+    const subject = `${orderNr} | ${absender} | ${empfaenger} | ${grund}`;
+    const body = [
+      art,
+      '',
+      `Auftragsnummer: ${orderNr}`,
+      `Transportauftrag: ${dto.transportOrderNumber}`,
+      `Absender: ${absender}`,
+      `Empfänger: ${empfaenger}`,
+      `Grund: ${grund}`,
+      '',
+      `Tour: ${cons?.tour?.tourNumber || '—'}`,
+      `Fahrzeug: ${driver.vehicleSoloplanId}`,
+      `Fahrer: ${driver.driverTelematicsId}`,
+      `Zeit: ${at.toISOString()}`,
+      dto.location
+        ? `Position: ${dto.location.latitude}, ${dto.location.longitude}`
+        : null,
+    ]
+      .filter((line) => line != null)
+      .join('\n');
+
+    await this.notifications.sendRaw('info@worldofgreen.ch', subject, body);
+    this.log.log(`Hindernis-Mail gesendet: ${subject}`);
   }
 
   async sendDocument(driver: DriverAuthUser, dto: DocumentDto) {

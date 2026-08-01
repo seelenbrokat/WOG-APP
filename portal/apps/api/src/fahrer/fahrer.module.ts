@@ -10,11 +10,13 @@ import { FahrerTelematicsService } from './fahrer-telematics.service';
 import { FahrerChatService } from './fahrer-chat.service';
 import { FahrerSmartborderService } from './fahrer-smartborder.service';
 import { FahrerAuthGuard } from './fahrer-auth.guard';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     forwardRef(() => IntegrationsModule),
     forwardRef(() => DocumentsModule),
+    NotificationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
