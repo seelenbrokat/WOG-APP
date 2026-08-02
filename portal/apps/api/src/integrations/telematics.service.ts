@@ -41,6 +41,11 @@ export class TelematicsService {
   private readonly logger = new Logger(TelematicsService.name);
   private inboundDirs: string[];
   private uploadDir: string;
+  /** Letzte bekannte Koordinaten pro Fahrzeug → Stillstand >30 Min. erkennen */
+  private readonly movementState = new Map<
+    string,
+    { lat: number; lon: number; movedAtMs: number }
+  >();
 
   constructor(
     private prisma: PrismaService,
@@ -731,6 +736,7 @@ export class TelematicsService {
   async fleetMap(user: AuthUser, opts?: { mandantId?: string }) {
     if (user.role === UserRole.CUSTOMER_USER) throw new NotFoundException();
     const now = new Date();
+    const activeSince = new Date(now.getTime() - 2 * 60 * 60 * 1000); // letzte 2 Stunden
     // Livekarte: nur Fahrzeuge mit VLB-Zustellapp-Telematik
     // (GPS von der App oder aktive App-Session am Fahrzeug)
     const vehicles = await this.prisma.vehicle.findMany({
@@ -739,6 +745,7 @@ export class TelematicsService {
         active: true,
         lastLatitude: { not: null },
         lastLongitude: { not: null },
+        lastLocationAt: { gte: activeSince },
         ...(opts?.mandantId ? { mandantId: opts.mandantId } : {}),
         OR: [
           { lastLocationSource: 'vlbportal' },
@@ -827,6 +834,7 @@ export class TelematicsService {
         ? driverNameByTelematics.get(v.lastDriverId) || ''
         : '';
       const driverName = sessionName || byLastId || tourName || linkedName || null;
+      const idle = this.markFleetIdle(v.id, v.lastLatitude!, v.lastLongitude!, v.lastLocationAt, null);
 
       return {
         id: v.id,
@@ -842,30 +850,67 @@ export class TelematicsService {
         driverName,
         statusText: null as string | null,
         address: null as string | null,
+        idle,
         tour,
       };
     });
 
-    // mTrack-GPS (TimeTruck / WOG Diepoldsau) zusätzlich einblenden
+    // mTrack-GPS (TimeTruck / WOG Diepoldsau) zusätzlich einblenden – nur letzte 2 Stunden
     const mtrackPositions = await this.mtrack.getFleetPositions();
-    const mtrackRows = mtrackPositions.map((p) => ({
-      id: p.id,
-      number: p.vehicleName,
-      licensePlate: p.vehicleName,
-      matchcode: p.vehicleGroupName,
-      mandant: null as { id: string; code: string; name: string } | null,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      locationAt: p.locationAt ? new Date(p.locationAt) : null,
-      locationSource: 'mtrack' as const,
-      driverId: p.driverId,
-      driverName: p.driverName,
-      statusText: p.vehicleStatus,
-      address: p.address,
-      tour: null as null,
-    }));
+    const mtrackRows = mtrackPositions
+      .map((p) => {
+        const locationAt = p.locationAt ? new Date(p.locationAt) : null;
+        if (!locationAt || locationAt.getTime() < activeSince.getTime()) return null;
+        const idle = this.markFleetIdle(p.id, p.latitude, p.longitude, locationAt, p.speed);
+        return {
+          id: p.id,
+          number: p.vehicleName,
+          licensePlate: p.vehicleName,
+          matchcode: p.vehicleGroupName,
+          mandant: null as { id: string; code: string; name: string } | null,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          locationAt,
+          locationSource: 'mtrack' as const,
+          driverId: p.driverId,
+          driverName: p.driverName,
+          statusText: p.vehicleStatus,
+          address: p.address,
+          idle,
+          tour: null as null,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => !!r);
 
     return [...vlbRows, ...mtrackRows];
+  }
+
+  /**
+   * Stillstand: keine relevante Positionsänderung / Speed≈0 seit >30 Minuten.
+   * Speichert die letzte Bewegungsposition im Speicher (API-Prozess).
+   */
+  private markFleetIdle(
+    id: string,
+    lat: number,
+    lon: number,
+    locationAt: Date | null | undefined,
+    speed?: number | null,
+  ): boolean {
+    const nowMs = Date.now();
+    const atMs = locationAt ? locationAt.getTime() : nowMs;
+    const prev = this.movementState.get(id);
+    const movingBySpeed = speed != null && Number(speed) > 1;
+    const movedByCoords =
+      !prev ||
+      Math.abs(prev.lat - lat) > 0.00008 || // ~9 m
+      Math.abs(prev.lon - lon) > 0.00008;
+    if (movingBySpeed || movedByCoords) {
+      this.movementState.set(id, { lat, lon, movedAtMs: atMs });
+    } else if (!prev) {
+      this.movementState.set(id, { lat, lon, movedAtMs: atMs });
+    }
+    const state = this.movementState.get(id)!;
+    return nowMs - state.movedAtMs > 30 * 60 * 1000;
   }
 
   async listEvents(

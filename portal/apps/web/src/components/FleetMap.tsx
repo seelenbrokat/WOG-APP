@@ -16,6 +16,8 @@ export type FleetVehicle = {
   driverName?: string | null;
   statusText?: string | null;
   address?: string | null;
+  /** true = >30 Min. ohne Bewegung → ! und blau */
+  idle?: boolean;
   tour: {
     id: string;
     tourNumber: string;
@@ -93,14 +95,21 @@ export function FleetMap({ vehicles }: { vehicles: FleetVehicle[] }) {
         points.push(latlng);
         const plate = v.licensePlate || v.number || v.matchcode || v.id;
         const name = driverLabel(v);
-        const label = name || plate;
+        const baseLabel = name || plate;
+        const idle = !!v.idle;
+        const label = idle ? `! ${baseLabel}` : baseLabel;
         const isMtrack = (v.locationSource || '').toLowerCase() === 'mtrack';
-        const sourceClass = isMtrack ? ' fleet-marker-dot--mtrack' : '';
+        const dotClass = idle
+          ? ' fleet-marker-dot--idle'
+          : isMtrack
+            ? ' fleet-marker-dot--mtrack'
+            : '';
+        const labelClass = idle ? ' fleet-marker-label--idle' : '';
         const sourceLabel = isMtrack ? 'mTrack' : 'VLB-Zustellapp';
         const icon = L.divIcon({
           className: 'fleet-marker',
-          html: `<div class="fleet-marker-wrap"><span class="fleet-marker-dot${sourceClass}"></span><span class="fleet-marker-label">${esc(label)}</span></div>`,
-          iconSize: [120, 36],
+          html: `<div class="fleet-marker-wrap"><span class="fleet-marker-dot${dotClass}"></span><span class="fleet-marker-label${labelClass}">${esc(label)}</span></div>`,
+          iconSize: [130, 36],
           iconAnchor: [9, 9],
         });
         const tourLine = v.tour
@@ -108,13 +117,15 @@ export function FleetMap({ vehicles }: { vehicles: FleetVehicle[] }) {
           : isMtrack
             ? v.statusText || 'mTrack GPS'
             : 'Keine aktive Tour';
+        const idleLine = idle ? '<div style="color:#0b6e99;font-weight:650">! Keine Bewegung &gt; 30 Min.</div>' : '';
         const popupName = name ? `<div>${esc(name)}</div>` : '';
         const addr = v.address ? `<div style="color:#5e6f65">${esc(v.address)}</div>` : '';
-        const marker = L.marker(latlng, { icon, title: name ? `${name} · ${plate}` : plate }).addTo(
-          map,
-        );
+        const marker = L.marker(latlng, {
+          icon,
+          title: idle ? `! ${name ? `${name} · ${plate}` : plate}` : name ? `${name} · ${plate}` : plate,
+        }).addTo(map);
         marker.bindPopup(
-          `<strong>${esc(plate)}</strong>${popupName}<br/>${esc(tourLine)}${addr}<br/><span style="color:#5e6f65">${esc(sourceLabel)} · ${fmt(v.locationAt)}</span>`,
+          `<strong>${esc(plate)}</strong>${popupName}${idleLine}<br/>${esc(tourLine)}${addr}<br/><span style="color:#5e6f65">${esc(sourceLabel)} · ${fmt(v.locationAt)}</span>`,
         );
         markersRef.current.push(marker);
       }

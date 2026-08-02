@@ -1148,12 +1148,16 @@ code {
   box-shadow: 0 1px 4px rgba(18, 74, 41, 0.35);
 }
 .fleet-marker-dot--mtrack {
+  background: #2f6b4f;
+  box-shadow: 0 1px 4px rgba(18, 74, 41, 0.3);
+}
+.fleet-marker-dot--idle {
   background: #0b6e99;
-  box-shadow: 0 1px 4px rgba(11, 70, 100, 0.35);
+  box-shadow: 0 1px 4px rgba(11, 70, 100, 0.4);
 }
 .fleet-marker-label {
   display: inline-block;
-  max-width: 9.5rem;
+  max-width: 10.5rem;
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.94);
@@ -1166,4 +1170,9 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   box-shadow: 0 1px 3px rgba(18, 40, 28, 0.12);
+}
+.fleet-marker-label--idle {
+  color: #0b4f73;
+  border-color: rgba(11, 110, 153, 0.35);
+  background: rgba(232, 244, 250, 0.96);
 }

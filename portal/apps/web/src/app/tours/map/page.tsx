@@ -86,8 +86,8 @@ export default function FleetMapPage() {
   return (
     <AppShell title="Kartenmonitor">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Live-Positionen: VLB-Zustellapp und mTrack-Fahrzeuge.{' '}
-        <Link href="/tours/dashboard">Dispo-Dashboard</Link>
+        Nur Fahrzeuge mit Aktivität der letzten 2 Stunden (VLB + mTrack). Ohne Bewegung &gt; 30&nbsp;Min.:
+        blau mit „!“. <Link href="/tours/dashboard">Dispo-Dashboard</Link>
         {' · '}
         <Link href="/tours">Touren</Link>
       </p>
@@ -118,7 +118,8 @@ export default function FleetMapPage() {
             : (() => {
                 const mtrack = vehicles.filter((v) => (v.locationSource || '').toLowerCase() === 'mtrack').length;
                 const vlb = vehicles.length - mtrack;
-                return `${vehicles.length} Fahrzeug${vehicles.length === 1 ? '' : 'e'} (VLB ${vlb} · mTrack ${mtrack})`;
+                const idle = vehicles.filter((v) => v.idle).length;
+                return `${vehicles.length} aktiv (2h) · VLB ${vlb} · mTrack ${mtrack}${idle ? ` · ! ${idle} stehend` : ''}`;
               })()}
         </span>
       </div>
@@ -147,19 +148,24 @@ export default function FleetMapPage() {
             {vehicles.length === 0 ? (
               <tr>
                 <td colSpan={7} className="muted">
-                  Keine Positionen. VLB: Fahrer muss GPS senden. mTrack: Zugangsdaten prüfen
-                  (MTRACK_ENABLED).
+                  Keine Fahrzeuge mit GPS in den letzten 2 Stunden.
                 </td>
               </tr>
             ) : (
               vehicles.map((v) => (
                 <tr key={v.id}>
                   <td>
-                    <strong>{v.licensePlate || v.number || '—'}</strong>
+                    <strong style={v.idle ? { color: '#0b6e99' } : undefined}>
+                      {v.idle ? '! ' : ''}
+                      {v.licensePlate || v.number || '—'}
+                    </strong>
                     <div className="muted">{[v.number, v.matchcode].filter(Boolean).join(' · ')}</div>
                   </td>
                   <td>
-                    <strong>{v.driverName || v.tour?.driverName || '—'}</strong>
+                    <strong style={v.idle ? { color: '#0b6e99' } : undefined}>
+                      {v.idle ? '! ' : ''}
+                      {v.driverName || v.tour?.driverName || '—'}
+                    </strong>
                     {v.driverId ? <div className="muted">{v.driverId}</div> : null}
                   </td>
                   <td>
