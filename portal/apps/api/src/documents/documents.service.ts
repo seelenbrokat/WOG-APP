@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -30,6 +31,10 @@ import {
   LoadingUnitService,
 } from '../integrations/loading-unit.service';
 import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
+import {
+  createDocumentDownloadToken,
+  verifyDocumentDownloadToken,
+} from './document-download-token';
 
 @Injectable()
 export class DocumentsService {
@@ -168,13 +173,47 @@ export class DocumentsService {
     return doc;
   }
 
+  private jwtSecret() {
+    return this.config.get<string>('JWT_SECRET') || 'dev-secret';
+  }
+
+  /** Signierter Download-Link (ohne Login), z. B. für ETB-Mails. */
+  createSignedDownloadUrl(docId: string, ttlSeconds = 30 * 24 * 60 * 60): string {
+    const appUrl = String(this.config.get('APP_URL') || 'https://wog.logistikberater.at').replace(
+      /\/$/,
+      '',
+    );
+    const token = createDocumentDownloadToken(docId, this.jwtSecret(), ttlSeconds);
+    return `${appUrl}/api/documents/${docId}/shared?t=${encodeURIComponent(token)}`;
+  }
+
   async openStream(user: AuthUser, id: string) {
     const doc = await this.get(user, id);
+    return this.openExistingFile(doc);
+  }
+
+  /** Download über signierten E-Mail-Token (ohne Session). */
+  async openStreamBySignedToken(docId: string, token: string) {
+    const verified = verifyDocumentDownloadToken(token, this.jwtSecret());
+    if (!verified || verified.docId !== docId) {
+      throw new UnauthorizedException('Download-Link ungültig oder abgelaufen');
+    }
+    const doc = await this.prisma.document.findUnique({ where: { id: docId } });
+    if (!doc) throw new NotFoundException('Datei nicht gefunden');
+    return this.openExistingFile(doc);
+  }
+
+  private openExistingFile(doc: { id: string; storagePath: string | null; fileName: string; mimeType: string | null; sizeBytes: number | null }) {
     if (!doc.storagePath || !existsSync(doc.storagePath)) {
-      this.logger.warn(`Dokument ${id}: Datei fehlt (${doc.storagePath || 'ohne Pfad'})`);
+      this.logger.warn(`Dokument ${doc.id}: Datei fehlt (${doc.storagePath || 'ohne Pfad'})`);
       throw new NotFoundException('Datei nicht gefunden');
     }
-    return { doc, stream: createReadStream(doc.storagePath) };
+    const sizeBytes =
+      doc.sizeBytes && doc.sizeBytes > 0 ? doc.sizeBytes : statSync(doc.storagePath).size;
+    return {
+      doc: { ...doc, sizeBytes },
+      stream: createReadStream(doc.storagePath),
+    };
   }
 
   async generateAblieferbeleg(user: AuthUser, shipmentId: string) {

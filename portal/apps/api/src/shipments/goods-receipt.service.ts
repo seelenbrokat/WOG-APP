@@ -18,6 +18,7 @@ import {
   writeEntladeberichtPdf,
   type EtbSurplusLine,
 } from './entladebericht-pdf';
+import { createDocumentDownloadToken } from '../documents/document-download-token';
 
 function dayBounds(dateStr: string): { start: Date; end: Date } {
   // dateStr YYYY-MM-DD (lokal als UTC-Tag)
@@ -1346,7 +1347,16 @@ export class GoodsReceiptService {
     });
 
     const recipients = this.etbNotifyEmails();
-    const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
+    const appUrl = String(this.config.get('APP_URL') || 'https://wog.logistikberater.at').replace(
+      /\/$/,
+      '',
+    );
+    const downloadToken = createDocumentDownloadToken(
+      doc.id,
+      this.config.get<string>('JWT_SECRET') || 'dev-secret',
+      30 * 24 * 60 * 60,
+    );
+    const downloadUrl = `${appUrl}/api/documents/${doc.id}/shared?t=${encodeURIComponent(downloadToken)}`;
     const photoAttachments = session.checks
       .filter((c) => c.status === 'DAMAGED' && c.documentId)
       .map((c) => {
@@ -1373,7 +1383,8 @@ export class GoodsReceiptService {
       ``,
       `PDF liegt bei.${photoAttachments.length ? ` Zusätzlich ${photoAttachments.length} Beschädigungsfoto(s) im Anhang.` : ''}`,
       `Aufbewahrung im Portal: 30 Tage.`,
-      `Download: ${appUrl}/api/documents/${doc.id}/download`,
+      `Download (ohne Login, 30 Tage gültig): ${downloadUrl}`,
+      `Im Portal: ${appUrl}/scanning/entladeberichte`,
       ``,
       `WOG Portal`,
     ].join('\n');

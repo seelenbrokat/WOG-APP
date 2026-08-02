@@ -47,9 +47,8 @@ export default function EntladeberichtePage() {
     <AppShell title="Entladeberichte">
       <div className="stack" style={{ gap: '0.85rem', maxWidth: 820 }}>
         <p className="muted" style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.4 }}>
-          ETBs der letzten 30 Tage (Wareneingangskontrolle). Dateien liegen unter{' '}
-          <code>uploads/entladeberichte/</code> auf dem Server und werden per Mail an
-          info@worldofgreen.ch / mb@logistikberater.at gesendet.
+          ETBs der letzten 30 Tage (Wareneingangskontrolle). Per Mail geht das PDF als Anhang plus
+          ein Download-Link (30 Tage, ohne extra Login). Hier im Portal jederzeit erneut laden.
         </p>
 
         <div className="row" style={{ gap: '0.5rem' }}>

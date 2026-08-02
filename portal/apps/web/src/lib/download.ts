@@ -12,15 +12,34 @@ function resolveMime(blob: Blob, fileName: string, mimeHint?: string | null): st
   return 'application/octet-stream';
 }
 
+function isAppleTouchDevice() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS meldet sich teils als MacIntel mit Touch
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+}
+
 /**
- * Blob als Datei speichern.
- * Safari/iOS: Object-URL nicht sofort revoke und Anchor im DOM anhängen,
- * sonst bleibt der Download leer oder startet gar nicht.
+ * Blob als Datei speichern / öffnen.
+ * Safari/iOS: Object-URL nicht sofort revoke; PDF in neuem Tab (download-Attribut oft wirkungslos).
  */
 export function triggerBlobDownload(blob: Blob, fileName: string, mimeHint?: string | null) {
   const type = resolveMime(blob, fileName, mimeHint);
   const typed = blob.type === type ? blob : new Blob([blob], { type });
   const url = URL.createObjectURL(typed);
+  const isPdf = type === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+
+  if (isPdf && isAppleTouchDevice()) {
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      // Popup blockiert → gleiche Seite
+      window.location.assign(url);
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    return;
+  }
+
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
@@ -35,8 +54,12 @@ export function triggerBlobDownload(blob: Blob, fileName: string, mimeHint?: str
 export async function downloadAuthenticated(path: string, fileName: string) {
   const base = process.env.NEXT_PUBLIC_API_URL || '/api';
   const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const token = getToken();
+  if (!token) {
+    throw new Error('Nicht angemeldet – bitte erneut einloggen');
+  }
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
@@ -44,5 +67,8 @@ export async function downloadAuthenticated(path: string, fileName: string) {
     throw new Error(msg || `Download fehlgeschlagen (${res.status})`);
   }
   const blob = await res.blob();
+  if (!blob.size) {
+    throw new Error('Leere Datei empfangen');
+  }
   triggerBlobDownload(blob, fileName, res.headers.get('content-type'));
 }
