@@ -86,7 +86,7 @@ export default function FleetMapPage() {
   return (
     <AppShell title="Kartenmonitor">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Live-Positionen der VLB-Zustellapp (Telematik VLBPortal).{' '}
+        Live-Positionen: VLB-Zustellapp und mTrack-Fahrzeuge.{' '}
         <Link href="/tours/dashboard">Dispo-Dashboard</Link>
         {' · '}
         <Link href="/tours">Touren</Link>
@@ -113,7 +113,13 @@ export default function FleetMapPage() {
           </button>
         ) : null}
         <span className="muted">
-          {loading ? 'Laden…' : `${vehicles.length} VLB-Zustellapp-Fahrzeug${vehicles.length === 1 ? '' : 'e'}`}
+          {loading
+            ? 'Laden…'
+            : (() => {
+                const mtrack = vehicles.filter((v) => (v.locationSource || '').toLowerCase() === 'mtrack').length;
+                const vlb = vehicles.length - mtrack;
+                return `${vehicles.length} Fahrzeug${vehicles.length === 1 ? '' : 'e'} (VLB ${vlb} · mTrack ${mtrack})`;
+              })()}
         </span>
       </div>
 
@@ -130,6 +136,7 @@ export default function FleetMapPage() {
             <tr>
               <th>Fahrzeug</th>
               <th>Fahrer</th>
+              <th>Quelle</th>
               <th>Position</th>
               <th>Zuletzt</th>
               <th>Tour</th>
@@ -139,9 +146,9 @@ export default function FleetMapPage() {
           <tbody>
             {vehicles.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted">
-                  Keine Positionen von der VLB-Zustellapp. Fahrer muss in der App eingeloggt sein bzw.
-                  GPS senden.
+                <td colSpan={7} className="muted">
+                  Keine Positionen. VLB: Fahrer muss GPS senden. mTrack: Zugangsdaten prüfen
+                  (MTRACK_ENABLED).
                 </td>
               </tr>
             ) : (
@@ -155,8 +162,14 @@ export default function FleetMapPage() {
                     <strong>{v.driverName || v.tour?.driverName || '—'}</strong>
                     {v.driverId ? <div className="muted">{v.driverId}</div> : null}
                   </td>
+                  <td>
+                    <span className="badge">
+                      {(v.locationSource || '').toLowerCase() === 'mtrack' ? 'mTrack' : 'VLB'}
+                    </span>
+                  </td>
                   <td className="muted">
                     {v.latitude?.toFixed(5)}, {v.longitude?.toFixed(5)}
+                    {v.address ? <div>{v.address}</div> : null}
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{fmt(v.locationAt)}</td>
                   <td>
@@ -167,7 +180,9 @@ export default function FleetMapPage() {
                     )}
                   </td>
                   <td>
-                    <span className="badge">{v.tour?.telematicsStatus || v.tour?.status || '—'}</span>
+                    <span className="badge">
+                      {v.tour?.telematicsStatus || v.tour?.status || v.statusText || '—'}
+                    </span>
                   </td>
                 </tr>
               ))

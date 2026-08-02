@@ -20,6 +20,7 @@ import {
   parseTelematicsXml,
 } from './telematics-xml.parser';
 import { LoadingUnitService } from './loading-unit.service';
+import { MtrackService } from './mtrack.service';
 import {
   buildZustellTimeline,
   deliveryStatusFromEvents,
@@ -45,6 +46,7 @@ export class TelematicsService {
     private prisma: PrismaService,
     private config: ConfigService,
     private loadingUnits: LoadingUnitService,
+    private mtrack: MtrackService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -808,7 +810,7 @@ export class TelematicsService {
       ]),
     );
 
-    return vehicles.map((v) => {
+    const vlbRows = vehicles.map((v) => {
       const tour = v.tours[0] || null;
       const sessionDriver = v.devices[0]?.driver;
       const sessionName = sessionDriver
@@ -838,9 +840,32 @@ export class TelematicsService {
         locationSource: v.lastLocationSource || 'vlbportal',
         driverId: v.lastDriverId || sessionDriver?.telematicsId || tour?.driverTelematicsId || null,
         driverName,
+        statusText: null as string | null,
+        address: null as string | null,
         tour,
       };
     });
+
+    // mTrack-GPS (TimeTruck / WOG Diepoldsau) zusätzlich einblenden
+    const mtrackPositions = await this.mtrack.getFleetPositions();
+    const mtrackRows = mtrackPositions.map((p) => ({
+      id: p.id,
+      number: p.vehicleName,
+      licensePlate: p.vehicleName,
+      matchcode: p.vehicleGroupName,
+      mandant: null as { id: string; code: string; name: string } | null,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      locationAt: p.locationAt ? new Date(p.locationAt) : null,
+      locationSource: 'mtrack' as const,
+      driverId: p.driverId,
+      driverName: p.driverName,
+      statusText: p.vehicleStatus,
+      address: p.address,
+      tour: null as null,
+    }));
+
+    return [...vlbRows, ...mtrackRows];
   }
 
   async listEvents(

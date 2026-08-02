@@ -1147,6 +1147,10 @@ code {
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(18, 74, 41, 0.35);
 }
+.fleet-marker-dot--mtrack {
+  background: #0b6e99;
+  box-shadow: 0 1px 4px rgba(11, 70, 100, 0.35);
+}
 .fleet-marker-label {
   display: inline-block;
   max-width: 9.5rem;

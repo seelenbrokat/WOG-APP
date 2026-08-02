@@ -15,6 +15,7 @@ import { IntouchService } from './intouch.service';
 import { ShippingNetService } from './shippingnet.service';
 import { LoadingUnitService } from './loading-unit.service';
 import { WareneingangService } from './wareneingang.service';
+import { MtrackService } from './mtrack.service';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule), AuditModule],
@@ -28,6 +29,7 @@ import { WareneingangService } from './wareneingang.service';
     TourService,
     TourEtaService,
     LoadingUnitService,
+    MtrackService,
     TelematicsService,
     TelematicsOutboundService,
     IntouchService,
@@ -46,6 +48,7 @@ import { WareneingangService } from './wareneingang.service';
     TourService,
     TourEtaService,
     LoadingUnitService,
+    MtrackService,
     TelematicsService,
     TelematicsOutboundService,
     IntouchService,

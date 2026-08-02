@@ -14,6 +14,8 @@ export type FleetVehicle = {
   locationSource?: string | null;
   driverId: string | null;
   driverName?: string | null;
+  statusText?: string | null;
+  address?: string | null;
   tour: {
     id: string;
     tourNumber: string;
@@ -92,21 +94,27 @@ export function FleetMap({ vehicles }: { vehicles: FleetVehicle[] }) {
         const plate = v.licensePlate || v.number || v.matchcode || v.id;
         const name = driverLabel(v);
         const label = name || plate;
+        const isMtrack = (v.locationSource || '').toLowerCase() === 'mtrack';
+        const sourceClass = isMtrack ? ' fleet-marker-dot--mtrack' : '';
+        const sourceLabel = isMtrack ? 'mTrack' : 'VLB-Zustellapp';
         const icon = L.divIcon({
           className: 'fleet-marker',
-          html: `<div class="fleet-marker-wrap"><span class="fleet-marker-dot"></span><span class="fleet-marker-label">${esc(label)}</span></div>`,
+          html: `<div class="fleet-marker-wrap"><span class="fleet-marker-dot${sourceClass}"></span><span class="fleet-marker-label">${esc(label)}</span></div>`,
           iconSize: [120, 36],
           iconAnchor: [9, 9],
         });
         const tourLine = v.tour
           ? `Tour ${v.tour.tourNumber}${v.tour.telematicsStatus ? ` · ${v.tour.telematicsStatus}` : ''}`
-          : 'Keine aktive Tour';
+          : isMtrack
+            ? v.statusText || 'mTrack GPS'
+            : 'Keine aktive Tour';
         const popupName = name ? `<div>${esc(name)}</div>` : '';
+        const addr = v.address ? `<div style="color:#5e6f65">${esc(v.address)}</div>` : '';
         const marker = L.marker(latlng, { icon, title: name ? `${name} · ${plate}` : plate }).addTo(
           map,
         );
         marker.bindPopup(
-          `<strong>${esc(plate)}</strong>${popupName}<br/>${esc(tourLine)}<br/><span style="color:#5e6f65">${fmt(v.locationAt)}</span>`,
+          `<strong>${esc(plate)}</strong>${popupName}<br/>${esc(tourLine)}${addr}<br/><span style="color:#5e6f65">${esc(sourceLabel)} · ${fmt(v.locationAt)}</span>`,
         );
         markersRef.current.push(marker);
       }
