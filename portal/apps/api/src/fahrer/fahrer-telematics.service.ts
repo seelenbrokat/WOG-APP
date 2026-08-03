@@ -396,15 +396,28 @@ export class FahrerTelematicsService {
     return result;
   }
 
+  /** Debounce: ein Ablieferbeleg-Refresh je TO (nicht je Collo-/Status-Event). */
+  private ablieferbelegStatusSentAt = new Map<string, number>();
+
   /** Vorhandene Unterschrift/Fotos → Ablieferbeleg inkl. aktuellem statusText neu erzeugen. */
   private async refreshAblieferbelegAfterStatus(
     driver: DriverAuthUser,
     dto: TransportOrderStatusDto,
   ) {
+    const to = String(dto.transportOrderNumber || '').trim();
+    if (!to) return;
+    const last = this.ablieferbelegStatusSentAt.get(to) || 0;
+    if (Date.now() - last < 90_000) {
+      this.log.debug(
+        `Ablieferbeleg-Status-Refresh übersprungen (bereits gesendet) TO=${to}`,
+      );
+      return;
+    }
+
     const imageDocs = await this.prisma.tourDocument.findMany({
       where: {
         organizationId: driver.organizationId,
-        transportOrderNumber: dto.transportOrderNumber,
+        transportOrderNumber: to,
         mimeType: { startsWith: 'image/' },
         NOT: [
           { fileName: { startsWith: 'Ablieferbeleg-' } },
@@ -415,8 +428,10 @@ export class FahrerTelematicsService {
       orderBy: { createdAt: 'desc' },
       take: 40,
     });
-    const signatureDoc =
-      imageDocs.find((d) => isSignatureDocumentName(d.fileName)) || imageDocs[0];
+    // Nur echte Unterschrift → sonst kein Beleg je Collo-Foto
+    const signatureDoc = imageDocs.find(
+      (d) => isSignatureDocumentName(d.fileName) && !/^Signature_KeinTausch/i.test(d.fileName),
+    );
     if (!signatureDoc) return;
 
     const signedByName = this.signedByFromFileName(signatureDoc.fileName);
@@ -428,15 +443,16 @@ export class FahrerTelematicsService {
     });
 
     if (zustellnachweis?.storagePath && existsSync(zustellnachweis.storagePath)) {
+      this.ablieferbelegStatusSentAt.set(to, Date.now());
       this.outbound.sendDocument({
         vehicleId: driver.vehicleSoloplanId,
         tourNumber: signatureDoc.tourNumber || undefined,
-        transportOrderNumber: dto.transportOrderNumber,
+        transportOrderNumber: to,
         fileName: zustellnachweis.fileName,
         contentBase64: readFileSync(zustellnachweis.storagePath).toString('base64'),
       });
       this.log.log(
-        `Ablieferbeleg nach Status aktualisiert TO=${dto.transportOrderNumber}: ${zustellnachweis.fileName}`,
+        `Ablieferbeleg nach Status aktualisiert TO=${to}: ${zustellnachweis.fileName}`,
       );
     }
   }

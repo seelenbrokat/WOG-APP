@@ -383,14 +383,15 @@ export class FahrerTelematicsService {
               sourceFile: `vlbportal:${fileName}`,
             },
           });
-          if (
-            (isSignatureDocumentName(parsed.fileName) ||
-              this.mimeFromName(parsed.fileName).startsWith('image/')) &&
-            !/^Signature_KeinTausch/i.test(parsed.fileName)
-          ) {
+          const isRealSignature =
+            isSignatureDocumentName(parsed.fileName) &&
+            !/^Signature_KeinTausch/i.test(parsed.fileName);
+          const isImage = this.mimeFromName(parsed.fileName).startsWith('image/');
+          if ((isRealSignature || isImage) && !/^Signature_KeinTausch/i.test(parsed.fileName)) {
             try {
+              // PDF lokal aktualisieren (Fotos + Unterschrift → ein Beleg je Sendung)
               try {
-                const receipt = await this.documents.generateDeliveryReceiptFromSignature({
+                await this.documents.generateDeliveryReceiptFromSignature({
                   organizationId: orgId,
                   transportOrderNumber: parsed.transportOrderNumber,
                   tourNumber: parsed.tourNumber,
@@ -399,19 +400,6 @@ export class FahrerTelematicsService {
                   signatureFileName: parsed.fileName,
                   signedAt: new Date(),
                 });
-                if (receipt?.fileName && parsed.vehicleId) {
-                  const pdfPath = join(this.uploadDir(), receipt.fileName);
-                  if (existsSync(pdfPath)) {
-                    this.outbound.sendDocument({
-                      vehicleId: parsed.vehicleId,
-                      tourNumber: parsed.tourNumber,
-                      transportOrderNumber: parsed.transportOrderNumber,
-                      tourStopId: parsed.tourStopId,
-                      fileName: receipt.fileName,
-                      contentBase64: readFileSync(pdfPath).toString('base64'),
-                    });
-                  }
-                }
               } catch {
                 /* Tour ohne Portal-Shipment */
               }
@@ -420,7 +408,13 @@ export class FahrerTelematicsService {
                 signatureDocId: tourDoc.id,
                 signedAt: new Date(),
               });
-              if (zn?.fileName && parsed.vehicleId && existsSync(zn.storagePath)) {
+              // Telematics: nur bei Unterschrift senden – nicht je Collo-Foto
+              if (
+                isRealSignature &&
+                zn?.fileName &&
+                parsed.vehicleId &&
+                existsSync(zn.storagePath)
+              ) {
                 this.outbound.sendDocument({
                   vehicleId: parsed.vehicleId,
                   tourNumber: parsed.tourNumber,

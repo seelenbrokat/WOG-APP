@@ -570,15 +570,20 @@ export class SoloplanService implements TransportIntegration {
       take: 15,
     });
     const out: Array<{ fileName: string; category: string; contentBase64: string }> = [];
+    // Pro Kategorie nur die neueste Datei – ein ABL je Sendung, keine Collo-Duplikate
+    const seenCategory = new Set<string>();
     for (const doc of docs) {
       if (!doc.storagePath || !existsSync(doc.storagePath)) continue;
+      const category = soloplanDocumentCategory(doc.type);
+      if (seenCategory.has(category)) continue;
       try {
         const buf = readFileSync(doc.storagePath);
         out.push({
           fileName: doc.fileName,
-          category: soloplanDocumentCategory(doc.type),
+          category,
           contentBase64: buf.toString('base64'),
         });
+        seenCategory.add(category);
       } catch (err: any) {
         this.logger.warn(`Soloplan document skip ${doc.fileName}: ${err?.message || err}`);
       }

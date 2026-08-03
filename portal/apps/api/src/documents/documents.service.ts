@@ -404,7 +404,17 @@ export class DocumentsService {
       signature: opts.signature,
     });
 
-    if (shipment.soloplanRef || shipment.order?.soloplanRef) {
+    // Soloplan nur einmal je Sendung belasten: bei Collo-Fotos lokal PDF aktualisieren,
+    // File-API-Export erst bei echter Unterschrift (oder manuell ohne Foto-Trigger).
+    const sigName = (opts.signature?.fileName || '').trim();
+    const photoOnlyRefresh =
+      Boolean(opts.signature?.path) &&
+      (!isSignatureDocumentName(sigName) || /^Signature_KeinTausch/i.test(sigName));
+
+    if (
+      !photoOnlyRefresh &&
+      (shipment.soloplanRef || shipment.order?.soloplanRef)
+    ) {
       try {
         const res = await this.soloplan.exportDocumentsIfReady(shipment.id);
         this.logger.log(
