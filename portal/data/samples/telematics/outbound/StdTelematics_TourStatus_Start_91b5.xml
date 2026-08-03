@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<TourStatus xmlns="http://www.soloplan.de/StdTelematics">
+	<VehicleId>VehicleId</VehicleId>
+	<SendDate>2014-12-04T12:40:18Z</SendDate>
+	<StatusDate>2014-12-04T12:41:18Z</StatusDate>
+	<TourNumber>460413</TourNumber>
+	<Duration>90</Duration>
+	<Status>Started</Status>
+	<StatusText>Started the tour.</StatusText>
+	<VehicleInformation>
+		<MileageInKilometers>6000</MileageInKilometers>
+		<OverallFuelConsumption>800</OverallFuelConsumption>
+	</VehicleInformation>
+	<VehicleLocation>
+		<LocationDate>2014-12-04T12:40:38Z</LocationDate>
+		<GeoCoordinate>
+			<Longitude>10.3138900</Longitude>
+				<Latitude>47.7267400</Latitude>
+		</GeoCoordinate>
+		<Information>Kempten</Information>
+		<MileageInKilometers>6000</MileageInKilometers>
+	</VehicleLocation>
+	<Informations>
+		<Information>
+			<Value>The first information</Value>
+			<Number>1</Number>
+		</Information>
+	</Informations>
+	<FloatFields>
+		<FloatField>
+			<Value>1.1</Value>
+			<Number>1</Number>
+		</FloatField>
+	</FloatFields>
+</TourStatus>
