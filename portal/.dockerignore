@@ -1,0 +1,26 @@
+# Keep Docker build context small – prevents OOM on the VPS.
+node_modules
+**/node_modules
+.git
+.gitignore
+data
+**/data
+uploads
+**/uploads
+*.md
+docs
+.env
+.env.*
+dist
+**/dist
+.next
+**/.next
+coverage
+**/coverage
+tmp
+**/tmp
+*.log
+apps/api/dist
+apps/web/.next
+apps/web/out
+portal/apps/api/dist
