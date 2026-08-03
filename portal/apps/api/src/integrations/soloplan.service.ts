@@ -295,10 +295,11 @@ export class SoloplanService implements TransportIntegration {
   async flushDocumentsAfterPickup(archivedFiles: string[]) {
     const flushed: string[] = [];
     for (const fileName of archivedFiles) {
-      // order-VLB230700057.json oder order-VLB…-update-….json
-      const m = fileName.match(/^order-(VLB[\w.-]+?)(?:-update-|\.json)/i);
+      // Nur nach Create-Abholung Docs nachreichen – nicht nach jedem Update (sonst Endlosschleife)
+      if (/-update-/i.test(fileName)) continue;
+      const m = fileName.match(/^order-(VLB[\w.-]+)\.json$/i);
       if (!m) continue;
-      const externalNumber = m[1].replace(/-update.*$/i, '');
+      const externalNumber = m[1];
 
       const customs = await this.prisma.customsOrder.findFirst({
         where: { externalNumber },
@@ -323,6 +324,9 @@ export class SoloplanService implements TransportIntegration {
         }
         continue;
       }
+
+      // TransportOrder: Docs einmal als Update nachreichen (nicht erneut Create!)
+      if (this.wasDocsUpdateWritten(externalNumber)) continue;
 
       const order = await this.prisma.transportOrder.findFirst({
         where: { externalNumber },
@@ -433,27 +437,38 @@ export class SoloplanService implements TransportIntegration {
 
   /**
    * Update nur wenn Soloplan den Auftrag schon hat:
-   * - echte Soloplan-ID, oder
+   * - echte Soloplan-ID am Auftrag oder an einer Sendung, oder
    * - Create-Datei wurde abgeholt (nicht mehr im Pickup).
-   * Solange order-VLB….json noch im Pickup liegt → Create neu schreiben (mit Dokumenten).
+   * Solange order-VLB….json noch im Pickup liegt und Soloplan den Auftrag noch nicht kennt
+   * → Create neu schreiben (mit Dokumenten).
+   *
+   * Wichtig: Dokumente (Ablieferbeleg) dürfen danach nie wieder als Create gehen –
+   * sonst überschreibt Soloplan Sendungsfelder inkl. externer Nummern.
    */
-  private isSoloplanOrderUpdate(order: {
-    soloplanRef?: string | null;
-    externalNumber?: string | null;
-  }) {
-    if (this.pendingCreatePath(order.externalNumber)) return false;
+  private isSoloplanOrderUpdate(
+    order: {
+      soloplanRef?: string | null;
+      externalNumber?: string | null;
+    },
+    shipmentRefs: Array<string | null | undefined> = [],
+  ) {
+    // Echte Soloplan-ID (Auftrag oder Sendung) → immer Update, nie Create neu.
+    // VLB290700012: Order.soloplanRef leer, Shipment.soloplanRef=440490 → früher Create!
     if (this.isSoloplanImported(order.soloplanRef)) return true;
-    if (order.soloplanRef?.startsWith('FILE:') && this.wasCreatePickedUp(order.externalNumber)) {
-      return true;
-    }
-    // Kein Ref / nur Stub / Create noch nie geschrieben → Create
-    if (!order.soloplanRef || order.soloplanRef.startsWith('SP-STUB-')) return false;
-    if (order.soloplanRef.startsWith('FILE:')) {
+    if (shipmentRefs.some((ref) => this.isSoloplanImported(ref))) return true;
+
+    if (this.pendingCreatePath(order.externalNumber)) return false;
+
+    // Create bereits von Soloplan abgeholt → nur noch docs-only Update
+    if (this.wasCreatePickedUp(order.externalNumber)) return true;
+
+    if (order.soloplanRef?.startsWith('FILE:')) {
       // FILE: aber weder pending noch archiviert (z. B. manuell gelöscht) → Update riskant;
       // lieber Create erneut schreiben.
       return false;
     }
-    return true;
+    // Kein Ref / nur Stub / Create noch nie geschrieben → Create
+    return false;
   }
 
   /**
@@ -592,6 +607,20 @@ export class SoloplanService implements TransportIntegration {
       return { ok: true, mode: 'skip' as const, reason: 'no-documents' };
     }
 
+    // Soloplan kennt den Auftrag bereits (echte ID oder Create abgeholt)
+    // → ausschließlich docs-only Update, nie Create mit Sendungsfeldern.
+    const alreadyInSoloplan =
+      this.isSoloplanImported(shipment.soloplanRef) ||
+      this.isSoloplanImported(shipment.order.soloplanRef) ||
+      this.wasCreatePickedUp(ext);
+
+    if (alreadyInSoloplan) {
+      await this.syncOrderSoloplanRefFromShipments(shipment.order.id);
+      this.logger.log(`Soloplan: Dokument-Update für ${ext} (${docs.length} Datei(en))`);
+      await this.createOrder(shipmentId, { forceUpdate: true });
+      return { ok: true, mode: 'update' as const, externalNumber: ext, documents: docs.length };
+    }
+
     const pendingCreate = this.pendingCreatePath(ext);
     if (pendingCreate) {
       this.logger.log(
@@ -602,12 +631,6 @@ export class SoloplanService implements TransportIntegration {
     }
 
     const ref = shipment.soloplanRef || shipment.order.soloplanRef;
-    if (this.isSoloplanImported(ref) || this.wasCreatePickedUp(ext)) {
-      this.logger.log(`Soloplan: Dokument-Update für ${ext} (${docs.length} Datei(en))`);
-      await this.createOrder(shipmentId);
-      return { ok: true, mode: 'update' as const, externalNumber: ext, documents: docs.length };
-    }
-
     // FILE:/Stub aber Create nie von Soloplan abgeholt (z. B. verfrühtes Update) → Create wiederherstellen
     if (!ref || ref.startsWith('FILE:') || ref.startsWith('SP-STUB-')) {
       this.logger.log(
@@ -621,6 +644,26 @@ export class SoloplanService implements TransportIntegration {
       `Soloplan: Dokumente für ${ext} warten – Auftrag noch nicht von Soloplan abgeholt/importiert`,
     );
     return { ok: true, mode: 'wait' as const, externalNumber: ext, documents: docs.length };
+  }
+
+  /** Order.soloplanRef aus Sendungs-IDs nachziehen (oft nur Shipment.soloplanRef gesetzt). */
+  private async syncOrderSoloplanRefFromShipments(orderId: string) {
+    const order = await this.prisma.transportOrder.findUnique({
+      where: { id: orderId },
+      select: { id: true, soloplanRef: true, shipments: { select: { soloplanRef: true } } },
+    });
+    if (!order || this.isSoloplanImported(order.soloplanRef)) return;
+    const fromShipment = order.shipments
+      .map((s) => s.soloplanRef)
+      .find((ref) => this.isSoloplanImported(ref));
+    if (!fromShipment) return;
+    await this.prisma.transportOrder.update({
+      where: { id: order.id },
+      data: { soloplanRef: fromShipment },
+    });
+    this.logger.log(
+      `Soloplan: TransportOrder.soloplanRef aus Sendung nachgezogen → ${fromShipment}`,
+    );
   }
 
   /** Exportiert eine Sendung sofort als Soloplan File-API JSON (auch wenn Worker noch nicht gelaufen ist). */
@@ -640,7 +683,7 @@ export class SoloplanService implements TransportIntegration {
     };
   }
 
-  async createOrder(shipmentId: string) {
+  async createOrder(shipmentId: string, opts: { forceUpdate?: boolean } = {}) {
     const shipmentInclude = {
       positions: true,
       colli: { orderBy: { itemNumber: 'asc' as const } },
@@ -700,7 +743,13 @@ export class SoloplanService implements TransportIntegration {
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
     const format = this.getFileFormat();
     // Bereits exportiert → Update nur mit externen Nummern, keine Sendungsinfos erneut
-    const isUpdate = this.isSoloplanOrderUpdate(shipment.order);
+    const shipmentRefs = orderShipments.map((s) => s.soloplanRef);
+    const isUpdate =
+      opts.forceUpdate === true ||
+      this.isSoloplanOrderUpdate(shipment.order, shipmentRefs);
+    if (isUpdate) {
+      await this.syncOrderSoloplanRefFromShipments(shipment.order.id);
+    }
     const payload = buildSoloplanFilePayload(shipmentWithDocs, {
       format,
       defaultSender: isUpdate ? null : this.getDefaultSender(),

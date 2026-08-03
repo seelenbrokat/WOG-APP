@@ -1,7 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chmodSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'fs';
-import { basename, join } from 'path';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
+import { basename, dirname, join } from 'path';
 import {
   VLB_PORTAL_TELEMATICS_CONFIG,
   buildDocumentXml,
@@ -154,8 +162,49 @@ export class TelematicsOutboundService {
   }
 
   sendDocument(input: OutDocument) {
+    // Ein Ablieferbeleg je Sendung/TO: ältere, noch nicht abgeholte Belege ersetzen
+    if (/^Ablieferbeleg-/i.test(input.fileName || '')) {
+      this.retirePendingAblieferbeleg(input.transportOrderNumber, input.fileName);
+    }
     const xml = buildDocumentXml(input);
     return this.write('Document', xml, input.vehicleId, input.fileName);
+  }
+
+  /**
+   * Noch im Pickup liegende Ablieferbeleg-XMLs derselben Sendung/TO entfernen,
+   * damit Soloplan nicht einen Beleg je Collo/Foto importiert.
+   */
+  retirePendingAblieferbeleg(transportOrderNumber?: string | null, fileName?: string | null) {
+    if (!existsSync(this.outDir)) return 0;
+    const toSafe = String(transportOrderNumber || '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 40);
+    const nameSafe = String(fileName || '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 40);
+    if (!toSafe && !nameSafe) return 0;
+    const archiveDir = join(dirname(this.outDir), 'archive');
+    if (!existsSync(archiveDir)) mkdirSync(archiveDir, { recursive: true });
+    let retired = 0;
+    for (const f of readdirSync(this.outDir)) {
+      if (!f.endsWith('.xml') || !f.includes('_Document_')) continue;
+      if (!/Ablieferbeleg/i.test(f)) continue;
+      const matchesTo = Boolean(toSafe && f.includes(toSafe));
+      const matchesName = Boolean(nameSafe && f.includes(nameSafe));
+      if (!matchesTo && !matchesName) continue;
+      try {
+        renameSync(join(this.outDir, f), join(archiveDir, `${Date.now()}_superseded_${f}`));
+        retired += 1;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (retired) {
+      this.logger.log(
+        `Telematics: ${retired} ältere Ablieferbeleg-XML(s) für TO=${toSafe || '—'} aus Pickup entfernt`,
+      );
+    }
+    return retired;
   }
 
   sendSsccStatus(input: OutSsccStatus) {

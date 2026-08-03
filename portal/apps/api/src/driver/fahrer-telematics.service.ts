@@ -255,19 +255,22 @@ export class FahrerTelematicsService {
           signedByName,
           signedAt,
         });
-        const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
-        const pdfPath = ablieferbeleg?.fileName
-          ? join(this.uploadDir(), ablieferbeleg.fileName)
-          : zustellnachweis?.storagePath;
-        if (pdfFileName && pdfPath && existsSync(pdfPath)) {
-          this.outbound.sendDocument({
-            vehicleId: body.vehicleId,
-            tourNumber: body.tourNumber,
-            transportOrderNumber: body.transportOrderNumber,
-            tourStopId: body.tourStopId,
-            fileName: pdfFileName,
-            contentBase64: readFileSync(pdfPath).toString('base64'),
-          });
+        // Ein Ablieferbeleg je Sendung/TO – Telematics-PDF nur bei Unterschrift, nicht je Collo-Foto
+        if (isRealSignature) {
+          const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
+          const pdfPath = ablieferbeleg?.fileName
+            ? join(this.uploadDir(), ablieferbeleg.fileName)
+            : zustellnachweis?.storagePath;
+          if (pdfFileName && pdfPath && existsSync(pdfPath)) {
+            this.outbound.sendDocument({
+              vehicleId: body.vehicleId,
+              tourNumber: body.tourNumber,
+              transportOrderNumber: body.transportOrderNumber,
+              tourStopId: body.tourStopId,
+              fileName: pdfFileName,
+              contentBase64: readFileSync(pdfPath).toString('base64'),
+            });
+          }
         }
       } catch (err: any) {
         this.logger.warn(

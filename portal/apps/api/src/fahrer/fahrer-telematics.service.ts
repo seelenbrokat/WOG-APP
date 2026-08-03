@@ -550,7 +550,8 @@ export class FahrerTelematicsService {
       ReturnType<TelematicsService['createZustellnachweisFromSignature']>
     > | null = null;
 
-    // Bilder → gemeinsamen Ablieferbeleg aktualisieren (Unterschrift + Fotogalerie)
+    // Bilder → gemeinsamen Ablieferbeleg aktualisieren (Unterschrift + Fotogalerie).
+    // Telematics-PDF nur bei Unterschrift senden (ein Beleg je Sendung/TO, nicht je Collo/Foto).
     const signedByName = dto.signedByName || this.signedByFromFileName(dto.fileName);
     const signedAt = dto.signedAt ? new Date(dto.signedAt) : new Date();
 
@@ -584,22 +585,26 @@ export class FahrerTelematicsService {
         this.log.warn(`Zustellnachweis/Ablieferbeleg fehlgeschlagen: ${err?.message || err}`);
       }
 
-      const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
-      const pdfPath = ablieferbeleg?.fileName
-        ? join(this.uploadDir(), ablieferbeleg.fileName)
-        : zustellnachweis?.storagePath;
-      if (pdfFileName && pdfPath && existsSync(pdfPath)) {
-        try {
-          this.outbound.sendDocument({
-            vehicleId: driver.vehicleSoloplanId,
-            tourNumber: dto.tourNumber,
-            transportOrderNumber: dto.transportOrderNumber,
-            tourStopId: dto.tourStopId,
-            fileName: pdfFileName,
-            contentBase64: readFileSync(pdfPath).toString('base64'),
-          });
-        } catch (err: any) {
-          this.log.warn(`Ablieferbeleg-Outbound fehlgeschlagen: ${err?.message || err}`);
+      // Zusätzliche Collo-Fotos aktualisieren nur den PDF-Beleg lokal / via File-API.
+      // Soloplan erhält den Ablieferbeleg erst mit der Unterschrift (einmal je Sendung).
+      if (isRealSignature) {
+        const pdfFileName = ablieferbeleg?.fileName || zustellnachweis?.fileName;
+        const pdfPath = ablieferbeleg?.fileName
+          ? join(this.uploadDir(), ablieferbeleg.fileName)
+          : zustellnachweis?.storagePath;
+        if (pdfFileName && pdfPath && existsSync(pdfPath)) {
+          try {
+            this.outbound.sendDocument({
+              vehicleId: driver.vehicleSoloplanId,
+              tourNumber: dto.tourNumber,
+              transportOrderNumber: dto.transportOrderNumber,
+              tourStopId: dto.tourStopId,
+              fileName: pdfFileName,
+              contentBase64: readFileSync(pdfPath).toString('base64'),
+            });
+          } catch (err: any) {
+            this.log.warn(`Ablieferbeleg-Outbound fehlgeschlagen: ${err?.message || err}`);
+          }
         }
       }
     }
