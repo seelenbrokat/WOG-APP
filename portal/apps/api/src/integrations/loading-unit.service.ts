@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
@@ -56,10 +55,7 @@ export function isExchangeBookableMatchcode(matchcode: string): boolean {
 export class LoadingUnitService {
   private readonly logger = new Logger(LoadingUnitService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private config: ConfigService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Lademittelbuchungen nur aus der VLB-Zustellapp (`vlbportal:…`).
