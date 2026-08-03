@@ -1311,6 +1311,22 @@ export class LoadingUnitService {
       or.push({ partnerName: { equals: opts.partnerName, mode: 'insensitive' } });
     }
 
+    // Zusätzlich über Transportauftrag → Entladestopp auflösen
+    if (opts.transportOrderNumber?.trim()) {
+      const stops = await this.prisma.tourStop.findMany({
+        where: {
+          transportOrderNumber: opts.transportOrderNumber.trim(),
+          tour: { organizationId: opts.organizationId },
+        },
+        select: { id: true, soloplanTourStopId: true },
+        take: 20,
+      });
+      for (const s of stops) {
+        or.push({ tourStopId: s.id });
+        if (s.soloplanTourStopId) or.push({ tourStopExternalId: s.soloplanTourStopId });
+      }
+    }
+
     if (!or.length) {
       return {
         status: 'UNKNOWN',
@@ -1360,11 +1376,16 @@ export class LoadingUnitService {
       (l) => l.status === 'SKIPPED_ZERO' || (l.given === 0 && l.taken === 0),
     );
     const owedTotal = lines.reduce((s, l) => s + (l.owedQuantity || 0), 0);
+    const fullyExchanged =
+      hasBooked &&
+      owedTotal === 0 &&
+      lines.every((l) => l.given === l.taken) &&
+      lines.some((l) => l.given > 0);
     const owedDetail =
       owedTotal > 0
-        ? `Anzahl nicht getauscht: ${lines
+        ? `Nicht getauscht: ${lines
             .filter((l) => (l.owedQuantity || 0) > 0)
-            .map((l) => `${l.matchcode} ${l.owedQuantity}`)
+            .map((l) => `${l.owedQuantity}× ${l.matchcode}`)
             .join(', ')}`
         : '';
 
@@ -1374,24 +1395,23 @@ export class LoadingUnitService {
     if (hasZero && !hasBooked) {
       status = 'NOT_EXCHANGED';
       headline = 'Lademittel NICHT getauscht';
-      detail = ['Laut TourStopStatus: Given 0 / Taken 0', owedDetail].filter(Boolean).join(' · ');
+      detail = owedDetail || 'Gegeben 0 / Erhalten 0';
     } else if (hasBooked && hasZero) {
       status = 'MIXED';
       headline = 'Lademitteltausch teilweise';
-      detail = ['Mindestens ein Typ ohne Tausch gemeldet', owedDetail].filter(Boolean).join(' · ');
-    } else if (hasBooked) {
+      detail = owedDetail || 'Mindestens ein Typ ohne Tausch';
+    } else if (fullyExchanged) {
       status = 'EXCHANGED';
-      headline = 'Lademittel getauscht';
-      detail = [
-        lines.map((l) => `${l.matchcode}: Given ${l.given} / Taken ${l.taken}`).join(' · '),
-        owedDetail,
-      ]
-        .filter(Boolean)
-        .join(' · ');
+      headline = 'Lademittel vollständig getauscht';
+      detail = '';
+    } else if (hasBooked) {
+      status = owedTotal > 0 ? 'MIXED' : 'EXCHANGED';
+      headline = owedTotal > 0 ? 'Lademitteltausch teilweise' : 'Lademittel getauscht';
+      detail = owedDetail;
     } else {
       status = 'NOT_EXCHANGED';
       headline = 'Lademittel NICHT getauscht';
-      detail = ['Laut TourStopStatus: Given 0 / Taken 0', owedDetail].filter(Boolean).join(' · ');
+      detail = owedDetail || 'Gegeben 0 / Erhalten 0';
     }
 
     return { status, headline, detail, lines };

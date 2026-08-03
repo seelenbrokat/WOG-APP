@@ -221,8 +221,8 @@ export type PdfLoadingUnitExchangeNote = {
 };
 
 /**
- * Lademitteltausch-Hinweis auf Ablieferbeleg / Zustellnachweis.
- * Bei Nicht-Tausch besonders hervorgehoben.
+ * Lademitteltausch auf Ablieferbeleg / Zustellnachweis – tabellarisch:
+ * Lademittel | Gegeben | Erhalten (+ Statuszeile).
  */
 export function drawLoadingUnitExchangeBox(
   doc: PdfDoc,
@@ -234,44 +234,103 @@ export function drawLoadingUnitExchangeBox(
   const right = doc.page.width - doc.page.margins.right;
   const contentW = right - left;
   const emphasize = note.status === 'NOT_EXCHANGED' || note.status === 'MIXED';
-  const lineText = note.lines
-    .map((l) => {
-      const owed =
-        l.owedQuantity && l.owedQuantity > 0 ? ` · Anzahl ${l.owedQuantity}` : '';
-      return `${l.matchcode}: Given ${l.given} / Taken ${l.taken}${owed}`;
-    })
-    .join('   ');
-  const body = [note.detail, lineText].filter(Boolean).join('\n');
-  const boxH = emphasize ? 64 : 48;
-  const y = doc.y;
+  const ok = note.status === 'EXCHANGED';
+  const pad = 10;
+  const rowH = 18;
+  const headH = 28;
+  const tableRows = Math.max(1, note.lines.length);
+  const footerH = note.detail ? 18 : 10;
+  const boxH = headH + 16 + rowH * (tableRows + 1) + footerH;
+  const y0 = doc.y;
+
+  const colLademittel = contentW * 0.5;
+  const colGegeben = contentW * 0.25;
+  const colErhalten = contentW * 0.25;
 
   doc
-    .roundedRect(left, y, contentW, boxH, 6)
+    .roundedRect(left, y0, contentW, boxH, 4)
     .lineWidth(emphasize ? 1.6 : 1)
-    .strokeColor(emphasize ? '#9a4d0f' : WOG_PDF.line)
+    .strokeColor(emphasize ? '#9a4d0f' : ok ? WOG_PDF.green : WOG_PDF.line)
     .fillColor(emphasize ? '#fff7ed' : WOG_PDF.soft)
     .fillAndStroke();
 
   doc
-    .fillColor(emphasize ? '#9a4d0f' : WOG_PDF.muted)
-    .font('Helvetica')
-    .fontSize(8)
-    .text('Lademitteltausch', left + 12, y + 8, { width: contentW - 24 });
-
-  doc
-    .fillColor(emphasize ? '#9a4d0f' : WOG_PDF.green)
+    .fillColor(emphasize ? '#9a4d0f' : ok ? WOG_PDF.green : WOG_PDF.ink)
     .font('Helvetica-Bold')
-    .fontSize(emphasize ? 13 : 11)
-    .text(note.headline, left + 12, y + 22, { width: contentW - 24 });
+    .fontSize(12)
+    .text(note.headline || 'Lademitteltausch', left + pad, y0 + 8, {
+      width: contentW - pad * 2,
+    });
 
-  if (body) {
+  const tableTop = y0 + headH;
+  // Header row
+  doc
+    .rect(left + 1, tableTop, contentW - 2, rowH)
+    .fillColor(emphasize ? '#ffedd5' : '#e8f0ea')
+    .fill();
+  doc
+    .fillColor(WOG_PDF.muted)
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text('Lademittel', left + pad, tableTop + 5, { width: colLademittel - pad })
+    .text('Gegeben', left + colLademittel, tableTop + 5, {
+      width: colGegeben - 6,
+      align: 'right',
+    })
+    .text('Erhalten', left + colLademittel + colGegeben, tableTop + 5, {
+      width: colErhalten - pad,
+      align: 'right',
+    });
+
+  let rowY = tableTop + rowH;
+  const lines =
+    note.lines.length > 0
+      ? note.lines
+      : [{ matchcode: '—', label: null, given: 0, taken: 0 }];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (i % 2 === 1) {
+      doc
+        .rect(left + 1, rowY, contentW - 2, rowH)
+        .fillColor('#ffffff')
+        .fill();
+    }
+    const label = [l.matchcode, l.label].filter(Boolean).join(' · ');
     doc
       .fillColor(WOG_PDF.ink)
       .font('Helvetica')
-      .fontSize(8)
-      .text(body, left + 12, y + 38, { width: contentW - 24, lineBreak: false });
+      .fontSize(10)
+      .text(label, left + pad, rowY + 4, { width: colLademittel - pad })
+      .font('Helvetica-Bold')
+      .text(String(l.given ?? 0), left + colLademittel, rowY + 4, {
+        width: colGegeben - 6,
+        align: 'right',
+      })
+      .text(String(l.taken ?? 0), left + colLademittel + colGegeben, rowY + 4, {
+        width: colErhalten - pad,
+        align: 'right',
+      });
+    rowY += rowH;
   }
 
-  doc.y = y + boxH + 12;
+  // vertical column guides
+  doc
+    .strokeColor(WOG_PDF.line)
+    .lineWidth(0.5)
+    .moveTo(left + colLademittel, tableTop)
+    .lineTo(left + colLademittel, tableTop + rowH * (lines.length + 1))
+    .moveTo(left + colLademittel + colGegeben, tableTop)
+    .lineTo(left + colLademittel + colGegeben, tableTop + rowH * (lines.length + 1))
+    .stroke();
+
+  if (note.detail) {
+    doc
+      .fillColor(emphasize ? '#9a4d0f' : WOG_PDF.muted)
+      .font('Helvetica')
+      .fontSize(8)
+      .text(note.detail, left + pad, rowY + 4, { width: contentW - pad * 2 });
+  }
+
+  doc.y = y0 + boxH + 12;
   doc.x = left;
 }
