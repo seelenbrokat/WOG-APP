@@ -591,9 +591,13 @@ export class DocumentsService {
     photos: Array<{ path: string; fileName?: string }> = [],
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
+      // Ablieferbeleg: immer genau eine A4-Seite
+      const doc = new PDFDocument({ margin: 32, size: 'A4', bufferPages: true });
+      doc.addPage = (() => doc) as typeof doc.addPage;
       const stream = createWriteStream(storagePath);
       doc.pipe(stream);
+      const pageBottom = () => doc.page.height - 36;
+      const fits = (need: number) => doc.y + need <= pageBottom();
       const auftraggeber =
         shipment.customer?.name ||
         shipment.pickupCompany ||
@@ -605,57 +609,54 @@ export class DocumentsService {
           ? `Auftraggeber: ${auftraggeber}`
           : shipment.trackingNumber,
       });
-      doc.fontSize(12).fillColor('#111').text(`Mandant: ${shipment.mandant.name}`);
-      doc.text(`Sendungsnummer: ${shipment.trackingNumber}`);
-      doc.text(`Referenz: ${shipment.reference || '-'}`);
-      doc.text(`Auftraggeber: ${auftraggeber || '-'}`);
-      doc.moveDown();
-      doc.text('Abholung:');
-      doc.text(`${shipment.pickupCompany || ''}`);
-      doc.text(`${shipment.pickupStreet || ''}`);
-      doc.text(`${shipment.pickupZip || ''} ${shipment.pickupCity || ''} ${shipment.pickupCountry || ''}`);
-      doc.moveDown();
-      doc.text('Zustellung:');
+      doc
+        .fontSize(9)
+        .fillColor('#111')
+        .text(`Sendungsnummer: ${shipment.trackingNumber}`)
+        .text(`Referenz: ${shipment.reference || '-'}`)
+        .text(`Auftraggeber: ${auftraggeber || '-'}`);
+      doc.moveDown(0.35);
+      doc.fontSize(9).text('Zustellung:');
       doc.text(`${shipment.deliveryCompany || ''}`);
       doc.text(`${shipment.deliveryStreet || ''}`);
       doc.text(
         `${shipment.deliveryZip || ''} ${shipment.deliveryCity || ''} ${shipment.deliveryCountry || ''}`,
       );
-      doc.moveDown();
-      doc.text(`Kolli: ${shipment.packageCount}  Gewicht: ${shipment.weightKg || '-'} kg`);
-      doc.text(`Warenbeschreibung: ${shipment.goodsDescription || '-'}`);
-      if (shipment.positions?.length) {
-        doc.moveDown().text('Positionen:');
-        for (const p of shipment.positions) {
-          doc.text(`- ${p.quantity}x ${p.description}${p.sscc ? ` (SSCC ${p.sscc})` : ''}`);
-        }
+      doc
+        .moveDown(0.25)
+        .text(`Kolli: ${shipment.packageCount}  Gewicht: ${shipment.weightKg || '-'} kg`);
+      if (shipment.goodsDescription) {
+        doc.text(`Warenbeschreibung: ${String(shipment.goodsDescription).slice(0, 120)}`);
       }
-      doc.moveDown();
+      doc.moveDown(0.35);
       // Lademittel (Tausch / Nicht-Tausch) – Pflicht auf Ablieferbeleg
-      drawLoadingUnitExchangeBox(doc, exchangeNote);
-      doc.moveDown();
+      if (fits(70)) {
+        drawLoadingUnitExchangeBox(doc, exchangeNote);
+      }
 
       const left = doc.page.margins.left;
       const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const sigBoxH = 72;
 
-      if (signature?.path && existsSync(signature.path)) {
-        doc.fontSize(12).fillColor('#111').text('Empfangsbestätigung (digital)');
-        if (signature.signedByName) doc.text(`Übernehmer: ${signature.signedByName}`);
-        if (signature.signedAt) {
-          doc.text(`Datum: ${formatPdfDateTime(signature.signedAt)}`);
+      if (signature?.path && existsSync(signature.path) && fits(sigBoxH + 36)) {
+        doc.fontSize(10).fillColor('#111').text('Empfangsbestätigung (digital)');
+        if (signature.signedByName) {
+          doc.fontSize(9).text(`Übernehmer: ${signature.signedByName}`);
         }
-        doc.moveDown(0.5);
+        if (signature.signedAt) {
+          doc.fontSize(9).text(`Datum: ${formatPdfDateTime(signature.signedAt)}`);
+        }
+        doc.moveDown(0.25);
         const boxY = doc.y;
-        const boxH = 110;
         doc
-          .roundedRect(left, boxY, width, boxH, 6)
+          .roundedRect(left, boxY, width, sigBoxH, 4)
           .lineWidth(1)
           .strokeColor('#c5d0c9')
           .fillColor('#f7faf8')
           .fillAndStroke();
         try {
-          doc.image(signature.path, left + 12, boxY + 10, {
-            fit: [width - 24, boxH - 20],
+          doc.image(signature.path, left + 12, boxY + 6, {
+            fit: [width - 24, sigBoxH - 12],
             align: 'center',
             valign: 'center',
           });
@@ -663,43 +664,44 @@ export class DocumentsService {
           doc
             .fillColor('#333')
             .fontSize(10)
-            .text(signature.fileName || 'Unterschrift', left + 16, boxY + 45);
+            .text(signature.fileName || 'Unterschrift', left + 16, boxY + 28);
         }
-        doc.y = boxY + boxH + 12;
-      } else {
-        doc.fontSize(12).text('Empfangsbestätigung: ________________________  Datum: __________');
+        doc.y = boxY + sigBoxH + 8;
+      } else if (fits(24)) {
+        doc
+          .fontSize(9)
+          .text('Empfangsbestätigung: ________________________  Datum: __________');
       }
 
       const extraPhotos = photos.filter(
         (p) => p.path && existsSync(p.path) && p.path !== signature?.path,
       );
-      if (extraPhotos.length) {
-        doc.moveDown(0.4);
-        doc.fontSize(12).fillColor('#111').text(
-          extraPhotos.length === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung',
-        );
-        doc.moveDown(0.3);
-        const gap = 10;
+      if (extraPhotos.length && fits(70)) {
+        const remain = pageBottom() - doc.y - 8;
+        const photoH = Math.min(88, Math.max(52, remain - 18));
+        const maxPhotos = Math.min(2, extraPhotos.length);
+        doc
+          .fontSize(10)
+          .fillColor('#111')
+          .text(maxPhotos === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung');
+        doc.moveDown(0.2);
+        const gap = 8;
         const colW = (width - gap) / 2;
-        const photoH = 140;
         let col = 0;
         let rowTop = doc.y;
-        for (let i = 0; i < extraPhotos.length; i++) {
+        for (let i = 0; i < maxPhotos; i++) {
           const photo = extraPhotos[i];
-          if (col === 0 && rowTop > doc.page.height - photoH - 80) {
-            doc.addPage();
-            rowTop = doc.page.margins.top;
-          }
+          if (col === 0 && rowTop + photoH > pageBottom()) break;
           const x = left + col * (colW + gap);
           doc
-            .roundedRect(x, rowTop, colW, photoH, 6)
+            .roundedRect(x, rowTop, colW, photoH, 4)
             .lineWidth(1)
             .strokeColor('#c5d0c9')
             .fillColor('#f7faf8')
             .fillAndStroke();
           try {
-            doc.image(photo.path, x + 8, rowTop + 8, {
-              fit: [colW - 16, photoH - 24],
+            doc.image(photo.path, x + 6, rowTop + 6, {
+              fit: [colW - 12, photoH - 12],
               align: 'center',
               valign: 'center',
             });
@@ -714,18 +716,14 @@ export class DocumentsService {
           col += 1;
           if (col >= 2) {
             col = 0;
-            rowTop += photoH + 12;
+            rowTop += photoH + 8;
             doc.y = rowTop;
           }
         }
-        if (col !== 0) doc.y = rowTop + photoH + 12;
+        if (col !== 0) doc.y = rowTop + photoH + 8;
       }
 
-      const range = doc.bufferedPageRange();
-      for (let i = 0; i < range.count; i++) {
-        doc.switchToPage(range.start + i);
-        drawA4Footer(doc, i + 1, range.count);
-      }
+      drawA4Footer(doc, 1, 1);
       doc.end();
       stream.on('finish', () => resolve());
       stream.on('error', reject);

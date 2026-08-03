@@ -53,6 +53,11 @@ export type ZustellnachweisInput = {
   companyLine?: string;
   /** PDF-Titel, Standard: Digitaler Zustellnachweis */
   title?: string;
+  /**
+   * Ablieferbeleg: strikt eine A4-Seite (kein Tracking-Verlauf, begrenzte Fotos).
+   * Default: true wenn title = Ablieferbeleg.
+   */
+  singlePage?: boolean;
 };
 
 /** Signature_Max_Mustermann_184515_929094.png → „Max Mustermann“ */
@@ -284,18 +289,34 @@ export function writeZustellnachweisPdf(
   storagePath: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    const title = input.title || 'Ablieferbeleg';
+    const singlePage =
+      input.singlePage !== undefined
+        ? input.singlePage
+        : /^Ablieferbeleg$/i.test(title.trim());
+    const margin = singlePage ? 32 : 48;
     const doc = new PDFDocument({
-      margin: 48,
+      margin,
       size: 'A4',
       bufferPages: true,
+      autoFirstPage: true,
       info: {
-        Title: input.title || 'Ablieferbeleg',
+        Title: title,
         Author: 'WOG Logistics AG',
         Subject: input.transportOrderNumber || input.tourNumber || '',
       },
     });
     const stream = createWriteStream(storagePath);
     doc.pipe(stream);
+
+    // Strikt eine A4-Seite: PDFKit-Auto-Seitenumbrüche unterbinden.
+    if (singlePage) {
+      doc.addPage = (() => doc) as typeof doc.addPage;
+    }
+
+    // Eine A4-Seite: nichts darf auf Folgeseiten rutschen
+    const pageBottom = () => doc.page.height - 36;
+    const fits = (need: number) => doc.y + need <= pageBottom();
 
     const sendungsnummer =
       input.sendungsnummer ||
@@ -312,10 +333,8 @@ export function writeZustellnachweisPdf(
       null;
 
     drawA4BrandHeader(doc, {
-      title: input.title || 'Ablieferbeleg',
-      subtitle: auftraggeber
-        ? `Auftraggeber: ${auftraggeber}`
-        : undefined,
+      title,
+      subtitle: auftraggeber ? `Auftraggeber: ${auftraggeber}` : undefined,
     });
 
     const left = doc.page.margins.left;
@@ -325,138 +344,145 @@ export function writeZustellnachweisPdf(
     doc
       .fillColor(WOG_PDF.muted)
       .font('Helvetica')
-      .fontSize(8)
+      .fontSize(7)
       .text(`Erstellt am ${formatPdfDateTime(new Date())}`, left, doc.y, {
         width: contentW,
         align: 'right',
       });
-    doc.moveDown(0.8);
+    doc.moveDown(singlePage ? 0.35 : 0.8);
 
     sectionTitle(doc, 'Referenzen');
     kvRow(doc, 'Sendungsnummer', sendungsnummer);
     kvRow(doc, 'Tour', input.tourNumber || '—');
     kvRow(doc, 'Transportauftrag', input.transportOrderNumber || '—');
-    if (input.position != null && input.position !== '') {
+    if (!singlePage && input.position != null && input.position !== '') {
       kvRow(doc, 'Position', String(input.position));
     }
     if (
+      !singlePage &&
       input.externalConsignmentNumber &&
       input.externalConsignmentNumber !== sendungsnummer
     ) {
       kvRow(doc, 'Externe Sendungsnummer', input.externalConsignmentNumber);
     }
-    doc.moveDown(0.6);
+    doc.moveDown(singlePage ? 0.2 : 0.6);
 
     sectionTitle(doc, 'Empfänger');
     kvRow(doc, 'Name', input.receiverName || '—');
     kvRow(doc, 'Adresse', input.receiverAddress || '—');
-    if (uebernehmer) {
-      kvRow(doc, 'Übernehmer', uebernehmer);
-    }
-    if (input.senderName) {
-      kvRow(doc, 'Absender', input.senderName);
-    }
-    if (input.senderAddress) {
+    if (uebernehmer) kvRow(doc, 'Übernehmer', uebernehmer);
+    if (!singlePage && input.senderName) kvRow(doc, 'Absender', input.senderName);
+    if (!singlePage && input.senderAddress) {
       kvRow(doc, 'Absenderadresse', input.senderAddress);
     }
-    if (input.identCodes?.length) {
+    if (!singlePage && input.identCodes?.length) {
       kvRow(doc, 'Identcode', input.identCodes.join(', '));
     }
-    doc.moveDown(0.6);
+    doc.moveDown(singlePage ? 0.2 : 0.6);
 
     sectionTitle(doc, 'Zustellung');
     const boxY = doc.y;
     const hasCoords =
+      !singlePage &&
       input.deliveryLatitude != null &&
       input.deliveryLongitude != null &&
       Number.isFinite(input.deliveryLatitude) &&
       Number.isFinite(input.deliveryLongitude);
-    const boxH = hasCoords ? 78 : 52;
+    const boxH = hasCoords ? 78 : singlePage ? 44 : 52;
     doc
-      .roundedRect(left, boxY, contentW, boxH, 6)
+      .roundedRect(left, boxY, contentW, boxH, 4)
       .lineWidth(1)
       .strokeColor('#c5d0c9')
       .stroke();
-    const colW = contentW / 2;
+    const half = contentW / 2;
     doc
       .fillColor(WOG_PDF.muted)
       .font('Helvetica')
       .fontSize(8)
-      .text('Zustellstatus', left + 14, boxY + 10, { width: colW - 20 });
+      .text('Zustellstatus', left + 12, boxY + 8, { width: half - 18 });
     doc
       .fillColor(WOG_PDF.green)
       .font('Helvetica-Bold')
-      .fontSize(14)
-      .text(input.deliveryStatus || '—', left + 14, boxY + 24, { width: colW - 20 });
+      .fontSize(singlePage ? 11 : 14)
+      .text(input.deliveryStatus || '—', left + 12, boxY + 20, {
+        width: half - 18,
+        height: singlePage ? 20 : 40,
+        ellipsis: true,
+      });
     doc
       .fillColor(WOG_PDF.muted)
       .font('Helvetica')
       .fontSize(8)
-      .text('Zustelldatum', left + colW + 8, boxY + 10, { width: colW - 20 });
+      .text('Zustelldatum', left + half + 6, boxY + 8, { width: half - 18 });
     doc
       .fillColor(WOG_PDF.ink)
       .font('Helvetica-Bold')
-      .fontSize(14)
-      .text(fmtDt(input.deliveryAt), left + colW + 8, boxY + 24, { width: colW - 20 });
+      .fontSize(singlePage ? 11 : 14)
+      .text(fmtDt(input.deliveryAt), left + half + 6, boxY + 20, {
+        width: half - 18,
+      });
     if (hasCoords) {
       const coordText = `${Number(input.deliveryLatitude).toFixed(6)} / ${Number(input.deliveryLongitude).toFixed(6)}`;
       doc
         .fillColor(WOG_PDF.muted)
         .font('Helvetica')
         .fontSize(8)
-        .text('Koordinaten (Zustellstatus)', left + 14, boxY + 48, { width: contentW - 28 });
+        .text('Koordinaten (Zustellstatus)', left + 12, boxY + 48, {
+          width: contentW - 24,
+        });
       doc
         .fillColor(WOG_PDF.ink)
         .font('Helvetica-Bold')
         .fontSize(11)
-        .text(coordText, left + 14, boxY + 60, { width: contentW - 28 });
+        .text(coordText, left + 12, boxY + 60, { width: contentW - 24 });
     }
-    doc.y = boxY + boxH + 16;
+    doc.y = boxY + boxH + (singlePage ? 8 : 16);
 
-    sectionTitle(doc, 'Lademittel');
-    if (input.loadingUnitExchange && input.loadingUnitExchange.status !== 'UNKNOWN') {
-      drawLoadingUnitExchangeBox(doc, input.loadingUnitExchange);
-    } else {
-      // Standard-Hinweis auf POD, wenn kein Tausch gemeldet / erforderlich
-      const noteY = doc.y;
-      doc
-        .roundedRect(left, noteY, contentW, 40, 6)
-        .lineWidth(1)
-        .strokeColor(WOG_PDF.line)
-        .fillColor(WOG_PDF.soft)
-        .fillAndStroke();
-      doc
-        .fillColor(WOG_PDF.green)
-        .font('Helvetica-Bold')
-        .fontSize(11)
-        .text(
-          input.noLoadingUnitExchangeRequired !== false
-            ? 'Kein Lademitteltausch erforderlich'
-            : 'Kein Lademitteltausch gemeldet',
-          left + 12,
-          noteY + 13,
-          { width: contentW - 24 },
-        );
-      doc.y = noteY + 52;
+    if (fits(70)) {
+      sectionTitle(doc, 'Lademittel');
+      if (input.loadingUnitExchange && input.loadingUnitExchange.status !== 'UNKNOWN') {
+        drawLoadingUnitExchangeBox(doc, input.loadingUnitExchange);
+      } else {
+        const noteY = doc.y;
+        doc
+          .roundedRect(left, noteY, contentW, 32, 4)
+          .lineWidth(1)
+          .strokeColor(WOG_PDF.line)
+          .fillColor(WOG_PDF.soft)
+          .fillAndStroke();
+        doc
+          .fillColor(WOG_PDF.green)
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(
+            input.noLoadingUnitExchangeRequired !== false
+              ? 'Kein Lademitteltausch erforderlich'
+              : 'Kein Lademitteltausch gemeldet',
+            left + 12,
+            noteY + 10,
+            { width: contentW - 24 },
+          );
+        doc.y = noteY + 40;
+      }
     }
 
-    if (input.signaturePath && existsSync(input.signaturePath)) {
+    const sigBoxH = singlePage ? 72 : 110;
+    if (input.signaturePath && existsSync(input.signaturePath) && fits(sigBoxH + 28)) {
       sectionTitle(doc, 'Empfangsunterschrift');
-      if (uebernehmer) {
+      if (uebernehmer && !singlePage) {
         kvRow(doc, 'Übernehmer', uebernehmer);
-        doc.moveDown(0.3);
+        doc.moveDown(0.2);
       }
       const sigBoxY = doc.y;
-      const sigBoxH = 110;
       doc
-        .roundedRect(left, sigBoxY, contentW, sigBoxH, 6)
+        .roundedRect(left, sigBoxY, contentW, sigBoxH, 4)
         .lineWidth(1)
         .strokeColor('#c5d0c9')
         .fillColor('#f7faf8')
         .fillAndStroke();
       try {
-        doc.image(input.signaturePath, left + 12, sigBoxY + 10, {
-          fit: [contentW - 24, sigBoxH - 28],
+        doc.image(input.signaturePath, left + 12, sigBoxY + 6, {
+          fit: [contentW - 24, sigBoxH - 14],
           align: 'center',
           valign: 'center',
         });
@@ -465,131 +491,74 @@ export function writeZustellnachweisPdf(
           .fillColor(WOG_PDF.muted)
           .font('Helvetica')
           .fontSize(9)
-          .text('Unterschrift konnte nicht eingebettet werden.', left + 14, sigBoxY + 40);
+          .text('Unterschrift konnte nicht eingebettet werden.', left + 14, sigBoxY + 28);
       }
-      if (input.signatureFileName) {
-        doc
-          .fillColor(WOG_PDF.muted)
-          .font('Helvetica')
-          .fontSize(7)
-          .text(input.signatureFileName, left + 12, sigBoxY + sigBoxH - 16, {
-            width: contentW - 24,
-            align: 'right',
-          });
-      }
-      doc.y = sigBoxY + sigBoxH + 16;
+      doc.y = sigBoxY + sigBoxH + (singlePage ? 8 : 16);
     }
 
     const photos = (input.photos || []).filter((p) => p?.path && existsSync(p.path));
-    if (photos.length) {
-      if (doc.y > doc.page.height - 200) {
-        doc.addPage();
-        const logo = resolveWogLogoPath();
-        if (logo) doc.image(logo, left, doc.page.margins.top, { fit: [60, 28] });
-        doc.y = doc.page.margins.top + 36;
-      }
-      sectionTitle(doc, photos.length === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung');
-      const gap = 10;
+    if (photos.length && fits(90)) {
+      const gap = 8;
+      const remain = pageBottom() - doc.y - 20;
+      const photoH = Math.min(singlePage ? 88 : 150, Math.max(56, remain - 22));
+      const maxPhotos = singlePage ? Math.min(2, photos.length) : photos.length;
+      sectionTitle(
+        doc,
+        maxPhotos === 1 ? 'Foto zur Zustellung' : 'Fotos zur Zustellung',
+      );
       const colW = (contentW - gap) / 2;
-      const photoH = 150;
       let col = 0;
       let rowTop = doc.y;
-
-      for (let i = 0; i < photos.length; i++) {
+      for (let i = 0; i < maxPhotos; i++) {
         const photo = photos[i];
-        if (col === 0 && rowTop > doc.page.height - photoH - 70) {
-          doc.addPage();
-          const logo = resolveWogLogoPath();
-          if (logo) doc.image(logo, left, doc.page.margins.top, { fit: [60, 28] });
-          doc.y = doc.page.margins.top + 36;
-          sectionTitle(doc, 'Fotos zur Zustellung (Fortsetzung)');
-          rowTop = doc.y;
+        if (!singlePage && col === 0 && rowTop > doc.page.height - photoH - 70) {
+          // Mehrseiten nur wenn ausdrücklich erlaubt
+          break;
         }
-
+        if (singlePage && col === 0 && rowTop + photoH > pageBottom()) break;
         const x = left + col * (colW + gap);
-        const boxY = rowTop;
         doc
-          .roundedRect(x, boxY, colW, photoH, 6)
+          .roundedRect(x, rowTop, colW, photoH, 4)
           .lineWidth(1)
           .strokeColor('#c5d0c9')
           .fillColor('#f7faf8')
           .fillAndStroke();
         try {
-          doc.image(photo.path, x + 8, boxY + 8, {
-            fit: [colW - 16, photoH - 28],
+          doc.image(photo.path, x + 6, rowTop + 6, {
+            fit: [colW - 12, photoH - 20],
             align: 'center',
             valign: 'center',
           });
         } catch {
-          doc
-            .fillColor(WOG_PDF.muted)
-            .font('Helvetica')
-            .fontSize(8)
-            .text('Foto nicht einbettbar', x + 10, boxY + photoH / 2 - 6, {
-              width: colW - 20,
-              align: 'center',
-            });
+          /* ignore */
         }
-        const caption = (photo.label || photo.fileName || `Foto ${i + 1}`).slice(0, 48);
-        doc
-          .fillColor(WOG_PDF.muted)
-          .font('Helvetica')
-          .fontSize(7)
-          .text(caption, x + 8, boxY + photoH - 16, {
-            width: colW - 16,
-            align: 'right',
-            lineBreak: false,
-          });
-
         col += 1;
         if (col >= 2) {
           col = 0;
-          rowTop = boxY + photoH + 12;
+          rowTop += photoH + 8;
           doc.y = rowTop;
         }
       }
-      if (col !== 0) {
-        doc.y = rowTop + photoH + 12;
-      } else {
-        doc.y = Math.max(doc.y, rowTop);
-      }
-      doc.moveDown(0.4);
+      if (col !== 0) doc.y = rowTop + photoH + 8;
     }
 
-    sectionTitle(doc, 'Tracking-Verlauf');
-    const headerY = doc.y;
-    doc.rect(left, headerY, contentW, 20).fill(WOG_PDF.soft);
-    doc
-      .fillColor(WOG_PDF.greenDeep)
-      .font('Helvetica-Bold')
-      .fontSize(9)
-      .text('Zeitpunkt', left + 8, headerY + 5, { width: 130 })
-      .text('Ereignis', left + 140, headerY + 5, { width: contentW - 148 });
-    doc.y = headerY + 24;
-
-    const events = [...input.events].sort((a, b) => {
-      const ta = a.at?.getTime() || 0;
-      const tb = b.at?.getTime() || 0;
-      return ta - tb;
-    });
-
-    if (!events.length) {
+    // Tracking nur wenn Platz und nicht Single-Page-Ablieferbeleg
+    if (!singlePage && fits(60)) {
+      sectionTitle(doc, 'Tracking-Verlauf');
+      const headerY = doc.y;
+      doc.rect(left, headerY, contentW, 18).fill(WOG_PDF.soft);
       doc
-        .fillColor(WOG_PDF.muted)
-        .font('Helvetica')
+        .fillColor(WOG_PDF.greenDeep)
+        .font('Helvetica-Bold')
         .fontSize(9)
-        .text('Keine Tracking-Ereignisse vorhanden.', left + 8, doc.y);
-      doc.moveDown();
-    } else {
+        .text('Zeitpunkt', left + 8, headerY + 4, { width: 130 })
+        .text('Ereignis', left + 140, headerY + 4, { width: contentW - 148 });
+      doc.y = headerY + 22;
+      const events = [...input.events].sort(
+        (a, b) => (a.at?.getTime() || 0) - (b.at?.getTime() || 0),
+      );
       for (const ev of events) {
-        if (doc.y > doc.page.height - 90) {
-          doc.addPage();
-          // Logo-Hinweis kompakt auf Folgeseiten
-          const logo = resolveWogLogoPath();
-          if (logo) doc.image(logo, left, doc.page.margins.top, { fit: [60, 28] });
-          doc.y = doc.page.margins.top + 36;
-          sectionTitle(doc, 'Tracking-Verlauf (Fortsetzung)');
-        }
+        if (!fits(28)) break;
         const rowY = doc.y;
         doc
           .fillColor(WOG_PDF.ink)
@@ -598,23 +567,18 @@ export function writeZustellnachweisPdf(
           .text(fmtDtFull(ev.at), left + 8, rowY, { width: 128 });
         const eventH = doc.heightOfString(ev.label, { width: contentW - 148 });
         doc.text(ev.label, left + 140, rowY, { width: contentW - 148 });
-        const bottom = Math.max(rowY + eventH, rowY + 12) + 6;
-        doc
-          .moveTo(left, bottom)
-          .lineTo(right, bottom)
-          .lineWidth(0.4)
-          .strokeColor(WOG_PDF.line)
-          .stroke();
-        doc.y = bottom + 4;
+        doc.y = Math.max(rowY + eventH, rowY + 12) + 4;
       }
     }
 
+    // Footer nur auf vorhandener Seite (keine Folgeseiten erzeugen)
     const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i++) {
+    const pageCount = singlePage ? 1 : range.count;
+    for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(range.start + i);
       const savedBottom = doc.page.margins.bottom;
       doc.page.margins.bottom = 0;
-      const ruleY = doc.page.height - 36;
+      const ruleY = doc.page.height - 28;
       doc
         .moveTo(left, ruleY)
         .lineTo(right, ruleY)
@@ -625,12 +589,12 @@ export function writeZustellnachweisPdf(
         .fontSize(7)
         .fillColor(WOG_PDF.muted)
         .font('Helvetica')
-        .text(input.companyLine || FOOTER_LEFT, left, ruleY + 8, {
-          width: contentW * 0.65,
+        .text(FOOTER_LEFT, left, ruleY + 6, {
+          width: contentW * 0.7,
           lineBreak: false,
         })
-        .text('Digitaler Zustellnachweis', left + contentW * 0.65, ruleY + 8, {
-          width: contentW * 0.35,
+        .text(singlePage ? 'Ablieferbeleg · 1 Seite' : 'Digitaler Zustellnachweis', left + contentW * 0.7, ruleY + 6, {
+          width: contentW * 0.3,
           align: 'right',
           lineBreak: false,
         });
