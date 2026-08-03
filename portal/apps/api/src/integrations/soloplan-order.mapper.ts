@@ -90,9 +90,14 @@ export type PortalShipmentForSoloplan = {
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
+  /** Soloplan OrderData.Number (Auftragsnummer), wenn bekannt */
+  soloplanRef?: string | null;
+  /** Soloplan ConsignmentData.Number / itemNumber (Sendungsnummer), Default 1 */
+  soloplanConsignmentIndex?: number | null;
   /** Portal-Auftrag inkl. Frachtzahler (order.customer in Soloplan) */
   order?: {
     externalNumber: string;
+    soloplanRef?: string | null;
     freightPayer?: CustomerLike | null;
   } | null;
   positions: Array<{
@@ -678,9 +683,31 @@ function applyCustomsConsignmentFields(
   return consignment;
 }
 
+/** Soloplan Auftragsnummer (Order.number) – nur echte Ziffern, nie VLB-/BK-Externnummern. */
+export function soloplanOrderNumber(shipment: PortalShipmentForSoloplan): number | null {
+  for (const raw of [shipment.soloplanRef, shipment.order?.soloplanRef]) {
+    const n = Number(String(raw || '').trim());
+    if (Number.isFinite(n) && n > 0 && String(Math.trunc(n)) === String(raw).trim()) {
+      return Math.trunc(n);
+    }
+  }
+  return null;
+}
+
+/** Soloplan Sendungsnummer (Consignment.itemNumber), Default 1. */
+export function soloplanConsignmentNumber(
+  shipment: PortalShipmentForSoloplan,
+  fallbackIndex = 1,
+): number {
+  const n = Number(shipment.soloplanConsignmentIndex);
+  if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  return fallbackIndex;
+}
+
 /**
  * Update-Export: keine Sendungsinfos erneut senden.
- * Nur externe Auftrags-/Sendungsnummer (+ documentData zum Ablegen in Soloplan).
+ * Einziger Bezug: Soloplan-Auftragsnummer + Sendungsnummer (+ documentData).
+ * Keine externalNumber – die darf Soloplan nicht überschreiben/setzen.
  */
 export function buildSoloplanUpdatePayload(
   shipment: PortalShipmentForSoloplan,
@@ -694,44 +721,42 @@ export function buildSoloplanUpdatePayload(
   const header = soloplanHeader();
   const siblings =
     opts.orderShipments && opts.orderShipments.length > 0 ? opts.orderShipments : [shipment];
+  const orderNumber = soloplanOrderNumber(shipment);
+  if (orderNumber == null) {
+    throw new Error(
+      'Soloplan Docs-Update braucht Auftragsnummer (soloplanRef als Zahl), keine externe Nummer',
+    );
+  }
 
-  // Consignment im Schema: DocumentCategories nur ABL.
-  // RG/CHBEL daher nur auf Order-Ebene (ohne DocumentCategories-Einschränkung).
-  const consignments = siblings.map((s, idx) => ({
-    itemNumber: idx + 1,
-    actionAttribute: 'update',
-    externalNumber: consignmentExternalNumber(s),
-  }));
+  // Consignment: nur Sendungsnummer + Docs (ABL/UNTER). Keine externalNumber.
+  const consignmentsWithDocs = siblings.map((s, idx) => {
+    const documentData = toSoloplanDocumentData(s.documents).filter(
+      (d) =>
+        d.category === 'ABL' ||
+        d.category === 'UNTER' ||
+        d.category === 'AUFABL' ||
+        d.category === 'RG' ||
+        d.category === 'CHBEL',
+    );
+    return {
+      itemNumber: soloplanConsignmentNumber(s, idx + 1),
+      actionAttribute: 'update' as const,
+      ...(documentData.length ? { documentData } : {}),
+    };
+  });
 
   if (format === 'order') {
-    // Update: nur documentData am Auftrag – keine Sendungsdetails
-    const orderDocuments = toSoloplanDocumentData(siblings.flatMap((s) => s.documents || []));
     return {
       header,
       order: [
         {
           actionAttribute: 'update',
-          externalNumber: orderExternalNumber(shipment),
-          ...(opts.objectOwnerId ? { objectOwner: { id: opts.objectOwnerId } } : {}),
-          consignments,
-          ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
+          number: orderNumber,
+          consignments: consignmentsWithDocs,
         },
       ],
     };
   }
-
-  // consignment-Format: Ablieferbeleg + Unterschrift (UNTER) an Sendung
-  const consignmentsWithDocs = siblings.map((s, idx) => {
-    const documentData = toSoloplanDocumentData(s.documents).filter(
-      (d) => d.category === 'ABL' || d.category === 'UNTER',
-    );
-    return {
-      itemNumber: idx + 1,
-      actionAttribute: 'update',
-      externalNumber: consignmentExternalNumber(s),
-      ...(documentData.length ? { documentData } : {}),
-    };
-  });
 
   return {
     header,

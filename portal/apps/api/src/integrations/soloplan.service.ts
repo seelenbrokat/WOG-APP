@@ -28,6 +28,7 @@ import {
   SoloplanFileFormat,
   soloplanDocumentCategory,
   soloplanOrderBaseName,
+  soloplanOrderNumber,
   soloplanOutboundFileName,
 } from './soloplan-order.mapper';
 import { allocateVlbExternalNumber } from '../shipments/order-number';
@@ -616,7 +617,22 @@ export class SoloplanService implements TransportIntegration {
 
     if (alreadyInSoloplan) {
       await this.syncOrderSoloplanRefFromShipments(shipment.order.id);
-      this.logger.log(`Soloplan: Dokument-Update für ${ext} (${docs.length} Datei(en))`);
+      const keys = await this.resolveSoloplanOrderKeys(shipmentId);
+      if (keys.orderNumber == null) {
+        this.logger.warn(
+          `Soloplan: Docs-Update für ${ext} wartet – keine Auftragsnummer (nur Auftragsnr./Sendungsnr. als Bezug)`,
+        );
+        return {
+          ok: true,
+          mode: 'wait' as const,
+          reason: 'no-soloplan-order-number',
+          externalNumber: ext,
+          documents: docs.length,
+        };
+      }
+      this.logger.log(
+        `Soloplan: Dokument-Update für ${ext} → Auftragsnr.${keys.orderNumber} Sendung ${keys.consignmentIndex} (${docs.length} Datei(en))`,
+      );
       await this.createOrder(shipmentId, { forceUpdate: true });
       return { ok: true, mode: 'update' as const, externalNumber: ext, documents: docs.length };
     }
@@ -663,6 +679,104 @@ export class SoloplanService implements TransportIntegration {
     });
     this.logger.log(
       `Soloplan: TransportOrder.soloplanRef aus Sendung nachgezogen → ${fromShipment}`,
+    );
+  }
+
+  /**
+   * Soloplan-Bezug für Docs-Update: Auftragsnummer + Sendungsnummer.
+   * Quelle: TourConsignment.orderNumber/consignmentIndex, sonst numerische soloplanRef.
+   */
+  private async resolveSoloplanOrderKeys(shipmentId: string): Promise<{
+    orderNumber: number | null;
+    consignmentIndex: number;
+  }> {
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id: shipmentId },
+      select: {
+        id: true,
+        reference: true,
+        trackingNumber: true,
+        soloplanRef: true,
+        orderId: true,
+        order: { select: { id: true, soloplanRef: true, externalNumber: true } },
+      },
+    });
+    if (!shipment) return { orderNumber: null, consignmentIndex: 1 };
+
+    const orFilters: Array<Record<string, unknown>> = [];
+    if (shipment.reference) {
+      orFilters.push({ externalConsignmentNumber: shipment.reference });
+    }
+    for (const ref of [shipment.soloplanRef, shipment.order?.soloplanRef]) {
+      if (ref && /^\d+$/.test(ref)) {
+        orFilters.push({ orderNumber: ref });
+      }
+    }
+
+    let tourCons: { orderNumber: string | null; consignmentIndex: number | null } | null = null;
+    if (orFilters.length) {
+      tourCons = await this.prisma.tourConsignment.findFirst({
+        where: { OR: orFilters },
+        orderBy: { id: 'desc' },
+        select: { orderNumber: true, consignmentIndex: true },
+      });
+    }
+
+    const fromTour = Number(String(tourCons?.orderNumber || '').trim());
+    const fromRef = Number(
+      String(shipment.soloplanRef || shipment.order?.soloplanRef || '').trim(),
+    );
+    const orderNumber =
+      Number.isFinite(fromTour) && fromTour > 0
+        ? Math.trunc(fromTour)
+        : Number.isFinite(fromRef) && fromRef > 0 && /^\d+$/.test(String(shipment.soloplanRef || shipment.order?.soloplanRef || ''))
+          ? Math.trunc(fromRef)
+          : null;
+    const consignmentIndex =
+      tourCons?.consignmentIndex && tourCons.consignmentIndex > 0
+        ? tourCons.consignmentIndex
+        : 1;
+
+    // Soloplan-Auftragsnummer am Portal nachziehen, wenn Tour sie kennt
+    if (orderNumber != null) {
+      const asStr = String(orderNumber);
+      if (shipment.soloplanRef !== asStr) {
+        await this.prisma.shipment.update({
+          where: { id: shipmentId },
+          data: { soloplanRef: asStr },
+        });
+      }
+      if (shipment.order && shipment.order.soloplanRef !== asStr) {
+        await this.prisma.transportOrder.update({
+          where: { id: shipment.order.id },
+          data: { soloplanRef: asStr },
+        });
+      }
+    }
+
+    return { orderNumber, consignmentIndex };
+  }
+
+  /** Sendungen für Docs-Update mit Auftrags-/Sendungsnummer anreichern. */
+  private async enrichShipmentsForDocsUpdate(
+    shipments: PortalShipmentForSoloplan[],
+  ): Promise<PortalShipmentForSoloplan[]> {
+    return Promise.all(
+      shipments.map(async (s) => {
+        const keys = await this.resolveSoloplanOrderKeys(s.id);
+        return {
+          ...s,
+          soloplanRef: keys.orderNumber != null ? String(keys.orderNumber) : s.soloplanRef,
+          soloplanConsignmentIndex: keys.consignmentIndex,
+          order: s.order
+            ? {
+                ...s.order,
+                soloplanRef:
+                  keys.orderNumber != null ? String(keys.orderNumber) : s.order.soloplanRef,
+              }
+            : s.order,
+        };
+      }),
     );
   }
 
@@ -728,13 +842,13 @@ export class SoloplanService implements TransportIntegration {
     });
 
     // Ablieferbeleg / POD als Soloplan documentData (Base64) anhängen
-    const orderShipmentsWithDocs = await Promise.all(
+    let orderShipmentsWithDocs: PortalShipmentForSoloplan[] = await Promise.all(
       orderShipments.map(async (s) => ({
         ...s,
         documents: await this.loadSoloplanDocuments(s.id),
       })),
     );
-    const shipmentWithDocs = {
+    let shipmentWithDocs: PortalShipmentForSoloplan = {
       ...shipment,
       documents: await this.loadSoloplanDocuments(shipment.id),
     };
@@ -742,19 +856,30 @@ export class SoloplanService implements TransportIntegration {
     const mode = this.config.get('SOLOPLAN_MODE') || 'stub';
     const enabled = this.config.get('SOLOPLAN_ENABLED') === 'true';
     const format = this.getFileFormat();
-    // Bereits exportiert → Update nur mit externen Nummern, keine Sendungsinfos erneut
+    // Bereits exportiert → Update nur Auftragsnr./Sendungsnr. + Docs
     const shipmentRefs = orderShipments.map((s) => s.soloplanRef);
     const isUpdate =
       opts.forceUpdate === true ||
       this.isSoloplanOrderUpdate(shipment.order, shipmentRefs);
     if (isUpdate) {
       await this.syncOrderSoloplanRefFromShipments(shipment.order.id);
+      orderShipmentsWithDocs = await this.enrichShipmentsForDocsUpdate(orderShipmentsWithDocs);
+      const enriched = await this.enrichShipmentsForDocsUpdate([shipmentWithDocs]);
+      shipmentWithDocs = enriched[0];
+      if (soloplanOrderNumber(shipmentWithDocs) == null) {
+        this.logger.warn(
+          `Soloplan Docs-Update übersprungen – keine Auftragsnummer für ${shipment.order.externalNumber}`,
+        );
+        return;
+      }
     }
     const payload = buildSoloplanFilePayload(shipmentWithDocs, {
       format,
       defaultSender: isUpdate ? null : this.getDefaultSender(),
       trackingBaseUrl: isUpdate ? undefined : this.config.get('APP_URL') || undefined,
-      objectOwnerId: Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
+      objectOwnerId: isUpdate
+        ? undefined
+        : Number(this.config.get('SOLOPLAN_OBJECT_OWNER_ID') || 0) || undefined,
       orderShipments: orderShipmentsWithDocs,
       update: isUpdate,
     });
@@ -949,7 +1074,7 @@ export class SoloplanService implements TransportIntegration {
    * Verzollungsauftrag (CustomsOrder) als SoloplanOrderImportPORTAL v6 File exportieren.
    *
    * 1) Create: Auftrags-/Sendungsdaten inkl. VLBPortal-Felder – OHNE Dokumente
-   * 2) Update: nur externalNumber + documentData (sonst würden Sendungsdetails überschrieben)
+   * 2) Update: nur Auftragsnummer + Sendungsnummer + documentData
    */
   async exportCustomsOrder(customsOrderId: string) {
     const order = await this.prisma.customsOrder.findUnique({
@@ -1001,10 +1126,16 @@ export class SoloplanService implements TransportIntegration {
     const inhalt =
       order.goodsDescription?.trim() ||
       `Verzollungsauftrag ${order.importeur}`.trim();
+    const customsSoloplanNumber =
+      order.soloplanRef && /^\d+$/.test(order.soloplanRef.trim())
+        ? order.soloplanRef.trim()
+        : null;
     const shipmentBase: PortalShipmentForSoloplan = {
       id: order.id,
       trackingNumber: externalNumber,
       reference: externalNumber,
+      soloplanRef: customsSoloplanNumber,
+      soloplanConsignmentIndex: 1,
       goodsDescription: inhalt,
       packageCount,
       weightKg,
@@ -1055,6 +1186,7 @@ export class SoloplanService implements TransportIntegration {
       },
       order: {
         externalNumber,
+        soloplanRef: customsSoloplanNumber,
         freightPayer: order.abweichenderFrachtzahler
           ? {
               customerNumber: order.customer.customerNumber,
@@ -1135,10 +1267,11 @@ export class SoloplanService implements TransportIntegration {
     let updateFileName: string | null = null;
     const createSettled = this.isCreateImportSettled(externalNumber);
     // Docs erst nach Create-Abholung + Wartezeit (sonst „Update … does not exist“)
-    if (docs.length && createSettled) {
+    // Bezug nur Auftragsnummer + Sendungsnummer (keine externalNumber).
+    if (docs.length && createSettled && customsSoloplanNumber) {
       const updatePayload = buildSoloplanUpdatePayload(
         { ...shipmentBase, documents: docs },
-        { format, objectOwnerId },
+        { format },
       );
       updateFileName = soloplanOutboundFileName(shipmentBase, format, {
         update: true,
@@ -1146,7 +1279,11 @@ export class SoloplanService implements TransportIntegration {
       });
       this.writeOutboundOrderFile(updateFileName, JSON.stringify(updatePayload, null, 2));
       this.logger.log(
-        `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (${docs.length} Datei(en), nur documentData)`,
+        `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (Auftragsnr.${customsSoloplanNumber}, ${docs.length} Datei(en))`,
+      );
+    } else if (docs.length && createSettled && !customsSoloplanNumber) {
+      this.logger.warn(
+        `Soloplan customs Docs für ${externalNumber} warten – Soloplan-Auftragsnummer noch unbekannt`,
       );
     } else if (docs.length && createAlreadyPickedUp && !createSettled) {
       const waitSec = Math.ceil(this.docsDelayMs() / 1000);
