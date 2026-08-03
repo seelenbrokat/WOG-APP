@@ -1,8 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import {
@@ -11,7 +9,7 @@ import {
   zurichMonthKey,
   zurichMonthRange,
 } from '../common/zurich-date';
-import { parseTelematicsXml, ParsedTourStopStatus } from './telematics-xml.parser';
+import { ParsedTourStopStatus } from './telematics-xml.parser';
 import {
   buildLuExportReport,
   luReportToMatrixCsv,
@@ -64,7 +62,16 @@ export class LoadingUnitService {
   ) {}
 
   /**
-   * Bucht LoadingUnitExchange aus TourStopStatus.
+   * Lademittelbuchungen nur aus der VLB-Zustellapp (`vlbportal:…`).
+   * Soloplan-/Intouch-Telematics-Inbound darf keine Postings erzeugen.
+   * Lagerportal bucht separat über `bookFromLademittelschein`.
+   */
+  isVlbAppLoadingUnitSource(sourceFile: string): boolean {
+    return sourceFile.startsWith('vlbportal:');
+  }
+
+  /**
+   * Bucht LoadingUnitExchange aus TourStopStatus (nur VLB-App).
    * Nur aktive PackagingTypes mit createBookings=true (Soloplan „LM-Buchungen erzeugen = Ja“).
    */
   async bookTourStopStatus(
@@ -73,6 +80,12 @@ export class LoadingUnitService {
     fileName?: string,
   ) {
     const sourceFile = fileName || `tourstopstatus-${parsed.tourNumber}-${parsed.tourStopId}`;
+    if (!this.isVlbAppLoadingUnitSource(sourceFile)) {
+      this.logger.debug(
+        `Lademittel ignoriert (kein VLB-App-Kanal): ${sourceFile}`,
+      );
+      return { booked: 0, skippedZero: 0, skippedUnknown: 0, ignoredSource: true as const };
+    }
     const eventAt = parsed.statusDate || parsed.sendDate || new Date();
 
     let resolvedTour =
@@ -841,137 +854,19 @@ export class LoadingUnitService {
   }
 
   /**
-   * Einmaliger/manueller Backfill: SKIPPED_ZERO aus verarbeiteten TourStopStatus-XMLs.
-   * Erzeugt keine neuen TelematicsEvents.
+   * Früher: Backfill SKIPPED_ZERO aus Soloplan-/Intouch-TourStopStatus-XMLs.
+   * Deaktiviert – Lademittel werden nur noch über VLB-App oder Lagerportal erfasst.
    */
-  async backfillNoExchangeFromFiles(organizationId?: string) {
-    const org =
-      (organizationId
-        ? await this.prisma.organization.findUnique({ where: { id: organizationId } })
-        : null) ||
-      (await this.prisma.organization.findFirst({ where: { slug: 'wog' } }));
-    if (!org) return { scanned: 0, created: 0 };
-
-    const sftpInbound =
-      this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
-    const roots = [
-      join(sftpInbound, 'soloplan', 'business-partners'),
-      join(sftpInbound, 'intouch', 'dokumente'),
-    ];
-
-    let scanned = 0;
-    let created = 0;
-
-    for (const root of roots) {
-      for (const dir of [root, join(root, 'processed')]) {
-        if (!existsSync(dir)) continue;
-        for (const fileName of readdirSync(dir)) {
-          if (!fileName.toLowerCase().includes('_tourstopstatus_') || !fileName.endsWith('.xml')) {
-            continue;
-          }
-          scanned += 1;
-          const sourceFile = fileName.replace(/^\d+_/, '');
-          let xml: string;
-          try {
-            xml = readFileSync(join(dir, fileName), 'utf8');
-          } catch {
-            continue;
-          }
-          const parsed = parseTelematicsXml(xml, fileName);
-          if (!parsed || parsed.kind !== 'TourStopStatus') continue;
-
-          const eventAt = parsed.statusDate || parsed.sendDate || new Date();
-          let resolvedTour =
-            (await this.prisma.tour.findFirst({
-              where: { organizationId: org.id, tourNumber: parsed.tourNumber },
-              orderBy: [{ updatedAt: 'desc' }],
-              select: { id: true, tourNumber: true },
-            })) || null;
-          let stop = resolvedTour
-            ? await this.prisma.tourStop.findFirst({
-                where: { tourId: resolvedTour.id, soloplanTourStopId: parsed.tourStopId },
-              })
-            : null;
-          if (!stop) {
-            const stopWithTour = await this.prisma.tourStop.findFirst({
-              where: {
-                soloplanTourStopId: parsed.tourStopId,
-                tour: { organizationId: org.id },
-              },
-              include: { tour: { select: { id: true, tourNumber: true } } },
-            });
-            if (stopWithTour) {
-              const { tour: linkedTour, ...stopOnly } = stopWithTour;
-              stop = stopOnly;
-              if (!resolvedTour) resolvedTour = linkedTour;
-            }
-          }
-          const partner = await this.resolvePartner(org.id, stop, resolvedTour?.id);
-          if (!partner.partnerName) {
-            partner.partnerName = `Tour ${parsed.tourNumber} · Stop ${parsed.tourStopId}`;
-          }
-
-          for (const ex of parsed.exchanges) {
-            if (ex.given !== 0 || ex.taken !== 0) continue;
-            const matchcode = ex.matchcode.trim();
-            if (!matchcode || !isExchangeBookableMatchcode(matchcode)) continue;
-            const packaging = await this.resolvePackagingType(org.id, matchcode);
-            if (!packaging || !packaging.createBookings) continue;
-
-            const existing = await this.prisma.loadingUnitPosting.findUnique({
-              where: {
-                organizationId_sourceFile_packagingMatchcode: {
-                  organizationId: org.id,
-                  sourceFile,
-                  packagingMatchcode: packaging.matchcode,
-                },
-              },
-            });
-            if (existing) continue;
-
-            const resolvedQty = await this.resolveOwedQuantity(org.id, packaging.matchcode, {
-              tourStopId: stop?.id,
-              transportOrderNumber: stop?.transportOrderNumber,
-              tourId: resolvedTour?.id,
-            });
-            const owedQuantity = Math.max(1, resolvedQty);
-            await this.prisma.loadingUnitPosting.create({
-              data: {
-                organizationId: org.id,
-                packagingTypeId: packaging.id,
-                packagingMatchcode: packaging.matchcode,
-                packagingLabel: packaging.label,
-                given: 0,
-                taken: 0,
-                balanceDelta: owedQuantity,
-                owedQuantity,
-                tourId: resolvedTour?.id,
-                tourNumber: parsed.tourNumber,
-                tourStopId: stop?.id,
-                tourStopExternalId: parsed.tourStopId,
-                partnerNumber: partner.partnerNumber,
-                partnerName: partner.partnerName,
-                partnerCity: partner.partnerCity,
-                customerId: partner.customerId,
-                vehicleSoloplanId: parsed.vehicleId,
-                status: 'SKIPPED_ZERO',
-                skipReason:
-                  resolvedQty > 0
-                    ? `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück laut Sendung)`
-                    : `Given=0 / Taken=0 – kein Tausch (${owedQuantity} Stück)`,
-                occurredAt: eventAt,
-                sendDate: parsed.sendDate,
-                sourceFile,
-              },
-            });
-            created += 1;
-          }
-        }
-      }
-    }
-
-    this.logger.log(`Lademittel Backfill Nicht-Tausch: scanned=${scanned} created=${created}`);
-    return { scanned, created };
+  async backfillNoExchangeFromFiles(_organizationId?: string) {
+    this.logger.warn(
+      'Lademittel-Backfill aus Soloplan/Intouch deaktiviert (nur VLB-App / Lagerportal erlaubt)',
+    );
+    return {
+      scanned: 0,
+      created: 0,
+      disabled: true as const,
+      reason: 'Lademittel nur aus VLB-App oder Lagerportal',
+    };
   }
 
   /**

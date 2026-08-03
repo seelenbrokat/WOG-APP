@@ -373,7 +373,11 @@ export class TelematicsService {
     }
 
     if (parsed.kind === 'TourStopStatus') {
-      await this.loadingUnits.bookTourStopStatus(organizationId, parsed, fileName);
+      // Lademittel nur aus VLB-App (vlbportal) oder Lagerportal-Lademittelschein –
+      // nicht aus Soloplan-/Intouch-TourStopStatus-Inbound (vermeidet Doppel-/Fremdbuchungen).
+      this.logger.debug(
+        `TourStopStatus ${fileName || ''}: Lademittelbuchung übersprungen (nur VLB-App/Lagerportal)`,
+      );
       return parsed;
     }
 
