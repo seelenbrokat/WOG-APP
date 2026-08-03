@@ -541,6 +541,17 @@ export class ProformaWeService {
       .filter(Boolean);
   }
 
+  /** Schmidts-Ladeliste (z. B. „Schweiz fertig.pdf“) nicht als Proforma behandeln. */
+  private async isSchmidtsLadelisteFile(fullPath: string, fileName: string): Promise<boolean> {
+    if (/schweiz\s*fertig/i.test(fileName) || /\bladliste\b/i.test(fileName)) return true;
+    try {
+      const text = await this.readInvoiceText(fullPath);
+      return looksLikeSchmidtsLadeliste(text);
+    } catch {
+      return false;
+    }
+  }
+
   private async readInvoiceText(fullPath: string): Promise<string> {
     const lower = fullPath.toLowerCase();
     if (lower.endsWith('.txt')) return readFileSync(fullPath, 'utf8');
