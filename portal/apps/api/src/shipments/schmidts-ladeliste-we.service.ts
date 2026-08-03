@@ -286,7 +286,37 @@ export class SchmidtsLadelisteWeService {
     const sessionLabel = `WE Schmidts · ${listKey}`;
 
     let session: Awaited<ReturnType<GoodsReceiptService['openSession']>> | null = null;
-    const shipmentIds = [...new Set(matched.map((m) => m.shipmentId))];
+    let shipmentIds = [...new Set(matched.map((m) => m.shipmentId))];
+
+    // Soloplan liefert oft nur Sammel-WE (andere SSCCs als Ladeliste).
+    // Dann trotzdem benannte Session aus den WE-Sendungen des Tages bilden,
+    // damit sie am TC57/TV erscheint (wie Unitec-Proforma).
+    if (!shipmentIds.length && customer) {
+      const dayStart = new Date(`${sessionDate}T00:00:00.000Z`);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+      const dayWe = await this.prisma.shipment.findMany({
+        where: {
+          organizationId: user.organizationId,
+          customerId: customer.id,
+          createdAt: { gte: dayStart, lt: dayEnd },
+          OR: [
+            { reference: { startsWith: 'WE-' } },
+            { reference: { startsWith: 'LAK', mode: 'insensitive' } },
+            { goodsDescription: { contains: 'Wareneingang', mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      shipmentIds = dayWe.map((s) => s.id);
+      if (shipmentIds.length) {
+        this.logger.warn(
+          `Schmidts-Ladeliste ${parsed.transportNumber || fileName}: 0 LAK-Treffer → Fallback ${shipmentIds.length} WE-Sendung(en) am ${sessionDate}`,
+        );
+      }
+    }
+
     try {
       if (shipmentIds.length && customer) {
         session = await this.goodsReceipt.openSession(user, {

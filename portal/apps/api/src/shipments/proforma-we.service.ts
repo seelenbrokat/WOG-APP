@@ -26,6 +26,7 @@ import {
 import { writeEntladelistePdf } from './entladeliste-pdf';
 import { AuthUser } from '../auth/auth.types';
 import { proformaGoodsReceiptDate } from '../common/working-days';
+import { looksLikeSchmidtsLadeliste } from './schmidts-ladeliste.parser';
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +56,8 @@ export class ProformaWeService {
   private readonly inboundDir: string;
   /** Ablage für WE-Listen (PDF) */
   private readonly listenDir: string;
+  /** Schmidts-Ladelisten (Weiterleitung aus rechnungen/) */
+  private readonly schmidtsLadelistenDir: string;
   /** Alter Pfad, bleibt kompatibel */
   private readonly legacyInboundDir: string;
   private readonly uploadDir: string;
@@ -69,6 +72,7 @@ export class ProformaWeService {
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
     this.inboundDir = join(root, 'wareneingang', 'rechnungen');
     this.listenDir = join(root, 'wareneingang', 'listen');
+    this.schmidtsLadelistenDir = join(root, 'wareneingang', 'ladelisten');
     this.legacyInboundDir = join(root, 'proforma');
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     for (const d of [
@@ -78,6 +82,9 @@ export class ProformaWeService {
       this.listenDir,
       join(this.listenDir, 'processed'),
       join(this.listenDir, 'failed'),
+      this.schmidtsLadelistenDir,
+      join(this.schmidtsLadelistenDir, 'processed'),
+      join(this.schmidtsLadelistenDir, 'failed'),
       this.legacyInboundDir,
       join(this.legacyInboundDir, 'processed'),
       join(this.legacyInboundDir, 'failed'),
@@ -145,6 +152,14 @@ export class ProformaWeService {
       for (const fileName of files) {
         const full = join(dir, fileName);
         try {
+          // Schmidts „Schweiz fertig“ landet oft falsch in rechnungen/ → an Ladeliste weiterreichen
+          if (await this.isSchmidtsLadelisteFile(full, fileName)) {
+            const dest = join(this.schmidtsLadelistenDir, fileName);
+            renameSync(full, dest);
+            this.logger.log(`Proforma: ${fileName} → Schmidts-Ladelisten (${dest})`);
+            results.push({ fileName, ok: true, redirectedTo: 'ladelisten' });
+            continue;
+          }
           const res = await this.processProformaFile(authUser, full, fileName);
           results.push(res);
           renameSync(full, join(dir, 'processed', `${Date.now()}_${fileName}`));
