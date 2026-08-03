@@ -1233,6 +1233,27 @@ export class TelematicsService {
       soloplanOrderNumber: toNumber || consignment?.soloplanOrderNumber,
     });
 
+    const consDetails =
+      consignment?.details && typeof consignment.details === 'object'
+        ? (consignment.details as Record<string, unknown>)
+        : null;
+    const freight =
+      consDetails?.freight && typeof consDetails.freight === 'object'
+        ? (consDetails.freight as Record<string, unknown>)
+        : null;
+    const externalOrderNumber =
+      (typeof consDetails?.externalOrderNumber === 'string' &&
+        consDetails.externalOrderNumber.trim()) ||
+      null;
+    const packageCount =
+      freight?.quantity != null && Number.isFinite(Number(freight.quantity))
+        ? Number(freight.quantity)
+        : null;
+    const weightRaw =
+      freight?.effectiveWeightKg ?? freight?.chargeableWeightKg ?? freight?.carrierWeightKg;
+    const weightKg =
+      weightRaw != null && Number.isFinite(Number(weightRaw)) ? Number(weightRaw) : null;
+
     // Alle Bilder derselben Sendung/TO → ein gemeinsamer Ablieferbeleg
     const relatedImages = await this.prisma.tourDocument.findMany({
       where: {
@@ -1292,7 +1313,10 @@ export class TelematicsService {
         tourNumber: tour?.tourNumber || signatureDoc.tourNumber,
         transportOrderNumber: toNumber || consignment?.soloplanOrderNumber,
         sendungsnummer,
+        externalOrderNumber,
         externalConsignmentNumber: consignment?.externalConsignmentNumber,
+        packageCount,
+        weightKg,
         receiverName,
         receiverAddress,
         senderName,

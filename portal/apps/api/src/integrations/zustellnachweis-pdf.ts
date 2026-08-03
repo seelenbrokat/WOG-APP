@@ -15,8 +15,15 @@ export type ZustellnachweisInput = {
   transportOrderNumber?: string | null;
   /** Soloplan Sendungsnummer = OrderNumber.ConsignmentIndex (z. B. 432984.1) */
   sendungsnummer?: string | null;
+  /** Soloplan OrderData.ExternalOrderNumber (z. B. TR2601824, BK…) */
+  externalOrderNumber?: string | null;
+  /** Soloplan Externe Sendungsnummer */
   externalConsignmentNumber?: string | null;
   position?: string | number | null;
+  /** Total Colli (FreightData.Quantity) */
+  packageCount?: number | null;
+  /** Total Gewicht in kg (effective / chargeable) */
+  weightKg?: number | null;
   /** Empfängerfirma (Zustelladresse) */
   receiverName?: string | null;
   receiverAddress?: string | null;
@@ -355,15 +362,24 @@ export function writeZustellnachweisPdf(
     kvRow(doc, 'Sendungsnummer', sendungsnummer);
     kvRow(doc, 'Tour', input.tourNumber || '—');
     kvRow(doc, 'Transportauftrag', input.transportOrderNumber || '—');
-    if (!singlePage && input.position != null && input.position !== '') {
-      kvRow(doc, 'Position', String(input.position));
+    if (input.externalOrderNumber?.trim()) {
+      kvRow(doc, 'Externe Auftragsnummer', input.externalOrderNumber.trim());
     }
     if (
-      !singlePage &&
-      input.externalConsignmentNumber &&
-      input.externalConsignmentNumber !== sendungsnummer
+      input.externalConsignmentNumber?.trim() &&
+      input.externalConsignmentNumber.trim() !== sendungsnummer
     ) {
-      kvRow(doc, 'Externe Sendungsnummer', input.externalConsignmentNumber);
+      kvRow(doc, 'Externe Sendungsnummer', input.externalConsignmentNumber.trim());
+    }
+    if (input.packageCount != null && Number.isFinite(Number(input.packageCount))) {
+      kvRow(doc, 'Colli (Total)', String(Number(input.packageCount)));
+    }
+    if (input.weightKg != null && Number.isFinite(Number(input.weightKg))) {
+      const w = Number(input.weightKg);
+      kvRow(doc, 'Gewicht (Total)', `${Number.isInteger(w) ? w : w.toFixed(1)} kg`);
+    }
+    if (!singlePage && input.position != null && input.position !== '') {
+      kvRow(doc, 'Position', String(input.position));
     }
     doc.moveDown(singlePage ? 0.2 : 0.6);
 
