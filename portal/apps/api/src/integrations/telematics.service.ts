@@ -36,6 +36,13 @@ const TOUR_STATUS_MAP: Record<string, string> = {
   Finished: 'COMPLETED',
 };
 
+/** Kennzeichen für Karten-Deduplizierung (VLB vs mTrack). */
+function normalizeFleetPlate(value?: string | null): string {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
 @Injectable()
 export class TelematicsService {
   private readonly logger = new Logger(TelematicsService.name);
