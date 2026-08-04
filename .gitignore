@@ -12,8 +12,6 @@ portal/packages/shared/dist/
 
 # Env / local
 portal/.env
-portal/apps/api/.env
-portal/apps/web/.env
 portal/data/uploads/*
 !portal/data/uploads/.gitkeep
 portal/data/sftp/inbound/*
