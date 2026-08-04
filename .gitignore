@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+portal/node_modules/
+portal/apps/*/node_modules/
+portal/packages/*/node_modules/
+
+# Builds
+portal/apps/api/dist/
+portal/apps/web/.next/
+portal/packages/shared/dist/
+*.tsbuildinfo
+
+# Env / local
+portal/.env
+portal/data/uploads/*
+!portal/data/uploads/.gitkeep
+portal/data/sftp/inbound/*
+!portal/data/sftp/inbound/.gitkeep
+portal/data/sftp/inbound/processed/
+portal/data/sftp/outbound/*
+!portal/data/sftp/outbound/.gitkeep
+
+# IDE / Android
+.idea/
+*.iml
+local.properties
+.gradle/
+build/
+app/build/
+
+# Misc
+*.log
+.DS_Store
+
+portal/data/integrations/**/*
+!portal/data/integrations/**/.gitkeep
+
+# shipping.NET secrets
+docs/shippingnet/wog-apidata/credentials/
