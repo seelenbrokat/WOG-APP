@@ -613,6 +613,20 @@ export class TelematicsService {
   ) {
     const current = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (current?.lastLocationAt && current.lastLocationAt > at) return;
+
+    // Soloplan-/Intouch-Inbound darf VLB-App-Zuordnung nicht überschreiben –
+    // sonst verschwinden App-Fahrzeuge aus dem Kartenmonitor (Filter: vlbportal).
+    let resolvedSource = source;
+    if (source === 'soloplan') {
+      const hasActiveAppSession = await this.prisma.driverDevice.findFirst({
+        where: { vehicleId, expiresAt: { gt: new Date() } },
+        select: { id: true },
+      });
+      if (hasActiveAppSession || current?.lastLocationSource === 'vlbportal') {
+        resolvedSource = 'vlbportal';
+      }
+    }
+
     await this.prisma.vehicle.update({
       where: { id: vehicleId },
       data: {
@@ -620,7 +634,7 @@ export class TelematicsService {
         lastLongitude: longitude,
         lastLocationAt: at,
         lastDriverId: driverId || undefined,
-        lastLocationSource: source,
+        lastLocationSource: resolvedSource,
         active: true,
       },
     });
@@ -859,12 +873,20 @@ export class TelematicsService {
       };
     });
 
-    // mTrack-GPS (TimeTruck / WOG Diepoldsau) zusätzlich einblenden – nur letzte 2 Stunden
+    // mTrack-GPS (TimeTruck / WOG Diepoldsau) zusätzlich einblenden – nur letzte 2 Stunden.
+    // Wenn dasselbe Kennzeichen schon als VLB-App auf der Karte ist: mTrack-Duplikat weglassen.
+    const vlbPlates = new Set(
+      vlbRows
+        .map((v) => normalizeFleetPlate(v.licensePlate || v.number || v.matchcode))
+        .filter(Boolean),
+    );
     const mtrackPositions = await this.mtrack.getFleetPositions();
     const mtrackRows = mtrackPositions
       .map((p) => {
         const locationAt = p.locationAt ? new Date(p.locationAt) : null;
         if (!locationAt || locationAt.getTime() < activeSince.getTime()) return null;
+        const plateKey = normalizeFleetPlate(p.vehicleName);
+        if (plateKey && vlbPlates.has(plateKey)) return null;
         const idle = this.markFleetIdle(p.id, p.latitude, p.longitude, locationAt, p.speed);
         return {
           id: p.id,
