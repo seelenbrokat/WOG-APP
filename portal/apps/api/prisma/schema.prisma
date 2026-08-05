@@ -42,6 +42,15 @@ enum DocumentType {
   OTHER
 }
 
+/// Kunden-Dokumente-Modul: freischaltbare Kategorien zum Download
+enum CustomerDocCategory {
+  INVOICE
+  CUSTOMS_EXIT
+  POD
+  CMR
+  OTHER
+}
+
 enum NotificationEvent {
   SHIPMENT_CREATED
   STATUS_CHANGED
@@ -555,6 +564,8 @@ model Customer {
   /// Soloplan BusinessPartnerId – Pflicht für externe Kunden aus Soloplan
   soloplanBusinessPartnerId String?
   matchcode                String?
+  /// Modul „Dokumente“ für diesen Kunden freigeschaltet
+  documentsModuleEnabled   Boolean  @default(false)
   active                   Boolean  @default(true)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -568,10 +579,30 @@ model Customer {
   customsOrders CustomsOrder[]
   freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
   goodsReceiptSessions GoodsReceiptSession[]
+  documentCategoryAccess CustomerDocumentCategoryAccess[]
+  documents              Document[]
+  documentDownloads      DocumentDownload[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
   @@index([matchcode])
+}
+
+/// Pro Kunde freigeschaltete Dokumentenkategorien (Download-Modul)
+model CustomerDocumentCategoryAccess {
+  id         String              @id @default(cuid())
+  customerId String
+  category   CustomerDocCategory
+  /// Wenn true: Filter „fehlt noch“ gilt für diese Kategorie
+  required   Boolean             @default(true)
+  active     Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, category])
+  @@index([customerId, active])
 }
 
 model Contact {
@@ -684,6 +715,7 @@ model User {
   auditLogs            AuditLog[]             @relation("AuditActor")
   partner              Partner?
   loginQrTokens        UserLoginQrToken[]
+  documentDownloads    DocumentDownload[]
 }
 
 /// Mehrfach nutzbarer QR-/Barcode-Login für Lager-Tablets (z. B. WE TC57)
@@ -945,6 +977,12 @@ model Document {
   organizationId   String
   customerId       String?
   type             DocumentType
+  /// Kategorie im Kunden-Dokumente-Modul (Rechnung, Austrittsbestätigung, …)
+  categoryCode     CustomerDocCategory?
+  /// UPLOAD | SFTP | SOLOPLAN | CUSTOMS
+  source           String       @default("UPLOAD")
+  sourceFileName   String?
+  importedAt       DateTime?
   fileName         String
   mimeType         String
   storagePath      String
@@ -955,11 +993,32 @@ model Document {
   shipment       Shipment?       @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
   transportOrder TransportOrder? @relation(fields: [transportOrderId], references: [id], onDelete: SetNull)
   customsOrder   CustomsOrder?   @relation(fields: [customsOrderId], references: [id], onDelete: Cascade)
+  customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  downloads      DocumentDownload[]
 
   @@index([shipmentId])
   @@index([transportOrderId])
   @@index([customsOrderId])
   @@index([customerId])
+  @@index([organizationId, categoryCode])
+  @@index([customerId, categoryCode])
+}
+
+/// Download-Protokoll für Kunden-Dokumente (Checkbox „heruntergeladen“)
+model DocumentDownload {
+  id           String   @id @default(cuid())
+  documentId   String
+  userId       String?
+  customerId   String
+  downloadedAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([customerId, downloadedAt])
+  @@index([documentId])
 }
 
 model NotificationPreference {

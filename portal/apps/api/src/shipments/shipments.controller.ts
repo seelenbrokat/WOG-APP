@@ -238,8 +238,17 @@ export class ShipmentsController {
     @CurrentUser() user: AuthUser,
     @Query('mandantId') mandantId?: string,
     @Query('q') q?: string,
+    @Query('missingDocCategory') missingDocCategory?: string,
+    @Query('docDownload') docDownload?: string,
+    @Query('docCategory') docCategory?: string,
   ) {
-    return this.service.list(user, { mandantId, q });
+    return this.service.list(user, {
+      mandantId,
+      q,
+      missingDocCategory,
+      docDownload,
+      docCategory,
+    });
   }
 
   @Post('validate-address')

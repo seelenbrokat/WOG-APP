@@ -64,21 +64,59 @@ function soloplanOrderNumber(s: {
   return null;
 }
 
+const DOC_CAT_LABELS: Record<string, string> = {
+  INVOICE: 'Rechnung',
+  CUSTOMS_EXIT: 'Austrittsbestätigung',
+  POD: 'POD / Abliefernachweis',
+  CMR: 'CMR',
+  OTHER: 'Sonstiges',
+};
+
+type CustomerDoc = {
+  id: string;
+  fileName: string;
+  categoryCode: string | null;
+  createdAt: string;
+  downloaded: boolean;
+  downloadedAt?: string | null;
+};
+
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState<any[]>([]);
   const [mandanten, setMandanten] = useState<any[]>([]);
   const [mandantId, setMandantId] = useState('');
   const [q, setQ] = useState('');
+  const [missingDocCategory, setMissingDocCategory] = useState('');
+  const [docDownload, setDocDownload] = useState('');
+  const [docCategory, setDocCategory] = useState('');
+  const [docsModule, setDocsModule] = useState<{
+    documentsModuleEnabled: boolean;
+    categories: Array<{ code: string; label: string }>;
+  } | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState('');
   const [inquiryBusy, setInquiryBusy] = useState<string>('');
+  const [dlBusy, setDlBusy] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
-  async function load(opts?: { mandantId?: string; q?: string }) {
+  const user = getUser();
+  const isCustomer = user?.role === 'CUSTOMER_USER';
+  const showDocs = Boolean(isCustomer && docsModule?.documentsModuleEnabled);
+
+  async function load(opts?: {
+    mandantId?: string;
+    q?: string;
+    missingDocCategory?: string;
+    docDownload?: string;
+    docCategory?: string;
+  }) {
     const params = new URLSearchParams();
     if (opts?.mandantId) params.set('mandantId', opts.mandantId);
     if (opts?.q?.trim()) params.set('q', opts.q.trim());
+    if (opts?.missingDocCategory) params.set('missingDocCategory', opts.missingDocCategory);
+    if (opts?.docDownload) params.set('docDownload', opts.docDownload);
+    if (opts?.docCategory) params.set('docCategory', opts.docCategory);
     const qs = params.toString();
     const rows = await api<any[]>(`/shipments${qs ? `?${qs}` : ''}`);
     setShipments(rows);
@@ -87,21 +125,29 @@ export default function ShipmentsPage() {
 
   useEffect(() => {
     api<any[]>('/mandanten').then(setMandanten).catch(() => setMandanten([]));
+    if (isCustomer) {
+      api<any>('/documents/module/me')
+        .then((m) => setDocsModule(m))
+        .catch(() => setDocsModule(null));
+    }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      load({ mandantId: mandantId || undefined, q }).catch((e: any) =>
-        setError(e?.message || 'Laden fehlgeschlagen'),
-      );
+      load({
+        mandantId: mandantId || undefined,
+        q,
+        missingDocCategory: missingDocCategory || undefined,
+        docDownload: docDownload || undefined,
+        docCategory: docCategory || undefined,
+      }).catch((e: any) => setError(e?.message || 'Laden fehlgeschlagen'));
     }, 280);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, mandantId]);
+  }, [q, mandantId, missingDocCategory, docDownload, docCategory]);
 
-  const user = getUser();
-  const isCustomer = user?.role === 'CUSTOMER_USER';
   const selectable = useMemo(
     () => shipments.filter((s) => s.orderId),
     [shipments],
@@ -166,13 +212,41 @@ export default function ShipmentsPage() {
           ? `${n} Auftrag/Aufträge übergeben · Sammelladeliste heruntergeladen`
           : `Sammelladeliste für ${n} Auftrag/Aufträge heruntergeladen`,
       );
-      await load({ mandantId: mandantId || undefined, q });
+      await load({
+        mandantId: mandantId || undefined,
+        q,
+        missingDocCategory: missingDocCategory || undefined,
+        docDownload: docDownload || undefined,
+        docCategory: docCategory || undefined,
+      });
     } catch (e: any) {
       setError(e.message || 'Aktion fehlgeschlagen');
     } finally {
       setBusy('');
     }
   }
+
+  async function downloadCustomerDoc(doc: CustomerDoc) {
+    setDlBusy(doc.id);
+    setError('');
+    try {
+      await downloadDocument(doc.id, doc.fileName);
+      setShipments((prev) =>
+        prev.map((s) => ({
+          ...s,
+          customerDocuments: (s.customerDocuments || []).map((d: CustomerDoc) =>
+            d.id === doc.id ? { ...d, downloaded: true, downloadedAt: new Date().toISOString() } : d,
+          ),
+        })),
+      );
+    } catch (e: any) {
+      setError(e?.message || 'Download fehlgeschlagen');
+    } finally {
+      setDlBusy('');
+    }
+  }
+
+  const colSpan = (isCustomer ? 4 : 5) + (showDocs ? 1 : 0);
 
   return (
     <AppShell title="Sendungen">
@@ -196,6 +270,43 @@ export default function ShipmentsPage() {
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
+          )}
+          {showDocs && (
+            <>
+              <select
+                value={missingDocCategory}
+                onChange={(e) => setMissingDocCategory(e.target.value)}
+                aria-label="Fehlendes Dokument"
+              >
+                <option value="">Dokument fehlt: alle</option>
+                {(docsModule?.categories || []).map((c) => (
+                  <option key={c.code} value={c.code}>
+                    Fehlt: {c.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={docCategory}
+                onChange={(e) => setDocCategory(e.target.value)}
+                aria-label="Dokumentenkategorie"
+              >
+                <option value="">Kategorie: alle</option>
+                {(docsModule?.categories || []).map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={docDownload}
+                onChange={(e) => setDocDownload(e.target.value)}
+                aria-label="Download-Status"
+              >
+                <option value="">Download: alle</option>
+                <option value="not_downloaded">Noch nicht heruntergeladen</option>
+                <option value="downloaded">Bereits heruntergeladen</option>
+              </select>
+            </>
           )}
           {(user?.role === 'ORG_ADMIN' || user?.role === 'CUSTOMER_USER' || user?.role === 'MANDANT_DISPATCHER') && (
             <Link className="btn btn-primary" href="/shipments/new">Neuer Auftrag</Link>
@@ -230,7 +341,9 @@ export default function ShipmentsPage() {
 
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
           {isCustomer
-            ? 'Ihre Sendungen – Soloplan-Nummer unter dem Auftrag, Nachfrage rechts.'
+            ? showDocs
+              ? 'Ihre Sendungen – Dokumente je Sendung herunterladen; Filter für fehlende / noch nicht geladene Belege.'
+              : 'Ihre Sendungen – Soloplan-Nummer unter dem Auftrag, Nachfrage rechts.'
             : 'Aufträge markieren und gemeinsam übergeben. Soloplan unter VLB · Aktion rechts.'}
         </p>
 
@@ -253,6 +366,7 @@ export default function ShipmentsPage() {
                   <th className="col-ref">Auftrag</th>
                   <th className="col-route">Route</th>
                   <th className="col-schedule">Termine</th>
+                  {showDocs && <th className="col-docs">Dokumente</th>}
                   <th className="col-side">Status / Aktion</th>
                 </tr>
               </thead>
@@ -276,6 +390,7 @@ export default function ShipmentsPage() {
                         : ''
                     }`,
                   ].join('\n');
+                  const docs: CustomerDoc[] = s.customerDocuments || [];
                   return (
                     <tr key={s.id}>
                       {!isCustomer && (
@@ -340,6 +455,34 @@ export default function ShipmentsPage() {
                             : ''}
                         </strong>
                       </td>
+                      {showDocs && (
+                        <td className="col-docs">
+                          <div className="stack" style={{ gap: '0.35rem', alignItems: 'flex-start' }}>
+                            {docs.length === 0 && <span className="muted">Keine Dokumente</span>}
+                            {docs.map((d) => (
+                              <label
+                                key={d.id}
+                                className="row"
+                                style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
+                              >
+                                <input type="checkbox" checked={d.downloaded} readOnly title="Heruntergeladen" />
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
+                                  disabled={dlBusy === d.id}
+                                  onClick={() => downloadCustomerDoc(d)}
+                                  title={d.fileName}
+                                >
+                                  {dlBusy === d.id
+                                    ? '…'
+                                    : DOC_CAT_LABELS[d.categoryCode || ''] || d.fileName}
+                                </button>
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                      )}
                       <td className="col-side">
                         <div className="side-stack">
                           <span className="badge">{statusLabel(s.status)}</span>
@@ -362,8 +505,10 @@ export default function ShipmentsPage() {
                 })}
                 {!shipments.length && (
                   <tr>
-                    <td colSpan={isCustomer ? 4 : 5} className="muted">
-                      {q.trim() ? 'Keine Treffer für diese Suche.' : 'Keine Sendungen.'}
+                    <td colSpan={colSpan} className="muted">
+                      {q.trim() || missingDocCategory || docDownload
+                        ? 'Keine Treffer für diese Filter.'
+                        : 'Keine Sendungen.'}
                     </td>
                   </tr>
                 )}

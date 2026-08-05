@@ -14,6 +14,7 @@ import { SchmidtsLadelisteWeService } from './shipments/schmidts-ladeliste-we.se
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 import { RecurringTemplatesService } from './shipments/recurring-templates.service';
 import { LademittelscheinService } from './lager/lademittelschein.service';
+import { CustomerDocumentsInboundService } from './documents/customer-documents-inbound.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -32,9 +33,10 @@ async function bootstrap() {
   const fahrerTelematics = app.get(FahrerTelematicsService);
   const recurringTemplates = app.get(RecurringTemplatesService);
   const lademittelscheine = app.get(LademittelscheinService);
+  const customerDocuments = app.get(CustomerDocumentsInboundService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -78,6 +80,12 @@ async function bootstrap() {
       if (lms.processed || lms.failed) {
         console.log(
           `Lademittelschein: ${lms.processed} verarbeitet, ${lms.failed} fehlgeschlagen`,
+        );
+      }
+      const custDocs = await customerDocuments.processInboundDir();
+      if (custDocs.processed || custDocs.failed) {
+        console.log(
+          `Kunden-Dokumente: ${custDocs.processed} verarbeitet, ${custDocs.failed} fehlgeschlagen, ${custDocs.skipped} übersprungen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);

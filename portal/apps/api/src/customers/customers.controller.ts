@@ -45,6 +45,10 @@ class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  documentsModuleEnabled?: boolean;
 }
 
 class AddressDto {

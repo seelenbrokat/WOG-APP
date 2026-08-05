@@ -117,7 +117,18 @@ export class ShipmentsService {
     return mandant.id;
   }
 
-  list(user: AuthUser, opts?: { mandantId?: string; q?: string }) {
+  async list(
+    user: AuthUser,
+    opts?: {
+      mandantId?: string;
+      q?: string;
+      /** Kunden-Dokumente: fehlende Kategorie (z. B. CUSTOMS_EXIT) */
+      missingDocCategory?: string;
+      /** Kunden-Dokumente: not_downloaded | downloaded */
+      docDownload?: string;
+      docCategory?: string;
+    },
+  ) {
     const where: Record<string, unknown> = { ...this.scope(user) };
     const mandantId = opts?.mandantId;
     if (mandantId) {
@@ -127,37 +138,114 @@ export class ShipmentsService {
       where.mandantId = mandantId;
     }
     const q = opts?.q?.trim();
+    const and: Record<string, unknown>[] = [];
     if (q) {
-      where.AND = [
-        {
-          OR: [
-            { trackingNumber: { contains: q, mode: 'insensitive' } },
-            { reference: { contains: q, mode: 'insensitive' } },
-            { soloplanRef: { contains: q, mode: 'insensitive' } },
-            { deliveryCompany: { contains: q, mode: 'insensitive' } },
-            { pickupCompany: { contains: q, mode: 'insensitive' } },
-            { deliveryCity: { contains: q, mode: 'insensitive' } },
-            { pickupCity: { contains: q, mode: 'insensitive' } },
-            { deliveryZip: { contains: q, mode: 'insensitive' } },
-            { pickupZip: { contains: q, mode: 'insensitive' } },
-            { notes: { contains: q, mode: 'insensitive' } },
-            { order: { externalNumber: { contains: q, mode: 'insensitive' } } },
-            { customer: { name: { contains: q, mode: 'insensitive' } } },
-          ],
-        },
-      ];
+      and.push({
+        OR: [
+          { trackingNumber: { contains: q, mode: 'insensitive' } },
+          { reference: { contains: q, mode: 'insensitive' } },
+          { soloplanRef: { contains: q, mode: 'insensitive' } },
+          { deliveryCompany: { contains: q, mode: 'insensitive' } },
+          { pickupCompany: { contains: q, mode: 'insensitive' } },
+          { deliveryCity: { contains: q, mode: 'insensitive' } },
+          { pickupCity: { contains: q, mode: 'insensitive' } },
+          { deliveryZip: { contains: q, mode: 'insensitive' } },
+          { pickupZip: { contains: q, mode: 'insensitive' } },
+          { notes: { contains: q, mode: 'insensitive' } },
+          { order: { externalNumber: { contains: q, mode: 'insensitive' } } },
+          { customer: { name: { contains: q, mode: 'insensitive' } } },
+        ],
+      });
     }
-    return this.prisma.shipment.findMany({
+
+    const missingCat = opts?.missingDocCategory?.trim().toUpperCase();
+    if (missingCat) {
+      and.push({
+        NOT: {
+          documents: {
+            some: { categoryCode: missingCat as any },
+          },
+        },
+      });
+    }
+
+    const docCat = opts?.docCategory?.trim().toUpperCase();
+    const downloadFilter = opts?.docDownload?.trim().toLowerCase();
+    if (downloadFilter === 'not_downloaded' || downloadFilter === 'downloaded') {
+      const categoryFilter = docCat ? { categoryCode: docCat as any } : { categoryCode: { not: null } };
+      if (downloadFilter === 'not_downloaded') {
+        and.push({
+          documents: {
+            some: {
+              ...categoryFilter,
+              downloads: user.id
+                ? { none: { userId: user.id } }
+                : { none: {} },
+            },
+          },
+        });
+      } else {
+        and.push({
+          documents: {
+            some: {
+              ...categoryFilter,
+              downloads: user.id ? { some: { userId: user.id } } : { some: {} },
+            },
+          },
+        });
+      }
+    } else if (docCat) {
+      and.push({
+        documents: { some: { categoryCode: docCat as any } },
+      });
+    }
+
+    if (and.length) where.AND = and;
+
+    const rows = await this.prisma.shipment.findMany({
       where,
       include: {
         mandant: true,
-        customer: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerNumber: true,
+            documentsModuleEnabled: true,
+          },
+        },
         order: { include: { freightPayer: true } },
         events: { orderBy: { createdAt: 'desc' }, take: 1 },
+        documents: {
+          where: { categoryCode: { not: null } },
+          select: {
+            id: true,
+            fileName: true,
+            categoryCode: true,
+            createdAt: true,
+            downloads: user.id
+              ? { where: { userId: user.id }, select: { downloadedAt: true }, take: 1 }
+              : { select: { downloadedAt: true }, take: 1 },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
+
+    return rows.map((s) => ({
+      ...s,
+      customerDocuments: (s.documents || []).map((d) => ({
+        id: d.id,
+        fileName: d.fileName,
+        categoryCode: d.categoryCode,
+        createdAt: d.createdAt,
+        downloaded: (d.downloads || []).length > 0,
+        downloadedAt: d.downloads?.[0]?.downloadedAt || null,
+      })),
+      documents: undefined,
+    }));
   }
 
   async get(user: AuthUser, id: string) {

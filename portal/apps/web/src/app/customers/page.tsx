@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { ApiError, api, getUser } from '@/lib/api';
+import { DocumentsModulePanel } from './DocumentsModulePanel';
 
 type ContactFeedback = { type: 'ok' | 'err'; text: string };
 
@@ -164,8 +165,19 @@ export default function CustomersPage() {
                     : ' · ohne Soloplan-BP'}
                 </div>
               </div>
-              <span className="badge">{c._count?.addresses ?? c.addresses?.length ?? 0} Adressen</span>
+              <div className="row" style={{ gap: '0.4rem' }}>
+                {c.documentsModuleEnabled ? (
+                  <span className="badge ok">Dokumente</span>
+                ) : null}
+                <span className="badge">{c._count?.addresses ?? c.addresses?.length ?? 0} Adressen</span>
+              </div>
             </div>
+            {isAdmin && (
+              <DocumentsModulePanel
+                customerId={c.id}
+                initialEnabled={Boolean(c.documentsModuleEnabled)}
+              />
+            )}
             {(c.contacts?.length || 0) > 0 && (
               <table className="table" style={{ marginTop: '0.75rem' }}>
                 <thead>

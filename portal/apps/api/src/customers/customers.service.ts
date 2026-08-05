@@ -78,6 +78,7 @@ export class CustomersService {
       where: { organizationId: user.organizationId },
       include: {
         contacts: true,
+        documentCategoryAccess: { where: { active: true } },
         _count: { select: { addresses: true } },
       },
       orderBy: { name: 'asc' },
@@ -129,7 +130,14 @@ export class CustomersService {
   async update(
     user: AuthUser,
     id: string,
-    data: Partial<{ name: string; email: string; phone: string; vatId: string; active: boolean }>,
+    data: Partial<{
+      name: string;
+      email: string;
+      phone: string;
+      vatId: string;
+      active: boolean;
+      documentsModuleEnabled: boolean;
+    }>,
   ) {
     await this.get(user, id);
     const customer = await this.prisma.customer.update({ where: { id }, data });

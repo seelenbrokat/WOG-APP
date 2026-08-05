@@ -33,6 +33,23 @@ export enum DocumentType {
   OTHER = 'OTHER',
 }
 
+/** Freischaltbare Kategorien im Kunden-Dokumente-Modul */
+export enum CustomerDocCategory {
+  INVOICE = 'INVOICE',
+  CUSTOMS_EXIT = 'CUSTOMS_EXIT',
+  POD = 'POD',
+  CMR = 'CMR',
+  OTHER = 'OTHER',
+}
+
+export const CUSTOMER_DOC_CATEGORY_LABELS: Record<CustomerDocCategory, string> = {
+  [CustomerDocCategory.INVOICE]: 'Rechnung',
+  [CustomerDocCategory.CUSTOMS_EXIT]: 'Austrittsbestätigung Verzollung',
+  [CustomerDocCategory.POD]: 'Abliefernachweis / POD',
+  [CustomerDocCategory.CMR]: 'CMR',
+  [CustomerDocCategory.OTHER]: 'Sonstiges Dokument',
+};
+
 export enum NotificationEvent {
   SHIPMENT_CREATED = 'SHIPMENT_CREATED',
   STATUS_CHANGED = 'STATUS_CHANGED',

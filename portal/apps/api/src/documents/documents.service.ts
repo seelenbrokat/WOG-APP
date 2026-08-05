@@ -189,6 +189,28 @@ export class DocumentsService {
 
   async openStream(user: AuthUser, id: string) {
     const doc = await this.get(user, id);
+    // Kunden-Modul: Download protokollieren (Checkbox)
+    if (doc.categoryCode && doc.customerId && user.role === UserRole.CUSTOMER_USER) {
+      try {
+        await this.prisma.documentDownload.upsert({
+          where: {
+            documentId_userId: { documentId: doc.id, userId: user.id },
+          },
+          create: {
+            documentId: doc.id,
+            userId: user.id,
+            customerId: doc.customerId,
+          },
+          update: { downloadedAt: new Date() },
+        });
+        await this.audit.log(user.id, 'document.download', 'Document', doc.id, {
+          fileName: doc.fileName,
+          categoryCode: doc.categoryCode,
+        });
+      } catch (e: any) {
+        this.logger.warn(`Download-Protokoll ${doc.id}: ${e?.message || e}`);
+      }
+    }
     return this.openExistingFile(doc);
   }
 
