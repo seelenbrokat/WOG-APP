@@ -172,7 +172,7 @@ export default function CustomersPage() {
                 <span className="badge">{c._count?.addresses ?? c.addresses?.length ?? 0} Adressen</span>
               </div>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <DocumentsModulePanel
                 customerId={c.id}
                 initialEnabled={Boolean(c.documentsModuleEnabled)}
