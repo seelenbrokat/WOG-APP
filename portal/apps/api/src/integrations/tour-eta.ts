@@ -108,16 +108,13 @@ export function toTourEtaView(tour: {
 
 /**
  * Text für Soloplan Sendungsinformation Feld 5.
- * Kurz und lesbar, max. 500 Zeichen.
+ * Nur die Zustellzeit (keine Fahrzeit/Stopps/Tournummer).
  */
 export function formatEtaForSoloplanInfo5(opts: {
   etaText?: string | null;
   etaAt?: Date | null;
   tourNumber?: string | null;
 }): string {
-  const raw = String(opts.etaText || '').trim();
-  if (raw) return raw.slice(0, 500);
-
   if (opts.etaAt && !Number.isNaN(opts.etaAt.getTime())) {
     const time = new Intl.DateTimeFormat('de-CH', {
       timeZone: 'Europe/Zurich',
@@ -125,8 +122,18 @@ export function formatEtaForSoloplanInfo5(opts: {
       minute: '2-digit',
       hour12: false,
     }).format(opts.etaAt);
-    const tour = opts.tourNumber ? ` Tour ${opts.tourNumber}` : '';
-    return `ETA ca. ${time}${tour}`.slice(0, 500);
+    return `ETA ca. ${time}`;
   }
+
+  // Fallback: Uhrzeit aus Freitext „… ca. HH:MM …“
+  const m = String(opts.etaText || '').match(/ca\.\s*(\d{1,2}):(\d{2})/i);
+  if (m) {
+    const hour = Number(m[1]);
+    const minute = Number(m[2]);
+    if (Number.isFinite(hour) && Number.isFinite(minute) && hour <= 23 && minute <= 59) {
+      return `ETA ca. ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+  }
+
   return '';
 }
