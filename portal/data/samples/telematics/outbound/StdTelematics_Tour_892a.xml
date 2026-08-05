@@ -1,0 +1,546 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Tour xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.soloplan.de/StdTelematics">
+  <Header>
+    <SendDate>2015-02-27T10:37:08.9397361+01:00</SendDate>
+    <VehicleId>VehicleId</VehicleId>
+    <VehicleParam1>VehicleId</VehicleParam1>
+    <VehicleParam2 />
+    <Action>Create</Action>
+    <TourId>256639953</TourId>
+    <TourNumber>461193</TourNumber>
+    <UtcDifference>60</UtcDifference>
+  </Header>
+  <TourData>
+    <Designation />
+    <Client>1</Client>
+    <PlannedStart>2015-02-28T08:06:00+01:00</PlannedStart>
+    <PlannedEnd>2015-03-03T00:00:00+01:00</PlannedEnd>
+    <Infotext />
+    <Truck>
+      <Number>9501</Number>
+      <Matchcode>TELEMATIC1</Matchcode>
+      <LicensePlate>Telematic Test</LicensePlate>
+    </Truck>
+    <Trailer xsi:nil="true" />
+    <ModeOfTransport1 xsi:nil="true" />
+    <ModeOfTransport2 xsi:nil="true" />
+    <ModeOfTransport3 xsi:nil="true" />
+    <ModeOfTransport4 xsi:nil="true" />
+    <VehicleDesignation />
+    <Driver1Name />
+    <Driver2Name />
+    <Driver3Name />
+    <Informations xsi:nil="true" />
+    <TourStopSummary>2563 Ipsach, 9016 Sankt Gallen</TourStopSummary>
+    <Carrier xsi:nil="true" />
+    <Dispatcher>
+      <FirstName>Max</FirstName>
+      <LastName>Mustermann</LastName>
+    </Dispatcher>
+    <FloatFields>
+      <FloatField>
+        <Number>3</Number>
+        <Value>3.3330</Value>
+      </FloatField>
+      <FloatField>
+        <Number>6</Number>
+        <Value>6.7890</Value>
+      </FloatField>
+      <FloatField>
+        <Number>9</Number>
+        <Value>9.99</Value>
+      </FloatField>
+    </FloatFields>
+    <TransportOrders>
+      <TransportOrder>
+        <Number>741275</Number>
+        <ExternalNumber />
+        <OrderData>
+          <OrderNumber>10273296</OrderNumber>
+          <ExternalOrderNumber>2015-13-0272</ExternalOrderNumber>
+          <OrderInformations xsi:nil="true" />
+        </OrderData>
+        <ConsignmentData>
+          <ExternalConsignmentNumber />
+          <ConsignmentReferences xsi:nil="true" />
+          <Number>1</Number>
+          <Sender>
+            <BusinessPartnerNumber>1</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber>SOLOKEMPTEXT</ExternalBusinessPartnerNumber>
+            <Name1>SoloCargo Ltd.</Name1>
+            <Name2>SoloCargo(2)</Name2>
+            <Name3>SoloCargo(3)</Name3>
+            <Name4>SoloCargo(4)</Name4>
+            <Address>
+              <Country>
+                <Matchcode>D</Matchcode>
+                <IsoAlpha2>DE</IsoAlpha2>
+                <IsoAlpha3>DEU</IsoAlpha3>
+                <IsoNumeric>276</IsoNumeric>
+              </Country>
+              <ZipCode>87435</ZipCode>
+              <City1>Kempten (Allgäu)</City1>
+              <City2>Eich</City2>
+              <Street>Burgstrasse</Street>
+              <HouseNumber>18</HouseNumber>
+            </Address>
+            <GeoCoordinate>
+              <Longitude>10.317305</Longitude>
+              <Latitude>47.70368</Latitude>
+            </GeoCoordinate>
+            <StallageFreeTime>17</StallageFreeTime>
+            <ContactPerson>
+              <FirstName>Max</FirstName>
+              <LastName>Mustermann</LastName>
+              <TelephoneNumber>+49 831 57407 0</TelephoneNumber>
+              <MobilePhoneNumber />
+              <EmailAddress>info@soloplan.de</EmailAddress>
+              <Title>test</Title>
+              <Department>Service</Department>
+            </ContactPerson>
+            <OpeningHours>
+              <Monday>
+                <Morning>
+                  <From>08:01:00.0000000+01:00</From>
+                  <To>07:01:00.0000000+01:00</To>
+                </Morning>
+                <Afternoon>
+                  <From>13:01:00.0000000+01:00</From>
+                  <To>17:01:00.0000000+01:00</To>
+                </Afternoon>
+              </Monday>
+              <Tuesday>
+                <Morning>
+                  <From>08:02:00.0000000+01:00</From>
+                  <To>12:02:00.0000000+01:00</To>
+                </Morning>
+                <Afternoon>
+                  <From>13:02:00.0000000+01:00</From>
+                  <To>17:02:00.0000000+01:00</To>
+                </Afternoon>
+              </Tuesday>
+              <Wednesday>
+                <Morning>
+                  <From>08:03:00.0000000+01:00</From>
+                  <To>12:03:00.0000000+01:00</To>
+                </Morning>
+                <Afternoon>
+                  <From>13:03:00.0000000+01:00</From>
+                  <To>17:03:00.0000000+01:00</To>
+                </Afternoon>
+              </Wednesday>
+              <Thursday>
+                <Morning>
+                  <From>08:04:00.0000000+01:00</From>
+                  <To>12:04:00.0000000+01:00</To>
+                </Morning>
+                <Afternoon>
+                  <From>13:04:00.0000000+01:00</From>
+                  <To>17:04:00.0000000+01:00</To>
+                </Afternoon>
+              </Thursday>
+              <Friday>
+                <Morning>
+                  <From>13:05:00.0000000+01:00</From>
+                  <To>12:05:00.0000000+01:00</To>
+                </Morning>
+                <Afternoon>
+                  <From>13:05:00.0000000+01:00</From>
+                  <To>17:05:00.0000000+01:00</To>
+                </Afternoon>
+              </Friday>
+              <Saturday xsi:nil="true" />
+              <Sunday xsi:nil="true" />
+            </OpeningHours>
+          </Sender>
+          <Receiver>
+            <BusinessPartnerNumber>2</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber>0001</ExternalBusinessPartnerNumber>
+            <Name1>Fantasy Cargo</Name1>
+            <Name2 />
+            <Name3 />
+            <Name4 />
+            <Address>
+              <Country>
+                <Matchcode>CH</Matchcode>
+                <IsoAlpha2>CH</IsoAlpha2>
+                <IsoAlpha3>CHE</IsoAlpha3>
+                <IsoNumeric>756</IsoNumeric>
+              </Country>
+              <ZipCode>9016</ZipCode>
+              <City1>Sankt Gallen</City1>
+              <City2 />
+              <Street>Martinsbruggstrasse</Street>
+              <HouseNumber>1</HouseNumber>
+            </Address>
+            <GeoCoordinate>
+              <Longitude>9.405873</Longitude>
+              <Latitude>47.4367167</Latitude>
+            </GeoCoordinate>
+            <ContactPerson xsi:nil="true" />
+            <OpeningHours xsi:nil="true" />
+          </Receiver>
+          <DifferentLoadingPoint xsi:nil="true" />
+          <DifferentUnloadingPoint xsi:nil="true" />
+          <CheckFields>
+            <CheckField>
+              <Value>false</Value>
+              <Number>1</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>2</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>3</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>4</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>5</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>6</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>7</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>8</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>9</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>10</Number>
+            </CheckField>
+          </CheckFields>
+          <SaleType xsi:nil="true" />
+        </ConsignmentData>
+        <Sender>
+          <BusinessPartnerNumber>1</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber>SOLOKEMPTEXT</ExternalBusinessPartnerNumber>
+          <Name1>SoloCargo Ltd.</Name1>
+          <Name2>SoloCargo(2)</Name2>
+          <Name3>SoloCargo(3)</Name3>
+          <Name4>SoloCargo(4)</Name4>
+          <Address>
+            <Country>
+              <Matchcode>D</Matchcode>
+              <IsoAlpha2>DE</IsoAlpha2>
+              <IsoAlpha3>DEU</IsoAlpha3>
+              <IsoNumeric>276</IsoNumeric>
+            </Country>
+            <ZipCode>87435</ZipCode>
+            <City1>Kempten (Allgäu)</City1>
+            <City2>Eich</City2>
+            <Street>Burgstrasse</Street>
+            <HouseNumber>18</HouseNumber>
+          </Address>
+          <GeoCoordinate>
+            <Longitude>10.317305</Longitude>
+            <Latitude>47.70368</Latitude>
+          </GeoCoordinate>
+          <StallageFreeTime>17</StallageFreeTime>
+          <ContactPerson>
+            <FirstName>Max</FirstName>
+            <LastName>Mustermann</LastName>
+            <TelephoneNumber>+49 831 57407 0</TelephoneNumber>
+            <MobilePhoneNumber />
+            <EmailAddress>info@soloplan.de</EmailAddress>
+            <Title>test</Title>
+            <Department>Service</Department>
+          </ContactPerson>
+          <OpeningHours>
+            <Monday>
+              <Morning>
+                <From>08:01:00.0000000+01:00</From>
+                <To>07:01:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:01:00.0000000+01:00</From>
+                <To>17:01:00.0000000+01:00</To>
+              </Afternoon>
+            </Monday>
+            <Tuesday>
+              <Morning>
+                <From>08:02:00.0000000+01:00</From>
+                <To>12:02:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:02:00.0000000+01:00</From>
+                <To>17:02:00.0000000+01:00</To>
+              </Afternoon>
+            </Tuesday>
+            <Wednesday>
+              <Morning>
+                <From>08:03:00.0000000+01:00</From>
+                <To>12:03:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:03:00.0000000+01:00</From>
+                <To>17:03:00.0000000+01:00</To>
+              </Afternoon>
+            </Wednesday>
+            <Thursday>
+              <Morning>
+                <From>08:04:00.0000000+01:00</From>
+                <To>12:04:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:04:00.0000000+01:00</From>
+                <To>17:04:00.0000000+01:00</To>
+              </Afternoon>
+            </Thursday>
+            <Friday>
+              <Morning>
+                <From>13:05:00.0000000+01:00</From>
+                <To>12:05:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:05:00.0000000+01:00</From>
+                <To>17:05:00.0000000+01:00</To>
+              </Afternoon>
+            </Friday>
+            <Saturday xsi:nil="true" />
+            <Sunday xsi:nil="true" />
+          </OpeningHours>
+        </Sender>
+        <Receiver>
+          <BusinessPartnerNumber>2</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber>0001</ExternalBusinessPartnerNumber>
+          <Name1>Fantasy Cargo</Name1>
+          <Name2 />
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>CH</Matchcode>
+              <IsoAlpha2>CH</IsoAlpha2>
+              <IsoAlpha3>CHE</IsoAlpha3>
+              <IsoNumeric>756</IsoNumeric>
+            </Country>
+            <ZipCode>9016</ZipCode>
+            <City1>Sankt Gallen</City1>
+            <City2 />
+            <Street>Martinsbruggstrasse</Street>
+            <HouseNumber>1</HouseNumber>
+          </Address>
+          <GeoCoordinate>
+            <Longitude>9.405873</Longitude>
+            <Latitude>47.4367167</Latitude>
+          </GeoCoordinate>
+          <ContactPerson xsi:nil="true" />
+          <OpeningHours xsi:nil="true" />
+        </Receiver>
+        <Customer>
+          <BusinessPartnerNumber>1</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber>SOLOKEMPTEXT</ExternalBusinessPartnerNumber>
+          <Name1>SoloCargo Ltd.</Name1>
+          <Name2>SoloCargo(2)</Name2>
+          <Name3>SoloCargo(3)</Name3>
+          <Name4>SoloCargo(4)</Name4>
+          <Address>
+            <Country>
+              <Matchcode>D</Matchcode>
+              <IsoAlpha2>DE</IsoAlpha2>
+              <IsoAlpha3>DEU</IsoAlpha3>
+              <IsoNumeric>276</IsoNumeric>
+            </Country>
+            <ZipCode>87435</ZipCode>
+            <City1>Kempten (Allgäu)</City1>
+            <City2>Eich</City2>
+            <Street>Burgstrasse</Street>
+            <HouseNumber>18</HouseNumber>
+          </Address>
+          <GeoCoordinate>
+            <Longitude>10.317305</Longitude>
+            <Latitude>47.70368</Latitude>
+          </GeoCoordinate>
+          <StallageFreeTime>17</StallageFreeTime>
+          <ContactPerson>
+            <FirstName>Max</FirstName>
+            <LastName>Mustermann</LastName>
+            <TelephoneNumber>+49 831 57407 0</TelephoneNumber>
+            <MobilePhoneNumber />
+            <EmailAddress>info@soloplan.de</EmailAddress>
+            <Title>test</Title>
+            <Department>Service</Department>
+          </ContactPerson>
+          <OpeningHours>
+            <Monday>
+              <Morning>
+                <From>08:01:00.0000000+01:00</From>
+                <To>07:01:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:01:00.0000000+01:00</From>
+                <To>17:01:00.0000000+01:00</To>
+              </Afternoon>
+            </Monday>
+            <Tuesday>
+              <Morning>
+                <From>08:02:00.0000000+01:00</From>
+                <To>12:02:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:02:00.0000000+01:00</From>
+                <To>17:02:00.0000000+01:00</To>
+              </Afternoon>
+            </Tuesday>
+            <Wednesday>
+              <Morning>
+                <From>08:03:00.0000000+01:00</From>
+                <To>12:03:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:03:00.0000000+01:00</From>
+                <To>17:03:00.0000000+01:00</To>
+              </Afternoon>
+            </Wednesday>
+            <Thursday>
+              <Morning>
+                <From>08:04:00.0000000+01:00</From>
+                <To>12:04:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:04:00.0000000+01:00</From>
+                <To>17:04:00.0000000+01:00</To>
+              </Afternoon>
+            </Thursday>
+            <Friday>
+              <Morning>
+                <From>13:05:00.0000000+01:00</From>
+                <To>12:05:00.0000000+01:00</To>
+              </Morning>
+              <Afternoon>
+                <From>13:05:00.0000000+01:00</From>
+                <To>17:05:00.0000000+01:00</To>
+              </Afternoon>
+            </Friday>
+            <Saturday xsi:nil="true" />
+            <Sunday xsi:nil="true" />
+          </OpeningHours>
+        </Customer>
+        <FreightPayer xsi:nil="true" />
+        <DifferentLoadingPoint xsi:nil="true" />
+        <DifferentUnloadingPoint xsi:nil="true" />
+        <Restrictions>
+          <PlannedLoadingFrom>2015-02-28T08:06:00+01:00</PlannedLoadingFrom>
+          <PlannedLoadingUntil>2015-02-28T17:06:00+01:00</PlannedLoadingUntil>
+          <PlannedUnloadingFrom>2015-03-03T00:00:00+01:00</PlannedUnloadingFrom>
+          <PlannedUnloadingUntil>2015-03-03T00:00:00+01:00</PlannedUnloadingUntil>
+          <LoadingOrder>0</LoadingOrder>
+          <DeliveryOrder>0</DeliveryOrder>
+          <VehicleEquipment xsi:nil="true" />
+          <VehicleType xsi:nil="true" />
+          <TransportType xsi:nil="true" />
+        </Restrictions>
+        <FreightData>
+          <EffectiveWeight>0</EffectiveWeight>
+          <ChargeableWeight>0</ChargeableWeight>
+          <CarrierWeight>0</CarrierWeight>
+          <LoadingMeter>0</LoadingMeter>
+          <SquareMeter>0</SquareMeter>
+          <CubicMeter>0</CubicMeter>
+          <Quantity>0</Quantity>
+          <StoragePlaces>0</StoragePlaces>
+          <ContainerNumber />
+          <Compartments xsi:nil="true" />
+          <Kilometer>205</Kilometer>
+          <TollKilometer>205</TollKilometer>
+          <Incoterms />
+        </FreightData>
+        <Informations>
+          <SenderInformation1>Info1 zu GP1</SenderInformation1>
+          <SenderInformation2 />
+          <ReceiverInformation>gdgfg</ReceiverInformation>
+          <Informations xsi:nil="true" />
+          <ConsignmentInformations>
+            <Information>
+              <Number>11</Number>
+              <Value>0</Value>
+            </Information>
+          </ConsignmentInformations>
+        </Informations>
+        <FinancialAccountingData xsi:nil="true" />
+        <FloatFields>
+          <FloatField>
+            <Number>5</Number>
+            <Value>166.56</Value>
+          </FloatField>
+        </FloatFields>
+        <Items />
+      </TransportOrder>
+    </TransportOrders>
+    <Stops>
+      <Stop>
+        <Order>1</Order>
+        <StopType>Sender</StopType>
+        <TourStopId>256639913</TourStopId>
+        <TransportOrderNumber>741275</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>D</Matchcode>
+            <IsoAlpha2>DE</IsoAlpha2>
+            <IsoAlpha3>DEU</IsoAlpha3>
+            <IsoNumeric>276</IsoNumeric>
+          </Country>
+          <ZipCode>87435</ZipCode>
+          <City1>Kempten (Allgäu)</City1>
+          <City2>Eich</City2>
+          <Street>Burgstrasse</Street>
+          <HouseNumber>18</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>10.317305</Longitude>
+          <Latitude>47.70368</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Beladung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>SoloCargo Ltd.</Name1>
+        <Name2>SoloCargo(2)</Name2>
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+      </Stop>
+      <Stop>
+        <Order>2</Order>
+        <StopType>Receiver</StopType>
+        <TourStopId>256639914</TourStopId>
+        <TransportOrderNumber>741275</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>CH</Matchcode>
+            <IsoAlpha2>CH</IsoAlpha2>
+            <IsoAlpha3>CHE</IsoAlpha3>
+            <IsoNumeric>756</IsoNumeric>
+          </Country>
+          <ZipCode>9016</ZipCode>
+          <City1>Sankt Gallen</City1>
+          <City2 />
+          <Street>Martinsbruggstrasse</Street>
+          <HouseNumber>1</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>9.405873</Longitude>
+          <Latitude>47.4367167</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Lieferung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>Fantasy Cargo</Name1>
+        <Name2 />
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+      </Stop>
+    </Stops>
+  </TourData>
+</Tour>
