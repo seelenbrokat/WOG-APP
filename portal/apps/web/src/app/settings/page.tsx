@@ -106,10 +106,11 @@ export default function SettingsPage() {
         ignored?: number;
         pending?: number;
         cc529?: number;
+        ez92x?: number;
         unmatched?: number;
       }>('/customs/ezoll/process-inbound', { method: 'POST', body: '{}' });
       setEzollMsg(
-        `${result.ignored || 0} ignoriert, ${result.cc529 || 0} CC529→Soloplan, ${result.unmatched || 0} unmatched, ${result.pending || 0} offen.`,
+        `${result.ignored || 0} ignoriert, ${result.cc529 || 0} CC529, ${result.ez92x || 0} EZ922/923→Soloplan, ${result.unmatched || 0} unmatched, ${result.pending || 0} offen.`,
       );
     } catch (e: any) {
       setEzollErr(e?.message || 'Verarbeitung fehlgeschlagen');

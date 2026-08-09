@@ -3,7 +3,7 @@ export type EzollDocType =
   | 'CC529CC' // ABD / Ausfuhrbegleitdokument (PDF CC529CC, XML CC529C)
   | 'CC599CC' // IE599 Ausfuhranzeige
   | 'EZ922'
-  | 'EZ923I'
+  | 'EZ923' // XML EZ923 / PDF EZ923I
   | 'CCATBT02BC'
   | 'CCATBT12BC'
   | 'CCATBT52BC'
@@ -36,10 +36,23 @@ export type EzollCc529Fields = {
   eur1Number: string | null;
 };
 
+/** Aus EZ922/EZ923 extrahierte Felder (bestätigt). */
+export type EzollEz92xFields = {
+  msgTyp: 'EZ922' | 'EZ923';
+  /** CRN (Abgabenkonto/Zollreferenz) → Soloplan mRNATAPI. */
+  crn: string | null;
+  /** Summe DutyCalc EUSt (B00/5EV) → mWSTAT. */
+  mwstAt: number | null;
+  /** Summe DutyCalc Zoll (A00) → zollabgabenAT. */
+  zollabgabenAt: number | null;
+  /** TotItem → tarifnummerATAPI (Anzahl Positionen). */
+  totalItems: number | null;
+};
+
 const DOC_SUFFIXES: EzollDocType[] = [
   'CC529CC',
   'CC599CC',
-  'EZ923I',
+  'EZ923',
   'EZ922',
   'CCATBT52BC',
   'CCATBT12BC',
@@ -64,6 +77,13 @@ export function detectEzollDocType(fileName: string): EzollDocType {
   // XML AES: …_CC529C_9052 / MsgTyp CC529C → wie PDF CC529CC behandeln
   if (/(?:^|_)CC529C(?:_|$)/.test(base) || base.endsWith('CC529C')) {
     return 'CC529CC';
+  }
+  // PDF oft EZ923I, XML EZ923
+  if (/(?:^|_)EZ923I?(?:_|$)/.test(base) || base.endsWith('EZ923I') || base.endsWith('EZ923')) {
+    return 'EZ923';
+  }
+  if (/(?:^|_)EZ922(?:_|$)/.test(base) || base.endsWith('EZ922')) {
+    return 'EZ922';
   }
 
   for (const code of DOC_SUFFIXES) {
@@ -256,4 +276,65 @@ export function isCc529Xml(xml: string): boolean {
     /<messageType>\s*CC529C\s*<\/messageType>/i.test(raw) ||
     /<(?:\w+:)?CC529C[\s>]/i.test(raw)
   );
+}
+
+function xmlMsgTyp(xml: string): string | null {
+  return xmlTagText(xml, 'MsgTyp')?.toUpperCase() || null;
+}
+
+function parseXmlNumber(raw: string | null | undefined): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(String(raw).replace(',', '.').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * EZ922/EZ923:
+ * - CRN → mRNATAPI
+ * - DutyCalc Ty B00/5EV (EUSt) Summe → mWSTAT
+ * - DutyCalc Ty A00 (Zoll) Summe → zollabgabenAT
+ */
+export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null {
+  const raw = String(xml || '');
+  const typ = xmlMsgTyp(raw);
+  if (typ !== 'EZ922' && typ !== 'EZ923') return null;
+
+  const crn = xmlTagText(raw, 'CRN');
+  const totRaw = xmlTagText(raw, 'TotItem');
+  const tot = totRaw ? Number(totRaw) : NaN;
+  const totalItems = Number.isFinite(tot) && tot > 0 ? tot : null;
+
+  let mwst = 0;
+  let zoll = 0;
+  let sawMwst = false;
+  let sawZoll = false;
+  for (const block of raw.matchAll(/<DutyCalc>([\s\S]*?)<\/DutyCalc>/gi)) {
+    const ty = block[1].match(/<Ty>\s*([^<]+?)\s*<\/Ty>/i)?.[1]?.trim().toUpperCase();
+    const amnt = parseXmlNumber(block[1].match(/<Amnt>\s*([^<]*?)\s*<\/Amnt>/i)?.[1]);
+    if (amnt == null || !ty) continue;
+    if (ty === 'A00') {
+      zoll += amnt;
+      sawZoll = true;
+    } else if (ty === 'B00' || ty === '5EV') {
+      mwst += amnt;
+      sawMwst = true;
+    }
+  }
+
+  return {
+    msgTyp: typ,
+    crn,
+    mwstAt: sawMwst ? roundMoney(mwst) : null,
+    zollabgabenAt: sawZoll ? roundMoney(zoll) : null,
+    totalItems,
+  };
+}
+
+export function isEz92xXml(xml: string): boolean {
+  const typ = xmlMsgTyp(xml);
+  return typ === 'EZ922' || typ === 'EZ923';
 }

@@ -2,11 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { EzollCc529Fields, EzollSoloplanMatch } from '@wog/shared';
+import type {
+  EzollCc529Fields,
+  EzollEz92xFields,
+  EzollSoloplanMatch,
+} from '@wog/shared';
 
 /**
  * Schreibt OrderEzoll-v4 Consignment-Updates für Soloplan/CarLo (File-Pickup).
- * Zuordnung nur über Tour / Auftrag / Auftrag.Sendung – nie externalNumber / MRN.
+ * Zuordnung nur über Tour / Auftrag / Auftrag.Sendung – nie externalNumber / MRN/CRN.
  */
 @Injectable()
 export class EzollSoloplanService {
@@ -28,12 +32,8 @@ export class EzollSoloplanService {
 
   /**
    * CC529CC (ABD) →
-   * - Match: ordernumber + itemNumber (Auftrag.Sendungsnummer, z. B. 442397.1)
-   * - cC529C = true
-   * - mRNATAPI = BCP MRN (Schreibfeld, kein Match)
-   * - lRN = LRN [12 09]
-   * - tarifnummerATAPI = Total items (Anzahl Tarifpositionen)
-   * - eUR1_API = EUR.1-Nummer wenn Supporting document N954 vorhanden
+   * - Match: ordernumber + itemNumber
+   * - cC529C, mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
    */
   writeCc529FlagUpdate(
     match: EzollSoloplanMatch,
@@ -49,16 +49,7 @@ export class EzollSoloplanService {
       actionAttribute: 'update',
       cC529C: true,
     };
-
-    if (match.kind === 'orderConsignment') {
-      consignment.ordernumber = match.orderNumber;
-      consignment.itemNumber = match.consignmentIndex;
-    } else if (match.kind === 'order') {
-      consignment.ordernumber = match.orderNumber;
-      consignment.itemNumber = 1;
-    } else if (match.kind === 'tour') {
-      throw new Error('CC529-Update braucht Auftrag/Sendung, nicht nur Tour');
-    }
+    this.applyMatch(consignment, match, 'CC529');
 
     if (fields.mrn) consignment.mRNATAPI = fields.mrn;
     if (fields.lrn) consignment.lRN = fields.lrn;
@@ -67,17 +58,74 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
+    return this.writePayload('cc529', sourceFileName, consignment);
+  }
+
+  /**
+   * EZ922 / EZ923 →
+   * - Match: ordernumber + itemNumber (Dateiname)
+   * - eZ922 / eZ923 = true
+   * - CRN → mRNATAPI
+   * - DutyCalc EUSt → mWSTAT
+   * - DutyCalc Zoll → zollabgabenAT
+   * - TotItem → tarifnummerATAPI
+   */
+  writeEz92xUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollEz92xFields,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+    };
+    if (fields.msgTyp === 'EZ922') consignment.eZ922 = true;
+    else consignment.eZ923 = true;
+
+    this.applyMatch(consignment, match, fields.msgTyp);
+
+    if (fields.crn) consignment.mRNATAPI = fields.crn;
+    if (fields.mwstAt != null) consignment.mWSTAT = fields.mwstAt;
+    if (fields.zollabgabenAt != null) consignment.zollabgabenAT = fields.zollabgabenAt;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummerATAPI = fields.totalItems;
+    }
+
+    const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
+    return this.writePayload(prefix, sourceFileName, consignment);
+  }
+
+  private applyMatch(
+    consignment: Record<string, unknown>,
+    match: EzollSoloplanMatch,
+    label: string,
+  ) {
+    if (match.kind === 'orderConsignment') {
+      consignment.ordernumber = match.orderNumber;
+      consignment.itemNumber = match.consignmentIndex;
+    } else if (match.kind === 'order') {
+      consignment.ordernumber = match.orderNumber;
+      consignment.itemNumber = 1;
+    } else {
+      throw new Error(`${label}-Update braucht Auftrag/Sendung, nicht nur Tour`);
+    }
+  }
+
+  private writePayload(
+    kind: string,
+    sourceFileName: string,
+    consignment: Record<string, unknown>,
+  ): string {
     const payload = {
       header: {
         sendDate: new Date().toISOString(),
-        exportItemReference: `ezoll-cc529:${sourceFileName}`.slice(0, 120),
+        exportItemReference: `ezoll-${kind}:${sourceFileName}`.slice(0, 120),
       },
       consignment: [consignment],
     };
 
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
-    const fileName = `orderezoll-cc529-${stamp}-${safe}.json`;
+    const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
     const path = join(this.outDir, fileName);
     if (!existsSync(this.outDir)) mkdirSync(this.outDir, { recursive: true });
     writeFileSync(path, JSON.stringify(payload, null, 2));
@@ -87,7 +135,7 @@ export class EzollSoloplanService {
     } catch {
       /* ignore */
     }
-    this.log.log(`OrderEzoll CC529 → ${path}`);
+    this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
     return path;
   }
 }

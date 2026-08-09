@@ -137,5 +137,12 @@ export {
   extractCc529FieldsFromPdfText,
   extractCc529FieldsFromXml,
   isCc529Xml,
+  extractEz92xFieldsFromXml,
+  isEz92xXml,
 } from './ezoll-doc-types';
-export type { EzollDocType, EzollSoloplanMatch, EzollCc529Fields } from './ezoll-doc-types';
+export type {
+  EzollDocType,
+  EzollSoloplanMatch,
+  EzollCc529Fields,
+  EzollEz92xFields,
+} from './ezoll-doc-types';

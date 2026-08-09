@@ -100,9 +100,9 @@ async function bootstrap() {
         );
       }
       const ezoll = await ezollInbound.processInboundDir();
-      if (ezoll.ignored || ezoll.cc529 || ezoll.unmatched) {
+      if (ezoll.ignored || ezoll.cc529 || ezoll.ez92x || ezoll.unmatched) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen`,
+          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);
