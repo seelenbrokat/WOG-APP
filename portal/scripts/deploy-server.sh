@@ -205,9 +205,12 @@ mkdir -p data/uploads \
   data/sftp/inbound/intouch/dokumente \
   data/sftp/inbound/customer-documents \
   data/sftp/inbound/partner-orders \
-  data/sftp/inbound/ezoll \
-  data/sftp/inbound/ezoll/processed \
-  data/sftp/inbound/ezoll/failed \
+  data/sftp/inbound/Ezoll-Dokumente \
+  data/sftp/inbound/Ezoll-Dokumente/processed \
+  data/sftp/inbound/Ezoll-Dokumente/failed \
+  data/sftp/inbound/Mercurio-Dokumente \
+  data/sftp/inbound/Mercurio-Dokumente/processed \
+  data/sftp/inbound/Mercurio-Dokumente/failed \
   data/sftp/credentials \
   data/sftp/outbound/soloplan/orders \
   data/sftp/outbound/soloplan/telematics \
