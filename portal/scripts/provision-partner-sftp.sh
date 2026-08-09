@@ -50,13 +50,14 @@ chmod 775 "$DROP_DIR"
 chown "${USERNAME}:${USERNAME}" "$DROP_DIR/processed" "$DROP_DIR/failed"
 
 SSHD_MARK="# WOG Portal – Partner-Orders SFTP ($USERNAME)"
+DROP_CHROOT="/inbound/partner-orders/${USERNAME}"
 if ! grep -q "^Match User ${USERNAME}\$" /etc/ssh/sshd_config 2>/dev/null; then
   cat >> /etc/ssh/sshd_config <<EOF
 
 ${SSHD_MARK}
 Match User ${USERNAME}
     ChrootDirectory ${SFTP_ROOT}
-    ForceCommand internal-sftp
+    ForceCommand internal-sftp -d ${DROP_CHROOT}
     PasswordAuthentication yes
     AllowTcpForwarding no
     X11Forwarding no
@@ -65,6 +66,9 @@ EOF
   sshd -t
   systemctl reload ssh 2>/dev/null || systemctl reload sshd
 fi
+# Credentials-Verzeichnis nie für SFTP-User lesbar
+chmod 700 "${SFTP_ROOT}/credentials" 2>/dev/null || true
+chown root:root "${SFTP_ROOT}/credentials" 2>/dev/null || true
 
 echo "SFTP-User ${USERNAME} bereit"
 echo "  host: $(grep '^host=' "$CRED_FILE" | cut -d= -f2-)"
