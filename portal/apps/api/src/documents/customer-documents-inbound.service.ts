@@ -52,8 +52,8 @@ export class CustomerDocumentsInboundService {
   }
 
   /**
-   * eZoll-CC599-PDF als Kunden-Austrittsbestätigung ablegen,
-   * wenn Modul + Kategorie CUSTOMS_EXIT freigeschaltet sind.
+   * eZoll-CC599-PDF als Kunden-Austrittsbestätigung ablegen.
+   * Kunde = Soloplan-Frachtzahler (Sendung.customerId).
    */
   async tryPublishCustomsExitPdf(input: {
     organizationId: string;
@@ -61,7 +61,7 @@ export class CustomerDocumentsInboundService {
     consignmentIndex?: number;
     filePath: string;
     sourceFileName: string;
-  }): Promise<'ok' | 'skipped' | 'no_rights' | 'no_shipment'> {
+  }): Promise<'ok' | 'skipped' | 'no_rights' | 'no_shipment' | 'no_customer'> {
     const orderKey = String(input.orderNumber).trim();
     if (!orderKey || !existsSync(input.filePath)) return 'skipped';
 
@@ -70,8 +70,7 @@ export class CustomerDocumentsInboundService {
       orderKey,
       input.consignmentIndex,
     );
-    if (!shipment) return 'no_shipment';
-    if (!shipment.customerId) return 'no_shipment';
+    if (!shipment?.customerId) return 'no_shipment';
 
     const customer = await this.prisma.customer.findUnique({
       where: { id: shipment.customerId },
@@ -81,7 +80,8 @@ export class CustomerDocumentsInboundService {
         documentCategoryAccess: { where: { active: true }, select: { category: true } },
       },
     });
-    if (!customer?.documentsModuleEnabled) return 'no_rights';
+    if (!customer) return 'no_customer';
+    if (!customer.documentsModuleEnabled) return 'no_rights';
     const allowed = new Set(customer.documentCategoryAccess.map((a) => a.category));
     if (!allowed.has(CustomerDocCategory.CUSTOMS_EXIT)) return 'no_rights';
 
@@ -123,12 +123,12 @@ export class CustomerDocumentsInboundService {
     });
 
     this.log.log(
-      `eZoll Austritt → Kunden-Dokument Sendung ${shipment.trackingNumber} (${doc.id})`,
+      `eZoll Austritt → Kunden-Dokument Sendung ${shipment.trackingNumber} (Frachtzahler ${shipment.customerId}, ${doc.id})`,
     );
     return 'ok';
   }
 
-  private async findShipmentForSoloplanOrder(
+  async findShipmentForSoloplanOrder(
     organizationId: string,
     orderNumber: string,
     consignmentIndex?: number,
@@ -142,6 +142,8 @@ export class CustomerDocumentsInboundService {
         organizationId,
         OR: [
           { soloplanRef: { equals: orderNumber, mode: 'insensitive' } },
+          { reference: { equals: `WE-${orderNumber}`, mode: 'insensitive' } },
+          { reference: { equals: `EZOLL-${orderNumber}`, mode: 'insensitive' } },
           ...(dotted
             ? [{ soloplanRef: { equals: dotted, mode: 'insensitive' as const } }]
             : []),

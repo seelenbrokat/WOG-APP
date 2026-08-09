@@ -47,6 +47,8 @@ export class SoloplanService implements TransportIntegration {
   private sftpOutboundRoot: string;
   /** Soloplan Order-Pickup: sftp/outbound/soloplan/orders */
   private ordersOutDir: string;
+  /** Anfragen an Soloplan (z. B. WE nach Auftragsnummer) */
+  private requestsOutDir: string;
   /** Spiegel unter integrations/soloplan/orders/out */
   private integrationOrdersOutDir: string;
 
@@ -59,12 +61,57 @@ export class SoloplanService implements TransportIntegration {
     this.ordersOutDir =
       this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
       join(this.sftpOutboundRoot, 'soloplan', 'orders');
+    this.requestsOutDir =
+      this.config.get('SOLOPLAN_REQUESTS_OUT_DIR') ||
+      join(this.sftpOutboundRoot, 'soloplan', 'requests');
     const integrationBase =
       this.config.get('INTEGRATION_DIR') || join(process.cwd(), '../../data/integrations');
     this.integrationOrdersOutDir = join(integrationBase, 'soloplan', 'orders', 'out');
-    for (const dir of [this.sftpOutboundRoot, this.ordersOutDir, this.integrationOrdersOutDir]) {
+    for (const dir of [
+      this.sftpOutboundRoot,
+      this.ordersOutDir,
+      this.requestsOutDir,
+      this.integrationOrdersOutDir,
+    ]) {
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     }
+  }
+
+  /**
+   * Soloplan soll den Wareneingang/Order zu einer Auftragsnummer nachliefern
+   * (File-Pickup unter outbound/soloplan/requests/).
+   * Kunde im Portal = Frachtzahler aus dem WE.
+   */
+  requestWareneingangByOrderNumber(input: {
+    orderNumber: number | string;
+    consignmentIndex?: number;
+    reason?: string;
+  }): string {
+    const orderNumber = String(input.orderNumber).trim();
+    if (!orderNumber) throw new Error('orderNumber fehlt');
+    if (!existsSync(this.requestsOutDir)) mkdirSync(this.requestsOutDir, { recursive: true });
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `we-request-${orderNumber}-${stamp}.json`;
+    const path = join(this.requestsOutDir, fileName);
+    const payload = {
+      action: 'requestWareneingang',
+      orderNumber: Number(orderNumber) || orderNumber,
+      consignmentIndex: input.consignmentIndex ?? 1,
+      reason: input.reason || 'Portal-Sendung fehlt (z. B. CC599 Austrittsbestätigung)',
+      requestedAt: new Date().toISOString(),
+      source: 'wog-portal-ezoll',
+      note: 'Bitte Wareneingang-/Order-File mit Frachtzahler (BusinessPartner) an inbound/wareneingang senden.',
+    };
+    writeFileSync(path, JSON.stringify(payload, null, 2));
+    try {
+      chmodSync(this.requestsOutDir, 0o775);
+      chmodSync(path, 0o664);
+    } catch {
+      /* ignore */
+    }
+    this.logger.log(`Soloplan WE-Request Order ${orderNumber} → ${path}`);
+    return path;
   }
 
   status() {

@@ -1,8 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from 'fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+} from 'fs';
 import { basename, join } from 'path';
+import { SoloplanService } from '../integrations/soloplan.service';
 import {
   detectEzollDocType,
   extractCc029FieldsFromXml,
@@ -27,6 +35,7 @@ import { CustomerDocumentsInboundService } from '../documents/customer-documents
 import { EzollSoloplanService } from './ezoll-soloplan.service';
 import { EzollTourCacheService } from './ezoll-tour-cache.service';
 import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
+import { EzollFreightPayerService } from './ezoll-freight-payer.service';
 
 /**
  * eZoll-Inbound (PDF + XML):
@@ -49,7 +58,9 @@ export class EzollInboundService {
     private ezollSoloplan: EzollSoloplanService,
     private tourCache: EzollTourCacheService,
     private consignmentCache: EzollConsignmentCacheService,
+    private freightPayer: EzollFreightPayerService,
     private customerDocs: CustomerDocumentsInboundService,
+    private soloplan: SoloplanService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -62,6 +73,7 @@ export class EzollInboundService {
       join(this.inboundRoot, 'processed', 'ez92x'),
       join(this.inboundRoot, 'processed', 'cc029'),
       join(this.inboundRoot, 'processed', 'cc599'),
+      join(this.inboundRoot, 'pending-customer-exit'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
     ]) {
@@ -132,6 +144,7 @@ export class EzollInboundService {
       cc599 = d.processed;
       customerExit = d.customerExit;
       unmatched += d.unmatched;
+      customerExit += await this.retryPendingCustomerExit(orgId, 40);
     }
 
     const pending = this.listPendingFiles().length;
@@ -460,7 +473,7 @@ export class EzollInboundService {
         });
 
         if (!isXml) {
-          const pub = await this.customerDocs.tryPublishCustomsExitPdf({
+          const pub = await this.publishExitPdfForFreightPayer({
             organizationId,
             orderNumber,
             consignmentIndex,
@@ -468,15 +481,6 @@ export class EzollInboundService {
             sourceFileName: fileName,
           });
           if (pub === 'ok') customerExit += 1;
-          else if (pub === 'no_rights') {
-            this.log.log(
-              `CC599 ${this.matchLabel(match)}: Kunden-PDF übersprungen (keine CUSTOMS_EXIT-Rechte)`,
-            );
-          } else if (pub === 'no_shipment') {
-            this.log.log(
-              `CC599 ${this.matchLabel(match)}: Kunden-PDF übersprungen (keine Portal-Sendung)`,
-            );
-          }
         }
 
         this.move(
@@ -497,6 +501,179 @@ export class EzollInboundService {
       }
     }
     return { processed, unmatched, customerExit };
+  }
+
+  /**
+   * Kunden-PDF: Kunde = Frachtzahler.
+   * 1) vorhandene Sendung
+   * 2) sonst Frachtzahler aus Tour → Doc-Carrier-Sendung
+   * 3) sonst Soloplan WE-Request + PDF in pending-customer-exit parken
+   */
+  private async publishExitPdfForFreightPayer(input: {
+    organizationId: string;
+    orderNumber: number;
+    consignmentIndex: number;
+    filePath: string;
+    sourceFileName: string;
+  }): Promise<'ok' | 'pending' | 'no_rights' | 'skipped'> {
+    const label = `${input.orderNumber}.${input.consignmentIndex}`;
+
+    let shipment = await this.customerDocs.findShipmentForSoloplanOrder(
+      input.organizationId,
+      String(input.orderNumber),
+      input.consignmentIndex,
+    );
+
+    if (!shipment?.customerId) {
+      const fp = await this.freightPayer.resolveFreightPayerCustomer(
+        input.organizationId,
+        input.orderNumber,
+      );
+      if (fp) {
+        const ensured = await this.freightPayer.ensureShipmentForOrder({
+          organizationId: input.organizationId,
+          orderNumber: input.orderNumber,
+          customerId: fp.customerId,
+        });
+        if (ensured) {
+          shipment = {
+            id: ensured.id,
+            trackingNumber: ensured.trackingNumber,
+            organizationId: input.organizationId,
+            customerId: ensured.customerId,
+          };
+          this.log.log(
+            `CC599 ${label}: Frachtzahler-BP ${fp.bpNumber} → Sendung ${ensured.trackingNumber}${ensured.created ? ' (neu)' : ''}`,
+          );
+        }
+      }
+    }
+
+    if (!shipment?.customerId) {
+      // Soloplan soll WE (mit Frachtzahler) nachliefern
+      try {
+        this.soloplan.requestWareneingangByOrderNumber({
+          orderNumber: input.orderNumber,
+          consignmentIndex: input.consignmentIndex,
+          reason: `CC599 Austrittsbestätigung ${input.sourceFileName} – keine Portal-Sendung/Frachtzahler`,
+        });
+      } catch (e: any) {
+        this.log.warn(`CC599 ${label}: WE-Request fehlgeschlagen: ${e?.message || e}`);
+      }
+      this.parkPendingCustomerExit(input.orderNumber, input.consignmentIndex, input.filePath, input.sourceFileName);
+      this.log.log(
+        `CC599 ${label}: Kunden-PDF geparkt + WE bei Soloplan angefordert (Frachtzahler unbekannt)`,
+      );
+      return 'pending';
+    }
+
+    const pub = await this.customerDocs.tryPublishCustomsExitPdf({
+      organizationId: input.organizationId,
+      orderNumber: input.orderNumber,
+      consignmentIndex: input.consignmentIndex,
+      filePath: input.filePath,
+      sourceFileName: input.sourceFileName,
+    });
+    if (pub === 'ok') return 'ok';
+    if (pub === 'no_rights') {
+      this.log.log(`CC599 ${label}: Kunden-PDF übersprungen (keine CUSTOMS_EXIT-Rechte für Frachtzahler)`);
+      return 'no_rights';
+    }
+    if (pub === 'skipped') return 'skipped';
+
+    // Sendung war da, Publish trotzdem fehlgeschlagen → parken + WE nachfordern
+    try {
+      this.soloplan.requestWareneingangByOrderNumber({
+        orderNumber: input.orderNumber,
+        consignmentIndex: input.consignmentIndex,
+        reason: `CC599 ${input.sourceFileName} – Publish fehlgeschlagen (${pub})`,
+      });
+    } catch {
+      /* ignore */
+    }
+    this.parkPendingCustomerExit(input.orderNumber, input.consignmentIndex, input.filePath, input.sourceFileName);
+    return 'pending';
+  }
+
+  private parkPendingCustomerExit(
+    orderNumber: number,
+    consignmentIndex: number,
+    filePath: string,
+    sourceFileName: string,
+  ) {
+    const dir = join(this.inboundRoot, 'pending-customer-exit');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
+    const dest = join(
+      dir,
+      `${orderNumber}.${consignmentIndex}__CUSTOMS_EXIT__${Date.now()}_${safe}`,
+    );
+    try {
+      copyFileSync(filePath, dest);
+    } catch (e: any) {
+      this.log.warn(`pending-customer-exit kopieren fehlgeschlagen: ${e?.message || e}`);
+    }
+  }
+
+  /** Nach WE-Import / Doc-Carrier: geparkte Austritts-PDFs erneut zuordnen. */
+  private async retryPendingCustomerExit(organizationId: string, limit: number): Promise<number> {
+    const dir = join(this.inboundRoot, 'pending-customer-exit');
+    if (!existsSync(dir)) return 0;
+    let ok = 0;
+    const files = readdirSync(dir)
+      .filter((f) => /\.pdf$/i.test(f))
+      .sort()
+      .slice(0, limit);
+    for (const name of files) {
+      const m = name.match(/^(\d{5,7})\.(\d{1,3})__CUSTOMS_EXIT__/);
+      if (!m) continue;
+      const orderNumber = Number(m[1]);
+      const consignmentIndex = Number(m[2]);
+      const filePath = join(dir, name);
+      try {
+        // Erst Frachtzahler aus Tour versuchen (falls WE noch fehlt)
+        let shipment = await this.customerDocs.findShipmentForSoloplanOrder(
+          organizationId,
+          String(orderNumber),
+          consignmentIndex,
+        );
+        if (!shipment?.customerId) {
+          const fp = await this.freightPayer.resolveFreightPayerCustomer(
+            organizationId,
+            orderNumber,
+          );
+          if (fp) {
+            await this.freightPayer.ensureShipmentForOrder({
+              organizationId,
+              orderNumber,
+              customerId: fp.customerId,
+            });
+          }
+        }
+        shipment = await this.customerDocs.findShipmentForSoloplanOrder(
+          organizationId,
+          String(orderNumber),
+          consignmentIndex,
+        );
+        if (!shipment?.customerId) continue;
+
+        const pub = await this.customerDocs.tryPublishCustomsExitPdf({
+          organizationId,
+          orderNumber,
+          consignmentIndex,
+          filePath,
+          sourceFileName: name,
+        });
+        if (pub === 'ok' || pub === 'skipped' || pub === 'no_rights') {
+          this.move(filePath, join(this.inboundRoot, 'processed', 'cc599', `${Date.now()}_pending_${name}`));
+          if (pub === 'ok') ok += 1;
+          this.log.log(`CC599 Pending ${orderNumber}.${consignmentIndex}: ${pub}`);
+        }
+      } catch (e: any) {
+        this.log.warn(`CC599 Pending ${name}: ${e?.message || e}`);
+      }
+    }
+    return ok;
   }
 
   private async markAusfuhr(
@@ -619,7 +796,7 @@ export class EzollInboundService {
 
   private listPendingFiles(): string[] {
     if (!existsSync(this.inboundRoot)) return [];
-    const skip = new Set(['processed', 'failed', '.cache']);
+    const skip = new Set(['processed', 'failed', 'pending-customer-exit', '.cache']);
     const out: string[] = [];
     for (const entry of readdirSync(this.inboundRoot, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
