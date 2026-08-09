@@ -39,8 +39,10 @@ export type EzollCc529Fields = {
 /** Aus EZ922/EZ923 extrahierte Felder (bestätigt). */
 export type EzollEz92xFields = {
   msgTyp: 'EZ922' | 'EZ923';
-  /** CRN (Abgabenkonto/Zollreferenz) → Soloplan mRNATAPI. */
+  /** CRN (Zollreferenz) → Soloplan mRNATAPI. */
   crn: string | null;
+  /** DefPayRef (Abgaben-/Aufschubkonto) → Soloplan aufschubkonto. */
+  abgabenkonto: string | null;
   /** Summe DutyCalc EUSt (B00/5EV) → mWSTAT. */
   mwstAt: number | null;
   /** Summe DutyCalc Zoll (A00) → zollabgabenAT. */
@@ -295,6 +297,7 @@ function roundMoney(n: number): number {
 /**
  * EZ922/EZ923:
  * - CRN → mRNATAPI
+ * - DefPayRef (Abgabenkonto) → aufschubkonto
  * - DutyCalc Ty B00/5EV (EUSt) Summe → mWSTAT
  * - DutyCalc Ty A00 (Zoll) Summe → zollabgabenAT
  */
@@ -304,6 +307,7 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
   if (typ !== 'EZ922' && typ !== 'EZ923') return null;
 
   const crn = xmlTagText(raw, 'CRN');
+  const abgabenkonto = xmlTagText(raw, 'DefPayRef');
   const totRaw = xmlTagText(raw, 'TotItem');
   const tot = totRaw ? Number(totRaw) : NaN;
   const totalItems = Number.isFinite(tot) && tot > 0 ? tot : null;
@@ -328,6 +332,7 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
   return {
     msgTyp: typ,
     crn,
+    abgabenkonto,
     mwstAt: sawMwst ? roundMoney(mwst) : null,
     zollabgabenAt: sawZoll ? roundMoney(zoll) : null,
     totalItems,

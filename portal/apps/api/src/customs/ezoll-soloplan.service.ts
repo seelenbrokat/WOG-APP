@@ -66,6 +66,7 @@ export class EzollSoloplanService {
    * - Match: ordernumber + itemNumber (Dateiname)
    * - eZ922 / eZ923 = true
    * - CRN → mRNATAPI
+   * - DefPayRef (Abgabenkonto) → aufschubkonto
    * - DutyCalc EUSt → mWSTAT
    * - DutyCalc Zoll → zollabgabenAT
    * - TotItem → tarifnummerATAPI
@@ -84,6 +85,7 @@ export class EzollSoloplanService {
     this.applyMatch(consignment, match, fields.msgTyp);
 
     if (fields.crn) consignment.mRNATAPI = fields.crn;
+    if (fields.abgabenkonto) consignment.aufschubkonto = fields.abgabenkonto;
     if (fields.mwstAt != null) consignment.mWSTAT = fields.mwstAt;
     if (fields.zollabgabenAt != null) consignment.zollabgabenAT = fields.zollabgabenAt;
     if (fields.totalItems != null && fields.totalItems > 0) {

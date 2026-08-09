@@ -211,7 +211,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `${fields.msgTyp} ${this.matchLabel(match)} CRN/mRNATAPI=${fields.crn || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} ← ${fileName}`,
+          `${fields.msgTyp} ${this.matchLabel(match)} CRN=${fields.crn || '-'} Konto=${fields.abgabenkonto || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
