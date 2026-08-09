@@ -33,31 +33,30 @@ export class EzollInboundService {
     }
   }
 
-  async processInboundDir(organizationId?: string, limit = 80) {
+  async processInboundDir(organizationId?: string) {
     const orgId = organizationId || (await this.resolveDefaultOrganizationId());
     if (!orgId) {
       return { ignored: 0, pending: 0, prefixes: [] as string[] };
     }
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
-    const files = this.listPendingFiles().slice(0, limit);
+    // Ignore immer über den kompletten Drop – sonst bleiben spätere Präfixe
+    // (z. B. 671.*) hinter einem Batch-Limit stecken.
+    const files = this.listPendingFiles();
     let ignored = 0;
-    let pending = 0;
 
     for (const filePath of files) {
       const fileName = basename(filePath);
-      if (matchesFilenameIgnorePrefix(fileName, prefixes)) {
-        this.move(
-          filePath,
-          join(this.inboundRoot, 'processed', 'ignored', `${Date.now()}_${fileName}`),
-        );
-        ignored += 1;
-        this.log.log(`eZoll ignoriert (${prefixes.join(', ')}): ${fileName}`);
-      } else {
-        pending += 1;
-      }
+      if (!matchesFilenameIgnorePrefix(fileName, prefixes)) continue;
+      this.move(
+        filePath,
+        join(this.inboundRoot, 'processed', 'ignored', `${Date.now()}_${fileName}`),
+      );
+      ignored += 1;
+      this.log.log(`eZoll ignoriert (${prefixes.join(', ')}): ${fileName}`);
     }
 
+    const pending = this.listPendingFiles().length;
     return { ignored, pending, prefixes };
   }
 
