@@ -179,13 +179,15 @@ export function extractTotalItemsFromPdfText(text: string): number | null {
 
 /**
  * EUR.1-Nummer aus Supporting document [12 03], Code N954.
- * Beispiele: „2 N954 X 2316731“, „N954 X 613179“ → „2316731“ / „613179“.
- * X = Statuscode, die Ziffern danach sind die Zertifikatsnummer.
+ * Beispiele: „2 N954 X 2316731“, „N954 X 613179“ → „X 2316731“ / „X 613179“.
+ * Das führende X gehört zur EUR.1-Nummer (kein Statuscode).
  */
 export function extractEur1NumberFromPdfText(text: string): string | null {
   const raw = String(text || '');
-  const hit = raw.match(/\bN954\b(?:\s+[A-Z])?\s+(\d{5,12})\b/i);
-  return hit ? hit[1] : null;
+  const withLetter = raw.match(/\bN954\b\s+([A-Z]\s+\d{5,12})\b/i);
+  if (withLetter) return withLetter[1].replace(/\s+/g, ' ').trim().toUpperCase();
+  const digitsOnly = raw.match(/\bN954\b\s+(\d{5,12})\b/i);
+  return digitsOnly ? digitsOnly[1] : null;
 }
 
 /** Alle CC529-Felder aus ABD-PDF-Text. */
