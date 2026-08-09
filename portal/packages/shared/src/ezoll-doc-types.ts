@@ -1,6 +1,6 @@
-/** eZoll-/ACCS-PDF-Suffix → fachlicher Typ. */
+/** eZoll-/ACCS-Dokumenttyp (PDF-Suffix oder XML MsgTyp). */
 export type EzollDocType =
-  | 'CC529CC' // ABD / Ausfuhrbegleitdokument
+  | 'CC529CC' // ABD / Ausfuhrbegleitdokument (PDF CC529CC, XML CC529C)
   | 'CC599CC' // IE599 Ausfuhranzeige
   | 'EZ922'
   | 'EZ923I'
@@ -19,19 +19,19 @@ export type EzollSoloplanMatch =
   | { kind: 'order'; orderNumber: number }
   | { kind: 'tour'; tourNumber: number };
 
-/** Aus CC529CC/ABD extrahierte Felder für OrderEzoll-Update. */
+/** Aus CC529C(C) extrahierte Felder für OrderEzoll-Update (bestätigt). */
 export type EzollCc529Fields = {
   /** BCP MRN → Soloplan mRNATAPI (kein Match). */
   mrn: string | null;
-  /** LRN [12 09] → Soloplan lRN (z. B. 442397.1/C TEAM/POR). */
+  /** LRN → Soloplan lRN (z. B. 442397.1/C TEAM/POR). */
   lrn: string | null;
   /**
-   * Total items = Anzahl Tarifpositionen → Soloplan tarifnummerATAPI (Integer).
+   * Anzahl Tarifpositionen (PDF Total items / XML GoodsItem) → tarifnummerATAPI.
    */
   totalItems: number | null;
   /**
    * EUR.1-Nummer aus Supporting document N954 → Soloplan eUR1_API.
-   * Nur setzen, wenn N954 vorhanden (nicht bei N864-Ursprungserklärung).
+   * Inkl. führendem X (z. B. „X 613179“). Nicht bei N864.
    */
   eur1Number: string | null;
 };
@@ -47,31 +47,40 @@ const DOC_SUFFIXES: EzollDocType[] = [
   'CC029CC',
 ];
 
+function fileBaseName(fileName: string): string {
+  return (
+    String(fileName || '')
+      .split(/[/\\]/)
+      .pop()
+      ?.replace(/\.(pdf|xml)$/i, '')
+      .trim() || ''
+  );
+}
+
 export function detectEzollDocType(fileName: string): EzollDocType {
-  const base = String(fileName || '')
-    .split(/[/\\]/)
-    .pop()
-    ?.replace(/\.pdf$/i, '')
-    .trim()
-    .toUpperCase() || '';
+  const base = fileBaseName(fileName).toUpperCase();
+  if (!base) return 'UNKNOWN';
+
+  // XML AES: …_CC529C_9052 / MsgTyp CC529C → wie PDF CC529CC behandeln
+  if (/(?:^|_)CC529C(?:_|$)/.test(base) || base.endsWith('CC529C')) {
+    return 'CC529CC';
+  }
+
   for (const code of DOC_SUFFIXES) {
     if (base.endsWith(`_${code}`) || base.endsWith(code)) return code;
+    if (new RegExp(`(?:^|_)${code}(?:_|$)`).test(base)) return code;
   }
   return 'UNKNOWN';
 }
 
 /**
  * Soloplan-Keys nur aus Dateiname:
- * - 442397.1_… → Auftrag + Sendung (Auftrag.Sendungsnummer)
+ * - 442397.1_… / 442339.1-… → Auftrag + Sendung
  * - 185325_… → Auftrag (5–7 Ziffern)
  * Keine Kundenkürzel / externe Texte / MRN.
  */
 export function parseSoloplanMatchFromFilename(fileName: string): EzollSoloplanMatch | null {
-  const base = String(fileName || '')
-    .split(/[/\\]/)
-    .pop()
-    ?.replace(/\.pdf$/i, '')
-    .trim() || '';
+  const base = fileBaseName(fileName);
   if (!base) return null;
 
   // Timestamp-Prefix von processed/-Dateien entfernen: 1786307468677_442397.1_…
@@ -105,10 +114,19 @@ export function parseSoloplanMatchFromLrn(lrn: string): EzollSoloplanMatch | nul
   };
 }
 
+/** Match-Key für Dedup XML/PDF, z. B. „442339.1“. */
+export function soloplanMatchKey(match: EzollSoloplanMatch | null): string | null {
+  if (!match) return null;
+  if (match.kind === 'orderConsignment') {
+    return `${match.orderNumber}.${match.consignmentIndex}`;
+  }
+  if (match.kind === 'order') return String(match.orderNumber);
+  return `tour:${match.tourNumber}`;
+}
+
 /** MRN aus PDF-Text (AT-typisch 18 Zeichen 26AT…), Leerzeichen entfernt. */
 export function extractMrnFromPdfText(text: string): string | null {
   const raw = String(text || '');
-  // Mit Leerzeichen im PDF: 26AT 920000 C6 HPBWA3
   const spaced = raw.match(/\b26AT(?:\s*[0-9A-Z]){14}\b/i);
   if (spaced) {
     const compact = spaced[0].replace(/\s+/g, '').toUpperCase();
@@ -141,7 +159,6 @@ export function extractLrnFromPdfText(text: string): string | null {
 export function extractTotalItemsFromPdfText(text: string): number | null {
   const raw = String(text || '');
 
-  // Layout: Total items … Total packages … \n 1  3  1.065,…
   const layout = raw.match(
     /Total\s+items\s+Total\s+packages[\s\S]{0,200}?\n[^\d\n]*(\d{1,3})\s+(\d{1,5})\b/i,
   );
@@ -150,11 +167,9 @@ export function extractTotalItemsFromPdfText(text: string): number | null {
     if (Number.isFinite(n) && n > 0 && n < 10_000) return n;
   }
 
-  // Raw/zeilenweise: Total items \n Total packages \n 1 \n 3
   const lines = raw.split(/\r?\n/).map((l) => l.trim());
   for (let i = 0; i < lines.length; i++) {
     if (!/^Total\s+items$/i.test(lines[i])) continue;
-    // nächste reine Zahl nach optionalem „Total packages“
     for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
       if (/^Total\s+packages$/i.test(lines[j])) continue;
       if (/^\d{1,3}$/.test(lines[j])) {
@@ -165,7 +180,6 @@ export function extractTotalItemsFromPdfText(text: string): number | null {
     }
   }
 
-  // Kompakt (pypdf): „EX A\n 1  3  1.065,370000 0\n442397.1/…“
   const compact = raw.match(
     /\bEX\b[\s\S]{0,40}?\b(\d{1,3})\s+(\d{1,5})\s+[\d.]+[.,]\d+/i,
   );
@@ -179,8 +193,7 @@ export function extractTotalItemsFromPdfText(text: string): number | null {
 
 /**
  * EUR.1-Nummer aus Supporting document [12 03], Code N954.
- * Beispiele: „2 N954 X 2316731“, „N954 X 613179“ → „X 2316731“ / „X 613179“.
- * Das führende X gehört zur EUR.1-Nummer (kein Statuscode).
+ * Beispiele: „2 N954 X 2316731“ → „X 2316731“.
  */
 export function extractEur1NumberFromPdfText(text: string): string | null {
   const raw = String(text || '');
@@ -198,4 +211,49 @@ export function extractCc529FieldsFromPdfText(text: string): EzollCc529Fields {
     totalItems: extractTotalItemsFromPdfText(text),
     eur1Number: extractEur1NumberFromPdfText(text),
   };
+}
+
+function xmlTagText(xml: string, tag: string): string | null {
+  const m = String(xml || '').match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'));
+  const v = m?.[1]?.trim();
+  return v || null;
+}
+
+/**
+ * Bestätigte CC529C-Felder aus eZoll/AES-XML (MsgTyp CC529C).
+ * Weitere Felder bewusst noch nicht – Mapping folgt separat.
+ */
+export function extractCc529FieldsFromXml(xml: string): EzollCc529Fields {
+  const raw = String(xml || '');
+  const mrn = xmlTagText(raw, 'MRN');
+  const lrn = xmlTagText(raw, 'LRN');
+
+  const itemNums = [
+    ...raw.matchAll(/<declarationGoodsItemNumber>(\d+)<\/declarationGoodsItemNumber>/gi),
+  ].map((m) => m[1]);
+  const uniqueItems = new Set(itemNums);
+  const totalItems = uniqueItems.size > 0 ? uniqueItems.size : null;
+
+  let eur1Number: string | null = null;
+  for (const block of raw.matchAll(/<SupportingDocument>([\s\S]*?)<\/SupportingDocument>/gi)) {
+    const type = block[1].match(/<type>\s*([^<]+?)\s*<\/type>/i)?.[1]?.trim().toUpperCase();
+    if (type !== 'N954') continue;
+    const ref = block[1].match(/<referenceNumber>\s*([^<]*?)\s*<\/referenceNumber>/i)?.[1]?.trim();
+    if (ref) {
+      eur1Number = ref.replace(/\s+/g, ' ').toUpperCase();
+      break;
+    }
+  }
+
+  return { mrn, lrn, totalItems, eur1Number };
+}
+
+/** true, wenn XML ein CC529C-AES-Message ist. */
+export function isCc529Xml(xml: string): boolean {
+  const raw = String(xml || '');
+  return (
+    /<MsgTyp>\s*CC529C\s*<\/MsgTyp>/i.test(raw) ||
+    /<messageType>\s*CC529C\s*<\/messageType>/i.test(raw) ||
+    /<(?:\w+:)?CC529C[\s>]/i.test(raw)
+  );
 }

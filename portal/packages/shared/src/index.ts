@@ -129,10 +129,13 @@ export {
   detectEzollDocType,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
+  soloplanMatchKey,
   extractMrnFromPdfText,
   extractLrnFromPdfText,
   extractTotalItemsFromPdfText,
   extractEur1NumberFromPdfText,
   extractCc529FieldsFromPdfText,
+  extractCc529FieldsFromXml,
+  isCc529Xml,
 } from './ezoll-doc-types';
 export type { EzollDocType, EzollSoloplanMatch, EzollCc529Fields } from './ezoll-doc-types';

@@ -1,14 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, readdirSync, renameSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from 'fs';
 import { basename, join } from 'path';
 import {
   detectEzollDocType,
   extractCc529FieldsFromPdfText,
+  extractCc529FieldsFromXml,
+  isCc529Xml,
   matchesFilenameIgnorePrefix,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
+  soloplanMatchKey,
   type EzollCc529Fields,
   type EzollSoloplanMatch,
 } from '@wog/shared';
@@ -17,10 +20,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
 
 /**
- * eZoll-PDF-Inbound:
+ * eZoll-Inbound (PDF + XML):
  * 1) Ignore-Muster → processed/ignored/
- * 2) CC529CC → OrderEzoll (cC529C, mRNATAPI, lRN, tarifnummerATAPI)
- *    Match nur über Auftrag.Sendungsnummer (Dateiname / LRN-Prefix) – nie MRN.
+ * 2) CC529C(C) → OrderEzoll (nur bestätigte Felder)
+ *    Primär XML, PDF als Fallback wenn kein XML zur Sendung.
+ *    Match nur über Auftrag.Sendungsnummer – nie MRN.
  */
 @Injectable()
 export class EzollInboundService {
@@ -89,15 +93,44 @@ export class EzollInboundService {
   private processCc529Batch(limit: number) {
     let processed = 0;
     let unmatched = 0;
-    const files = this.listPendingFiles()
-      .filter((p) => detectEzollDocType(basename(p)) === 'CC529CC')
-      .slice(0, limit);
+    const pending = this.listPendingFiles().filter(
+      (p) => detectEzollDocType(basename(p)) === 'CC529CC',
+    );
 
-    for (const filePath of files) {
+    // XML zuerst; PDF nur wenn keine XML zur gleichen Sendung in diesem Batch
+    const xmlFiles = pending.filter((p) => /\.xml$/i.test(p));
+    const pdfFiles = pending.filter((p) => /\.pdf$/i.test(p));
+    const xmlKeys = new Set<string>();
+    for (const p of xmlFiles) {
+      const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+      if (key) xmlKeys.add(key);
+    }
+
+    const queue = [
+      ...xmlFiles,
+      ...pdfFiles.filter((p) => {
+        const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+        return !key || !xmlKeys.has(key);
+      }),
+    ].slice(0, limit);
+
+    for (const filePath of queue) {
       const fileName = basename(filePath);
+      const isXml = /\.xml$/i.test(fileName);
       try {
-        const text = this.pdfText(filePath);
-        const fields = extractCc529FieldsFromPdfText(text);
+        const fields = isXml
+          ? this.fieldsFromXml(filePath, fileName)
+          : extractCc529FieldsFromPdfText(this.pdfText(filePath));
+        if (!fields) {
+          unmatched += 1;
+          this.move(
+            filePath,
+            join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+          );
+          this.log.warn(`CC529 kein gültiges CC529C: ${fileName}`);
+          continue;
+        }
+
         const match = this.resolveMatch(fileName, fields);
         if (!match || match.kind === 'tour') {
           unmatched += 1;
@@ -115,7 +148,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC529 ${this.matchLabel(match)} mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
+          `CC529 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -129,9 +162,20 @@ export class EzollInboundService {
     return { processed, unmatched };
   }
 
+  private fieldsFromXml(filePath: string, fileName: string): EzollCc529Fields | null {
+    const xml = readFileSync(filePath, 'utf8');
+    if (!isCc529Xml(xml) && detectEzollDocType(fileName) !== 'CC529CC') {
+      return null;
+    }
+    if (!isCc529Xml(xml)) {
+      this.log.warn(`XML ohne CC529C-MsgTyp, Dateiname sagt CC529: ${fileName}`);
+    }
+    return extractCc529FieldsFromXml(xml);
+  }
+
   /**
    * Match-Priorität:
-   * 1) Dateiname Sendungsnummer (442397.1_…)
+   * 1) Dateiname Sendungsnummer (442397.1_… / 442339.1-…)
    * 2) LRN-Prefix (442397.1/…)
    * MRN nie als Match.
    */
@@ -195,7 +239,7 @@ export class EzollInboundService {
       if (!entry.isFile()) continue;
       if (skip.has(entry.name)) continue;
       if (entry.name === 'README.txt') continue;
-      if (!/\.pdf$/i.test(entry.name)) continue;
+      if (!/\.(pdf|xml)$/i.test(entry.name)) continue;
       out.push(join(this.inboundRoot, entry.name));
     }
     return out.sort((a, b) => a.localeCompare(b));
