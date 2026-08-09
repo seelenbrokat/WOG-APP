@@ -17,6 +17,7 @@ import { Response } from 'express';
 import { UserRole } from '@prisma/client';
 import { IsBooleanString, IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 import { CustomsService } from './customs.service';
+import { EzollInboundService } from './ezoll-inbound.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
@@ -186,12 +187,22 @@ const createUpload = FileFieldsInterceptor(
 @Controller('customs')
 @UseGuards(RolesGuard)
 export class CustomsController {
-  constructor(private service: CustomsService) {}
+  constructor(
+    private service: CustomsService,
+    private ezollInbound: EzollInboundService,
+  ) {}
 
   @Get()
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   list(@CurrentUser() user: AuthUser) {
     return this.service.list(user);
+  }
+
+  /** eZoll-Drop: Ignore-Präfixe anwenden (Admin). */
+  @Post('ezoll/process-inbound')
+  @Roles(UserRole.ORG_ADMIN)
+  processEzollInbound(@CurrentUser() user: AuthUser) {
+    return this.ezollInbound.processInboundDir(user.organizationId);
   }
 
   @Get('documents/:documentId/download')

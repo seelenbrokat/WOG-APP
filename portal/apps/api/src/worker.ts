@@ -16,6 +16,7 @@ import { RecurringTemplatesService } from './shipments/recurring-templates.servi
 import { LademittelscheinService } from './lager/lademittelschein.service';
 import { CustomerDocumentsInboundService } from './documents/customer-documents-inbound.service';
 import { PartnerOrdersInboundService } from './integrations/partner-orders-inbound.service';
+import { EzollInboundService } from './customs/ezoll-inbound.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -36,9 +37,10 @@ async function bootstrap() {
   const lademittelscheine = app.get(LademittelscheinService);
   const customerDocuments = app.get(CustomerDocumentsInboundService);
   const partnerOrders = app.get(PartnerOrdersInboundService);
+  const ezollInbound = app.get(EzollInboundService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + eZoll-Ignore + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -95,6 +97,12 @@ async function bootstrap() {
         console.log(
           `Partner-Orders: ${partnerOrd.processed} verarbeitet, ${partnerOrd.failed} fehlgeschlagen, ${partnerOrd.skipped} übersprungen` +
             (partnerOrd.files.length ? ` → ${partnerOrd.files.join(', ')}` : ''),
+        );
+      }
+      const ezoll = await ezollInbound.processInboundDir();
+      if (ezoll.ignored) {
+        console.log(
+          `eZoll: ${ezoll.ignored} ignoriert (${ezoll.prefixes.join(', ') || '–'}), ${ezoll.pending} offen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);
