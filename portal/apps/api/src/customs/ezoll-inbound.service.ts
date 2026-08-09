@@ -437,9 +437,19 @@ export class EzollInboundService {
           orderNumber,
           consignmentIndex,
         );
-        const hasAusfuhr =
-          !!state?.hasCc529 || this.hasProcessedCc529OnDisk(orderNumber, consignmentIndex);
+        const onDisk = this.hasProcessedCc529OnDisk(orderNumber, consignmentIndex);
+        const hasAusfuhr = !!state?.hasCc529 || onDisk;
         const includeValues = !hasAusfuhr;
+
+        // Historische CC529 vor Cache-Einführung nachziehen
+        if (onDisk && !state?.hasCc529) {
+          await this.consignmentCache.markCc529({
+            organizationId,
+            orderNumber,
+            consignmentIndex,
+            sourceFile: `processed/cc529:${orderNumber}.${consignmentIndex}`,
+          });
+        }
 
         this.ezollSoloplan.writeCc599FlagUpdate(match, fileName, fields, includeValues);
         await this.consignmentCache.markCc599({
