@@ -29,6 +29,11 @@ export type EzollCc529Fields = {
    * Total items = Anzahl Tarifpositionen → Soloplan tarifnummerATAPI (Integer).
    */
   totalItems: number | null;
+  /**
+   * EUR.1-Nummer aus Supporting document N954 → Soloplan eUR1_API.
+   * Nur setzen, wenn N954 vorhanden (nicht bei N864-Ursprungserklärung).
+   */
+  eur1Number: string | null;
 };
 
 const DOC_SUFFIXES: EzollDocType[] = [
@@ -172,11 +177,23 @@ export function extractTotalItemsFromPdfText(text: string): number | null {
   return null;
 }
 
+/**
+ * EUR.1-Nummer aus Supporting document [12 03], Code N954.
+ * Beispiele: „2 N954 X 2316731“, „N954 X 613179“ → „2316731“ / „613179“.
+ * X = Statuscode, die Ziffern danach sind die Zertifikatsnummer.
+ */
+export function extractEur1NumberFromPdfText(text: string): string | null {
+  const raw = String(text || '');
+  const hit = raw.match(/\bN954\b(?:\s+[A-Z])?\s+(\d{5,12})\b/i);
+  return hit ? hit[1] : null;
+}
+
 /** Alle CC529-Felder aus ABD-PDF-Text. */
 export function extractCc529FieldsFromPdfText(text: string): EzollCc529Fields {
   return {
     mrn: extractMrnFromPdfText(text),
     lrn: extractLrnFromPdfText(text),
     totalItems: extractTotalItemsFromPdfText(text),
+    eur1Number: extractEur1NumberFromPdfText(text),
   };
 }

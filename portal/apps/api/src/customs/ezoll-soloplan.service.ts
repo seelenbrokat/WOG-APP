@@ -33,11 +33,17 @@ export class EzollSoloplanService {
    * - mRNATAPI = BCP MRN (Schreibfeld, kein Match)
    * - lRN = LRN [12 09]
    * - tarifnummerATAPI = Total items (Anzahl Tarifpositionen)
+   * - eUR1_API = EUR.1-Nummer wenn Supporting document N954 vorhanden
    */
   writeCc529FlagUpdate(
     match: EzollSoloplanMatch,
     sourceFileName: string,
-    fields: EzollCc529Fields = { mrn: null, lrn: null, totalItems: null },
+    fields: EzollCc529Fields = {
+      mrn: null,
+      lrn: null,
+      totalItems: null,
+      eur1Number: null,
+    },
   ): string {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
@@ -59,6 +65,7 @@ export class EzollSoloplanService {
     if (fields.totalItems != null && fields.totalItems > 0) {
       consignment.tarifnummerATAPI = fields.totalItems;
     }
+    if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
     const payload = {
       header: {

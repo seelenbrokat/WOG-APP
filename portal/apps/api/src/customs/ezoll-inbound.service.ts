@@ -115,7 +115,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC529 ${this.matchLabel(match)} mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} ← ${fileName}`,
+          `CC529 ${this.matchLabel(match)} mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;

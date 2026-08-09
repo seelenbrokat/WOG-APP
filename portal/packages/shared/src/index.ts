@@ -132,6 +132,7 @@ export {
   extractMrnFromPdfText,
   extractLrnFromPdfText,
   extractTotalItemsFromPdfText,
+  extractEur1NumberFromPdfText,
   extractCc529FieldsFromPdfText,
 } from './ezoll-doc-types';
 export type { EzollDocType, EzollSoloplanMatch, EzollCc529Fields } from './ezoll-doc-types';
