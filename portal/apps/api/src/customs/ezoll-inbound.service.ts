@@ -74,7 +74,12 @@ export class EzollInboundService {
       };
     }
 
-    const purged = await this.tourCache.purgeExpired();
+    let purged = 0;
+    try {
+      purged = await this.tourCache.purgeExpired();
+    } catch (e: any) {
+      this.log.warn(`TourCache-Purge übersprungen: ${e?.message || e}`);
+    }
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
     let ignored = 0;
