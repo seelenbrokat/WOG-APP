@@ -205,6 +205,9 @@ mkdir -p data/uploads \
   data/sftp/inbound/intouch/dokumente \
   data/sftp/inbound/customer-documents \
   data/sftp/inbound/partner-orders \
+  data/sftp/inbound/ezoll \
+  data/sftp/inbound/ezoll/processed \
+  data/sftp/inbound/ezoll/failed \
   data/sftp/credentials \
   data/sftp/outbound/soloplan/orders \
   data/sftp/outbound/soloplan/telematics \
