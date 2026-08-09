@@ -80,6 +80,10 @@ export function detectEzollDocType(fileName: string): EzollDocType {
   if (/(?:^|_)CC529C(?:_|$)/.test(base) || base.endsWith('CC529C')) {
     return 'CC529CC';
   }
+  // Austrittsbestätigung / IE599: …_CC599C_… / PDF CC599CC
+  if (/(?:^|_)CC599C(?:_|$)/.test(base) || base.endsWith('CC599C') || base.endsWith('CC599CC')) {
+    return 'CC599CC';
+  }
   // NCTS: …_CC029C_efd7 / MsgTyp CC029C
   if (/(?:^|_)CC029C(?:_|$)/.test(base) || base.endsWith('CC029C') || base.endsWith('CC029CC')) {
     return 'CC029CC';
@@ -346,6 +350,28 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
 export function isEz92xXml(xml: string): boolean {
   const typ = xmlMsgTyp(xml);
   return typ === 'EZ922' || typ === 'EZ923';
+}
+
+/** Aus CC599C (Austrittsbestätigung / IE599) – gleiche Wertfelder wie Ausfuhr. */
+export type EzollCc599Fields = EzollCc529Fields;
+
+export function isCc599Xml(xml: string): boolean {
+  const raw = String(xml || '');
+  return (
+    /<MsgTyp>\s*CC599C\s*<\/MsgTyp>/i.test(raw) ||
+    /<messageType>\s*CC599C\s*<\/messageType>/i.test(raw) ||
+    /<(?:\w+:)?CC599C[\s>]/i.test(raw)
+  );
+}
+
+/** CC599C-XML: MRN/LRN/Positionen/EUR.1 – nur nötig wenn keine Ausfuhr vorlag. */
+export function extractCc599FieldsFromXml(xml: string): EzollCc599Fields {
+  return extractCc529FieldsFromXml(xml);
+}
+
+/** CC599CC-PDF-Text (Export Notification) – gleiche Labels wie ABD. */
+export function extractCc599FieldsFromPdfText(text: string): EzollCc599Fields {
+  return extractCc529FieldsFromPdfText(text);
 }
 
 /** Aus CC029C (NCTS) extrahierte Felder. */

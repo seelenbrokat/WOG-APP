@@ -4,15 +4,18 @@ import { CustomsController } from './customs.controller';
 import { EzollInboundService } from './ezoll-inbound.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
 import { EzollTourCacheService } from './ezoll-tour-cache.service';
+import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
   imports: [
     AuditModule,
     OrganizationsModule,
+    DocumentsModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => IntegrationsModule),
   ],
@@ -22,12 +25,14 @@ import { OrganizationsModule } from '../organizations/organizations.module';
     EzollInboundService,
     EzollSoloplanService,
     EzollTourCacheService,
+    EzollConsignmentCacheService,
   ],
   exports: [
     CustomsService,
     EzollInboundService,
     EzollSoloplanService,
     EzollTourCacheService,
+    EzollConsignmentCacheService,
   ],
 })
 export class CustomsModule {}

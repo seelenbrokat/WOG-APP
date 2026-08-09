@@ -51,6 +51,114 @@ export class CustomerDocumentsInboundService {
     }
   }
 
+  /**
+   * eZoll-CC599-PDF als Kunden-Austrittsbestätigung ablegen,
+   * wenn Modul + Kategorie CUSTOMS_EXIT freigeschaltet sind.
+   */
+  async tryPublishCustomsExitPdf(input: {
+    organizationId: string;
+    orderNumber: number | string;
+    consignmentIndex?: number;
+    filePath: string;
+    sourceFileName: string;
+  }): Promise<'ok' | 'skipped' | 'no_rights' | 'no_shipment'> {
+    const orderKey = String(input.orderNumber).trim();
+    if (!orderKey || !existsSync(input.filePath)) return 'skipped';
+
+    const shipment = await this.findShipmentForSoloplanOrder(
+      input.organizationId,
+      orderKey,
+      input.consignmentIndex,
+    );
+    if (!shipment) return 'no_shipment';
+    if (!shipment.customerId) return 'no_shipment';
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: shipment.customerId },
+      select: {
+        id: true,
+        documentsModuleEnabled: true,
+        documentCategoryAccess: { where: { active: true }, select: { category: true } },
+      },
+    });
+    if (!customer?.documentsModuleEnabled) return 'no_rights';
+    const allowed = new Set(customer.documentCategoryAccess.map((a) => a.category));
+    if (!allowed.has(CustomerDocCategory.CUSTOMS_EXIT)) return 'no_rights';
+
+    const existing = await this.prisma.document.findFirst({
+      where: {
+        shipmentId: shipment.id,
+        categoryCode: CustomerDocCategory.CUSTOMS_EXIT,
+        sourceFileName: input.sourceFileName,
+      },
+    });
+    if (existing) return 'skipped';
+
+    const safeName = `${Date.now()}-ezoll-exit-${input.sourceFileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storagePath = join(this.uploadDir, 'customer-documents', safeName);
+    mkdirSync(join(this.uploadDir, 'customer-documents'), { recursive: true });
+    copyFileSync(input.filePath, storagePath);
+    const sizeBytes = statSync(storagePath).size;
+
+    const doc = await this.prisma.document.create({
+      data: {
+        organizationId: shipment.organizationId,
+        shipmentId: shipment.id,
+        customerId: shipment.customerId,
+        type: documentTypeForCategory(CustomerDocCategory.CUSTOMS_EXIT),
+        categoryCode: CustomerDocCategory.CUSTOMS_EXIT,
+        source: 'EZOLL',
+        sourceFileName: input.sourceFileName,
+        importedAt: new Date(),
+        fileName: `Austrittsbestätigung ${orderKey}.pdf`,
+        mimeType: 'application/pdf',
+        storagePath,
+        sizeBytes,
+      },
+    });
+
+    await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.DOCUMENT_RECEIVED, {
+      fileName: doc.fileName,
+      category: CustomerDocCategory.CUSTOMS_EXIT,
+    });
+
+    this.log.log(
+      `eZoll Austritt → Kunden-Dokument Sendung ${shipment.trackingNumber} (${doc.id})`,
+    );
+    return 'ok';
+  }
+
+  private async findShipmentForSoloplanOrder(
+    organizationId: string,
+    orderNumber: string,
+    consignmentIndex?: number,
+  ) {
+    const dotted =
+      consignmentIndex != null && consignmentIndex > 0
+        ? `${orderNumber}.${consignmentIndex}`
+        : null;
+    return this.prisma.shipment.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { soloplanRef: { equals: orderNumber, mode: 'insensitive' } },
+          ...(dotted
+            ? [{ soloplanRef: { equals: dotted, mode: 'insensitive' as const } }]
+            : []),
+          { order: { soloplanRef: { equals: orderNumber, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: orderNumber, mode: 'insensitive' } } },
+        ],
+      },
+      select: {
+        id: true,
+        trackingNumber: true,
+        organizationId: true,
+        customerId: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async processInboundDir(limit = 40): Promise<{ processed: number; failed: number; skipped: number }> {
     let processed = 0;
     let failed = 0;

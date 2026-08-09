@@ -5,6 +5,7 @@ import { join } from 'path';
 import {
   joinEzollMrns,
   type EzollCc529Fields,
+  type EzollCc599Fields,
   type EzollEz92xFields,
   type EzollSoloplanMatch,
 } from '@wog/shared';
@@ -103,6 +104,40 @@ export class EzollSoloplanService {
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
     return this.writePayload(prefix, sourceFileName, consignment);
+  }
+
+  /**
+   * CC599C (Austrittsbestätigung / IE599) →
+   * - immer cC599C: true
+   * - MRN/LRN/Tarif/EUR.1 nur wenn keine Ausfuhr (CC529) vorlag (includeValues)
+   */
+  writeCc599FlagUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollCc599Fields = {
+      mrn: null,
+      lrn: null,
+      totalItems: null,
+      eur1Number: null,
+    },
+    includeValues = false,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+      cC599C: true,
+    };
+    this.applyMatch(consignment, match, 'CC599');
+
+    if (includeValues) {
+      if (fields.mrn) consignment.mRNATAPI = fields.mrn;
+      if (fields.lrn) consignment.lRN = fields.lrn;
+      if (fields.totalItems != null && fields.totalItems > 0) {
+        consignment.tarifnummerATAPI = fields.totalItems;
+      }
+      if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+    }
+
+    return this.writePayload('cc599', sourceFileName, consignment);
   }
 
   /**

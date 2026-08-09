@@ -8,26 +8,33 @@ import {
   extractCc029FieldsFromXml,
   extractCc529FieldsFromPdfText,
   extractCc529FieldsFromXml,
+  extractCc599FieldsFromPdfText,
+  extractCc599FieldsFromXml,
   extractEz92xFieldsFromXml,
   isCc529Xml,
+  isCc599Xml,
   matchesFilenameIgnorePrefix,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
   soloplanMatchKey,
   type EzollCc529Fields,
+  type EzollCc599Fields,
   type EzollSoloplanMatch,
 } from '@wog/shared';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CustomerDocumentsInboundService } from '../documents/customer-documents-inbound.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
 import { EzollTourCacheService } from './ezoll-tour-cache.service';
+import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
 
 /**
  * eZoll-Inbound (PDF + XML):
  * 1) Ignore-Muster → processed/ignored/
  * 2) CC529C(C) → OrderEzoll (bestätigte Felder), XML primär
- * 3) EZ922/EZ923 XML → eZ922/eZ923, CRN→mRNATAPI, MwSt→mWSTAT, Zoll→zollabgabenAT
- * 4) CC029C XML → Tour-Cache (7 Tage), MRNs akkumulieren → OrderEzoll an Tour-Sendungen
+ * 3) EZ922/EZ923 XML → eZ922/eZ923
+ * 4) CC029C XML → Tour-Cache (7 Tage)
+ * 5) CC599C(C) → cC599C:true; Werte nur ohne vorherige Ausfuhr; PDF → Kunden CUSTOMS_EXIT
  * Match nur über Auftrag.Sendungsnummer / Tournummer – nie MRN/CRN.
  */
 @Injectable()
@@ -41,6 +48,8 @@ export class EzollInboundService {
     private organizations: OrganizationsService,
     private ezollSoloplan: EzollSoloplanService,
     private tourCache: EzollTourCacheService,
+    private consignmentCache: EzollConsignmentCacheService,
+    private customerDocs: CustomerDocumentsInboundService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -52,6 +61,7 @@ export class EzollInboundService {
       join(this.inboundRoot, 'processed', 'cc529'),
       join(this.inboundRoot, 'processed', 'ez92x'),
       join(this.inboundRoot, 'processed', 'cc029'),
+      join(this.inboundRoot, 'processed', 'cc599'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
     ]) {
@@ -67,6 +77,8 @@ export class EzollInboundService {
         cc529: 0,
         ez92x: 0,
         cc029: 0,
+        cc599: 0,
+        customerExit: 0,
         unmatched: 0,
         pending: 0,
         purged: 0,
@@ -76,9 +88,14 @@ export class EzollInboundService {
 
     let purged = 0;
     try {
-      purged = await this.tourCache.purgeExpired();
+      purged += await this.tourCache.purgeExpired();
     } catch (e: any) {
       this.log.warn(`TourCache-Purge übersprungen: ${e?.message || e}`);
+    }
+    try {
+      purged += await this.consignmentCache.purgeExpired();
+    } catch (e: any) {
+      this.log.warn(`ConsignmentCache-Purge übersprungen: ${e?.message || e}`);
     }
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
@@ -98,9 +115,11 @@ export class EzollInboundService {
     let cc529 = 0;
     let ez92x = 0;
     let cc029 = 0;
+    let cc599 = 0;
+    let customerExit = 0;
     let unmatched = 0;
     if (enabled) {
-      const a = this.processCc529Batch(40);
+      const a = await this.processCc529Batch(orgId, 40);
       cc529 = a.processed;
       unmatched += a.unmatched;
       const b = this.processEz92xBatch(40);
@@ -109,13 +128,28 @@ export class EzollInboundService {
       const c = await this.processCc029Batch(orgId, 40);
       cc029 = c.processed;
       unmatched += c.unmatched;
+      const d = await this.processCc599Batch(orgId, 40);
+      cc599 = d.processed;
+      customerExit = d.customerExit;
+      unmatched += d.unmatched;
     }
 
     const pending = this.listPendingFiles().length;
-    return { ignored, cc529, ez92x, cc029, unmatched, pending, purged, prefixes };
+    return {
+      ignored,
+      cc529,
+      ez92x,
+      cc029,
+      cc599,
+      customerExit,
+      unmatched,
+      pending,
+      purged,
+      prefixes,
+    };
   }
 
-  private processCc529Batch(limit: number) {
+  private async processCc529Batch(organizationId: string, limit: number) {
     let processed = 0;
     let unmatched = 0;
     const pending = this.listPendingFiles().filter(
@@ -166,6 +200,7 @@ export class EzollInboundService {
           continue;
         }
         this.ezollSoloplan.writeCc529FlagUpdate(match, fileName, fields);
+        await this.markAusfuhr(organizationId, match, fields, fileName);
         this.move(
           filePath,
           join(this.inboundRoot, 'processed', 'cc529', `${Date.now()}_${fileName}`),
@@ -347,6 +382,166 @@ export class EzollInboundService {
       matches.push({ kind: 'orderConsignment', orderNumber, consignmentIndex });
     }
     return matches;
+  }
+
+  /**
+   * CC599 Austrittsbestätigung:
+   * - Soloplan immer cC599C: true (update)
+   * - Wertfelder nur wenn keine Ausfuhr (Cache / processed/cc529) vorlag
+   * - PDF zusätzlich als Kunden-Dokument CUSTOMS_EXIT (wenn Rechte)
+   */
+  private async processCc599Batch(organizationId: string, limit: number) {
+    let processed = 0;
+    let unmatched = 0;
+    let customerExit = 0;
+    const pending = this.listPendingFiles().filter(
+      (p) => detectEzollDocType(basename(p)) === 'CC599CC',
+    );
+    const xmlFiles = pending.filter((p) => /\.xml$/i.test(p));
+    const pdfFiles = pending.filter((p) => /\.pdf$/i.test(p));
+    const xmlKeys = new Set<string>();
+    for (const p of xmlFiles) {
+      const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+      if (key) xmlKeys.add(key);
+    }
+    const queue = [
+      ...xmlFiles,
+      ...pdfFiles.filter((p) => {
+        const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+        return !key || !xmlKeys.has(key);
+      }),
+    ].slice(0, limit);
+
+    for (const filePath of queue) {
+      const fileName = basename(filePath);
+      const isXml = /\.xml$/i.test(fileName);
+      try {
+        const fields = isXml
+          ? this.fieldsFromCc599Xml(filePath, fileName)
+          : extractCc599FieldsFromPdfText(this.pdfText(filePath));
+
+        const match = this.resolveMatch(fileName, fields);
+        if (!match || match.kind === 'tour') {
+          unmatched += 1;
+          this.move(
+            filePath,
+            join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+          );
+          this.log.warn(`CC599 ohne Auftrag/Sendung: ${fileName}`);
+          continue;
+        }
+
+        const { orderNumber, consignmentIndex } = this.matchOrderKeys(match);
+        const state = await this.consignmentCache.getState(
+          organizationId,
+          orderNumber,
+          consignmentIndex,
+        );
+        const hasAusfuhr =
+          !!state?.hasCc529 || this.hasProcessedCc529OnDisk(orderNumber, consignmentIndex);
+        const includeValues = !hasAusfuhr;
+
+        this.ezollSoloplan.writeCc599FlagUpdate(match, fileName, fields, includeValues);
+        await this.consignmentCache.markCc599({
+          organizationId,
+          orderNumber,
+          consignmentIndex,
+          sourceFile: fileName,
+        });
+
+        if (!isXml) {
+          const pub = await this.customerDocs.tryPublishCustomsExitPdf({
+            organizationId,
+            orderNumber,
+            consignmentIndex,
+            filePath,
+            sourceFileName: fileName,
+          });
+          if (pub === 'ok') customerExit += 1;
+          else if (pub === 'no_rights') {
+            this.log.log(
+              `CC599 ${this.matchLabel(match)}: Kunden-PDF übersprungen (keine CUSTOMS_EXIT-Rechte)`,
+            );
+          } else if (pub === 'no_shipment') {
+            this.log.log(
+              `CC599 ${this.matchLabel(match)}: Kunden-PDF übersprungen (keine Portal-Sendung)`,
+            );
+          }
+        }
+
+        this.move(
+          filePath,
+          join(this.inboundRoot, 'processed', 'cc599', `${Date.now()}_${fileName}`),
+        );
+        processed += 1;
+        this.log.log(
+          `CC599 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] cC599C=true Werte=${includeValues ? 'ja (keine Ausfuhr)' : 'nein (Ausfuhr vorhanden)'} ← ${fileName}`,
+        );
+      } catch (e: any) {
+        unmatched += 1;
+        this.log.warn(`CC599 ${fileName}: ${e?.message || e}`);
+        this.move(
+          filePath,
+          join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+        );
+      }
+    }
+    return { processed, unmatched, customerExit };
+  }
+
+  private async markAusfuhr(
+    organizationId: string,
+    match: EzollSoloplanMatch,
+    fields: EzollCc529Fields,
+    sourceFile: string,
+  ) {
+    const { orderNumber, consignmentIndex } = this.matchOrderKeys(match);
+    await this.consignmentCache.markCc529({
+      organizationId,
+      orderNumber,
+      consignmentIndex,
+      mrn: fields.mrn,
+      lrn: fields.lrn,
+      totalItems: fields.totalItems,
+      eur1Number: fields.eur1Number,
+      sourceFile,
+    });
+  }
+
+  private matchOrderKeys(match: EzollSoloplanMatch): {
+    orderNumber: number;
+    consignmentIndex: number;
+  } {
+    if (match.kind === 'orderConsignment') {
+      return { orderNumber: match.orderNumber, consignmentIndex: match.consignmentIndex };
+    }
+    if (match.kind === 'order') {
+      return { orderNumber: match.orderNumber, consignmentIndex: 1 };
+    }
+    throw new Error('Tour-Match nicht für Ausfuhr/Austritt');
+  }
+
+  /** Fallback für CC529 vor Einführung des Caches. */
+  private hasProcessedCc529OnDisk(orderNumber: number, consignmentIndex: number): boolean {
+    const dir = join(this.inboundRoot, 'processed', 'cc529');
+    if (!existsSync(dir)) return false;
+    const needles = [
+      `${orderNumber}.${consignmentIndex}`,
+      `${orderNumber}_${consignmentIndex}`,
+    ];
+    try {
+      return readdirSync(dir).some((name) => needles.some((n) => name.includes(n)));
+    } catch {
+      return false;
+    }
+  }
+
+  private fieldsFromCc599Xml(filePath: string, fileName: string): EzollCc599Fields {
+    const xml = readFileSync(filePath, 'utf8');
+    if (!isCc599Xml(xml) && detectEzollDocType(fileName) !== 'CC599CC') {
+      return { mrn: null, lrn: null, totalItems: null, eur1Number: null };
+    }
+    return extractCc599FieldsFromXml(xml);
   }
 
   private fieldsFromCc529Xml(filePath: string, fileName: string): EzollCc529Fields | null {

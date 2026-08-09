@@ -107,8 +107,36 @@ model Organization {
   intouchFiles      IntouchFile[]
   loadingUnitPostings LoadingUnitPosting[]
   lademittelscheine   Lademittelschein[]
-  settings            OrganizationSetting[]
-  ezollTourCaches     EzollTourCache[]
+  settings                 OrganizationSetting[]
+  ezollTourCaches          EzollTourCache[]
+  ezollConsignmentCaches   EzollConsignmentCache[]
+}
+
+/// eZoll CC529/CC599: Sendungs-Fenster – ob Ausfuhr schon da war (Werte nicht doppelt schreiben).
+model EzollConsignmentCache {
+  id                String    @id @default(cuid())
+  organizationId    String
+  /// Soloplan Auftragsnummer (z. B. 442339)
+  orderNumber       String
+  /// Soloplan Sendungsindex (z. B. 1)
+  consignmentIndex  Int       @default(1)
+  cc529SeenAt       DateTime?
+  cc599SeenAt       DateTime?
+  mrn               String?
+  lrn               String?
+  totalItems        Int?
+  eur1Number        String?
+  sourceFiles       String[]  @default([])
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, orderNumber, consignmentIndex])
+  @@index([lastSeenAt])
+  @@index([organizationId, lastSeenAt])
 }
 
 /// eZoll CC029C: Tour-Fenster 7 Tage – MRNs/LRNs bei Mehrfach-Vorkommen akkumulieren.

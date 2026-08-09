@@ -105,12 +105,16 @@ async function bootstrap() {
         ezoll.cc529 ||
         ezoll.ez92x ||
         ezoll.cc029 ||
+        ezoll.cc599 ||
+        ezoll.customerExit ||
         ezoll.unmatched ||
         ezoll.purged
       ) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
-            (ezoll.purged ? `, ${ezoll.purged} TourCache>7d gelöscht` : ''),
+          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +
+            (ezoll.customerExit ? `, ${ezoll.customerExit} Austritt→Kunde` : '') +
+            `, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
+            (ezoll.purged ? `, ${ezoll.purged} Cache gelöscht` : ''),
         );
       }
       await intouch.processInboundDir(undefined, 50);
