@@ -57,7 +57,8 @@ if ! grep -q "^Match User ${USERNAME}\$" /etc/ssh/sshd_config 2>/dev/null; then
 ${SSHD_MARK}
 Match User ${USERNAME}
     ChrootDirectory ${SFTP_ROOT}
-    ForceCommand internal-sftp -d ${DROP_CHROOT}
+    # Kein -d: CarLo/Automate setzt den Remote-Pfad selbst (sonst "No such file")
+    ForceCommand internal-sftp
     PasswordAuthentication yes
     AllowTcpForwarding no
     X11Forwarding no
