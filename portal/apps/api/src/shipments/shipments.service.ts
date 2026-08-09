@@ -9,7 +9,7 @@ import { randomBytes } from 'crypto';
 import { DocumentType, NotificationEvent, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import {
   CH_LI_CUSTOMS_MANDANT_CODES,
-  isSwitzerlandOrLiechtenstein,
+  requiresChLiCustomsDocuments,
 } from '@wog/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
@@ -543,13 +543,14 @@ export class ShipmentsService {
       deliveryCountry = addr.country;
     }
 
-    // CH / LI (FL): Verzollungsbelege + Mandant 2 (GmbH)
+    // Grenzverkehr ↔ CH/LI: Verzollungsbelege + Mandant 2 (GmbH).
+    // Inland CH↔CH / CH↔LI: keine Dokumentenpflicht.
     let mandantId = data.mandantId;
     let extrasObj: Record<string, unknown> =
       data.extras && typeof data.extras === 'object' && !Array.isArray(data.extras)
         ? { ...(data.extras as Record<string, unknown>) }
         : {};
-    if (isSwitzerlandOrLiechtenstein(deliveryCountry)) {
+    if (requiresChLiCustomsDocuments(pickupCountry, deliveryCountry)) {
       extrasObj = { ...extrasObj, verzollung: true, begleitpapiere: true };
       const customsMandant = await this.prisma.mandant.findFirst({
         where: {

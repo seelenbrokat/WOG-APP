@@ -9,6 +9,7 @@ import {
   PACKAGING_TYPES,
   SHIPMENT_EXTRA_OPTIONS,
   isSwitzerlandOrLiechtenstein,
+  requiresChLiCustomsDocuments,
   isValidZipForCountry,
   type ShipmentExtras,
 } from '@wog/shared';
@@ -238,18 +239,43 @@ function NewShipmentInner() {
     return list.length >= 2 ? list[1].id : list[0].id;
   }
 
-  /** Zustellung CH/FL: Belege (Verzollung + Begleitpapiere) und Mandant 2 vorauswählen. */
-  function applyChLiBelegeDefaults(country: string, list = mandanten) {
-    if (!isSwitzerlandOrLiechtenstein(country)) return;
-    setExtras((prev) => ({
-      ...prev,
-      verzollung: true,
-      begleitpapiere: true,
-    }));
-    const mid = resolveChLiCustomsMandantId(list);
-    if (mid) {
-      setForm((f) => (f.mandantId === mid ? f : { ...f, mandantId: mid }));
+  /**
+   * Grenzverkehr ↔ CH/LI: Verzollung + Begleitpapiere + Mandant 2 vorauswählen.
+   * Inland (CH↔CH / CH↔LI): keine Belegepflicht – Auto-Flags zurücksetzen.
+   */
+  function applyChLiBelegeDefaults(
+    pickupCountry: string,
+    deliveryCountry: string,
+    list = mandanten,
+  ) {
+    const needsDocs = requiresChLiCustomsDocuments(pickupCountry, deliveryCountry);
+    const domesticChLi =
+      isSwitzerlandOrLiechtenstein(pickupCountry) &&
+      isSwitzerlandOrLiechtenstein(deliveryCountry);
+
+    if (needsDocs) {
+      setExtras((prev) => ({
+        ...prev,
+        verzollung: true,
+        begleitpapiere: true,
+      }));
+      const mid = resolveChLiCustomsMandantId(list);
+      if (mid) {
+        setForm((f) => (f.mandantId === mid ? f : { ...f, mandantId: mid }));
+      }
+      return;
     }
+
+    if (!domesticChLi) return;
+
+    setExtras((prev) => {
+      if (!prev.verzollung && !prev.begleitpapiere) return prev;
+      const next = { ...prev };
+      delete next.verzollung;
+      delete next.begleitpapiere;
+      return next;
+    });
+    setInvoiceFile(null);
   }
 
   const customerQuery =
@@ -348,9 +374,9 @@ function NewShipmentInner() {
   }, [form.customerId]);
 
   useEffect(() => {
-    applyChLiBelegeDefaults(form.deliveryCountry, mandanten);
+    applyChLiBelegeDefaults(form.pickupCountry, form.deliveryCountry, mandanten);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.deliveryCountry, mandanten]);
+  }, [form.pickupCountry, form.deliveryCountry, mandanten]);
 
   function applyAddress(kind: 'pickup' | 'delivery', addressId: string) {
     const addr = addresses.find((a) => a.id === addressId);
@@ -807,9 +833,9 @@ function NewShipmentInner() {
                   </option>
                 ))}
               </select>
-              {isSwitzerlandOrLiechtenstein(form.deliveryCountry) ? (
+              {requiresChLiCustomsDocuments(form.pickupCountry, form.deliveryCountry) ? (
                 <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                  Zustellung CH/LI: Verzollungsbelege und Mandant 2 (GmbH) automatisch vorausgewählt.
+                  Grenzverkehr CH/LI: Verzollungsbelege und Mandant 2 (GmbH) automatisch vorausgewählt.
                 </p>
               ) : null}
             </div>
@@ -1512,7 +1538,8 @@ function NewShipmentInner() {
               : ''}
           </p>
 
-          {(extras.verzollung || isSwitzerlandOrLiechtenstein(form.deliveryCountry)) && (
+          {(extras.verzollung ||
+            requiresChLiCustomsDocuments(form.pickupCountry, form.deliveryCountry)) && (
             <div
               className="field"
               style={{
@@ -1531,7 +1558,7 @@ function NewShipmentInner() {
               <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
                 {extras.verzollung
                   ? 'Verzollung erfordert eine Rechnung (Dokumenttyp Rechnung).'
-                  : 'Für Zustellung CH/FL empfohlen – bei Verzollung Pflicht.'}
+                  : 'Bei Grenzverkehr CH/LI empfohlen – bei Verzollung Pflicht.'}
               </p>
               <input
                 type="file"

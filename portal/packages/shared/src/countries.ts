@@ -79,6 +79,20 @@ export function isSwitzerlandOrLiechtenstein(country?: string | null): boolean {
   return c === 'CH' || c === 'LI' || c === 'FL';
 }
 
+/**
+ * Dokumentenpflicht (Rechnung/Verzollung) nur bei Grenzverkehr:
+ * eine Seite CH/LI (Zollunion), die andere nicht.
+ * CH↔CH, CH↔LI, LI↔LI: keine Belegepflicht.
+ */
+export function requiresChLiCustomsDocuments(
+  pickupCountry?: string | null,
+  deliveryCountry?: string | null,
+): boolean {
+  const pickupChLi = isSwitzerlandOrLiechtenstein(pickupCountry);
+  const deliveryChLi = isSwitzerlandOrLiechtenstein(deliveryCountry);
+  return pickupChLi !== deliveryChLi;
+}
+
 /** Bevorzugte Mandanten-Codes für CH/LI-Verzollung („Mandant 2“ = GmbH). */
 export const CH_LI_CUSTOMS_MANDANT_CODES = ['GMBH', '2'] as const;
 
