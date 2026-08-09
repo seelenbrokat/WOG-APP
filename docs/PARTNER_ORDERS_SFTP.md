@@ -28,10 +28,11 @@ Credentials: `portal/data/sftp/credentials/{username}.txt`
 
 ## Transformation
 
-BORD512 (Bordero mit mehreren Sendungen) wird zu **einer** Soloplan-Order mit mehreren `consignments`:
+BORD512 (Bordero mit mehreren Sendungen) wird zu **einem Soloplan-Auftrag je Sendung**
+(eigene JSON-Datei pro Sendung):
 
-- `order.externalNumber` = Bordero-Nummer (A00)
-- `consignment.externalNumber` = Sendungs-Nr. Versandpartner (G00)
+- `order.externalNumber` = Sendungs-Nr. Versandpartner (G00), z. B. `A-21438081-A-1`
+- je Order genau eine `consignment`
 - Absender/Empfänger aus B00/SHP und B00/CON
 - Packstücke, Gewicht, SSCC/NVE aus D00/F00/G00
 - Frachtzahler = freigeschalteter Kunde (Soloplan-BP)
@@ -41,8 +42,10 @@ Test lokal:
 ```bash
 npx ts-node --transpile-only portal/scripts/transform-bord512.ts \
   /path/to/s_wog….txt \
-  portal/data/samples/fortras/order-A-5025462-soloplan.json
+  portal/data/samples/fortras/orders-A-5025462
 ```
+
+Beispiel-Output: `portal/data/samples/fortras/orders-A-5025462/order-A-21438081-A-1.json` usw.
 
 API (Admin/Disposition):
 

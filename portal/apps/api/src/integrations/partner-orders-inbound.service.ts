@@ -90,7 +90,9 @@ export class PartnerOrdersInboundService {
             skipped += 1;
           } else {
             processed += 1;
-            files.push(result.outFileName);
+            for (const name of result.outFileName.split(',').map((s) => s.trim()).filter(Boolean)) {
+              files.push(name);
+            }
             this.move(filePath, join(drop, 'processed', `${Date.now()}_${fileName}`));
           }
         } catch (e: any) {
@@ -127,19 +129,30 @@ export class PartnerOrdersInboundService {
   ) {
     const format = opts.format || 'AUTO';
     if (format === 'BORD512' || (format === 'AUTO' && isBord512Content(content))) {
-      const { bordero, soloplan, fileName } = transformBord512ToSoloplan(content, {
+      const { bordero, files } = transformBord512ToSoloplan(content, {
         freightPayer: opts.freightPayer,
         sourceFileName: opts.sourceFileName,
       });
       if (opts.writeOutbound) {
-        this.writeOutboundOrderFile(fileName, JSON.stringify(soloplan, null, 2));
+        for (const file of files) {
+          this.writeOutboundOrderFile(file.fileName, JSON.stringify(file.soloplan, null, 2));
+        }
       }
       return {
         format: 'BORD512' as const,
         borderoNumber: bordero.borderoNumber,
         consignmentCount: bordero.consignments.length,
-        fileName,
-        soloplan,
+        orderCount: files.length,
+        fileNames: files.map((f) => f.fileName),
+        /** Erste Order-Datei (Kompatibilität) */
+        fileName: files[0]?.fileName,
+        soloplan: files[0]?.soloplan,
+        orders: files.map((f) => ({
+          fileName: f.fileName,
+          consignmentNumber: f.consignmentNumber,
+          borderoPosition: f.borderoPosition,
+          soloplan: f.soloplan,
+        })),
         summary: bordero.consignments.map((c) => ({
           position: c.borderoPosition,
           number: c.consignmentNumber,
@@ -263,26 +276,28 @@ export class PartnerOrdersInboundService {
       throw new Error(`Format ${src.format} für ${src.username} nicht unterstützt`);
     }
 
-    // Duplikat: gleiche Bordero-Nummer bereits als Outbound vorhanden
-    const bordero = parseBord512(content, fileName);
-    const safe = bordero.borderoNumber.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    const outName = `order-${safe}.json`;
-    if (existsSync(join(this.ordersOutDir, outName))) {
-      this.log.log(`Übersprungen (Outbound existiert): ${outName}`);
+    // Je Sendung ein Auftrag – bestehende Outbound-Dateien einzeln überspringen
+    const { files } = transformBord512ToSoloplan(content, {
+      sourceFileName: fileName,
+      freightPayer: src.freightPayer,
+    });
+    const pending = files.filter((f) => !existsSync(join(this.ordersOutDir, f.fileName)));
+    if (!pending.length) {
+      this.log.log(
+        `Übersprungen (alle ${files.length} Aufträge bereits outbound): ${fileName}`,
+      );
       return 'skipped';
     }
 
-    const result = this.transformBuffer(content, {
-      sourceFileName: fileName,
-      freightPayer: src.freightPayer,
-      writeOutbound: true,
-      format: 'BORD512',
-    });
+    for (const file of pending) {
+      this.writeOutboundOrderFile(file.fileName, JSON.stringify(file.soloplan, null, 2));
+    }
 
+    const bordero = parseBord512(content, fileName);
     this.log.log(
-      `${src.kind} ${src.username}: BORD512 ${result.borderoNumber} → ${result.fileName} (${result.consignmentCount} Sendungen)`,
+      `${src.kind} ${src.username}: BORD512 ${bordero.borderoNumber} → ${pending.length}/${files.length} Aufträge (je Sendung)`,
     );
-    return { outFileName: result.fileName };
+    return { outFileName: pending.map((f) => f.fileName).join(', ') };
   }
 
   private writeOutboundOrderFile(fileName: string, json: string) {

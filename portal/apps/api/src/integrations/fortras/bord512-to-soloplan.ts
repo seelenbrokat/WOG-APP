@@ -25,9 +25,14 @@ export type Bord512TransformOptions = {
   freightPayer?: SoloplanFreightPayer | null;
   /** objectOwner.id – WOG-Mandant in Soloplan, Default 2 */
   objectOwnerId?: number;
-  /** Eine Order-Datei pro Bordero (mehrere consignments) – Default true */
-  singleOrder?: boolean;
   sourceFileName?: string;
+};
+
+export type Bord512SoloplanOrderFile = {
+  fileName: string;
+  soloplan: Record<string, unknown>;
+  borderoPosition: number;
+  consignmentNumber: string;
 };
 
 function countryIso(code?: string | null): string {
@@ -397,19 +402,27 @@ function freightPayerCustomer(payer?: SoloplanFreightPayer | null) {
   };
 }
 
+function safeFilePart(value: string): string {
+  return String(value || '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+}
+
 /**
- * Wandelt ein geparstes Bordero in Soloplan OrderImportPORTAL-v6 JSON um.
- * Standard: eine Order mit allen Sendungen des Borderos.
+ * Eine Soloplan-Order für genau eine BORD512-Sendung.
+ * order.externalNumber = Sendungsnummer (G00), nicht Bordero-Nummer.
  */
-export function bord512ToSoloplanOrder(
+export function bord512ConsignmentToSoloplanOrder(
   bordero: Bord512Bordero,
+  consignment: Bord512Consignment,
   opts: Bord512TransformOptions = {},
 ): Record<string, unknown> {
-  const consignments = bordero.consignments.map((c, idx) =>
-    buildConsignmentJson(c, idx + 1, bordero),
-  );
   const orderDate = formatDate(bordero.borderoDate);
   const customer = freightPayerCustomer(opts.freightPayer);
+  const externalNumber =
+    consignment.consignmentNumber ||
+    `${bordero.borderoNumber}-${consignment.borderoPosition}`;
 
   return {
     header: {
@@ -420,13 +433,57 @@ export function bord512ToSoloplanOrder(
       {
         date: orderDate,
         objectOwner: { id: opts.objectOwnerId ?? 2 },
-        externalNumber: bordero.borderoNumber,
+        externalNumber,
         orderContext: 0,
         orderDate,
         ...(customer ? { customer } : {}),
-        consignments,
+        consignments: [buildConsignmentJson(consignment, 1, bordero)],
       },
     ],
+  };
+}
+
+/**
+ * Wandelt ein Bordero in Soloplan-Orders um – je Sendung ein eigener Auftrag
+ * (eigene JSON-Datei / eigener order-Eintrag).
+ */
+export function bord512ToSoloplanOrders(
+  bordero: Bord512Bordero,
+  opts: Bord512TransformOptions = {},
+): Bord512SoloplanOrderFile[] {
+  return bordero.consignments.map((c) => {
+    const soloplan = bord512ConsignmentToSoloplanOrder(bordero, c, opts);
+    const externalNumber =
+      c.consignmentNumber || `${bordero.borderoNumber}-${c.borderoPosition}`;
+    const fileName = `order-${safeFilePart(externalNumber)}.json`;
+    return {
+      fileName,
+      soloplan,
+      borderoPosition: c.borderoPosition,
+      consignmentNumber: externalNumber,
+    };
+  });
+}
+
+/** @deprecated Alias – nutzt je Sendung einen Auftrag */
+export function bord512ToSoloplanOrder(
+  bordero: Bord512Bordero,
+  opts: Bord512TransformOptions = {},
+): Record<string, unknown> {
+  const files = bord512ToSoloplanOrders(bordero, opts);
+  if (!files.length) {
+    throw new Error('BORD512 ohne Sendungen');
+  }
+  // Kompatibilität: mehrere Orders in einem Payload (order[])
+  return {
+    header: {
+      sendDate: formatDateTime(new Date().toISOString().slice(0, 10)),
+      exportItemReference: randomUUID(),
+    },
+    order: files.flatMap((f) => {
+      const payload = f.soloplan as { order?: unknown[] };
+      return Array.isArray(payload.order) ? payload.order : [];
+    }),
   };
 }
 
@@ -435,12 +492,21 @@ export function transformBord512ToSoloplan(
   opts: Bord512TransformOptions = {},
 ): {
   bordero: Bord512Bordero;
+  /** Eine Datei je Sendung/Auftrag */
+  files: Bord512SoloplanOrderFile[];
+  /** Erste Datei (Kompatibilität) */
   soloplan: Record<string, unknown>;
   fileName: string;
 } {
   const bordero = parseBord512(content, opts.sourceFileName);
-  const soloplan = bord512ToSoloplanOrder(bordero, opts);
-  const safe = bordero.borderoNumber.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const fileName = `order-${safe}.json`;
-  return { bordero, soloplan, fileName };
+  const files = bord512ToSoloplanOrders(bordero, opts);
+  if (!files.length) {
+    throw new Error('BORD512 ohne Sendungen');
+  }
+  return {
+    bordero,
+    files,
+    soloplan: files[0].soloplan,
+    fileName: files[0].fileName,
+  };
 }

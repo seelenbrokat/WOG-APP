@@ -104,8 +104,8 @@ export function SftpInboundPanel({
               </label>
               <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
                 Nur für diesen Kunden. Dateien (z. B. FORTRAS BORD512) werden automatisch
-                ins Soloplan-Format transformiert und nach{' '}
-                <code>outbound/soloplan/orders/</code> gelegt.
+                transformiert – je Sendung ein Soloplan-Auftrag nach{' '}
+                <code>outbound/soloplan/orders/</code>.
               </p>
               <label className="stack" style={{ gap: '0.25rem' }}>
                 <span>SFTP-Benutzer</span>

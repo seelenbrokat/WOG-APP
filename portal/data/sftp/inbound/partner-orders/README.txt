@@ -18,9 +18,9 @@ Unterstütztes Format (Quehenberger / System Alliance):
 
 Verarbeitung:
   Worker liest die Datei, transformiert nach Soloplan OrderImportPORTAL v6
-  und legt JSON nach:
+  und legt je Sendung einen Auftrag (eigene JSON) nach:
 
-    outbound/soloplan/orders/order-{BorderoNummer}.json
+    outbound/soloplan/orders/order-{Sendungsnummer}.json
 
 Beispiel Quehenberger:
   User:   quehenberger
