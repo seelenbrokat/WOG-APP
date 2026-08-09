@@ -16,6 +16,8 @@ import { ShippingNetService } from './shippingnet.service';
 import { LoadingUnitService } from './loading-unit.service';
 import { WareneingangService } from './wareneingang.service';
 import { MtrackService } from './mtrack.service';
+import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
+import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule), AuditModule],
@@ -35,6 +37,8 @@ import { MtrackService } from './mtrack.service';
     IntouchService,
     WareneingangService,
     ShippingNetService,
+    PartnerOrdersInboundService,
+    PartnerOrdersSftpService,
     LdvAdapter,
     MercurioAdapter,
     SoloplanCustomsAdapter,
@@ -54,6 +58,8 @@ import { MtrackService } from './mtrack.service';
     IntouchService,
     WareneingangService,
     ShippingNetService,
+    PartnerOrdersInboundService,
+    PartnerOrdersSftpService,
   ],
 })
 export class IntegrationsModule {}

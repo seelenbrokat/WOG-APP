@@ -23,6 +23,9 @@ import { BusinessPartnerService } from './business-partner.service';
 import { MasterDataService } from './master-data.service';
 import { ShippingNetService } from './shippingnet.service';
 import { SoloplanService } from './soloplan.service';
+import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
+import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 class CreateTransferDto {
   @IsEnum(IntegrationSystem)
@@ -104,6 +107,23 @@ class ShippingNetAblieferbelegFieldsDto {
   markDelivered?: string;
 }
 
+class PartnerOrdersSftpDto {
+  @IsBoolean()
+  sftpInboundEnabled!: boolean;
+
+  @IsOptional()
+  @IsString()
+  sftpUsername?: string;
+
+  @IsOptional()
+  @IsIn(['BORD512', 'AUTO'])
+  sftpInboundFormat?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  regeneratePassword?: boolean;
+}
+
 @Controller('integrations')
 @UseGuards(RolesGuard)
 export class IntegrationsController {
@@ -114,6 +134,9 @@ export class IntegrationsController {
     private masterData: MasterDataService,
     private shippingNet: ShippingNetService,
     private soloplan: SoloplanService,
+    private partnerOrdersInbound: PartnerOrdersInboundService,
+    private partnerOrdersSftp: PartnerOrdersSftpService,
+    private prisma: PrismaService,
   ) {}
 
   /** Soloplan-Verpackungen (GP-Export) für Colli-Dropdown */
@@ -329,5 +352,102 @@ export class IntegrationsController {
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   pollInbox(@CurrentUser() user: AuthUser) {
     return this.hub.processInboundQueues(user.organizationId);
+  }
+
+  // ── Kunden-/Partner-SFTP Auftragsimport (FORTRAS BORD512 → Soloplan) ──
+
+  @Get('partner-orders/sftp/customer/:customerId')
+  @Roles(UserRole.ORG_ADMIN)
+  getCustomerSftp(@CurrentUser() user: AuthUser, @Param('customerId') customerId: string) {
+    return this.partnerOrdersSftp.getCustomerConfig(user, customerId);
+  }
+
+  @Post('partner-orders/sftp/customer/:customerId')
+  @Roles(UserRole.ORG_ADMIN)
+  setCustomerSftp(
+    @CurrentUser() user: AuthUser,
+    @Param('customerId') customerId: string,
+    @Body() dto: PartnerOrdersSftpDto,
+  ) {
+    return this.partnerOrdersSftp.setCustomerConfig(user, customerId, dto);
+  }
+
+  @Get('partner-orders/sftp/partner/:partnerId')
+  @Roles(UserRole.ORG_ADMIN)
+  getPartnerSftp(@CurrentUser() user: AuthUser, @Param('partnerId') partnerId: string) {
+    return this.partnerOrdersSftp.getPartnerConfig(user, partnerId);
+  }
+
+  @Post('partner-orders/sftp/partner/:partnerId')
+  @Roles(UserRole.ORG_ADMIN)
+  setPartnerSftp(
+    @CurrentUser() user: AuthUser,
+    @Param('partnerId') partnerId: string,
+    @Body() dto: PartnerOrdersSftpDto,
+  ) {
+    return this.partnerOrdersSftp.setPartnerConfig(user, partnerId, dto);
+  }
+
+  /** FORTRAS BORD512-Datei testweise nach Soloplan-JSON transformieren */
+  @Post('partner-orders/transform')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  @UseInterceptors(
+    FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }),
+  )
+  async transformPartnerOrder(
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('customerId') customerId?: string,
+    @Body('writeOutbound') writeOutbound?: string,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Datei fehlt (multipart-Feld "file")');
+    }
+    let freightPayer:
+      | {
+          number?: string | null;
+          matchcode?: string | null;
+          name?: string | null;
+          phone?: string | null;
+          vatId?: string | null;
+        }
+      | undefined;
+    if (customerId) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: customerId, organizationId: user.organizationId },
+        select: {
+          name: true,
+          phone: true,
+          vatId: true,
+          matchcode: true,
+          customerNumber: true,
+          soloplanBusinessPartnerId: true,
+        },
+      });
+      if (!customer) throw new BadRequestException('Kunde nicht gefunden');
+      freightPayer = {
+        number: customer.soloplanBusinessPartnerId || customer.customerNumber,
+        matchcode: customer.matchcode,
+        name: customer.name,
+        phone: customer.phone,
+        vatId: customer.vatId,
+      };
+    }
+    try {
+      return this.partnerOrdersInbound.transformBuffer(file.buffer, {
+        sourceFileName: file.originalname,
+        freightPayer,
+        writeOutbound: writeOutbound === '1' || writeOutbound === 'true',
+        format: 'AUTO',
+      });
+    } catch (e: any) {
+      throw new BadRequestException(e?.message || 'Transformation fehlgeschlagen');
+    }
+  }
+
+  @Post('partner-orders/poll-inbox')
+  @Roles(UserRole.ORG_ADMIN)
+  pollPartnerOrders() {
+    return this.partnerOrdersInbound.processInboundDir();
   }
 }

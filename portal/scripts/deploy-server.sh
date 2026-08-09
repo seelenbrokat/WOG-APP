@@ -203,6 +203,9 @@ mkdir -p data/uploads \
   data/sftp/inbound/soloplan/lademittel/processed \
   data/sftp/inbound/intouch/meldungen \
   data/sftp/inbound/intouch/dokumente \
+  data/sftp/inbound/customer-documents \
+  data/sftp/inbound/partner-orders \
+  data/sftp/credentials \
   data/sftp/outbound/soloplan/orders \
   data/sftp/outbound/soloplan/telematics \
   data/sftp/outbound/soloplan/lademittel \

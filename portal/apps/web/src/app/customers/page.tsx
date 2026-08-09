@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { ApiError, api, getUser } from '@/lib/api';
 import { DocumentsModulePanel } from './DocumentsModulePanel';
+import { SftpInboundPanel } from './SftpInboundPanel';
 
 type ContactFeedback = { type: 'ok' | 'err'; text: string };
 
@@ -169,6 +170,9 @@ export default function CustomersPage() {
                 {c.documentsModuleEnabled ? (
                   <span className="badge ok">Dokumente</span>
                 ) : null}
+                {c.sftpInboundEnabled ? (
+                  <span className="badge ok">SFTP</span>
+                ) : null}
                 <span className="badge">{c._count?.addresses ?? c.addresses?.length ?? 0} Adressen</span>
               </div>
             </div>
@@ -176,6 +180,12 @@ export default function CustomersPage() {
               <DocumentsModulePanel
                 customerId={c.id}
                 initialEnabled={Boolean(c.documentsModuleEnabled)}
+              />
+            )}
+            {isAdmin && (
+              <SftpInboundPanel
+                customerId={c.id}
+                initialEnabled={Boolean(c.sftpInboundEnabled)}
               />
             )}
             {(c.contacts?.length || 0) > 0 && (

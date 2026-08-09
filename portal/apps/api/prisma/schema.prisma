@@ -566,6 +566,12 @@ model Customer {
   matchcode                String?
   /// Modul „Dokumente“ für diesen Kunden freigeschaltet
   documentsModuleEnabled   Boolean  @default(false)
+  /// SFTP-Inbound für Auftragsdateien (z. B. FORTRAS BORD512) – nur Admin-Freischaltung
+  sftpInboundEnabled       Boolean  @default(false)
+  /// Linux/SFTPGo-User, z. B. quehenberger
+  sftpUsername             String?
+  /// AUTO | BORD512
+  sftpInboundFormat        String?  @default("BORD512")
   active                   Boolean  @default(true)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -586,6 +592,7 @@ model Customer {
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
   @@index([matchcode])
+  @@index([sftpUsername])
 }
 
 /// Pro Kunde freigeschaltete Dokumentenkategorien (Download-Modul)
@@ -1052,6 +1059,10 @@ model Partner {
   apiKeyHash                String?
   apiKeyPrefix              String?
   sftpUsername              String?
+  /// SFTP-Inbound für Auftragsdateien – nur Admin-Freischaltung
+  sftpInboundEnabled        Boolean  @default(false)
+  /// AUTO | BORD512
+  sftpInboundFormat         String?  @default("BORD512")
   soloplanBusinessPartnerId String?
   matchcode                 String?
   email                     String?
@@ -1069,6 +1080,7 @@ model Partner {
   @@unique([organizationId, code])
   @@unique([organizationId, soloplanBusinessPartnerId])
   @@index([matchcode])
+  @@index([sftpUsername])
 }
 
 /// Digitaler Lademittelschein (Lager / Tour, Tablet-Erfassung)

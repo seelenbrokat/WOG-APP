@@ -1,0 +1,1445 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "9f157629-c3a8-47b1-9fad-0ce5f238b4f5"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-5025462",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21438081-A-1",
+          "sender": {
+            "name1": "Omya GmbH",
+            "street": "Gewerbepark",
+            "houseNumber": "7",
+            "country": "AT",
+            "zipCode": "8772",
+            "city1": "Traboch"
+          },
+          "senderContactPerson": {
+            "lastName": "SELINA GRUBER",
+            "telephone": "00436648262517"
+          },
+          "receiver": {
+            "name1": "Omya International AG",
+            "street": "Froschackerstrasse",
+            "houseNumber": "6",
+            "country": "CH",
+            "zipCode": "4622",
+            "city1": "Egerkingen"
+          },
+          "receiverContactPerson": {
+            "lastName": "MR. DR. GERARD DAN",
+            "telephone": "+41 62 789 23 12",
+            "emailAddress": "DAN.GERARD@OMYA.COM"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "BOROSILICATE GLASS POWDER (GLASS FR",
+              "weights": {
+                "effectiveWeightInKilogram": 6.5,
+                "carrierWeightInKilogram": 6.5
+              },
+              "mark": "A-21438081-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066052945"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 6.5,
+            "carrierWeightInKilogram": 6.5
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Omya International AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "SELINA GRUBER | 00436648262517",
+            "senderInfo2": "Omya International AG-CH-4622-Egerkingen",
+            "receiverInfo1": "MR. DR. GERARD DAN | Tel: +41 62 789 23 12 | DAN.GERARD@OMYA.COM",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 2,
+          "externalNumber": "A-21438095-A-1",
+          "sender": {
+            "name1": "Omya GmbH",
+            "street": "Gewerbepark",
+            "houseNumber": "7",
+            "country": "AT",
+            "zipCode": "8772",
+            "city1": "Traboch"
+          },
+          "senderContactPerson": {
+            "lastName": "SELINA GRUBER",
+            "telephone": "00436648262517"
+          },
+          "receiver": {
+            "name1": "Omya International AG",
+            "street": "Froschackerstrasse",
+            "houseNumber": "6",
+            "country": "CH",
+            "zipCode": "4622",
+            "city1": "Egerkingen"
+          },
+          "receiverContactPerson": {
+            "lastName": "FRAU POFFET PASCALE",
+            "telephone": "+41 62 7892814",
+            "emailAddress": "PASCALE.POFFET@OMYA.COM"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "BOROSILICATE GLASS POWDER (GLASS FR",
+              "weights": {
+                "effectiveWeightInKilogram": 0.8,
+                "carrierWeightInKilogram": 0.8
+              },
+              "mark": "A-21438095-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066052952"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 0.8,
+            "carrierWeightInKilogram": 0.8
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Omya International AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "SELINA GRUBER | 00436648262517",
+            "senderInfo2": "Omya International AG-CH-4622-Egerkingen",
+            "receiverInfo1": "FRAU POFFET PASCALE | Tel: +41 62 7892814 | PASCALE.POFFET@OMYA.COM",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 3,
+          "externalNumber": "A-21441657-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Industriepark",
+            "houseNumber": "4",
+            "country": "AT",
+            "zipCode": "8350",
+            "city1": "Fehring"
+          },
+          "senderContactPerson": {
+            "lastName": "HILDEGARD SCHUSTER",
+            "telephone": "+43 3155 500 5274"
+          },
+          "receiver": {
+            "name1": "Escatec Switzerland AG",
+            "street": "Heinrich Wild Strasse",
+            "country": "CH",
+            "zipCode": "9435",
+            "city1": "Heerbrugg"
+          },
+          "receiverContactPerson": {},
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 4.2,
+                "carrierWeightInKilogram": 4.2
+              },
+              "mark": "A-21441657-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066056714"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 4.2,
+            "carrierWeightInKilogram": 4.2
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Escatec Switzerland AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "HILDEGARD SCHUSTER | +43 3155 500 5274",
+            "senderInfo2": "Escatec Switzerland AG-CH-9435-Heerbrugg",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 4,
+          "externalNumber": "A-21442647-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Industriepark",
+            "houseNumber": "4",
+            "country": "AT",
+            "zipCode": "8350",
+            "city1": "Fehring"
+          },
+          "senderContactPerson": {
+            "lastName": "CARMEN NEUBAUER",
+            "telephone": "+43 3155 500 5331"
+          },
+          "receiver": {
+            "name1": "HOFSTETTER PCB Plating CHE-106.268.139 MWST",
+            "street": "FAENNRING",
+            "houseNumber": "10",
+            "country": "CH",
+            "zipCode": "6403",
+            "city1": "Kuessnacht am Rigi"
+          },
+          "receiverContactPerson": {
+            "lastName": "HOFSTETTER PCB AG",
+            "telephone": "0041418505050"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 102.5,
+                "carrierWeightInKilogram": 102.5
+              },
+              "mark": "A-21442647-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060162"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 102.5,
+                "carrierWeightInKilogram": 102.5
+              },
+              "mark": "A-21442647-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060179"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 2,
+          "weights": {
+            "effectiveWeightInKilogram": 205,
+            "carrierWeightInKilogram": 205
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "HOFSTETTER PCB Plating CHE-106.268.139 MWST",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "CARMEN NEUBAUER | +43 3155 500 5331",
+            "senderInfo2": "HOFSTETTER PCB Plating CHE-106.268.139 MWST-CH-6403-Kuessnacht am Rigi",
+            "receiverInfo1": "HOFSTETTER PCB AG | Tel: 0041418505050",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 5,
+          "externalNumber": "A-21441853-A-1",
+          "sender": {
+            "name1": "Knauf Ceiling Solutions Deckensysteme Gmbh",
+            "street": "Ferndorf Nr.",
+            "houseNumber": "29",
+            "country": "AT",
+            "zipCode": "9702",
+            "city1": "Ferndorf"
+          },
+          "senderContactPerson": {
+            "lastName": "ROBERT KAISER",
+            "telephone": "04245 2001438"
+          },
+          "receiver": {
+            "name1": "Knauf AG",
+            "street": "Kaegenstrasse",
+            "houseNumber": "17",
+            "country": "CH",
+            "zipCode": "4153",
+            "city1": "Reinach BL"
+          },
+          "receiverContactPerson": {
+            "lastName": "MARTIN EBERLIN"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "MUSTER",
+              "weights": {
+                "effectiveWeightInKilogram": 33,
+                "carrierWeightInKilogram": 33
+              },
+              "mark": "A-21441853-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066058084"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 33,
+            "carrierWeightInKilogram": 33
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Knauf AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "ROBERT KAISER | 04245 2001438",
+            "senderInfo2": "Knauf AG-CH-4153-Reinach BL",
+            "receiverInfo1": "MARTIN EBERLIN",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 6,
+          "externalNumber": "A-21442600-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Industriepark",
+            "houseNumber": "4",
+            "country": "AT",
+            "zipCode": "8350",
+            "city1": "Fehring"
+          },
+          "senderContactPerson": {
+            "lastName": "HILDEGARD SCHUSTER",
+            "telephone": "+43 3155 500 5274"
+          },
+          "receiver": {
+            "name1": "Schurter AG -",
+            "street": "Werkhofstrasse 8",
+            "houseNumber": "12",
+            "country": "CH",
+            "zipCode": "6002",
+            "city1": "Luzern"
+          },
+          "receiverContactPerson": {},
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 3.4,
+                "carrierWeightInKilogram": 3.4
+              },
+              "mark": "A-21442600-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066059975"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 3.4,
+            "carrierWeightInKilogram": 3.4
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Schurter AG -",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "HILDEGARD SCHUSTER | +43 3155 500 5274",
+            "senderInfo2": "Schurter AG --CH-6002-Luzern",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 7,
+          "externalNumber": "A-21443020-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Fabriksgasse",
+            "houseNumber": "13",
+            "country": "AT",
+            "zipCode": "8700",
+            "city1": "Leoben-Hinterberg"
+          },
+          "senderContactPerson": {
+            "lastName": "AT&S",
+            "telephone": "+43 3842 2005748"
+          },
+          "receiver": {
+            "name1": "HOFSTETTER PCB PLATING Hofstetter PCB AG",
+            "street": "Faennring",
+            "houseNumber": "10",
+            "country": "CH",
+            "zipCode": "6403",
+            "city1": "Kuessnacht"
+          },
+          "receiverContactPerson": {
+            "lastName": "VON 07:00 BIS 14:00 -"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062555"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062562"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 3,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062579"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 3,
+          "weights": {
+            "effectiveWeightInKilogram": 336,
+            "carrierWeightInKilogram": 336
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "HOFSTETTER PCB PLATING Hofstetter PCB AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "AT&S | +43 3842 2005748",
+            "senderInfo2": "HOFSTETTER PCB PLATING Hofstetter PCB AG-CH-6403-Kuessnacht",
+            "receiverInfo1": "VON 07:00 BIS 14:00 - | VON 07:00 BIS 14:00 -|-",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 8,
+          "externalNumber": "A-21443230-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Fabriksgasse",
+            "houseNumber": "13",
+            "country": "AT",
+            "zipCode": "8700",
+            "city1": "Leoben-Hinterberg"
+          },
+          "senderContactPerson": {
+            "lastName": "AT&S",
+            "telephone": "+43 3842 2005748"
+          },
+          "receiver": {
+            "name1": "Endress + Hauser Flowtec AG -",
+            "street": "Christoph-Merian-Ring",
+            "houseNumber": "12",
+            "country": "CH",
+            "zipCode": "4153",
+            "city1": "Reinach"
+          },
+          "receiverContactPerson": {
+            "lastName": "VON 07:00 BIS 14:00 -"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 62,
+                "carrierWeightInKilogram": 62
+              },
+              "mark": "A-21443230-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062920"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 62,
+            "carrierWeightInKilogram": 62
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Endress + Hauser Flowtec AG -",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "AT&S | +43 3842 2005748",
+            "senderInfo2": "Endress + Hauser Flowtec AG --CH-4153-Reinach",
+            "receiverInfo1": "VON 07:00 BIS 14:00 - | VON 07:00 BIS 14:00 -|-",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        },
+        {
+          "itemNumber": 9,
+          "externalNumber": "A-21442806-A-1",
+          "sender": {
+            "name1": "Color Drack GmbH & CO KG",
+            "street": "Baderstrasse",
+            "houseNumber": "8",
+            "country": "AT",
+            "zipCode": "5620",
+            "city1": "Schwarzach"
+          },
+          "senderContactPerson": {
+            "lastName": "SANDRA STEINBERGER",
+            "telephone": "06415 7495 14"
+          },
+          "receiver": {
+            "name1": "Color Drack Schweiz Peter Riesen",
+            "street": "Untere Weidstrasse",
+            "houseNumber": "26",
+            "country": "CH",
+            "zipCode": "8820",
+            "city1": "Waedenswil"
+          },
+          "receiverContactPerson": {
+            "lastName": "PETER RIESEN",
+            "telephone": "0041(0)799543627"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060858"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060865"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 3,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060872"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 4,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060889"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 5,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060896"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 6,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060902"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 7,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060919"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 8,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060926"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 9,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060933"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 10,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060940"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 11,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060957"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 12,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060964"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 13,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060971"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 14,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060988"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 15,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060995"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 16,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066061008"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 17,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066061015"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 17,
+          "weights": {
+            "effectiveWeightInKilogram": 217.24,
+            "carrierWeightInKilogram": 217.24
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Color Drack Schweiz Peter Riesen",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "SANDRA STEINBERGER | 06415 7495 14",
+            "senderInfo2": "Color Drack Schweiz Peter Riesen-CH-8820-Waedenswil",
+            "receiverInfo1": "PETER RIESEN | Tel: 0041(0)799543627",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}
