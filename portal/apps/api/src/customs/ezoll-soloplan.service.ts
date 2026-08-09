@@ -2,11 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { EzollSoloplanMatch } from '@wog/shared';
+import type { EzollCc529Fields, EzollSoloplanMatch } from '@wog/shared';
 
 /**
  * Schreibt OrderEzoll-v4 Consignment-Updates für Soloplan/CarLo (File-Pickup).
- * Zuordnung nur über Tour / Auftrag / Auftrag.Sendung / MRN – nie externalNumber.
+ * Zuordnung nur über Tour / Auftrag / Auftrag.Sendung – nie externalNumber / MRN.
  */
 @Injectable()
 export class EzollSoloplanService {
@@ -27,9 +27,18 @@ export class EzollSoloplanService {
   }
 
   /**
-   * CC529CC (ABD) → Sendung CFBOOLEAN2 / cC529C = true
+   * CC529CC (ABD) →
+   * - Match: ordernumber + itemNumber (Auftrag.Sendungsnummer, z. B. 442397.1)
+   * - cC529C = true
+   * - mRNATAPI = BCP MRN (Schreibfeld, kein Match)
+   * - lRN = LRN [12 09]
+   * - tarifnummerATAPI = Total items (Anzahl Tarifpositionen)
    */
-  writeCc529FlagUpdate(match: EzollSoloplanMatch, sourceFileName: string): string {
+  writeCc529FlagUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollCc529Fields = { mrn: null, lrn: null, totalItems: null },
+  ): string {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
       cC529C: true,
@@ -41,12 +50,14 @@ export class EzollSoloplanService {
     } else if (match.kind === 'order') {
       consignment.ordernumber = match.orderNumber;
       consignment.itemNumber = 1;
-    } else if (match.kind === 'mrn') {
-      consignment.mRNATAPI = match.mrn;
     } else if (match.kind === 'tour') {
-      // Tour-Ebene: OrderEzoll Consignment-Update braucht Auftrag/Sendung/MRN.
-      // Tour allein hier nicht schreibbar → Caller soll unmatched melden.
-      throw new Error('CC529-Update braucht Auftrag/Sendung oder MRN, nicht nur Tour');
+      throw new Error('CC529-Update braucht Auftrag/Sendung, nicht nur Tour');
+    }
+
+    if (fields.mrn) consignment.mRNATAPI = fields.mrn;
+    if (fields.lrn) consignment.lRN = fields.lrn;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummerATAPI = fields.totalItems;
     }
 
     const payload = {

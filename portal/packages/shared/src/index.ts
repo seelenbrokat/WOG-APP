@@ -128,6 +128,10 @@ export {
 export {
   detectEzollDocType,
   parseSoloplanMatchFromFilename,
+  parseSoloplanMatchFromLrn,
   extractMrnFromPdfText,
+  extractLrnFromPdfText,
+  extractTotalItemsFromPdfText,
+  extractCc529FieldsFromPdfText,
 } from './ezoll-doc-types';
-export type { EzollDocType, EzollSoloplanMatch } from './ezoll-doc-types';
+export type { EzollDocType, EzollSoloplanMatch, EzollCc529Fields } from './ezoll-doc-types';

@@ -5,9 +5,11 @@ import { existsSync, mkdirSync, readdirSync, renameSync } from 'fs';
 import { basename, join } from 'path';
 import {
   detectEzollDocType,
-  extractMrnFromPdfText,
+  extractCc529FieldsFromPdfText,
   matchesFilenameIgnorePrefix,
   parseSoloplanMatchFromFilename,
+  parseSoloplanMatchFromLrn,
+  type EzollCc529Fields,
   type EzollSoloplanMatch,
 } from '@wog/shared';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -17,7 +19,8 @@ import { EzollSoloplanService } from './ezoll-soloplan.service';
 /**
  * eZoll-PDF-Inbound:
  * 1) Ignore-Muster → processed/ignored/
- * 2) CC529CC → Soloplan Consignment cC529C=true (OrderEzoll-Datei)
+ * 2) CC529CC → OrderEzoll (cC529C, mRNATAPI, lRN, tarifnummerATAPI)
+ *    Match nur über Auftrag.Sendungsnummer (Dateiname / LRN-Prefix) – nie MRN.
  */
 @Injectable()
 export class EzollInboundService {
@@ -93,24 +96,26 @@ export class EzollInboundService {
     for (const filePath of files) {
       const fileName = basename(filePath);
       try {
-        const match = this.resolveMatch(filePath, fileName);
+        const text = this.pdfText(filePath);
+        const fields = extractCc529FieldsFromPdfText(text);
+        const match = this.resolveMatch(fileName, fields);
         if (!match || match.kind === 'tour') {
           unmatched += 1;
           this.move(
             filePath,
             join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
           );
-          this.log.warn(`CC529 ohne Auftrag/Sendung/MRN: ${fileName}`);
+          this.log.warn(`CC529 ohne Auftrag/Sendung: ${fileName}`);
           continue;
         }
-        this.ezollSoloplan.writeCc529FlagUpdate(match, fileName);
+        this.ezollSoloplan.writeCc529FlagUpdate(match, fileName, fields);
         this.move(
           filePath,
           join(this.inboundRoot, 'processed', 'cc529', `${Date.now()}_${fileName}`),
         );
         processed += 1;
         this.log.log(
-          `CC529 cC529C=true für ${this.matchLabel(match)} ← ${fileName}`,
+          `CC529 ${this.matchLabel(match)} mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -124,23 +129,23 @@ export class EzollInboundService {
     return { processed, unmatched };
   }
 
-  private resolveMatch(filePath: string, fileName: string): EzollSoloplanMatch | null {
+  /**
+   * Match-Priorität:
+   * 1) Dateiname Sendungsnummer (442397.1_…)
+   * 2) LRN-Prefix (442397.1/…)
+   * MRN nie als Match.
+   */
+  private resolveMatch(
+    fileName: string,
+    fields: EzollCc529Fields,
+  ): EzollSoloplanMatch | null {
     const fromName = parseSoloplanMatchFromFilename(fileName);
     if (fromName && (fromName.kind === 'orderConsignment' || fromName.kind === 'order')) {
       return fromName;
     }
-    const text = this.pdfText(filePath);
-    const mrn = extractMrnFromPdfText(text);
-    if (mrn) return { kind: 'mrn', mrn };
-
-    // LRN im Text oft „442397.1/C …“ – Auftrag.Sendung daraus, kein sonstiger Text
-    const lrn = text.match(/\b(\d{5,7})\.(\d{1,3})\s*\/[A-Z]/);
-    if (lrn) {
-      return {
-        kind: 'orderConsignment',
-        orderNumber: Number(lrn[1]),
-        consignmentIndex: Number(lrn[2]),
-      };
+    if (fields.lrn) {
+      const fromLrn = parseSoloplanMatchFromLrn(fields.lrn);
+      if (fromLrn) return fromLrn;
     }
     return fromName;
   }
@@ -153,7 +158,15 @@ export class EzollInboundService {
         timeout: 15_000,
       });
     } catch {
-      return '';
+      try {
+        return execFileSync('pdftotext', [filePath, '-'], {
+          encoding: 'utf8',
+          maxBuffer: 2 * 1024 * 1024,
+          timeout: 15_000,
+        });
+      } catch {
+        return '';
+      }
     }
   }
 
@@ -162,8 +175,7 @@ export class EzollInboundService {
       return `${match.orderNumber}.${match.consignmentIndex}`;
     }
     if (match.kind === 'order') return String(match.orderNumber);
-    if (match.kind === 'tour') return `Tour ${match.tourNumber}`;
-    return `MRN ${match.mrn}`;
+    return `Tour ${match.tourNumber}`;
   }
 
   private async resolveDefaultOrganizationId(): Promise<string | undefined> {
