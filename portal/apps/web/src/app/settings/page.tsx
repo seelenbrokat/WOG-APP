@@ -102,12 +102,14 @@ export default function SettingsPage() {
     setEzollBusy(true);
     try {
       await persistEzollConfig();
-      const result = await api<{ ignored?: number; pending?: number }>(
-        '/customs/ezoll/process-inbound',
-        { method: 'POST', body: '{}' },
-      );
+      const result = await api<{
+        ignored?: number;
+        pending?: number;
+        cc529?: number;
+        unmatched?: number;
+      }>('/customs/ezoll/process-inbound', { method: 'POST', body: '{}' });
       setEzollMsg(
-        `${result.ignored || 0} Datei(en) ignoriert, ${result.pending || 0} bleiben zur Analyse.`,
+        `${result.ignored || 0} ignoriert, ${result.cc529 || 0} CC529→Soloplan, ${result.unmatched || 0} unmatched, ${result.pending || 0} offen.`,
       );
     } catch (e: any) {
       setEzollErr(e?.message || 'Verarbeitung fehlgeschlagen');

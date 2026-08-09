@@ -100,9 +100,9 @@ async function bootstrap() {
         );
       }
       const ezoll = await ezollInbound.processInboundDir();
-      if (ezoll.ignored) {
+      if (ezoll.ignored || ezoll.cc529 || ezoll.unmatched) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert (${ezoll.prefixes.join(', ') || '–'}), ${ezoll.pending} offen`,
+          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);

@@ -124,3 +124,10 @@ export {
   normalizeFilenameIgnorePrefixes,
   matchesFilenameIgnorePrefix,
 } from './ezoll-ignore';
+
+export {
+  detectEzollDocType,
+  parseSoloplanMatchFromFilename,
+  extractMrnFromPdfText,
+} from './ezoll-doc-types';
+export type { EzollDocType, EzollSoloplanMatch } from './ezoll-doc-types';
