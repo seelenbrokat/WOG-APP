@@ -139,10 +139,16 @@ export {
   isCc529Xml,
   extractEz92xFieldsFromXml,
   isEz92xXml,
+  parseTourNumberFromFilename,
+  parseTourNumberFromLrn,
+  isCc029Xml,
+  extractCc029FieldsFromXml,
+  joinEzollMrns,
 } from './ezoll-doc-types';
 export type {
   EzollDocType,
   EzollSoloplanMatch,
   EzollCc529Fields,
   EzollEz92xFields,
+  EzollCc029Fields,
 } from './ezoll-doc-types';

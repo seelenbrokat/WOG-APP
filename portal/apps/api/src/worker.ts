@@ -100,9 +100,17 @@ async function bootstrap() {
         );
       }
       const ezoll = await ezollInbound.processInboundDir();
-      if (ezoll.ignored || ezoll.cc529 || ezoll.ez92x || ezoll.unmatched) {
+      if (
+        ezoll.ignored ||
+        ezoll.cc529 ||
+        ezoll.ez92x ||
+        ezoll.cc029 ||
+        ezoll.unmatched ||
+        ezoll.purged
+      ) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen`,
+          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029→Soloplan, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
+            (ezoll.purged ? `, ${ezoll.purged} TourCache>7d gelöscht` : ''),
         );
       }
       await intouch.processInboundDir(undefined, 50);

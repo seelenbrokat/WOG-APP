@@ -7,7 +7,7 @@ export type EzollDocType =
   | 'CCATBT02BC'
   | 'CCATBT12BC'
   | 'CCATBT52BC'
-  | 'CC029CC'
+  | 'CC029CC' // NCTS Transit (PDF CC029CC / XML CC029C)
   | 'UNKNOWN';
 
 /**
@@ -79,6 +79,10 @@ export function detectEzollDocType(fileName: string): EzollDocType {
   // XML AES: …_CC529C_9052 / MsgTyp CC529C → wie PDF CC529CC behandeln
   if (/(?:^|_)CC529C(?:_|$)/.test(base) || base.endsWith('CC529C')) {
     return 'CC529CC';
+  }
+  // NCTS: …_CC029C_efd7 / MsgTyp CC029C
+  if (/(?:^|_)CC029C(?:_|$)/.test(base) || base.endsWith('CC029C') || base.endsWith('CC029CC')) {
+    return 'CC029CC';
   }
   // PDF oft EZ923I, XML EZ923
   if (/(?:^|_)EZ923I?(?:_|$)/.test(base) || base.endsWith('EZ923I') || base.endsWith('EZ923')) {
@@ -342,4 +346,74 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
 export function isEz92xXml(xml: string): boolean {
   const typ = xmlMsgTyp(xml);
   return typ === 'EZ922' || typ === 'EZ923';
+}
+
+/** Aus CC029C (NCTS) extrahierte Felder. */
+export type EzollCc029Fields = {
+  /** Soloplan-Tournummer aus Dateiname / LRN-Prefix. */
+  tourNumber: number;
+  mrn: string | null;
+  /** Vollständige LRN, z. B. „185250 AST-GRIE“. */
+  lrn: string | null;
+  totalItems: number | null;
+};
+
+/** Tournummer aus Dateiname: 185250_AST-GRIE_… / 185250 AST-… */
+export function parseTourNumberFromFilename(fileName: string): number | null {
+  const base = fileBaseName(fileName).replace(/^\d{10,16}_/, '');
+  const m = base.match(/^(\d{5,7})(?:[^\d]|$)/);
+  if (!m) return null;
+  // Mit Sendungsindex (442397.1) ist es kein reiner Tour-Key
+  if (/^\d{5,7}\.\d{1,3}/.test(base)) return null;
+  return Number(m[1]);
+}
+
+/** Tournummer aus LRN „185250 AST-GRIE“. */
+export function parseTourNumberFromLrn(lrn: string): number | null {
+  const m = String(lrn || '').trim().match(/^(\d{5,7})(?:\s|$)/);
+  return m ? Number(m[1]) : null;
+}
+
+export function isCc029Xml(xml: string): boolean {
+  const raw = String(xml || '');
+  return (
+    /<MsgTyp>\s*CC029C\s*<\/MsgTyp>/i.test(raw) ||
+    /<messageType>\s*CC029C\s*<\/messageType>/i.test(raw) ||
+    /<(?:\w+:)?CC029C[\s>]/i.test(raw)
+  );
+}
+
+/**
+ * CC029C NCTS-XML: Tour-Ebene (LRN beginnt mit Tournummer).
+ * Mehrere CC029C pro Tour möglich → Werte später im 7-Tage-Cache mergen.
+ */
+export function extractCc029FieldsFromXml(
+  xml: string,
+  fileName?: string,
+): EzollCc029Fields | null {
+  const raw = String(xml || '');
+  if (!isCc029Xml(raw) && detectEzollDocType(fileName || '') !== 'CC029CC') {
+    return null;
+  }
+  const mrn = xmlTagText(raw, 'MRN');
+  const lrn = xmlTagText(raw, 'LRN');
+  const tourNumber =
+    parseTourNumberFromFilename(fileName || '') ||
+    (lrn ? parseTourNumberFromLrn(lrn) : null);
+  if (!tourNumber) return null;
+
+  const itemNums = [
+    ...raw.matchAll(/<declarationGoodsItemNumber>(\d+)<\/declarationGoodsItemNumber>/gi),
+    ...raw.matchAll(/<goodsItemNumber>(\d+)<\/goodsItemNumber>/gi),
+  ].map((m) => m[1]);
+  const uniqueItems = new Set(itemNums);
+  const totalItems = uniqueItems.size > 0 ? uniqueItems.size : null;
+
+  return { tourNumber, mrn, lrn, totalItems };
+}
+
+/** MRNs für Soloplan mRNATAPI zusammenführen. */
+export function joinEzollMrns(mrns: string[]): string | null {
+  const uniq = [...new Set(mrns.map((m) => m.trim()).filter(Boolean))];
+  return uniq.length ? uniq.join('; ') : null;
 }

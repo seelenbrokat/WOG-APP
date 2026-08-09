@@ -2,11 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type {
-  EzollCc529Fields,
-  EzollEz92xFields,
-  EzollSoloplanMatch,
+import {
+  joinEzollMrns,
+  type EzollCc529Fields,
+  type EzollEz92xFields,
+  type EzollSoloplanMatch,
 } from '@wog/shared';
+
+export type EzollCc029WriteFields = {
+  /** Akkumulierte MRNs (7-Tage-Tour-Cache) → mRNATAPI. */
+  mrns: string[];
+  /** Akkumulierte LRNs → lRN. */
+  lrns: string[];
+  totalItems: number | null;
+};
 
 /**
  * Schreibt OrderEzoll-v4 Consignment-Updates für Soloplan/CarLo (File-Pickup).
@@ -94,6 +103,42 @@ export class EzollSoloplanService {
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
     return this.writePayload(prefix, sourceFileName, consignment);
+  }
+
+  /**
+   * CC029C (NCTS) → alle Sendungen einer Tour:
+   * - Match: ordernumber + itemNumber (aus Portal-Tour)
+   * - cC029C: true
+   * - mRNATAPI: akkumulierte MRNs (`; `)
+   * - lRN: akkumulierte LRNs (`; `)
+   * - tarifnummerATAPI: max. Positionsanzahl
+   */
+  writeCc029TourUpdates(
+    matches: EzollSoloplanMatch[],
+    sourceFileName: string,
+    fields: EzollCc029WriteFields,
+  ): string[] {
+    const mrnJoined = joinEzollMrns(fields.mrns);
+    const lrnJoined = joinEzollMrns(fields.lrns);
+    const paths: string[] = [];
+
+    for (const match of matches) {
+      if (match.kind !== 'orderConsignment' && match.kind !== 'order') {
+        throw new Error('CC029-Update braucht Auftrag/Sendung, nicht nur Tour');
+      }
+      const consignment: Record<string, unknown> = {
+        actionAttribute: 'update',
+        cC029C: true,
+      };
+      this.applyMatch(consignment, match, 'CC029');
+      if (mrnJoined) consignment.mRNATAPI = mrnJoined;
+      if (lrnJoined) consignment.lRN = lrnJoined;
+      if (fields.totalItems != null && fields.totalItems > 0) {
+        consignment.tarifnummerATAPI = fields.totalItems;
+      }
+      paths.push(this.writePayload('cc029', sourceFileName, consignment));
+    }
+    return paths;
   }
 
   private applyMatch(

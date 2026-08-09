@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from 'fs
 import { basename, join } from 'path';
 import {
   detectEzollDocType,
+  extractCc029FieldsFromXml,
   extractCc529FieldsFromPdfText,
   extractCc529FieldsFromXml,
   extractEz92xFieldsFromXml,
@@ -19,13 +20,15 @@ import {
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
+import { EzollTourCacheService } from './ezoll-tour-cache.service';
 
 /**
  * eZoll-Inbound (PDF + XML):
  * 1) Ignore-Muster → processed/ignored/
  * 2) CC529C(C) → OrderEzoll (bestätigte Felder), XML primär
  * 3) EZ922/EZ923 XML → eZ922/eZ923, CRN→mRNATAPI, MwSt→mWSTAT, Zoll→zollabgabenAT
- * Match nur über Auftrag.Sendungsnummer – nie MRN/CRN.
+ * 4) CC029C XML → Tour-Cache (7 Tage), MRNs akkumulieren → OrderEzoll an Tour-Sendungen
+ * Match nur über Auftrag.Sendungsnummer / Tournummer – nie MRN/CRN.
  */
 @Injectable()
 export class EzollInboundService {
@@ -37,6 +40,7 @@ export class EzollInboundService {
     private config: ConfigService,
     private organizations: OrganizationsService,
     private ezollSoloplan: EzollSoloplanService,
+    private tourCache: EzollTourCacheService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -47,6 +51,7 @@ export class EzollInboundService {
       join(this.inboundRoot, 'processed', 'ignored'),
       join(this.inboundRoot, 'processed', 'cc529'),
       join(this.inboundRoot, 'processed', 'ez92x'),
+      join(this.inboundRoot, 'processed', 'cc029'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
     ]) {
@@ -61,11 +66,15 @@ export class EzollInboundService {
         ignored: 0,
         cc529: 0,
         ez92x: 0,
+        cc029: 0,
         unmatched: 0,
         pending: 0,
+        purged: 0,
         prefixes: [] as string[],
       };
     }
+
+    const purged = await this.tourCache.purgeExpired();
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
     let ignored = 0;
@@ -83,6 +92,7 @@ export class EzollInboundService {
     const enabled = this.config.get('SOLOPLAN_EZOLL_CC529_ENABLED') !== 'false';
     let cc529 = 0;
     let ez92x = 0;
+    let cc029 = 0;
     let unmatched = 0;
     if (enabled) {
       const a = this.processCc529Batch(40);
@@ -91,10 +101,13 @@ export class EzollInboundService {
       const b = this.processEz92xBatch(40);
       ez92x = b.processed;
       unmatched += b.unmatched;
+      const c = await this.processCc029Batch(orgId, 40);
+      cc029 = c.processed;
+      unmatched += c.unmatched;
     }
 
     const pending = this.listPendingFiles().length;
-    return { ignored, cc529, ez92x, unmatched, pending, prefixes };
+    return { ignored, cc529, ez92x, cc029, unmatched, pending, purged, prefixes };
   }
 
   private processCc529Batch(limit: number) {
@@ -223,6 +236,112 @@ export class EzollInboundService {
       }
     }
     return { processed, unmatched };
+  }
+
+  /**
+   * CC029C NCTS: Tournummer aus Dateiname/LRN.
+   * Pro Tour 7-Tage-Cache – bei Mehrfach-XMLs MRNs/LRNs ergänzen, nicht überschreiben.
+   * Soloplan-Updates an alle Portal-Sendungen der Tour mit akkumulierten Werten.
+   */
+  private async processCc029Batch(organizationId: string, limit: number) {
+    let processed = 0;
+    let unmatched = 0;
+    const files = this.listPendingFiles()
+      .filter((p) => detectEzollDocType(basename(p)) === 'CC029CC' && /\.xml$/i.test(p))
+      .slice(0, limit);
+
+    for (const filePath of files) {
+      const fileName = basename(filePath);
+      try {
+        const xml = readFileSync(filePath, 'utf8');
+        const fields = extractCc029FieldsFromXml(xml, fileName);
+        if (!fields) {
+          unmatched += 1;
+          this.move(
+            filePath,
+            join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+          );
+          this.log.warn(`CC029 kein gültiges MsgTyp/Tournummer: ${fileName}`);
+          continue;
+        }
+
+        const cache = await this.tourCache.mergeTourDocument({
+          organizationId,
+          tourNumber: fields.tourNumber,
+          mrn: fields.mrn,
+          lrn: fields.lrn,
+          totalItems: fields.totalItems,
+          sourceFile: fileName,
+        });
+
+        const matches = await this.resolveTourConsignmentMatches(
+          organizationId,
+          fields.tourNumber,
+        );
+        if (!matches.length) {
+          unmatched += 1;
+          this.move(
+            filePath,
+            join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+          );
+          this.log.warn(
+            `CC029 Tour ${fields.tourNumber}: keine Portal-Sendungen (Cache ${cache.isNew ? 'neu' : 'ergänzt'}, MRNs=${cache.mrns.length}) ← ${fileName}`,
+          );
+          continue;
+        }
+
+        this.ezollSoloplan.writeCc029TourUpdates(matches, fileName, {
+          mrns: cache.mrns,
+          lrns: cache.lrns,
+          totalItems: cache.totalItems,
+        });
+        this.move(
+          filePath,
+          join(this.inboundRoot, 'processed', 'cc029', `${Date.now()}_${fileName}`),
+        );
+        processed += 1;
+        this.log.log(
+          `CC029 Tour ${fields.tourNumber} → ${matches.length} Sendung(en) [${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
+        );
+      } catch (e: any) {
+        unmatched += 1;
+        this.log.warn(`CC029 ${fileName}: ${e?.message || e}`);
+        this.move(
+          filePath,
+          join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
+        );
+      }
+    }
+    return { processed, unmatched };
+  }
+
+  private async resolveTourConsignmentMatches(
+    organizationId: string,
+    tourNumber: number,
+  ): Promise<EzollSoloplanMatch[]> {
+    const tour = await this.prisma.tour.findFirst({
+      where: { organizationId, tourNumber: String(tourNumber) },
+      select: {
+        consignments: {
+          select: { orderNumber: true, consignmentIndex: true },
+        },
+      },
+    });
+    if (!tour) return [];
+
+    const seen = new Set<string>();
+    const matches: EzollSoloplanMatch[] = [];
+    for (const c of tour.consignments) {
+      const orderNumber = Number(String(c.orderNumber || '').trim());
+      if (!Number.isFinite(orderNumber) || orderNumber <= 0) continue;
+      const consignmentIndex =
+        c.consignmentIndex != null && c.consignmentIndex > 0 ? c.consignmentIndex : 1;
+      const key = `${orderNumber}.${consignmentIndex}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      matches.push({ kind: 'orderConsignment', orderNumber, consignmentIndex });
+    }
+    return matches;
   }
 
   private fieldsFromCc529Xml(filePath: string, fileName: string): EzollCc529Fields | null {

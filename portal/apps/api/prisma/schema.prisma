@@ -108,6 +108,32 @@ model Organization {
   loadingUnitPostings LoadingUnitPosting[]
   lademittelscheine   Lademittelschein[]
   settings            OrganizationSetting[]
+  ezollTourCaches     EzollTourCache[]
+}
+
+/// eZoll CC029C: Tour-Fenster 7 Tage – MRNs/LRNs bei Mehrfach-Vorkommen akkumulieren.
+model EzollTourCache {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Soloplan-Tournummer (z. B. 185250)
+  tourNumber     String
+  /// Akkumulierte MRNs (Transit)
+  mrns           String[] @default([])
+  /// Akkumulierte LRNs (z. B. „185250 AST-GRIE“)
+  lrns           String[] @default([])
+  /// Max. Tarif-/Warenpositionen über die Fenster-Dokumente
+  totalItems     Int?
+  sourceFiles    String[] @default([])
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, tourNumber])
+  @@index([lastSeenAt])
+  @@index([organizationId, lastSeenAt])
 }
 
 /// Org-weite Key/Value-Einstellungen (z. B. eZoll Ignore-Präfixe).
