@@ -26,8 +26,15 @@ export default function SettingsPage() {
   const [soloplan, setSoloplan] = useState<any>(null);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
-  const [ezollPrefixesText, setEzollPrefixesText] = useState('131.\n671.');
-  const [ezollDefaults, setEzollDefaults] = useState<string[]>(['131.', '671.']);
+  const [ezollPrefixesText, setEzollPrefixesText] = useState(
+    '131.\n671.\nHOLENSTEIN\nSCHEFKNECHT',
+  );
+  const [ezollDefaults, setEzollDefaults] = useState<string[]>([
+    '131.',
+    '671.',
+    'HOLENSTEIN',
+    'SCHEFKNECHT',
+  ]);
   const [ezollSaved, setEzollSaved] = useState(false);
   const [ezollBusy, setEzollBusy] = useState(false);
   const [ezollMsg, setEzollMsg] = useState('');
@@ -179,20 +186,21 @@ export default function SettingsPage() {
 
       {canSeeEzoll && (
         <div className="panel stack" style={{ marginTop: '1.25rem' }}>
-          <strong>eZoll-Dokumente – Ignore-Präfixe</strong>
+          <strong>eZoll-Dokumente – Ignore-Muster</strong>
           <p className="muted" style={{ margin: 0 }}>
-            Dateien im SFTP-Drop <code>inbound/Ezoll-Dokumente/</code>, deren Name mit einem dieser
-            Präfixe beginnt, werden nicht analysiert und nach{' '}
-            <code>processed/ignored/</code> verschoben. Standard: {ezollDefaults.join(', ')}.
+            Dateien im SFTP-Drop <code>inbound/Ezoll-Dokumente/</code> werden nicht analysiert und
+            nach <code>processed/ignored/</code> verschoben. Regeln: endet der Eintrag mit{' '}
+            <code>.</code> → Name beginnt damit; sonst → Name enthält den Text (Groß/Klein egal).
+            Standard: {ezollDefaults.join(', ')}.
           </p>
           <label className="field">
-            Präfixe (ein Eintrag pro Zeile)
+            Muster (ein Eintrag pro Zeile)
             <textarea
-              rows={5}
+              rows={6}
               value={ezollPrefixesText}
               onChange={(e) => setEzollPrefixesText(e.target.value)}
               disabled={!isAdmin || ezollBusy}
-              placeholder={'131.\n671.'}
+              placeholder={'131.\n671.\nHOLENSTEIN\nSCHEFKNECHT'}
               style={{ fontFamily: 'ui-monospace, monospace' }}
             />
           </label>

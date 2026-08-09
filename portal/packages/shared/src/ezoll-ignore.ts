@@ -1,13 +1,19 @@
-/** Org-Setting-Key: Dateiname-Präfixe, die im eZoll-Drop ignoriert werden. */
+/** Org-Setting-Key: Dateiname-Muster, die im eZoll-Drop ignoriert werden. */
 export const EZOLL_FILENAME_IGNORE_PREFIXES_KEY = 'ezoll.filenameIgnorePrefixes';
 
 /**
- * Standard: Tour-/Smart-Border-Dateien ohne Soloplan-Bezug
- * (z. B. Transit-Eingangsschein CCATBT12BC unter 131.* / 671.*).
+ * Standard-Ignore:
+ * - `131.` / `671.` → Dateiname beginnt damit (Tour-Referenzen)
+ * - `HOLENSTEIN` / `SCHEFKNECHT` → kommt im Dateinamen vor (Groß/Klein egal)
  */
-export const DEFAULT_EZOLL_FILENAME_IGNORE_PREFIXES = ['131.', '671.'] as const;
+export const DEFAULT_EZOLL_FILENAME_IGNORE_PREFIXES = [
+  '131.',
+  '671.',
+  'HOLENSTEIN',
+  'SCHEFKNECHT',
+] as const;
 
-/** Normalisiert Admin-Eingabe zu eindeutigen, nicht-leeren Präfixen. */
+/** Normalisiert Admin-Eingabe zu eindeutigen, nicht-leeren Mustern. */
 export function normalizeFilenameIgnorePrefixes(
   input: unknown,
   fallback: readonly string[] = DEFAULT_EZOLL_FILENAME_IGNORE_PREFIXES,
@@ -29,7 +35,11 @@ export function normalizeFilenameIgnorePrefixes(
   return out.length ? out : [...fallback];
 }
 
-/** true, wenn der Dateiname (ohne Pfad) mit einem Ignore-Präfix beginnt. */
+/**
+ * true, wenn der Dateiname zum Ignore-Muster passt.
+ * - Muster endet mit `.` → Präfix (startsWith)
+ * - sonst → Teilstring (case-insensitive includes)
+ */
 export function matchesFilenameIgnorePrefix(
   fileName: string,
   prefixes: readonly string[],
@@ -39,5 +49,10 @@ export function matchesFilenameIgnorePrefix(
     .pop()
     ?.trim() || '';
   if (!base) return false;
-  return prefixes.some((p) => p && base.startsWith(p));
+  const baseUpper = base.toUpperCase();
+  return prefixes.some((p) => {
+    if (!p) return false;
+    if (p.endsWith('.')) return base.startsWith(p);
+    return baseUpper.includes(p.toUpperCase());
+  });
 }
