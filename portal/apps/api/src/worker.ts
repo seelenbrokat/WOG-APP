@@ -102,6 +102,7 @@ async function bootstrap() {
       const ezoll = await ezollInbound.processInboundDir();
       if (
         ezoll.ignored ||
+        ezoll.stale ||
         ezoll.cc529 ||
         ezoll.ez92x ||
         ezoll.cc029 ||
@@ -111,7 +112,7 @@ async function bootstrap() {
         ezoll.purged
       ) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +
+          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.stale || 0} nicht-aktuell, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +
             (ezoll.customerExit ? `, ${ezoll.customerExit} Austritt→Kunde` : '') +
             `, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
             (ezoll.purged ? `, ${ezoll.purged} Cache gelöscht` : ''),
