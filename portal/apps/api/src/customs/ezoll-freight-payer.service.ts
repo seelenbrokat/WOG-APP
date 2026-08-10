@@ -2,16 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ShipmentStatus, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EzollSoloplanReadApiService } from './ezoll-soloplan-read-api.service';
 
 /**
  * Kunde im Portal = Soloplan-Frachtzahler.
- * Tour-XML: FreightPayer oft leer → dann Customer/Auftraggeber-BP (gleiche Rolle in der Praxis).
+ * Quellen: 1) TourConsignment 2) OrderEzoll_NurLesen API 3) sonst null.
  */
 @Injectable()
 export class EzollFreightPayerService {
   private readonly log = new Logger(EzollFreightPayerService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private ezollApi: EzollSoloplanReadApiService,
+  ) {}
 
   async resolveFreightPayerCustomer(
     organizationId: string,
@@ -19,6 +23,9 @@ export class EzollFreightPayerService {
   ): Promise<{ customerId: string; bpNumber: string; name: string | null } | null> {
     const orderKey = String(orderNumber).trim();
     if (!orderKey) return null;
+
+    let bpNumber = '';
+    let name: string | null = null;
 
     const cons = await this.prisma.tourConsignment.findFirst({
       where: { orderNumber: orderKey, tour: { organizationId } },
@@ -30,11 +37,26 @@ export class EzollFreightPayerService {
       },
       orderBy: { id: 'desc' },
     });
-    if (!cons) return null;
+    if (cons) {
+      bpNumber = String(cons.freightPayerBpNumber || cons.customerBpNumber || '').trim();
+      name = cons.freightPayerName || cons.customerName || null;
+    }
 
-    const bpNumber = String(cons.freightPayerBpNumber || cons.customerBpNumber || '').trim();
+    if (!bpNumber && this.ezollApi.isEnabled()) {
+      const n = Number(orderKey);
+      if (Number.isFinite(n) && n > 0) {
+        const api = await this.ezollApi.resolveFreightPayerBp(n);
+        if (api?.bpNumber) {
+          bpNumber = api.bpNumber;
+          name = api.name;
+          this.log.log(
+            `Frachtzahler Order ${orderKey} via ${api.source}: BP ${bpNumber} (${name || '–'})`,
+          );
+        }
+      }
+    }
+
     if (!bpNumber) return null;
-    const name = cons.freightPayerName || cons.customerName || null;
 
     const customer = await this.prisma.customer.findFirst({
       where: {
