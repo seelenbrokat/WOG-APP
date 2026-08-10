@@ -45,17 +45,11 @@ import { EzollFreightPayerService } from './ezoll-freight-payer.service';
  * 4) CC029C XML → Tour-Cache (7 Tage)
  * 5) CC599C(C) → cC599C:true; Werte nur ohne vorherige Ausfuhr; PDF → Kunden CUSTOMS_EXIT
  * Match nur über Auftrag.Sendungsnummer / Tournummer – nie MRN/CRN.
- *
- * Soloplan-Updates nur für aktuelle Touren/Sendungen (PLANNED/ACTIVE oder
- * Aktivität innerhalb SOLOPLAN_EZOLL_MAX_AGE_DAYS). Historische Aufträge
- * ohne aktuelle Tour → processed/stale/ (kein OrderEzoll).
  */
 @Injectable()
 export class EzollInboundService {
   private readonly log = new Logger(EzollInboundService.name);
   private readonly inboundRoot: string;
-  /** Max. Alter (Tage) für COMPLETED/CANCELLED-Touren; Default 14. */
-  private readonly maxAgeDays: number;
 
   constructor(
     private prisma: PrismaService,
@@ -71,13 +65,10 @@ export class EzollInboundService {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
     this.inboundRoot = join(sftpInbound, 'Ezoll-Dokumente');
-    const days = Number(this.config.get('SOLOPLAN_EZOLL_MAX_AGE_DAYS') || 14);
-    this.maxAgeDays = Number.isFinite(days) && days > 0 ? Math.floor(days) : 14;
     for (const dir of [
       this.inboundRoot,
       join(this.inboundRoot, 'processed'),
       join(this.inboundRoot, 'processed', 'ignored'),
-      join(this.inboundRoot, 'processed', 'stale'),
       join(this.inboundRoot, 'processed', 'cc529'),
       join(this.inboundRoot, 'processed', 'ez92x'),
       join(this.inboundRoot, 'processed', 'cc029'),
@@ -95,7 +86,6 @@ export class EzollInboundService {
     if (!orgId) {
       return {
         ignored: 0,
-        stale: 0,
         cc529: 0,
         ez92x: 0,
         cc029: 0,
@@ -140,32 +130,26 @@ export class EzollInboundService {
     let cc599 = 0;
     let customerExit = 0;
     let unmatched = 0;
-    let stale = 0;
     if (enabled) {
       const a = await this.processCc529Batch(orgId, 40);
       cc529 = a.processed;
       unmatched += a.unmatched;
-      stale += a.stale;
-      const b = await this.processEz92xBatch(orgId, 40);
+      const b = this.processEz92xBatch(40);
       ez92x = b.processed;
       unmatched += b.unmatched;
-      stale += b.stale;
       const c = await this.processCc029Batch(orgId, 40);
       cc029 = c.processed;
       unmatched += c.unmatched;
-      stale += c.stale;
       const d = await this.processCc599Batch(orgId, 40);
       cc599 = d.processed;
       customerExit = d.customerExit;
       unmatched += d.unmatched;
-      stale += d.stale;
       customerExit += await this.retryPendingCustomerExit(orgId, 40);
     }
 
     const pending = this.listPendingFiles().length;
     return {
       ignored,
-      stale,
       cc529,
       ez92x,
       cc029,
@@ -181,7 +165,6 @@ export class EzollInboundService {
   private async processCc529Batch(organizationId: string, limit: number) {
     let processed = 0;
     let unmatched = 0;
-    let stale = 0;
     const pending = this.listPendingFiles().filter(
       (p) => detectEzollDocType(basename(p)) === 'CC529CC',
     );
@@ -229,17 +212,6 @@ export class EzollInboundService {
           this.log.warn(`CC529 ohne Auftrag/Sendung: ${fileName}`);
           continue;
         }
-
-        const currency = await this.resolveCurrentOrderMatch(organizationId, match);
-        if (!currency.ok) {
-          stale += 1;
-          this.moveStale(filePath, fileName);
-          this.log.warn(
-            `CC529 übersprungen (nicht aktuell): ${this.matchLabel(match)} – ${currency.reason} ← ${fileName}`,
-          );
-          continue;
-        }
-
         this.ezollSoloplan.writeCc529FlagUpdate(match, fileName, fields);
         await this.markAusfuhr(organizationId, match, fields, fileName);
         this.move(
@@ -248,7 +220,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC529 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] Tour=${currency.reason} mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
+          `CC529 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] mRNATAPI=${fields.mrn || '-'} lRN=${fields.lrn || '-'} Tarifanzahl=${fields.totalItems ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -259,13 +231,12 @@ export class EzollInboundService {
         );
       }
     }
-    return { processed, unmatched, stale };
+    return { processed, unmatched };
   }
 
-  private async processEz92xBatch(organizationId: string, limit: number) {
+  private processEz92xBatch(limit: number) {
     let processed = 0;
     let unmatched = 0;
-    let stale = 0;
     const files = this.listPendingFiles()
       .filter((p) => {
         const t = detectEzollDocType(basename(p));
@@ -299,16 +270,6 @@ export class EzollInboundService {
           continue;
         }
 
-        const currency = await this.resolveCurrentOrderMatch(organizationId, match);
-        if (!currency.ok) {
-          stale += 1;
-          this.moveStale(filePath, fileName);
-          this.log.warn(
-            `${fields.msgTyp} übersprungen (nicht aktuell): ${this.matchLabel(match)} – ${currency.reason} ← ${fileName}`,
-          );
-          continue;
-        }
-
         this.ezollSoloplan.writeEz92xUpdate(match, fileName, fields);
         this.move(
           filePath,
@@ -316,7 +277,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `${fields.msgTyp} ${this.matchLabel(match)} Tour=${currency.reason} CRN=${fields.crn || '-'} Konto=${fields.abgabenkonto || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} ← ${fileName}`,
+          `${fields.msgTyp} ${this.matchLabel(match)} CRN=${fields.crn || '-'} Konto=${fields.abgabenkonto || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -327,7 +288,7 @@ export class EzollInboundService {
         );
       }
     }
-    return { processed, unmatched, stale };
+    return { processed, unmatched };
   }
 
   /**
@@ -338,7 +299,6 @@ export class EzollInboundService {
   private async processCc029Batch(organizationId: string, limit: number) {
     let processed = 0;
     let unmatched = 0;
-    let stale = 0;
     const files = this.listPendingFiles()
       .filter((p) => detectEzollDocType(basename(p)) === 'CC029CC' && /\.xml$/i.test(p))
       .slice(0, limit);
@@ -355,16 +315,6 @@ export class EzollInboundService {
             join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
           );
           this.log.warn(`CC029 kein gültiges MsgTyp/Tournummer: ${fileName}`);
-          continue;
-        }
-
-        const currency = await this.resolveCurrentTour(organizationId, fields.tourNumber);
-        if (!currency.ok) {
-          stale += 1;
-          this.moveStale(filePath, fileName);
-          this.log.warn(
-            `CC029 übersprungen (nicht aktuell): Tour ${fields.tourNumber} – ${currency.reason} ← ${fileName}`,
-          );
           continue;
         }
 
@@ -389,7 +339,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC029 Tour ${fields.tourNumber} [${currency.reason}, ${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
+          `CC029 Tour ${fields.tourNumber} [Tour-Update, ${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -400,7 +350,7 @@ export class EzollInboundService {
         );
       }
     }
-    return { processed, unmatched, stale };
+    return { processed, unmatched };
   }
 
   /**
@@ -412,7 +362,6 @@ export class EzollInboundService {
   private async processCc599Batch(organizationId: string, limit: number) {
     let processed = 0;
     let unmatched = 0;
-    let stale = 0;
     let customerExit = 0;
     const pending = this.listPendingFiles().filter(
       (p) => detectEzollDocType(basename(p)) === 'CC599CC',
@@ -448,16 +397,6 @@ export class EzollInboundService {
             join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
           );
           this.log.warn(`CC599 ohne Auftrag/Sendung: ${fileName}`);
-          continue;
-        }
-
-        const currency = await this.resolveCurrentOrderMatch(organizationId, match);
-        if (!currency.ok) {
-          stale += 1;
-          this.moveStale(filePath, fileName);
-          this.log.warn(
-            `CC599 übersprungen (nicht aktuell): ${this.matchLabel(match)} – ${currency.reason} ← ${fileName}`,
-          );
           continue;
         }
 
@@ -506,7 +445,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC599 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] Tour=${currency.reason} cC599C=true Werte=${includeValues ? 'ja (keine Ausfuhr)' : 'nein (Ausfuhr vorhanden)'} ← ${fileName}`,
+          `CC599 ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] cC599C=true Werte=${includeValues ? 'ja (keine Ausfuhr)' : 'nein (Ausfuhr vorhanden)'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -517,7 +456,7 @@ export class EzollInboundService {
         );
       }
     }
-    return { processed, unmatched, stale, customerExit };
+    return { processed, unmatched, customerExit };
   }
 
   /**
@@ -710,195 +649,6 @@ export class EzollInboundService {
       eur1Number: fields.eur1Number,
       sourceFile,
     });
-  }
-
-  /**
-   * Soloplan-Update nur wenn Auftrag.Sendung auf einer aktuellen Tour liegt:
-   * - Tour PLANNED / ACTIVE, oder
-   * - Tour-Aktivität (lastStatusAt / targetEnd / targetStart / updatedAt) ≤ maxAgeDays
-   * Sonst: kein OrderEzoll (historische Sendungen).
-   */
-  private async resolveCurrentOrderMatch(
-    organizationId: string,
-    match: EzollSoloplanMatch,
-  ): Promise<{ ok: true; reason: string } | { ok: false; reason: string }> {
-    const { orderNumber, consignmentIndex } = this.matchOrderKeys(match);
-    const orderKey = String(orderNumber);
-
-    let rows = await this.prisma.tourConsignment.findMany({
-      where: {
-        orderNumber: orderKey,
-        consignmentIndex,
-        tour: { organizationId },
-      },
-      include: {
-        tour: {
-          select: {
-            tourNumber: true,
-            status: true,
-            targetStart: true,
-            targetEnd: true,
-            lastStatusAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-      take: 30,
-    });
-
-    // Fallback: Sendungsindex unbekannt / abweichend → alle Positionen des Auftrags
-    if (!rows.length) {
-      rows = await this.prisma.tourConsignment.findMany({
-        where: {
-          orderNumber: orderKey,
-          tour: { organizationId },
-        },
-        include: {
-          tour: {
-            select: {
-              tourNumber: true,
-              status: true,
-              targetStart: true,
-              targetEnd: true,
-              lastStatusAt: true,
-              updatedAt: true,
-            },
-          },
-        },
-        take: 30,
-      });
-    }
-
-    const cutoff = this.currencyCutoff();
-
-    if (!rows.length) {
-      // Fallback: aktuelle Portal-Sendung (WE) ohne Tour-Sync
-      const shipmentOk = await this.resolveCurrentShipmentFallback(
-        organizationId,
-        orderNumber,
-        cutoff,
-      );
-      if (shipmentOk.ok) return shipmentOk;
-      return {
-        ok: false,
-        reason: `keine aktuelle Tour/Sendung für Auftrag ${orderNumber}.${consignmentIndex}`,
-      };
-    }
-
-    for (const row of rows) {
-      const verdict = this.tourCurrencyVerdict(row.tour, cutoff);
-      if (verdict.ok) {
-        const idx =
-          row.consignmentIndex != null ? `.${row.consignmentIndex}` : '';
-        return {
-          ok: true,
-          reason: `${row.tour.tourNumber}${idx}/${verdict.reason}`,
-        };
-      }
-    }
-
-    return {
-      ok: false,
-      reason: `nur abgeschlossene/alte Tour(en) (>${this.maxAgeDays}d) für ${orderNumber}.${consignmentIndex}`,
-    };
-  }
-
-  /** Portal-Sendung mit soloplanRef / WE-{n} und frischem Termin. */
-  private async resolveCurrentShipmentFallback(
-    organizationId: string,
-    orderNumber: number,
-    cutoff: Date,
-  ): Promise<{ ok: true; reason: string } | { ok: false; reason: string }> {
-    const refs = [String(orderNumber), `WE-${orderNumber}`, `EZOLL-${orderNumber}`];
-    const shipment = await this.prisma.shipment.findFirst({
-      where: {
-        organizationId,
-        soloplanRef: { in: refs },
-        status: { notIn: ['CANCELLED'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        trackingNumber: true,
-        status: true,
-        pickupDate: true,
-        deliveryDate: true,
-        createdAt: true,
-      },
-    });
-    if (!shipment) {
-      return { ok: false, reason: 'keine Portal-Sendung' };
-    }
-    const activity =
-      shipment.pickupDate || shipment.deliveryDate || shipment.createdAt;
-    if (activity >= cutoff) {
-      return {
-        ok: true,
-        reason: `Shipment ${shipment.trackingNumber}/${shipment.status}`,
-      };
-    }
-    return {
-      ok: false,
-      reason: `Portal-Sendung ${shipment.trackingNumber} älter als ${this.maxAgeDays}d`,
-    };
-  }
-
-  private async resolveCurrentTour(
-    organizationId: string,
-    tourNumber: number,
-  ): Promise<{ ok: true; reason: string } | { ok: false; reason: string }> {
-    const tour = await this.prisma.tour.findFirst({
-      where: { organizationId, tourNumber: String(tourNumber) },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        tourNumber: true,
-        status: true,
-        targetStart: true,
-        targetEnd: true,
-        lastStatusAt: true,
-        updatedAt: true,
-      },
-    });
-    if (!tour) {
-      return { ok: false, reason: `Tour ${tourNumber} nicht im Portal` };
-    }
-    return this.tourCurrencyVerdict(tour, this.currencyCutoff());
-  }
-
-  private currencyCutoff(): Date {
-    return new Date(Date.now() - this.maxAgeDays * 24 * 60 * 60 * 1000);
-  }
-
-  private tourCurrencyVerdict(
-    tour: {
-      tourNumber: string;
-      status: string;
-      targetStart: Date | null;
-      targetEnd: Date | null;
-      lastStatusAt: Date | null;
-      updatedAt: Date;
-    },
-    cutoff: Date,
-  ): { ok: true; reason: string } | { ok: false; reason: string } {
-    const status = String(tour.status || '').toUpperCase();
-    if (status === 'PLANNED' || status === 'ACTIVE') {
-      return { ok: true, reason: status };
-    }
-    const activity =
-      tour.lastStatusAt || tour.targetEnd || tour.targetStart || tour.updatedAt;
-    if (activity && activity >= cutoff) {
-      return { ok: true, reason: `${status || 'UNKNOWN'}≤${this.maxAgeDays}d` };
-    }
-    return {
-      ok: false,
-      reason: `Tour ${tour.tourNumber} ${status || '?'} zu alt`,
-    };
-  }
-
-  private moveStale(filePath: string, fileName: string) {
-    this.move(
-      filePath,
-      join(this.inboundRoot, 'processed', 'stale', `${Date.now()}_${fileName}`),
-    );
   }
 
   private matchOrderKeys(match: EzollSoloplanMatch): {
