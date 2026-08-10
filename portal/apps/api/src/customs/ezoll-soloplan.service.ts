@@ -30,7 +30,11 @@ export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
-  /** consignment = flach Sendung (default), order = nested Order-Schema. */
+  /**
+   * order = nested Order-Schema (sicher: Lookup über Auftrag.number, dann Sendung).
+   * consignment = flach – NUR mit funktionierendem Ordernumber+ItemNumber-Lookup;
+   * sonst matcht Automate oft nur itemNumber=1 und trifft historische Aufträge.
+   */
   private readonly rootMode: 'order' | 'consignment';
 
   constructor(private config: ConfigService) {
@@ -47,10 +51,16 @@ export class EzollSoloplanService {
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
 
-    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'consignment')
+    // Default: order (sicher). Flat consignment nur explizit.
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
       .trim()
       .toLowerCase();
-    this.rootMode = mode === 'order' ? 'order' : 'consignment';
+    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
+    if (this.rootMode === 'consignment') {
+      this.log.warn(
+        'SOLOPLAN_EZOLL_ROOT=consignment: Automate muss Ordernumber+ItemNumber als Lookup haben, sonst werden Fremdaufträge (z. B. 2017) aktualisiert',
+      );
+    }
 
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
@@ -216,25 +226,30 @@ export class EzollSoloplanService {
     const header = this.header(`ezoll-${kind}:${sourceFileName}`);
 
     if (this.rootMode === 'consignment') {
+      // Flach: ordernumber MUSS mit – ohne Lookup in Automate hochgefährlich.
+      if (consignment.ordernumber == null || consignment.itemNumber == null) {
+        throw new Error(`${kind}: flat consignment braucht ordernumber+itemNumber`);
+      }
       return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
         header,
         consignment: [consignment],
       });
     }
 
-    // Order-Schema (Soloplan Automate): order.number + consignments[]
+    // Sicher: Auftrag zuerst matchen (number), Sendung nur innerhalb des Auftrags.
     const orderNumber = Number(consignment.ordernumber);
     if (!Number.isFinite(orderNumber) || orderNumber <= 0) {
       throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
     }
 
+    const { ordernumber: _drop, ...consignmentUnderOrder } = consignment;
     return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
       header,
       order: [
         {
           actionAttribute: 'update',
           number: orderNumber,
-          consignments: [consignment],
+          consignments: [consignmentUnderOrder],
         },
       ],
     });
