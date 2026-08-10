@@ -594,11 +594,17 @@ export default function CustomsPage() {
         <div className="field">
           <label>Mandant</label>
           <select
-            value={form.mandantId}
-            onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
+            required
+            value={
+              mandanten.some((m) => String(m.id) === String(form.mandantId || ''))
+                ? String(form.mandantId)
+                : ''
+            }
+            onChange={(e) => setForm((f) => ({ ...f, mandantId: e.target.value }))}
           >
+            <option value="">Bitte wählen</option>
             {mandanten.map((m) => (
-              <option key={m.id} value={m.id}>
+              <option key={m.id} value={String(m.id)}>
                 {m.name}
               </option>
             ))}

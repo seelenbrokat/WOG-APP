@@ -21,25 +21,71 @@ function isAppleTouchDevice() {
 }
 
 /**
- * Blob als Datei speichern / öffnen.
- * Safari/iOS: Object-URL nicht sofort revoke; PDF in neuem Tab (download-Attribut oft wirkungslos).
+ * Vor async Arbeit synchron öffnen (Firefox/Chrome Popup-Blocker).
+ * Nach dem Fetch: showBlobInWindow(win, blob, …).
  */
-export function triggerBlobDownload(blob: Blob, fileName: string, mimeHint?: string | null) {
+export function openBlankTabForAsyncWork(): Window | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.open('about:blank', '_blank');
+  } catch {
+    return null;
+  }
+}
+
+/** Blob im neuen Tab anzeigen; bei Popup-Block Download-Fallback. */
+export function openBlobInNewTab(
+  blob: Blob,
+  fileName: string,
+  mimeHint?: string | null,
+  targetWin?: Window | null,
+) {
   const type = resolveMime(blob, fileName, mimeHint);
   const typed = blob.type === type ? blob : new Blob([blob], { type });
   const url = URL.createObjectURL(typed);
+
+  if (targetWin && !targetWin.closed) {
+    try {
+      targetWin.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      return;
+    } catch {
+      try {
+        targetWin.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+}
+
+/**
+ * Blob als Datei speichern / öffnen.
+ * PDFs: immer neuen Tab (wie früher erwartet); Download nur als Fallback.
+ */
+export function triggerBlobDownload(blob: Blob, fileName: string, mimeHint?: string | null) {
+  const type = resolveMime(blob, fileName, mimeHint);
   const isPdf = type === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 
-  if (isPdf && isAppleTouchDevice()) {
-    const win = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!win) {
-      // Popup blockiert → gleiche Seite
-      window.location.assign(url);
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  if (isPdf) {
+    openBlobInNewTab(blob, fileName, mimeHint);
     return;
   }
 
+  const typed = blob.type === type ? blob : new Blob([blob], { type });
+  const url = URL.createObjectURL(typed);
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
@@ -50,8 +96,12 @@ export function triggerBlobDownload(blob: Blob, fileName: string, mimeHint?: str
   window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }
 
-/** Authentifizierten Dokument-Download auslösen. */
-export async function downloadAuthenticated(path: string, fileName: string) {
+/** Authentifizierten Dokument-Download / PDF-Tab auslösen. */
+export async function downloadAuthenticated(
+  path: string,
+  fileName: string,
+  opts?: { targetWin?: Window | null },
+) {
   const base = process.env.NEXT_PUBLIC_API_URL || '/api';
   const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`;
   const token = getToken();
@@ -70,5 +120,28 @@ export async function downloadAuthenticated(path: string, fileName: string) {
   if (!blob.size) {
     throw new Error('Leere Datei empfangen');
   }
-  triggerBlobDownload(blob, fileName, res.headers.get('content-type'));
+  const mime = res.headers.get('content-type');
+  const isPdf =
+    (mime || '').includes('pdf') || fileName.toLowerCase().endsWith('.pdf') || isAppleTouchDevice();
+  if (isPdf) {
+    openBlobInNewTab(blob, fileName, mime, opts?.targetWin);
+  } else {
+    if (opts?.targetWin && !opts.targetWin.closed) {
+      try {
+        opts.targetWin.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    triggerBlobDownload(blob, fileName, mime);
+  }
+}
+
+/** Shortcut: /documents/:id/download im neuen Tab (Etiketten/Ladeliste). */
+export async function openDocumentInNewTab(
+  docId: string,
+  fileName: string,
+  opts?: { targetWin?: Window | null },
+) {
+  return downloadAuthenticated(`/documents/${docId}/download`, fileName, opts);
 }

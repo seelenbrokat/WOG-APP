@@ -342,14 +342,22 @@ function NewShipmentInner() {
   useEffect(() => {
     const presetMandantId = search.get('mandantId') || '';
     const presetCustomerId = search.get('customerId') || '';
-    api<any[]>('/mandanten').then((m) => {
-      setMandanten(m);
-      setForm((f) => ({
-        ...f,
-        mandantId: presetMandantId || f.mandantId || m[0]?.id || '',
-        customerId: presetCustomerId || f.customerId,
-      }));
-    });
+    api<any[]>('/mandanten')
+      .then((m) => {
+        setMandanten(m);
+        setForm((f) => {
+          const preferred = presetMandantId || f.mandantId || m[0]?.id || '';
+          const valid = m.some((x) => String(x.id) === String(preferred))
+            ? preferred
+            : m[0]?.id || '';
+          return {
+            ...f,
+            mandantId: valid ? String(valid) : '',
+            customerId: presetCustomerId || f.customerId,
+          };
+        });
+      })
+      .catch((e) => console.error('Mandanten laden fehlgeschlagen', e));
     api<PackagingOption[]>('/integrations/soloplan/packaging-types')
       .then((rows) => {
         if (rows?.length) {
@@ -496,7 +504,10 @@ function NewShipmentInner() {
     const count = Math.max(1, t.packageCount || 1);
     setForm((f) => ({
       ...f,
-      mandantId: t.mandantId || f.mandantId,
+      mandantId:
+        t.mandantId && mandanten.some((m) => String(m.id) === String(t.mandantId))
+          ? String(t.mandantId)
+          : f.mandantId,
       reference: t.reference || '',
       transportMode: t.transportMode || 'LKW',
       goodsDescription: t.goodsDescription || '',
@@ -823,11 +834,18 @@ function NewShipmentInner() {
               <label>Mandant</label>
               <select
                 required
-                value={form.mandantId}
-                onChange={(e) => setForm({ ...form, mandantId: e.target.value })}
+                value={
+                  mandanten.some((m) => String(m.id) === String(form.mandantId || ''))
+                    ? String(form.mandantId)
+                    : ''
+                }
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mandantId: e.target.value }))
+                }
               >
+                <option value="">Bitte wählen</option>
                 {mandanten.map((m) => (
-                  <option key={m.id} value={m.id}>
+                  <option key={m.id} value={String(m.id)}>
                     {m.name}
                     {String(m.code || '').toUpperCase() === 'GMBH' ? ' (Mandant 2)' : ''}
                   </option>

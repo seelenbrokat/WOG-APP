@@ -3,21 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
-import { api, getToken, getUser, statusLabel } from '@/lib/api';
-
-async function downloadDocument(docId: string, fileName: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${docId}/download`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Download fehlgeschlagen');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import { api, getUser, statusLabel } from '@/lib/api';
+import { openBlankTabForAsyncWork, openDocumentInNewTab } from '@/lib/download';
 
 /** Abhol-/Zustelltermine als UTC-Kalenderzeit (00:00 = 00:00). */
 function formatSchedule(value?: string | null) {
@@ -199,18 +186,19 @@ export default function ShipmentsPage() {
     setError('');
     setInfo('');
     setBusy(handover ? 'handover' : 'pdf');
+    const win = openBlankTabForAsyncWork();
     try {
       const res = await api<any>('/orders/loading-list/bulk', {
         method: 'POST',
         body: JSON.stringify({ orderIds: selectedOrderIds, handover }),
       });
       if (!res.document?.id) throw new Error('Ladeliste fehlt');
-      await downloadDocument(res.document.id, res.document.fileName);
+      await openDocumentInNewTab(res.document.id, res.document.fileName, { targetWin: win });
       const n = res.orderCount || selectedOrderIds.length;
       setInfo(
         handover
-          ? `${n} Auftrag/Aufträge übergeben · Sammelladeliste heruntergeladen`
-          : `Sammelladeliste für ${n} Auftrag/Aufträge heruntergeladen`,
+          ? `${n} Auftrag/Aufträge übergeben · Sammelladeliste geöffnet`
+          : `Sammelladeliste für ${n} Auftrag/Aufträge geöffnet`,
       );
       await load({
         mandantId: mandantId || undefined,
@@ -220,6 +208,11 @@ export default function ShipmentsPage() {
         docCategory: docCategory || undefined,
       });
     } catch (e: any) {
+      try {
+        win?.close();
+      } catch {
+        /* ignore */
+      }
       setError(e.message || 'Aktion fehlgeschlagen');
     } finally {
       setBusy('');
@@ -229,8 +222,9 @@ export default function ShipmentsPage() {
   async function downloadCustomerDoc(doc: CustomerDoc) {
     setDlBusy(doc.id);
     setError('');
+    const win = openBlankTabForAsyncWork();
     try {
-      await downloadDocument(doc.id, doc.fileName);
+      await openDocumentInNewTab(doc.id, doc.fileName, { targetWin: win });
       setShipments((prev) =>
         prev.map((s) => ({
           ...s,
@@ -240,6 +234,11 @@ export default function ShipmentsPage() {
         })),
       );
     } catch (e: any) {
+      try {
+        win?.close();
+      } catch {
+        /* ignore */
+      }
       setError(e?.message || 'Download fehlgeschlagen');
     } finally {
       setDlBusy('');

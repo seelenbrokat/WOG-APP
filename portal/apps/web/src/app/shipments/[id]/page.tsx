@@ -4,7 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { shipmentExtrasLabels, type ShipmentExtras } from '@wog/shared';
-import { api, getToken, getUser, statusLabel } from '@/lib/api';
+import { api, getUser, statusLabel } from '@/lib/api';
+import { openBlankTabForAsyncWork, openDocumentInNewTab } from '@/lib/download';
 
 const STATUSES = [
   'ACCEPTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'EXCEPTION', 'CANCELLED',
@@ -15,20 +16,6 @@ function soloplanStatusLabel(ref?: string | null) {
   if (ref.startsWith('SP-STUB-')) return { label: 'TMS: Stub', tone: 'muted' as const, orderNumber: null };
   if (ref.startsWith('FILE:')) return { label: 'TMS: Datei exportiert', tone: 'ok' as const, orderNumber: null };
   return { label: `Soloplan-Ordernummer: ${ref}`, tone: 'ok' as const, orderNumber: ref };
-}
-
-async function downloadDocument(docId: string, fileName: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${docId}/download`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Download fehlgeschlagen');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function ShipmentDetailInner() {
@@ -119,15 +106,21 @@ function ShipmentDetailInner() {
                 onClick={async () => {
                   setError('');
                   setBusy('labels');
+                  const win = openBlankTabForAsyncWork();
                   try {
                     const res = await api<any>(`/shipments/${shipment.id}/labels`, {
                       method: 'POST',
                     });
                     const printDoc = res.printDocument || res.documents?.[res.documents.length - 1];
                     if (!printDoc?.id) throw new Error('Etiketten-PDF fehlt');
-                    await downloadDocument(printDoc.id, printDoc.fileName);
+                    await openDocumentInNewTab(printDoc.id, printDoc.fileName, { targetWin: win });
                     await load();
                   } catch (e: any) {
+                    try {
+                      win?.close();
+                    } catch {
+                      /* ignore */
+                    }
                     setError(e.message);
                   } finally {
                     setBusy('');
@@ -143,13 +136,21 @@ function ShipmentDetailInner() {
                   onClick={async () => {
                     setError('');
                     setBusy('loading-list');
+                    const win = openBlankTabForAsyncWork();
                     try {
                       const res = await api<any>(`/orders/${shipment.orderId}/loading-list`, {
                         method: 'POST',
                       });
-                      await downloadDocument(res.document.id, res.document.fileName);
+                      await openDocumentInNewTab(res.document.id, res.document.fileName, {
+                        targetWin: win,
+                      });
                       await load();
                     } catch (e: any) {
+                      try {
+                        win?.close();
+                      } catch {
+                        /* ignore */
+                      }
                       setError(e.message);
                     } finally {
                       setBusy('');
@@ -410,10 +411,18 @@ function ShipmentDetailInner() {
                     href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`}
                     onClick={(e) => {
                       e.preventDefault();
-                      downloadDocument(d.id, d.fileName).catch(console.error);
+                      const win = openBlankTabForAsyncWork();
+                      openDocumentInNewTab(d.id, d.fileName, { targetWin: win }).catch((err) => {
+                        try {
+                          win?.close();
+                        } catch {
+                          /* ignore */
+                        }
+                        console.error(err);
+                      });
                     }}
                   >
-                    Download
+                    Öffnen
                   </a>
                 </div>
               ))}
