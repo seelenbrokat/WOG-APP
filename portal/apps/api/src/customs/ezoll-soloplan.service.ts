@@ -21,33 +21,39 @@ export type EzollCc029WriteFields = {
 /**
  * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
  *
- * Default: Sendungsebene – header + consignment[] mit ordernumber + itemNumber
- * (wie Soloplan-Export). Lookup gezielt auf die Sendung, nicht über Order.
- * Fallback SOLOPLAN_EZOLL_ROOT=order → header + order[].consignments[].
- * CC029 bleibt Tour-Root (header + tour[]).
+ * Getrennte Ausgabeordner für Automate:
+ * - Sendung (44…): …/ezoll/consignment/  → header + consignment[]
+ * - Tour (18…/CC029): …/ezoll/tour/   → header + tour[]
  */
 @Injectable()
 export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
-  private readonly outDir: string;
+  private readonly consignmentOutDir: string;
+  private readonly tourOutDir: string;
   /** consignment = flach Sendung (default), order = nested Order-Schema. */
   private readonly rootMode: 'order' | 'consignment';
 
   constructor(private config: ConfigService) {
-    const sftpOut =
+    const sftpOutbound =
+      this.config.get('SFTP_OUTBOUND_DIR') ||
+      join(process.cwd(), '../../data/sftp/outbound');
+    const base =
       this.config.get('SOLOPLAN_EZOLL_OUT_DIR') ||
-      join(
-        this.config.get('SFTP_OUTBOUND_DIR') ||
-          join(process.cwd(), '../../data/sftp/outbound'),
-        'soloplan',
-        'ezoll',
-      );
-    this.outDir = sftpOut;
+      join(sftpOutbound, 'soloplan', 'ezoll');
+
+    this.consignmentOutDir =
+      this.config.get('SOLOPLAN_EZOLL_CONSIGNMENT_OUT_DIR') ||
+      join(base, 'consignment');
+    this.tourOutDir =
+      this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
+
     const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'consignment')
       .trim()
       .toLowerCase();
     this.rootMode = mode === 'order' ? 'order' : 'consignment';
-    if (!existsSync(this.outDir)) mkdirSync(this.outDir, { recursive: true });
+
+    this.ensureDir(this.consignmentOutDir);
+    this.ensureDir(this.tourOutDir);
   }
 
   /**
@@ -175,10 +181,15 @@ export class EzollSoloplanService {
     if (fields.totalItems != null && fields.totalItems > 0) {
       tour.tarifnummerATAPI = fields.totalItems;
     }
-    return this.writeJsonFile('cc029', sourceFileName, {
-      header: this.header(`ezoll-cc029:${sourceFileName}`),
-      tour: [tour],
-    });
+    return this.writeJsonFile(
+      this.tourOutDir,
+      'cc029',
+      sourceFileName,
+      {
+        header: this.header(`ezoll-cc029:${sourceFileName}`),
+        tour: [tour],
+      },
+    );
   }
 
   private applyMatch(
@@ -205,7 +216,7 @@ export class EzollSoloplanService {
     const header = this.header(`ezoll-${kind}:${sourceFileName}`);
 
     if (this.rootMode === 'consignment') {
-      return this.writeJsonFile(kind, sourceFileName, {
+      return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
         header,
         consignment: [consignment],
       });
@@ -217,7 +228,7 @@ export class EzollSoloplanService {
       throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
     }
 
-    return this.writeJsonFile(kind, sourceFileName, {
+    return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
       header,
       order: [
         {
@@ -239,6 +250,7 @@ export class EzollSoloplanService {
   }
 
   private writeJsonFile(
+    outDir: string,
     kind: string,
     sourceFileName: string,
     payload: Record<string, unknown>,
@@ -246,16 +258,20 @@ export class EzollSoloplanService {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
     const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
-    const path = join(this.outDir, fileName);
-    if (!existsSync(this.outDir)) mkdirSync(this.outDir, { recursive: true });
+    const path = join(outDir, fileName);
+    this.ensureDir(outDir);
     writeFileSync(path, JSON.stringify(payload, null, 2));
     try {
-      chmodSync(this.outDir, 0o775);
+      chmodSync(outDir, 0o775);
       chmodSync(path, 0o664);
     } catch {
       /* ignore */
     }
     this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
     return path;
+  }
+
+  private ensureDir(dir: string) {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
 }
