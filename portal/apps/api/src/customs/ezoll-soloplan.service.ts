@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { chmodSync, chownSync, existsSync, mkdirSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   joinEzollMrns,
@@ -261,17 +261,41 @@ export class EzollSoloplanService {
     const path = join(outDir, fileName);
     this.ensureDir(outDir);
     writeFileSync(path, JSON.stringify(payload, null, 2));
-    try {
-      chmodSync(outDir, 0o775);
-      chmodSync(path, 0o664);
-    } catch {
-      /* ignore */
-    }
+    this.applySoloplanPickupPerms(outDir, path);
     this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
     return path;
   }
 
   private ensureDir(dir: string) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  }
+
+  /**
+   * Soloplan-SFTP-User braucht Gruppenrechte (soloplan), sonst bleibt die Datei
+   * nach dem Lesen ggf. stecken bzw. Automate kann nicht löschen/verschieben.
+   */
+  private applySoloplanPickupPerms(outDir: string, filePath: string) {
+    try {
+      chmodSync(outDir, 0o2775);
+      chmodSync(filePath, 0o664);
+      const gid = this.pickupGid(outDir);
+      if (gid != null) {
+        chownSync(outDir, -1, gid);
+        chownSync(filePath, -1, gid);
+      }
+    } catch {
+      /* ignore – Host ohne soloplan-Gruppe / Container ohne Caps */
+    }
+  }
+
+  private pickupGid(outDir: string): number | null {
+    try {
+      // Parent (…/ezoll) ist typisch root:soloplan mit setgid
+      const parent = join(outDir, '..');
+      const st = existsSync(parent) ? statSync(parent) : statSync(outDir);
+      return typeof st.gid === 'number' && st.gid > 0 ? st.gid : null;
+    } catch {
+      return null;
+    }
   }
 }
