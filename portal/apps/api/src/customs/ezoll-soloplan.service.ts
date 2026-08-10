@@ -21,16 +21,16 @@ export type EzollCc029WriteFields = {
 /**
  * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
  *
- * Soloplan Automate OrderEzoll ist auf Root-Typ „Order“ konfiguriert
- * (Fehlerbild: #/order[0] NoAdditionalPropertiesAllowed bei flachem consignment).
- * Deshalb: header + order[].consignments[] für Sendungs-Updates.
+ * Default: Sendungsebene – header + consignment[] mit ordernumber + itemNumber
+ * (wie Soloplan-Export). Lookup gezielt auf die Sendung, nicht über Order.
+ * Fallback SOLOPLAN_EZOLL_ROOT=order → header + order[].consignments[].
  * CC029 bleibt Tour-Root (header + tour[]).
  */
 @Injectable()
 export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
   private readonly outDir: string;
-  /** order = nested (Automate Order-Schema), consignment = flach (Consignment-Schema). */
+  /** consignment = flach Sendung (default), order = nested Order-Schema. */
   private readonly rootMode: 'order' | 'consignment';
 
   constructor(private config: ConfigService) {
@@ -43,10 +43,10 @@ export class EzollSoloplanService {
         'ezoll',
       );
     this.outDir = sftpOut;
-    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'consignment')
       .trim()
       .toLowerCase();
-    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
+    this.rootMode = mode === 'order' ? 'order' : 'consignment';
     if (!existsSync(this.outDir)) mkdirSync(this.outDir, { recursive: true });
   }
 
