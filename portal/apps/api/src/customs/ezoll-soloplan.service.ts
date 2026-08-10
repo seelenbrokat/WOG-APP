@@ -19,13 +19,19 @@ export type EzollCc029WriteFields = {
 };
 
 /**
- * Schreibt OrderEzoll-v4 Consignment-Updates für Soloplan/CarLo (File-Pickup).
- * Zuordnung nur über Tour / Auftrag / Auftrag.Sendung – nie externalNumber / MRN/CRN.
+ * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
+ *
+ * Soloplan Automate OrderEzoll ist auf Root-Typ „Order“ konfiguriert
+ * (Fehlerbild: #/order[0] NoAdditionalPropertiesAllowed bei flachem consignment).
+ * Deshalb: header + order[].consignments[] für Sendungs-Updates.
+ * CC029 bleibt Tour-Root (header + tour[]).
  */
 @Injectable()
 export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
   private readonly outDir: string;
+  /** order = nested (Automate Order-Schema), consignment = flach (Consignment-Schema). */
+  private readonly rootMode: 'order' | 'consignment';
 
   constructor(private config: ConfigService) {
     const sftpOut =
@@ -37,6 +43,10 @@ export class EzollSoloplanService {
         'ezoll',
       );
     this.outDir = sftpOut;
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
+      .trim()
+      .toLowerCase();
+    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
     if (!existsSync(this.outDir)) mkdirSync(this.outDir, { recursive: true });
   }
 
@@ -68,7 +78,7 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    return this.writePayload('cc529', sourceFileName, consignment);
+    return this.writeConsignmentUpdate('cc529', sourceFileName, consignment);
   }
 
   /**
@@ -103,7 +113,7 @@ export class EzollSoloplanService {
     }
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
-    return this.writePayload(prefix, sourceFileName, consignment);
+    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 
   /**
@@ -137,7 +147,7 @@ export class EzollSoloplanService {
       if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
     }
 
-    return this.writePayload('cc599', sourceFileName, consignment);
+    return this.writeConsignmentUpdate('cc599', sourceFileName, consignment);
   }
 
   /**
@@ -165,7 +175,10 @@ export class EzollSoloplanService {
     if (fields.totalItems != null && fields.totalItems > 0) {
       tour.tarifnummerATAPI = fields.totalItems;
     }
-    return this.writeTourPayload('cc029', sourceFileName, tour);
+    return this.writeJsonFile('cc029', sourceFileName, {
+      header: this.header(`ezoll-cc029:${sourceFileName}`),
+      tour: [tour],
+    });
   }
 
   private applyMatch(
@@ -184,32 +197,45 @@ export class EzollSoloplanService {
     }
   }
 
-  private writePayload(
+  private writeConsignmentUpdate(
     kind: string,
     sourceFileName: string,
     consignment: Record<string, unknown>,
   ): string {
+    const header = this.header(`ezoll-${kind}:${sourceFileName}`);
+
+    if (this.rootMode === 'consignment') {
+      return this.writeJsonFile(kind, sourceFileName, {
+        header,
+        consignment: [consignment],
+      });
+    }
+
+    // Order-Schema (Soloplan Automate): order.number + consignments[]
+    const orderNumber = Number(consignment.ordernumber);
+    if (!Number.isFinite(orderNumber) || orderNumber <= 0) {
+      throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
+    }
+
     return this.writeJsonFile(kind, sourceFileName, {
-      header: {
-        sendDate: new Date().toISOString(),
-        exportItemReference: `ezoll-${kind}:${sourceFileName}`.slice(0, 120),
-      },
-      consignment: [consignment],
+      header,
+      order: [
+        {
+          actionAttribute: 'update',
+          number: orderNumber,
+          consignments: [consignment],
+        },
+      ],
     });
   }
 
-  private writeTourPayload(
-    kind: string,
-    sourceFileName: string,
-    tour: Record<string, unknown>,
-  ): string {
-    return this.writeJsonFile(kind, sourceFileName, {
-      header: {
-        sendDate: new Date().toISOString(),
-        exportItemReference: `ezoll-${kind}:${sourceFileName}`.slice(0, 120),
-      },
-      tour: [tour],
-    });
+  private header(exportItemReference: string) {
+    // Soloplan-Samples nutzen lokale Zeit ohne Millisekunden/Z
+    const sendDate = new Date().toISOString().replace(/\.\d{3}Z$/, '').replace(/Z$/, '');
+    return {
+      sendDate,
+      exportItemReference: exportItemReference.slice(0, 120),
+    };
   }
 
   private writeJsonFile(
