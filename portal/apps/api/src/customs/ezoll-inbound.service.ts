@@ -327,23 +327,8 @@ export class EzollInboundService {
           sourceFile: fileName,
         });
 
-        const matches = await this.resolveTourConsignmentMatches(
-          organizationId,
-          fields.tourNumber,
-        );
-        if (!matches.length) {
-          unmatched += 1;
-          this.move(
-            filePath,
-            join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
-          );
-          this.log.warn(
-            `CC029 Tour ${fields.tourNumber}: keine Portal-Sendungen (Cache ${cache.isNew ? 'neu' : 'ergänzt'}, MRNs=${cache.mrns.length}) ← ${fileName}`,
-          );
-          continue;
-        }
-
-        this.ezollSoloplan.writeCc029TourUpdates(matches, fileName, {
+        // OrderEzoll auf Tour-Ebene (tourNumber), nicht Consignment
+        this.ezollSoloplan.writeCc029TourUpdate(fields.tourNumber, fileName, {
           mrns: cache.mrns,
           lrns: cache.lrns,
           totalItems: cache.totalItems,
@@ -354,7 +339,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC029 Tour ${fields.tourNumber} → ${matches.length} Sendung(en) [${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
+          `CC029 Tour ${fields.tourNumber} [Tour-Update, ${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -366,35 +351,6 @@ export class EzollInboundService {
       }
     }
     return { processed, unmatched };
-  }
-
-  private async resolveTourConsignmentMatches(
-    organizationId: string,
-    tourNumber: number,
-  ): Promise<EzollSoloplanMatch[]> {
-    const tour = await this.prisma.tour.findFirst({
-      where: { organizationId, tourNumber: String(tourNumber) },
-      select: {
-        consignments: {
-          select: { orderNumber: true, consignmentIndex: true },
-        },
-      },
-    });
-    if (!tour) return [];
-
-    const seen = new Set<string>();
-    const matches: EzollSoloplanMatch[] = [];
-    for (const c of tour.consignments) {
-      const orderNumber = Number(String(c.orderNumber || '').trim());
-      if (!Number.isFinite(orderNumber) || orderNumber <= 0) continue;
-      const consignmentIndex =
-        c.consignmentIndex != null && c.consignmentIndex > 0 ? c.consignmentIndex : 1;
-      const key = `${orderNumber}.${consignmentIndex}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      matches.push({ kind: 'orderConsignment', orderNumber, consignmentIndex });
-    }
-    return matches;
   }
 
   /**

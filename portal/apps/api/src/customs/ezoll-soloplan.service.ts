@@ -141,39 +141,31 @@ export class EzollSoloplanService {
   }
 
   /**
-   * CC029C (NCTS) → alle Sendungen einer Tour:
-   * - Match: ordernumber + itemNumber (aus Portal-Tour)
+   * CC029C (NCTS) → Tour-Ebene (nicht Consignment):
+   * - Match: tourNumber
    * - cC029C: true
    * - mRNATAPI: akkumulierte MRNs (`; `)
    * - lRN: akkumulierte LRNs (`; `)
    * - tarifnummerATAPI: max. Positionsanzahl
    */
-  writeCc029TourUpdates(
-    matches: EzollSoloplanMatch[],
+  writeCc029TourUpdate(
+    tourNumber: number,
     sourceFileName: string,
     fields: EzollCc029WriteFields,
-  ): string[] {
+  ): string {
     const mrnJoined = joinEzollMrns(fields.mrns);
     const lrnJoined = joinEzollMrns(fields.lrns);
-    const paths: string[] = [];
-
-    for (const match of matches) {
-      if (match.kind !== 'orderConsignment' && match.kind !== 'order') {
-        throw new Error('CC029-Update braucht Auftrag/Sendung, nicht nur Tour');
-      }
-      const consignment: Record<string, unknown> = {
-        actionAttribute: 'update',
-        cC029C: true,
-      };
-      this.applyMatch(consignment, match, 'CC029');
-      if (mrnJoined) consignment.mRNATAPI = mrnJoined;
-      if (lrnJoined) consignment.lRN = lrnJoined;
-      if (fields.totalItems != null && fields.totalItems > 0) {
-        consignment.tarifnummerATAPI = fields.totalItems;
-      }
-      paths.push(this.writePayload('cc029', sourceFileName, consignment));
+    const tour: Record<string, unknown> = {
+      actionAttribute: 'update',
+      tourNumber,
+      cC029C: true,
+    };
+    if (mrnJoined) tour.mRNATAPI = mrnJoined;
+    if (lrnJoined) tour.lRN = lrnJoined;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      tour.tarifnummerATAPI = fields.totalItems;
     }
-    return paths;
+    return this.writeTourPayload('cc029', sourceFileName, tour);
   }
 
   private applyMatch(
@@ -197,14 +189,34 @@ export class EzollSoloplanService {
     sourceFileName: string,
     consignment: Record<string, unknown>,
   ): string {
-    const payload = {
+    return this.writeJsonFile(kind, sourceFileName, {
       header: {
         sendDate: new Date().toISOString(),
         exportItemReference: `ezoll-${kind}:${sourceFileName}`.slice(0, 120),
       },
       consignment: [consignment],
-    };
+    });
+  }
 
+  private writeTourPayload(
+    kind: string,
+    sourceFileName: string,
+    tour: Record<string, unknown>,
+  ): string {
+    return this.writeJsonFile(kind, sourceFileName, {
+      header: {
+        sendDate: new Date().toISOString(),
+        exportItemReference: `ezoll-${kind}:${sourceFileName}`.slice(0, 120),
+      },
+      tour: [tour],
+    });
+  }
+
+  private writeJsonFile(
+    kind: string,
+    sourceFileName: string,
+    payload: Record<string, unknown>,
+  ): string {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
     const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
