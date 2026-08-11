@@ -1,0 +1,88 @@
+@@PHBORD512 0512003500107 QL-ATFZ $RECEIV
+A00STD100A-5025462                          10062026L  STDSYAEURQL-ATFZ                                                               TIME TRUCK VERMIETUNGS- UND HANDELSA  6850     DORNBIRN                           SprinterSond                                                                                                                                
+A10SprinterSond                                                                                                                                                                                                                                                                                                                                                  
+B00001SHPOmya GmbH                          Gewerbepark 7                      A  8772     Traboch                            5916480                                                                                                                                                                                                           
+B00001CONOmya International AG              Froschackerstrasse 6               CH 4622     Egerkingen                         54820420                                                                                                                                                                                                          
+C00001QA                                  Egerkingen                         000000000                                                                                                                                                             
+D000010010001PA 0000   BOROSILICATE GLASS POWDER (GLASS FRMAI                                000006500000000000000000000000000000000000
+F0000100100390094480066052945                                                     
+G00001A-21438081-A-1                     000006500100N0000000000000000                                                                                                               STD00000005000EUR00000000000000000000000   00   
+H10001000SELINA GRUBER|00436648262517                                          000MR. DR. GERARD DAN|DAN.GERARD@OMYA.COM|+41 62 789 23 12                                                                                        
+B00002SHPOmya GmbH                          Gewerbepark 7                      A  8772     Traboch                            5916480                                                                                                                                                                                                           
+B00002CONOmya International AG              Froschackerstrasse 6               CH 4622     Egerkingen                         54820436                                                                                                                                                                                                          
+C00002QA                                  Egerkingen                         000000000                                                                                                                                                             
+D000020010001PA 0000   BOROSILICATE GLASS POWDER (GLASS FRMAI                                000000800000000000000000000000000000000000
+F0000200100390094480066052952                                                     
+G00002A-21438095-A-1                     000000800100N0000000000000000                                                                                                               STD00000005000EUR00000000000000000000000   00   
+H10002000SELINA GRUBER|00436648262517                                          000FRAU POFFET PASCALE|PASCALE.POFFET@OMYA.COM|+41 62 7892814                                                                                     
+B00003SHPAT & S Austria Technologie &       Industriepark 4                    A  8350     Fehring                            5101018                            Systemtechnik AG                                                                                                                                                               
+B00003CONEscatec Switzerland AG             Heinrich Wild Strasse              CH 9435     Heerbrugg                          54825373                                                                                                                                                                                                          
+C00003QA                                  Heerbrugg                          000000000                                                                                                                                                             
+D000030010001KT 0000   GEDRUCKTE SCHALTUNGEN              551070                             000004200000000000000000000000000000000000
+F0000300100390094480066056714                                                     
+G00003A-21441657-A-1                     000004200100N0000000000000000                                                                                                               STD00000349492EUR00000000000000000000000   00   
+H10003000HILDEGARD SCHUSTER|+43 3155 500 5274                                  000.|.                                                                                                                                            
+B00004SHPAT & S Austria Technologie &       Industriepark 4                    A  8350     Fehring                            54826358                           Systemtechnik AG                                                                                                                                                               
+B00004CONHOFSTETTER PCB Plating             FAENNRING 10                       CH 6403     Kuessnacht am Rigi                 54826357                           CHE-106.268.139 MWST                                                                                                                                                           
+C00004QA                                  Kuessnacht am Rigi                 000000000                                                                                                                                                             
+D000040010002PA 0000   GEDRUCKTE SCHALTUNGEN              551105                             000205000000000000000000000000000000000000
+F0000400100390094480066060162                                                     
+F0000400100390094480066060179                                                     
+G00004A-21442647-A-1                     000205000100N0000000000000000                                                                                                               STD00009202000EUR00000000000000000000000   00   
+H10004000CARMEN NEUBAUER|+43 3155 500 5331                                     000HOFSTETTER PCB AG|0041418505050                                                                                                                
+B00005SHPKnauf Ceiling Solutions            Ferndorf Nr. 29                    A  9702     Ferndorf                           5878432                            Deckensysteme Gmbh                                                                                                                                                             
+B00005CONKnauf AG                           Kaegenstrasse 17                   CH 4153     Reinach BL                         54825641                                                                                                                                                                                                          
+C00005QA                                  Reinach BL                         000000000                                                                                                                                                             
+D000050010001KT 0000   MUSTER                             23505118                           000033000000000000000000000000000000000000
+F0000500100390094480066058084                                                     
+G00005A-21441853-A-1                     000033000100N0000000000000000                                                                                                               STD00000013920EUR00000000000000000000000   00   
+H10005000ROBERT KAISER|04245 2001438                                           000MARTIN EBERLIN|.                                                                                                                               
+B00006SHPAT & S Austria Technologie &       Industriepark 4                    A  8350     Fehring                            5101018                            Systemtechnik AG                                                                                                                                                               
+B00006CONSchurter AG                        Werkhofstrasse 8 12                CH 6002     Luzern                             818636                             -                                                                                                                                                                              
+C00006QA                                  Luzern                             000000000                                                                                                                                                             
+D000060010001KT 0000   GEDRUCKTE SCHALTUNGEN              551104                             000003400000000000000000000000000000000000
+F0000600100390094480066059975                                                     
+G00006A-21442600-A-1                     000003400100N0000000000000000                                                                                                               STD00001121364EUR00000000000000000000000   00   
+H10006000HILDEGARD SCHUSTER|+43 3155 500 5274                                  000.|.                                                                                                                                            
+B00007SHPAT & S Austria Technologie &       Fabriksgasse 13                    A  8700     Leoben-Hinterberg                  2123324                            Systemtechnik AG                                                                                                                                                               
+B00007CONHOFSTETTER PCB PLATING             Faennring 10                       CH 6403     Kuessnacht                         54826802                           Hofstetter PCB AG                                                                                                                                                              
+C00007QA                                  Kuessnacht                         000000000                                                                                                                                                             
+D000070010003KT 0000   GEDRUCKTE SCHALTUNGEN              551116                             000336000000000000000000000000000000000000
+F0000700100390094480066062555                                                     
+F0000700100390094480066062562                                                     
+F0000700100390094480066062579                                                     
+G00007A-21443020-A-1                     000336000100N0000000000000000                                                                                                               STD00000547500EUR00000000000000000000000   00   
+H10007000AT&S|+43 3842 2005748                                                 000VON 07:00 BIS 14:00 -|-                                                                                                                        
+B00008SHPAT & S Austria Technologie &       Fabriksgasse 13                    A  8700     Leoben-Hinterberg                  2123324                            Systemtechnik AG                                                                                                                                                               
+B00008CONEndress + Hauser Flowtec AG        Christoph-Merian-Ring 12           CH 4153     Reinach                            54826876                           -                                                                                                                                                                              
+C00008QA                                  Reinach                            000000000                                                                                                                                                             
+D000080010001PA 0000   GEDRUCKTE SCHALTUNGEN              551112                             000062000000000000000000000000000000000000
+F0000800100390094480066062920                                                     
+G00008A-21443230-A-1                     000062000100N0000000000000000                                                                                                               STD00000605440EUR00000000000000000000000   00   
+H10008000AT&S|+43 3842 2005748                                                 000VON 07:00 BIS 14:00 -|-                                                                                                                        
+B00009SHPColor Drack GmbH & CO KG           Baderstrasse 8                     A  5620     Schwarzach                         5867783                                                                                                                                                                                                           
+B00009CONColor Drack Schweiz                Untere Weidstrasse 26              CH 8820     Waedenswil                         54826473                           Peter Riesen                                                                                                                                                                   
+C00009QA                                  Waedenswil                         000000000                                                                                                                                                             
+D000090010017KT 0000   FOTOAUSARBEITUNG                                                      000217240000000000000000000000000000000000
+F0000900100390094480066060858                                                     
+F0000900100390094480066060865                                                     
+F0000900100390094480066060872                                                     
+F0000900100390094480066060889                                                     
+F0000900100390094480066060896                                                     
+F0000900100390094480066060902                                                     
+F0000900100390094480066060919                                                     
+F0000900100390094480066060926                                                     
+F0000900100390094480066060933                                                     
+F0000900100390094480066060940                                                     
+F0000900100390094480066060957                                                     
+F0000900100390094480066060964                                                     
+F0000900100390094480066060971                                                     
+F0000900100390094480066060988                                                     
+F0000900100390094480066060995                                                     
+F0000900100390094480066061008                                                     
+F0000900100390094480066061015                                                     
+G00009A-21442806-A-1                     000217240100N0000000000000000                                                                                                               STD00000000000EUR00000000000000000000000   00   
+H10009000SANDRA STEINBERGER|06415 7495 14                                      000PETER RIESEN|0041(0)799543627                                                                                                                  
+J000090000280008681400000000000000000000000000000000000000000000000000000000000000000000000000000000000
+Z0000008507072026074131
+@@PT

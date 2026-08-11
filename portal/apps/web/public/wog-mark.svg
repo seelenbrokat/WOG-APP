@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 120" role="img" aria-label="WOG">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A8D0E8"/>
+      <stop offset="100%" stop-color="#7AADCF"/>
+    </linearGradient>
+  </defs>
+  <text x="0" y="88" font-family="Montserrat, Arial, Helvetica, sans-serif" font-size="84" font-weight="800" fill="#1B7340">W</text>
+  <g transform="translate(96,18)">
+    <path d="M-10 62 C8 80, 88 80, 108 62" fill="none" stroke="#8AB8D9" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="48" cy="56" r="40" fill="url(#g)" stroke="#1B7340" stroke-width="3.5"/>
+    <ellipse cx="48" cy="56" rx="16" ry="38" fill="none" stroke="#fff" stroke-width="2"/>
+    <line x1="48" y1="18" x2="48" y2="94" stroke="#fff" stroke-width="2"/>
+    <ellipse cx="48" cy="56" rx="38" ry="14" fill="none" stroke="#fff" stroke-width="2"/>
+    <path d="M70 16 C82 4, 96 10, 96 22 C84 20, 76 24, 70 16Z" fill="#1B7340"/>
+    <path d="M78 24 C88 14, 102 20, 100 32 C90 28, 82 30, 78 24Z" fill="#155C33"/>
+  </g>
+  <text x="148" y="88" font-family="Montserrat, Arial, Helvetica, sans-serif" font-size="84" font-weight="800" fill="#1B7340">G</text>
+</svg>
