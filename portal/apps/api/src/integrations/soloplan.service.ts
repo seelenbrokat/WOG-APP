@@ -1206,13 +1206,6 @@ export class SoloplanService implements TransportIntegration {
       notes: [
         order.notes,
         order.netWeightKg != null ? `Nettogewicht: ${order.netWeightKg} kg` : null,
-        order.driverPhone ? `Fahrertelefon: ${order.driverPhone}` : null,
-        order.smartborderNotifyEmail
-          ? `E-Mail-Rückmeldung (SmartBorder): ${order.smartborderNotifyEmail}`
-          : null,
-        order.smartborderSendSms
-          ? 'SmartBorder-Link per SMS: ja (an Fahrertelefon)'
-          : null,
       ]
         .filter(Boolean)
         .join('\n') || null,
@@ -1229,6 +1222,9 @@ export class SoloplanService implements TransportIntegration {
       importeurVLBPortal: order.importeur,
       zAZVLBPortal: order.zazKonto,
       warenortVLBPortal: order.warenort,
+      telefonSmartborder: order.driverPhone,
+      mailSmartborder: order.smartborderNotifyEmail,
+      smsSmartBorder: order.smartborderSendSms,
       customer: {
         customerNumber: order.customer.customerNumber,
         name: order.customer.name,

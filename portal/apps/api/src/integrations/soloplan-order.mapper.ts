@@ -73,8 +73,9 @@ export type PortalShipmentForSoloplan = {
   extras?: unknown;
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
-   * Schema-Keys (OrderImportPORTAL-v6): kennzeichen, kennzeichenAnhänger, grenzübergang,
-   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+   * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang,
+   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
+   * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -87,6 +88,12 @@ export type PortalShipmentForSoloplan = {
   zAZVLBPortal?: string | null;
   /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
+  /** Fahrertelefon → Soloplan Telefon_Smartborder */
+  telefonSmartborder?: string | null;
+  /** E-Mail-Rückmeldung → Soloplan MailSmartborder */
+  mailSmartborder?: string | null;
+  /** SMS-Link-Flag → Soloplan SMSSmartBorder */
+  smsSmartBorder?: boolean | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
@@ -648,6 +655,35 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
         extras.verzollungsort ||
         '',
     ).trim() || undefined;
+  const telefonSmartborder =
+    String(
+      shipment.telefonSmartborder ||
+        extras.Telefon_Smartborder ||
+        extras.telefonSmartborder ||
+        extras.driverPhone ||
+        '',
+    ).trim() || undefined;
+  const mailSmartborder =
+    String(
+      shipment.mailSmartborder ||
+        extras.MailSmartborder ||
+        extras.mailSmartborder ||
+        extras.smartborderNotifyEmail ||
+        '',
+    )
+      .trim()
+      .toLowerCase() || undefined;
+  const smsRaw =
+    shipment.smsSmartBorder ??
+    extras.SMSSmartBorder ??
+    extras.smsSmartBorder ??
+    extras.smartborderSendSms;
+  const smsSmartBorder =
+    smsRaw === true || smsRaw === 'true' || smsRaw === 1 || smsRaw === '1'
+      ? true
+      : smsRaw === false || smsRaw === 'false' || smsRaw === 0 || smsRaw === '0'
+        ? false
+        : undefined;
   return {
     kennzeichen,
     kennzeichenAnhaenger,
@@ -657,13 +693,17 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
     importeurVLBPortal,
     zAZVLBPortal,
     warenortVLBPortal,
+    telefonSmartborder,
+    mailSmartborder,
+    smsSmartBorder,
   };
 }
 
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6 (Order schema).
  * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
+ * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -680,6 +720,16 @@ function applyCustomsConsignmentFields(
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
   if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
+  // Exact Schema-Namen (OrderImportPORTAL-v6 / SmartBorder-Kategorie)
+  if (fields.telefonSmartborder) {
+    consignment.Telefon_Smartborder = fields.telefonSmartborder;
+  }
+  if (fields.mailSmartborder) {
+    consignment.MailSmartborder = fields.mailSmartborder;
+  }
+  if (fields.smsSmartBorder != null) {
+    consignment.SMSSmartBorder = fields.smsSmartBorder;
+  }
   return consignment;
 }
 
