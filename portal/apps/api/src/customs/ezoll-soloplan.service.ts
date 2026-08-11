@@ -31,9 +31,9 @@ export class EzollSoloplanService {
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
   /**
-   * order = nested Order-Schema (sicher: Lookup über Auftrag.number, dann Sendung).
-   * consignment = flach – NUR mit funktionierendem Ordernumber+ItemNumber-Lookup;
-   * sonst matcht Automate oft nur itemNumber=1 und trifft historische Aufträge.
+   * consignment = flach (OrderEzollDuplicat-v5): ordernumber als Interface-Lookup
+   *   `{ "number": 441929 }` + itemNumber (beide IsLookupMember).
+   * order = nested Order-Schema (Legacy/Fallback).
    */
   private readonly rootMode: 'order' | 'consignment';
 
@@ -51,16 +51,12 @@ export class EzollSoloplanService {
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
 
-    // Default: order (sicher). Flat consignment nur explizit.
-    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
+    // Default: consignment mit ordernumber-Lookup-Objekt (OrderEzollDuplicat-v5).
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'consignment')
       .trim()
       .toLowerCase();
-    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
-    if (this.rootMode === 'consignment') {
-      this.log.warn(
-        'SOLOPLAN_EZOLL_ROOT=consignment: Automate muss Ordernumber+ItemNumber als Lookup haben, sonst werden Fremdaufträge (z. B. 2017) aktualisiert',
-      );
-    }
+    this.rootMode = mode === 'order' ? 'order' : 'consignment';
+    this.log.log(`OrderEzoll root mode: ${this.rootMode}`);
 
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
@@ -208,14 +204,25 @@ export class EzollSoloplanService {
     label: string,
   ) {
     if (match.kind === 'orderConsignment') {
-      consignment.ordernumber = match.orderNumber;
+      // OrderEzollDuplicat-v5: PropertyType=Interface (Order) → Objekt mit number
+      consignment.ordernumber = { number: match.orderNumber };
       consignment.itemNumber = match.consignmentIndex;
     } else if (match.kind === 'order') {
-      consignment.ordernumber = match.orderNumber;
+      consignment.ordernumber = { number: match.orderNumber };
       consignment.itemNumber = 1;
     } else {
       throw new Error(`${label}-Update braucht Auftrag/Sendung, nicht nur Tour`);
     }
+  }
+
+  /** ordernumber als Lookup-Objekt `{ number }` oder Legacy-Integer. */
+  private resolveOrderNumber(ordernumber: unknown): number | null {
+    if (ordernumber != null && typeof ordernumber === 'object') {
+      const n = Number((ordernumber as { number?: unknown }).number);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    const n = Number(ordernumber);
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   private writeConsignmentUpdate(
@@ -224,21 +231,23 @@ export class EzollSoloplanService {
     consignment: Record<string, unknown>,
   ): string {
     const header = this.header(`ezoll-${kind}:${sourceFileName}`);
+    const orderNumber = this.resolveOrderNumber(consignment.ordernumber);
 
     if (this.rootMode === 'consignment') {
-      // Flach: ordernumber MUSS mit – ohne Lookup in Automate hochgefährlich.
-      if (consignment.ordernumber == null || consignment.itemNumber == null) {
-        throw new Error(`${kind}: flat consignment braucht ordernumber+itemNumber`);
+      // OrderEzollDuplicat-v5: Lookup über ordernumber.number + itemNumber
+      if (orderNumber == null || consignment.itemNumber == null) {
+        throw new Error(`${kind}: flat consignment braucht ordernumber.number+itemNumber`);
       }
+      // Sicherstellen: immer Interface-Lookup-Form, nie bare Integer
+      consignment.ordernumber = { number: orderNumber };
       return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
         header,
         consignment: [consignment],
       });
     }
 
-    // Sicher: Auftrag zuerst matchen (number), Sendung nur innerhalb des Auftrags.
-    const orderNumber = Number(consignment.ordernumber);
-    if (!Number.isFinite(orderNumber) || orderNumber <= 0) {
+    // Nested Order-Root (Fallback)
+    if (orderNumber == null) {
       throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
     }
 
