@@ -549,6 +549,64 @@ export default function CustomsPage() {
           </div>
         </div>
 
+        <div
+          className="panel stack"
+          style={{
+            border: '1px solid var(--border, #c5cdd8)',
+            padding: '0.85rem 1rem',
+            marginTop: '0.25rem',
+          }}
+        >
+          <strong>SmartBorder – Fahrer & Rückmeldung</strong>
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            Optional bei der Auftragserfassung: Fahrertelefon für die SmartBorder-App sowie
+            E-Mail/SMS, wohin der Fahrerlink zusätzlich geschickt wird.
+          </p>
+          <div className="grid-2">
+            <div className="field">
+              <label>Fahrertelefon</label>
+              <input
+                type="tel"
+                inputMode="tel"
+                placeholder="+436769075070"
+                value={form.driverPhone}
+                onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+                autoComplete="tel"
+              />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                Mit Ländervorwahl, z. B. +43…
+              </span>
+            </div>
+            <div className="field">
+              <label>E-Mail-Rückmeldung (SmartBorder-Link)</label>
+              <input
+                type="email"
+                placeholder="disposition@beispiel.at"
+                value={form.smartborderNotifyEmail}
+                onChange={(e) => setForm({ ...form, smartborderNotifyEmail: e.target.value })}
+                autoComplete="email"
+              />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                Zusätzliche Adresse, an die der SmartBorder-Link geschickt wird.
+              </span>
+            </div>
+          </div>
+          <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+            <input
+              type="checkbox"
+              checked={form.smartborderSendSms}
+              onChange={(e) => setForm({ ...form, smartborderSendSms: e.target.checked })}
+              style={{ marginTop: '0.2rem' }}
+            />
+            <span>
+              SmartBorder-Link per SMS an das Fahrertelefon senden
+              <span className="muted" style={{ display: 'block', fontSize: '0.8rem' }}>
+                Erfordert eine Fahrertelefonnummer oben.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <div className="grid-2">
           <div className="field">
             <label>Zeit (Grenze)</label>
@@ -779,49 +837,6 @@ export default function CustomsPage() {
         <div className="field">
           <label>Hinweis (optional)</label>
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        </div>
-
-        <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
-          <strong>SmartBorder (Fahrer-Link)</strong>
-          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-            Nach Eingang des Grenzzollstellen- oder Transit-Eingangsscheins wird der Fahrerlink
-            über das Kennzeichen zugeordnet. Telefonnummer erscheint in der SmartBorder-App;
-            optional zusätzlich per E-Mail und/oder SMS.
-          </p>
-          <div className="grid-2">
-            <div className="field">
-              <label>Fahrer-Telefonnummer</label>
-              <input
-                type="tel"
-                inputMode="tel"
-                placeholder="+436769075070"
-                value={form.driverPhone}
-                onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
-                autoComplete="tel"
-              />
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                International mit Ländervorwahl (z. B. +43…), ohne Leerzeichen.
-              </span>
-            </div>
-            <div className="field">
-              <label>Zusätzliche E-Mail für SmartBorder-Link</label>
-              <input
-                type="email"
-                placeholder="disposition@beispiel.at"
-                value={form.smartborderNotifyEmail}
-                onChange={(e) => setForm({ ...form, smartborderNotifyEmail: e.target.value })}
-                autoComplete="email"
-              />
-            </div>
-          </div>
-          <label className="row">
-            <input
-              type="checkbox"
-              checked={form.smartborderSendSms}
-              onChange={(e) => setForm({ ...form, smartborderSendSms: e.target.checked })}
-            />
-            SmartBorder-Link per SMS an die Fahrernummer senden
-          </label>
         </div>
 
         {error && <div className="error">{error}</div>}
