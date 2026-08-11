@@ -29,6 +29,44 @@ export class UsersService {
     return randomBytes(9).toString('base64url');
   }
 
+  private appUrl() {
+    return (this.config.get('APP_URL') || 'https://wog.logistikberater.at').replace(/\/$/, '');
+  }
+
+  /** Login-Link mit vorausgefüllter E-Mail. */
+  private loginLink(email: string) {
+    return `${this.appUrl()}/?email=${encodeURIComponent(email.toLowerCase())}`;
+  }
+
+  private accessEmailBody(opts: {
+    firstName: string;
+    email: string;
+    temporaryPassword: string;
+    kind: 'invite' | 'reset';
+  }) {
+    const login = this.loginLink(opts.email);
+    const intro =
+      opts.kind === 'invite'
+        ? 'Ihr Zugang zum WOG Portal wurde angelegt.'
+        : 'Ihr Passwort wurde zurückgesetzt. Hier sind Ihre neuen Zugangsdaten.';
+    return [
+      `Hallo ${opts.firstName},`,
+      '',
+      intro,
+      '',
+      `Direktlink zur Anmeldung:`,
+      login,
+      '',
+      `E-Mail: ${opts.email}`,
+      `Einmal-Passwort: ${opts.temporaryPassword}`,
+      '',
+      'Bitte melden Sie sich über den Link an und ändern Sie das Passwort nach dem ersten Login.',
+      '',
+      'WOG – World of Green Logistics',
+      this.appUrl(),
+    ].join('\n');
+  }
+
   list(user: AuthUser) {
     return this.prisma.user.findMany({
       where: { organizationId: user.organizationId },
@@ -175,11 +213,15 @@ export class UsersService {
       });
     }
 
-    const appUrl = this.config.get('APP_URL') || 'http://localhost:3000';
     await this.notifications.sendRaw(
       user.email,
-      'WOG Portal – Zugang angelegt',
-      `Hallo ${user.firstName},\n\nIhr Zugang zum WOG Portal wurde angelegt.\n\nE-Mail: ${user.email}\nEinmal-Passwort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem ersten Login.\n`,
+      'WOG Portal – Ihr Zugang / Einladung',
+      this.accessEmailBody({
+        firstName: user.firstName,
+        email: user.email,
+        temporaryPassword: tempPassword,
+        kind: 'invite',
+      }),
     );
     await this.audit.log(actor.id, 'user.invite', 'User', user.id, {
       email: user.email,
@@ -194,6 +236,7 @@ export class UsersService {
       role: user.role,
       mustChangePassword: true,
       temporaryPassword: tempPassword,
+      loginUrl: this.loginLink(user.email),
     };
   }
 
@@ -214,11 +257,15 @@ export class UsersService {
       },
     });
 
-    const appUrl = this.config.get('APP_URL') || 'http://localhost:3000';
     await this.notifications.sendRaw(
       user.email,
-      'WOG Portal – Passwort zurückgesetzt',
-      `Hallo ${user.firstName},\n\nIhr Passwort wurde vom Administrator zurückgesetzt.\n\nNeues Einmal-Passwort: ${tempPassword}\nAnmelden: ${appUrl}/\n\nBitte ändern Sie das Passwort nach dem Login.\n`,
+      'WOG Portal – Ihr Zugang / Einladung',
+      this.accessEmailBody({
+        firstName: user.firstName,
+        email: user.email,
+        temporaryPassword: tempPassword,
+        kind: 'reset',
+      }),
     );
     await this.audit.log(actor.id, 'user.passwordReset', 'User', user.id, { email: user.email });
 
@@ -227,6 +274,123 @@ export class UsersService {
       email: user.email,
       mustChangePassword: true,
       temporaryPassword: tempPassword,
+      loginUrl: this.loginLink(user.email),
+    };
+  }
+
+  /**
+   * Alle Kontakte eines Kunden/Partners mit E-Mail einladen.
+   * Neue User anlegen; bestehende mit mustChangePassword erneut per Mail einladen.
+   * User, die ihr Passwort schon geändert haben, werden übersprungen (außer forceResend).
+   */
+  async inviteContactsForCustomerOrPartner(
+    actor: AuthUser,
+    opts: {
+      customerId?: string;
+      partnerId?: string;
+      forceResend?: boolean;
+    },
+  ) {
+    if (!opts.customerId && !opts.partnerId) {
+      throw new BadRequestException('customerId oder partnerId erforderlich');
+    }
+    if (opts.customerId) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: opts.customerId, organizationId: actor.organizationId },
+      });
+      if (!customer) throw new NotFoundException('Kunde nicht gefunden');
+    }
+    if (opts.partnerId) {
+      const partner = await this.prisma.partner.findFirst({
+        where: { id: opts.partnerId, organizationId: actor.organizationId },
+      });
+      if (!partner) throw new NotFoundException('Partner nicht gefunden');
+    }
+
+    const contacts = await this.prisma.contact.findMany({
+      where: {
+        ...(opts.customerId ? { customerId: opts.customerId } : {}),
+        ...(opts.partnerId ? { partnerId: opts.partnerId } : {}),
+        email: { not: null },
+      },
+      orderBy: { email: 'asc' },
+    });
+
+    const results: Array<{
+      contactId: string;
+      email: string;
+      action: 'invited' | 'resent' | 'skipped';
+      reason?: string;
+      temporaryPassword?: string;
+      loginUrl?: string;
+    }> = [];
+
+    for (const contact of contacts) {
+      const email = (contact.email || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        results.push({
+          contactId: contact.id,
+          email: contact.email || '',
+          action: 'skipped',
+          reason: 'keine gültige E-Mail',
+        });
+        continue;
+      }
+
+      // Interne Test-Adressen nicht anfassen, außer forceResend
+      if (
+        !opts.forceResend &&
+        (email.endsWith('@worldofgreen.at') || email.endsWith('@logistikberater.at'))
+      ) {
+        results.push({
+          contactId: contact.id,
+          email,
+          action: 'skipped',
+          reason: 'interne Adresse',
+        });
+        continue;
+      }
+
+      const existing = await this.prisma.user.findUnique({ where: { email } });
+      try {
+        if (!existing) {
+          const created = await this.inviteFromContact(actor, { contactId: contact.id });
+          results.push({
+            contactId: contact.id,
+            email,
+            action: 'invited',
+            temporaryPassword: created.temporaryPassword,
+            loginUrl: created.loginUrl,
+          });
+        } else if (existing.mustChangePassword || opts.forceResend) {
+          const reset = await this.adminResetPassword(actor, existing.id);
+          results.push({
+            contactId: contact.id,
+            email,
+            action: 'resent',
+            temporaryPassword: reset.temporaryPassword,
+            loginUrl: reset.loginUrl,
+          });
+        } else {
+          results.push({
+            contactId: contact.id,
+            email,
+            action: 'skipped',
+            reason: 'Passwort bereits geändert',
+          });
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ contactId: contact.id, email, action: 'skipped', reason: msg });
+      }
+    }
+
+    return {
+      ok: true,
+      invited: results.filter((r) => r.action === 'invited').length,
+      resent: results.filter((r) => r.action === 'resent').length,
+      skipped: results.filter((r) => r.action === 'skipped').length,
+      results,
     };
   }
 

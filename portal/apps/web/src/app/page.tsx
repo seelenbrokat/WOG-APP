@@ -23,6 +23,10 @@ export default function HomePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email');
+    if (emailParam && emailParam.includes('@')) {
+      setEmail(emailParam.trim());
+    }
     const qr = params.get('qr');
     if (qr) {
       setQrBusy(true);

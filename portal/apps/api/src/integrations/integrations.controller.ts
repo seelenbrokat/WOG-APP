@@ -3,12 +3,14 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Post,
   Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  forwardRef,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -26,6 +28,7 @@ import { SoloplanService } from './soloplan.service';
 import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
 import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 
 class CreateTransferDto {
   @IsEnum(IntegrationSystem)
@@ -137,6 +140,7 @@ export class IntegrationsController {
     private partnerOrdersInbound: PartnerOrdersInboundService,
     private partnerOrdersSftp: PartnerOrdersSftpService,
     private prisma: PrismaService,
+    @Inject(forwardRef(() => UsersService)) private users: UsersService,
   ) {}
 
   /** Soloplan-Verpackungen (GP-Export) für Colli-Dropdown */
@@ -199,14 +203,21 @@ export class IntegrationsController {
 
   @Post('soloplan/business-partners/import')
   @Roles(UserRole.ORG_ADMIN)
-  importBusinessPartners(@CurrentUser() user: AuthUser, @Body() dto: ImportBusinessPartnersDto) {
-    return this.businessPartners.importJson(user, dto.payload, { kind: dto.kind });
+  async importBusinessPartners(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ImportBusinessPartnersDto,
+  ) {
+    const imported = await this.businessPartners.importJson(user, dto.payload, {
+      kind: dto.kind,
+    });
+    const invites = await this.inviteImportedContacts(user, imported.items || []);
+    return { ...imported, invites };
   }
 
   @Post('soloplan/business-partners/import-file')
   @Roles(UserRole.ORG_ADMIN)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
-  importBusinessPartnerFile(
+  async importBusinessPartnerFile(
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: Express.Multer.File,
     @Body('kind') kind?: 'CUSTOMER' | 'PARTNER',
@@ -214,12 +225,49 @@ export class IntegrationsController {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Keine Datei hochgeladen');
     }
-    return this.businessPartners.importFileBuffer(
+    const imported = await this.businessPartners.importFileBuffer(
       user,
       file.originalname || 'upload.json',
       file.buffer,
       kind,
     );
+    const invites = await this.inviteImportedContacts(user, imported.items || []);
+    return { ...imported, invites };
+  }
+
+  /** Nach GP-Import: Kontakte mit E-Mail automatisch zum Portal einladen */
+  private async inviteImportedContacts(
+    user: AuthUser,
+    items: Array<{ kind: string; id: string }>,
+  ) {
+    const summaries = [];
+    for (const item of items) {
+      try {
+        if (item.kind === 'CUSTOMER') {
+          summaries.push(
+            await this.users.inviteContactsForCustomerOrPartner(user, {
+              customerId: item.id,
+            }),
+          );
+        } else if (item.kind === 'PARTNER') {
+          summaries.push(
+            await this.users.inviteContactsForCustomerOrPartner(user, {
+              partnerId: item.id,
+            }),
+          );
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        summaries.push({ ok: false, error: msg, id: item.id, kind: item.kind });
+      }
+    }
+    return {
+      customers: summaries.length,
+      invited: summaries.reduce((n, s: any) => n + (s.invited || 0), 0),
+      resent: summaries.reduce((n, s: any) => n + (s.resent || 0), 0),
+      skipped: summaries.reduce((n, s: any) => n + (s.skipped || 0), 0),
+      details: summaries,
+    };
   }
 
   @Post('soloplan/business-partners/poll-inbox')

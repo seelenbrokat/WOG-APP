@@ -43,6 +43,21 @@ class InviteFromContactDto {
   mandantIds?: string[];
 }
 
+class InviteCustomerContactsDto {
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  partnerId?: string;
+
+  /** Auch User erneut einladen, die ihr Passwort schon geändert haben */
+  @IsOptional()
+  @IsBoolean()
+  forceResend?: boolean;
+}
+
 class MandantAccessDto {
   @IsArray()
   @IsString({ each: true })
@@ -85,6 +100,13 @@ export class UsersController {
   @Roles(UserRole.ORG_ADMIN)
   inviteFromContact(@CurrentUser() user: AuthUser, @Body() dto: InviteFromContactDto) {
     return this.service.inviteFromContact(user, dto);
+  }
+
+  /** Alle Kontakte eines Kunden/Partners mit E-Mail zum Portal einladen */
+  @Post('invite-contacts')
+  @Roles(UserRole.ORG_ADMIN)
+  inviteContacts(@CurrentUser() user: AuthUser, @Body() dto: InviteCustomerContactsDto) {
+    return this.service.inviteContactsForCustomerOrPartner(user, dto);
   }
 
   @Post(':id/reset-password')

@@ -6,7 +6,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 
 @Module({
-  imports: [AuditModule, forwardRef(() => NotificationsModule), IntegrationsModule],
+  imports: [
+    AuditModule,
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => IntegrationsModule),
+  ],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

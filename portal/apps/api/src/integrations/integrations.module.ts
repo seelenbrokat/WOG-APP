@@ -3,6 +3,7 @@ import { SoloplanService, PartnerImportService } from './soloplan.service';
 import { IntegrationsController } from './integrations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditModule } from '../audit/audit.module';
+import { UsersModule } from '../users/users.module';
 import { ExchangeHubService } from './exchange-hub.service';
 import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-adapters';
 import { BusinessPartnerService } from './business-partner.service';
@@ -20,7 +21,11 @@ import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
 import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 
 @Module({
-  imports: [forwardRef(() => NotificationsModule), AuditModule],
+  imports: [
+    forwardRef(() => NotificationsModule),
+    AuditModule,
+    forwardRef(() => UsersModule),
+  ],
   controllers: [IntegrationsController],
   providers: [
     SoloplanService,
