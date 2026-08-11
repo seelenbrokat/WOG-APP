@@ -22,18 +22,25 @@ export type EzollCc029WriteFields = {
  * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
  *
  * Getrennte Ausgabeordner für Automate:
- * - Sendung (44…): …/ezoll/consignment/  → header + consignment[]
- * - Tour (18…/CC029): …/ezoll/tour/   → header + tour[]
+ * - Auftrag/Sendung (order-Root, Default): …/ezoll/order/ → header + order[]
+ * - Sendung flach (Legacy): …/ezoll/consignment/ → header + consignment[]
+ * - Tour (18…/CC029): …/ezoll/tour/ → header + tour[]
+ *
+ * Warum order-Root Default?
+ * Flat consignment mit itemNumber als Lookup macht in Automate zuerst
+ * `ASENDUNG WHERE SENDUNGSNUMMER=n` (Full-Scan ~290k Zeilen, ~30s) und
+ * kann historische Sendungen treffen. Nested order.number → consignments.itemNumber
+ * sucht die Sendung nur innerhalb des Auftrags (sicher + typisch schneller).
  */
 @Injectable()
 export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
+  private readonly orderOutDir: string;
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
   /**
-   * consignment = flach (OrderEzollDuplicat-v5): ordernumber als Interface-Lookup
-   *   `{ "number": 441929 }` + itemNumber (beide IsLookupMember).
-   * order = nested Order-Schema (Legacy/Fallback).
+   * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
+   * consignment = flach (Legacy/OrderEzollDuplicat-v5): ordernumber={number}+itemNumber.
    */
   private readonly rootMode: 'order' | 'consignment';
 
@@ -45,19 +52,22 @@ export class EzollSoloplanService {
       this.config.get('SOLOPLAN_EZOLL_OUT_DIR') ||
       join(sftpOutbound, 'soloplan', 'ezoll');
 
+    this.orderOutDir =
+      this.config.get('SOLOPLAN_EZOLL_ORDER_OUT_DIR') || join(base, 'order');
     this.consignmentOutDir =
       this.config.get('SOLOPLAN_EZOLL_CONSIGNMENT_OUT_DIR') ||
       join(base, 'consignment');
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
 
-    // Default: consignment mit ordernumber-Lookup-Objekt (OrderEzollDuplicat-v5).
-    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'consignment')
+    // Default: nested Order-Root (Order zuerst, dann Sendung innerhalb Auftrag).
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
       .trim()
       .toLowerCase();
-    this.rootMode = mode === 'order' ? 'order' : 'consignment';
+    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
     this.log.log(`OrderEzoll root mode: ${this.rootMode}`);
 
+    this.ensureDir(this.orderOutDir);
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
   }
@@ -204,7 +214,7 @@ export class EzollSoloplanService {
     label: string,
   ) {
     if (match.kind === 'orderConsignment') {
-      // OrderEzollDuplicat-v5: PropertyType=Interface (Order) → Objekt mit number
+      // Für flat root: Interface-Lookup; für order-Root wird ordernumber später entfernt.
       consignment.ordernumber = { number: match.orderNumber };
       consignment.itemNumber = match.consignmentIndex;
     } else if (match.kind === 'order') {
@@ -234,7 +244,7 @@ export class EzollSoloplanService {
     const orderNumber = this.resolveOrderNumber(consignment.ordernumber);
 
     if (this.rootMode === 'consignment') {
-      // OrderEzollDuplicat-v5: Lookup über ordernumber.number + itemNumber
+      // Legacy flat: Lookup über ordernumber.number + itemNumber (Automate Full-Scan Risiko)
       if (orderNumber == null || consignment.itemNumber == null) {
         throw new Error(`${kind}: flat consignment braucht ordernumber.number+itemNumber`);
       }
@@ -246,13 +256,13 @@ export class EzollSoloplanService {
       });
     }
 
-    // Nested Order-Root (Fallback)
+    // Nested Order-Root: Automate bindet Order per number, dann Sendung per itemNumber
     if (orderNumber == null) {
       throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
     }
 
     const { ordernumber: _drop, ...consignmentUnderOrder } = consignment;
-    return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
+    return this.writeJsonFile(this.orderOutDir, kind, sourceFileName, {
       header,
       order: [
         {

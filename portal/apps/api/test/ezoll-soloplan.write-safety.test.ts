@@ -96,4 +96,63 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('order-Root: nested order.number + consignments.itemNumber nach order/', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-root-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeCc529FlagUpdate(
+        { kind: 'orderConsignment', orderNumber: 443153, consignmentIndex: 1 },
+        '443153.1_C ROBO_HEL_P_CC529CC.pdf',
+        {
+          mrn: '26AT920000XA0DHKA1',
+          lrn: '443153.1/C ROBO/HELP',
+          totalItems: 1,
+          eur1Number: null,
+        },
+      );
+
+      assert.match(path, /[/\\]order[/\\]/);
+      const json = readJson(path);
+      assert.equal(json.consignment, undefined);
+      assert.ok(Array.isArray(json.order));
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      assert.equal(order.actionAttribute, 'update');
+      assert.equal(order.number, 443153);
+      assert.ok(Array.isArray(order.consignments));
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.itemNumber, 1);
+      assert.equal(row.cC529C, true);
+      assert.equal(row.mRNATAPI, '26AT920000XA0DHKA1');
+      assert.equal(row.lRN, '443153.1/C ROBO/HELP');
+      assert.equal(row.tarifnummerATAPI, 1);
+      assert.equal(row.ordernumber, undefined);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('order-Root CC599: nur Flag unter nested consignments', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeCc599FlagUpdate(
+        { kind: 'orderConsignment', orderNumber: 443153, consignmentIndex: 1 },
+        '443153.1_C_ROBO_HEL_P_CC599CC.pdf',
+        { mrn: null, lrn: null, totalItems: null, eur1Number: null },
+        false,
+      );
+
+      assert.match(path, /[/\\]order[/\\]/);
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      assert.equal(order.number, 443153);
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.itemNumber, 1);
+      assert.equal(row.cC599C, true);
+      assert.equal(row.mRNATAPI, undefined);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
