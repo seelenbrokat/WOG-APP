@@ -114,8 +114,9 @@ async function bootstrap() {
       ) {
         console.log(
           `eZoll: ${ezoll.ignored} ignoriert` +
-            (ezoll.smartborder || ezoll.smartborderFailed
+            (ezoll.smartborder || ezoll.smartborderFailed || ezoll.smartborderLinked
               ? `, ${ezoll.smartborder || 0} SmartBorder` +
+                (ezoll.smartborderLinked ? ` / ${ezoll.smartborderLinked} verknüpft` : '') +
                 (ezoll.smartborderFailed ? ` (${ezoll.smartborderFailed} fehl)` : '')
               : '') +
             `, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +

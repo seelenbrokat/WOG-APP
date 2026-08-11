@@ -98,6 +98,21 @@ class CreateCustomsDto {
   @IsString()
   notes?: string;
 
+  /** Fahrer-Telefon für SmartBorder-App (E.164 / AT-Mobil) */
+  @IsOptional()
+  @IsString()
+  driverPhone?: string;
+
+  /** Zusätzliche E-Mail für den SmartBorder-Link */
+  @IsOptional()
+  @IsString()
+  smartborderNotifyEmail?: string;
+
+  /** Link per SMS an Fahrernummer (LinkMobility email2sms) */
+  @IsOptional()
+  @IsBooleanString()
+  smartborderSendSms?: string;
+
   @IsOptional()
   @IsBooleanString()
   abweichenderFrachtzahler?: string;

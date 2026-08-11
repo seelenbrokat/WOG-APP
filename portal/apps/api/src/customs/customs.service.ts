@@ -13,6 +13,7 @@ import {
   isValidGrenzuebergang,
   normalizeSmartBorderPlate,
   isValidSmartBorderPlate,
+  normalizePhoneE164,
 } from '@wog/shared';
 import { createWriteStream, createReadStream, existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
@@ -75,6 +76,9 @@ export type CreateCustomsInput = {
   mandantId?: string;
   customerId?: string;
   notes?: string;
+  driverPhone?: string;
+  smartborderNotifyEmail?: string;
+  smartborderSendSms?: boolean | string;
   abweichenderFrachtzahler?: boolean | string;
   frachtzahlerFirma?: string;
   frachtzahlerStreet?: string;
@@ -297,6 +301,25 @@ export class CustomsService {
       throw new BadRequestException('Inhalt / Warenbeschreibung bitte angeben');
     }
 
+    const sendSms =
+      data.smartborderSendSms === true ||
+      data.smartborderSendSms === 'true' ||
+      data.smartborderSendSms === '1';
+    const driverPhoneRaw = (data.driverPhone || '').trim();
+    let driverPhone: string | null = null;
+    if (driverPhoneRaw || sendSms) {
+      driverPhone = normalizePhoneE164(driverPhoneRaw);
+      if (!driverPhone) {
+        throw new BadRequestException(
+          'Fahrer-Telefonnummer bitte im internationalen Format angeben (z. B. +436769075070)',
+        );
+      }
+    }
+    const notifyEmail = (data.smartborderNotifyEmail || '').trim().toLowerCase() || null;
+    if (notifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail)) {
+      throw new BadRequestException('SmartBorder-Benachrichtigungs-E-Mail ist ungültig');
+    }
+
     const externalNumber = await allocateVlbExternalNumber(
       this.prisma,
       user.organizationId,
@@ -341,6 +364,9 @@ export class CustomsService {
         empfaengerCity: data.empfaengerCity.trim(),
         empfaengerCountry,
         notes: data.notes,
+        driverPhone,
+        smartborderNotifyEmail: notifyEmail,
+        smartborderSendSms: sendSms,
         status: 'SUBMITTED',
         createdById: user.id,
       },

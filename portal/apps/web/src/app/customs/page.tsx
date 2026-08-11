@@ -195,6 +195,9 @@ export default function CustomsPage() {
     goodsDescription: '',
     mandantId: '',
     notes: '',
+    driverPhone: '',
+    smartborderNotifyEmail: '',
+    smartborderSendSms: false,
   });
 
   const fromChFl = ['CH', 'LI', 'FL'].includes(absender.country.trim().toUpperCase());
@@ -347,6 +350,14 @@ export default function CustomsPage() {
       fd.append('goodsDescription', form.goodsDescription.trim());
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
+      if (form.driverPhone.trim()) fd.append('driverPhone', form.driverPhone.trim());
+      if (form.smartborderNotifyEmail.trim()) {
+        fd.append('smartborderNotifyEmail', form.smartborderNotifyEmail.trim());
+      }
+      fd.append('smartborderSendSms', form.smartborderSendSms ? 'true' : 'false');
+      if (form.smartborderSendSms && !form.driverPhone.trim()) {
+        throw new Error('Für SMS-Link bitte eine Fahrer-Telefonnummer angeben');
+      }
       fd.append('abweichenderFrachtzahler', abweichend ? 'true' : 'false');
       fd.append('absenderFirma', absender.firma);
       fd.append('absenderStreet', absender.street);
@@ -387,6 +398,9 @@ export default function CustomsPage() {
         weightKg: '',
         netWeightKg: '',
         goodsDescription: '',
+        driverPhone: '',
+        smartborderNotifyEmail: '',
+        smartborderSendSms: false,
         notes: '',
       }));
       await load();
@@ -766,6 +780,50 @@ export default function CustomsPage() {
           <label>Hinweis (optional)</label>
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </div>
+
+        <div className="panel stack" style={{ background: 'var(--bg-panel)' }}>
+          <strong>SmartBorder (Fahrer-Link)</strong>
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            Nach Eingang des Grenzzollstellen- oder Transit-Eingangsscheins wird der Fahrerlink
+            über das Kennzeichen zugeordnet. Telefonnummer erscheint in der SmartBorder-App;
+            optional zusätzlich per E-Mail und/oder SMS.
+          </p>
+          <div className="grid-2">
+            <div className="field">
+              <label>Fahrer-Telefonnummer</label>
+              <input
+                type="tel"
+                inputMode="tel"
+                placeholder="+436769075070"
+                value={form.driverPhone}
+                onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+                autoComplete="tel"
+              />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                International mit Ländervorwahl (z. B. +43…), ohne Leerzeichen.
+              </span>
+            </div>
+            <div className="field">
+              <label>Zusätzliche E-Mail für SmartBorder-Link</label>
+              <input
+                type="email"
+                placeholder="disposition@beispiel.at"
+                value={form.smartborderNotifyEmail}
+                onChange={(e) => setForm({ ...form, smartborderNotifyEmail: e.target.value })}
+                autoComplete="email"
+              />
+            </div>
+          </div>
+          <label className="row">
+            <input
+              type="checkbox"
+              checked={form.smartborderSendSms}
+              onChange={(e) => setForm({ ...form, smartborderSendSms: e.target.checked })}
+            />
+            SmartBorder-Link per SMS an die Fahrernummer senden
+          </label>
+        </div>
+
         {error && <div className="error">{error}</div>}
         {message && <div className="success">{message}</div>}
         <button className="btn btn-primary" type="submit">
@@ -866,6 +924,15 @@ export default function CustomsPage() {
                         >
                           + {o.kennzeichenAnhaenger}
                         </span>
+                      ) : null}
+                      {o.smartborderUrl ? (
+                        <span className="meta">
+                          <a href={o.smartborderUrl} target="_blank" rel="noreferrer">
+                            SmartBorder-Link
+                          </a>
+                        </span>
+                      ) : o.driverPhone || o.smartborderNotifyEmail || o.smartborderSendSms ? (
+                        <span className="meta">SmartBorder bereit</span>
                       ) : null}
                     </td>
                     <td className="col-route" title={routeTitle}>

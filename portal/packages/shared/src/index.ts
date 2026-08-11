@@ -108,6 +108,13 @@ export {
 } from './smart-border-plates';
 
 export {
+  normalizePhoneE164,
+  phoneDigitsForSmsGateway,
+  linkMobilitySmsAddress,
+  isValidPhoneE164,
+} from './phone-e164';
+
+export {
   COUNTRIES,
   countryLabel,
   zipPatternForCountry,

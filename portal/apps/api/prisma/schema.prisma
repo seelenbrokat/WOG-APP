@@ -1312,6 +1312,17 @@ model CustomsOrder {
   empfaengerCountry        String  @default("CH")
   status         String   @default("SUBMITTED")
   notes          String?
+  /// Fahrer-Mobilnummer für SmartBorder (E.164, z. B. +436769075070)
+  driverPhone    String?
+  /// Zusätzliche E-Mail für den SmartBorder-Fahrerlink
+  smartborderNotifyEmail String?
+  /// Link zusätzlich per SMS (E-Mail→SMS Gateway LinkMobility)
+  smartborderSendSms Boolean @default(false)
+  /// SmartBorder Session-Token nach GZES/Transit-Ingest
+  smartborderToken String?
+  /// SmartBorder Fahrer-URL
+  smartborderUrl   String?
+  smartborderLinkedAt DateTime?
   createdById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1324,6 +1335,7 @@ model CustomsOrder {
   @@unique([organizationId, externalNumber])
   @@index([customerId, createdAt])
   @@index([organizationId, status])
+  @@index([organizationId, kennzeichen])
   @@index([externalNumber])
 }
 
