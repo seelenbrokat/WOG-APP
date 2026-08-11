@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Vehicle Types | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Vehicle Types | shippingNET ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="vehicle-types">Vehicle Types</h1>
+
+<p>The configuration of the vehicle types is used to classify the vehicle (equipment) – i.e. to indirectly determine whether it is a forklift, trolley or electric pallet truck. Depending on this, the vehicles move differently in the warehouse and are used in picking for different types of goods.</p>
+<h2 id="field-definitions">Field Definitions</h2>
+<p><img src="../../media/uc/systemconfig/TransportUnitTypeConfig/TransportUnitTypeConfig-View.png" alt="Stock Settings Vehicle Type" title="Warehouse Settings Vehicle Type"></p>
+<h3 id="order-type-multiple-selection">Order Type (Multiple Selection)</h3>
+<p>The job type setting is used to allow travel commands for only one or more specific job types.</p>
+<p><u>Default: (All)</u></p>
+<div class="NOTE">
+<h5>Note</h5>
+<p>The order type defines a <strong>category</strong> and a <strong>direction of goods flow</strong>. The <strong>category</strong> can be sales, purchasing, or production. The <strong>flow direction</strong> can be inbound or outbound. You can unlock additional job types in the <strong>System Configuration</strong>.</p>
+</div>
+
+<p>The order types can be defined individually and must be stored on the respective order for differentiation.</p>
+<h3 id="removal-order">Removal order</h3>
+<p>There are two options available for setting the picking order:</p>
+<ul>
+<li><p><strong>Horizontal</strong> – Driving commands are selected that lead to a horizontal removal. This setting is mainly used in the warehouse at level 0, e.g. for picking packages or items under 2 meters high.</p>
+</li>
+<li><p><strong>Vertical</strong> – Driving commands are selected that lead to a vertical removal. This setting is mainly used for forklifts or pallet trucks that pick goods vertically or prepare goods for picking via a hub travel command.</p>
+</li>
+</ul>
+<h3 id="drive-command-type-multiple-selection">Drive Command Type (Multiple Selection)</h3>
+<p>Setting the driving command type primarily restricts the type of goods flow. In most cases, a distinction is made between driving commands for <strong>article</strong> and <strong>collie</strong>.</p>
+<p>If a setting is made, it applies only to the selected types (multiple selection possible). Without a specific selection, there is no restriction, and the setting affects all drive command types.</p>
+<p><u>Default: (All)</u></p>
+<ul>
+<li><strong>Storage</strong> – Concerns goods that have been taken over and are to be put away from the goods receipt to the warehouse.</li>
+<li><strong>Relocation</strong> – Refers to internal stock movements from one location to another.</li>
+<li><strong>Lift Removals</strong> – Are driving commands in which packages are lifted from the high rack to level 0 for picking.</li>
+<li><strong>Offload</strong> – Are driving commands used for picking goods.</li>
+</ul>
+<p>In addition, there are the following special species</p>
+<ul>
+<li><strong>Work Instructions</strong> – Used to equip a cart, among other things.</li>
+<li><strong>Collo Formation for Restocking</strong> – Used to form Colli for re-storage.</li>
+<li><strong>Inventory counting</strong> – Used as part of the inventory for corresponding driving commands in the warehouse.</li>
+<li><strong>Relocation of Quality Collo</strong> – Applies to goods that are to be relocated for storage or retrieval after quality control.</li>
+</ul>
+<h3 id="turn-off-every-collo-driving-command">Turn off every Collo driving command</h3>
+<p>This setting is used to control that the vehicle must not be used to transport multiple packages at the same time. As a result, each collo has to be moved individually in the warehouse.</p>
+<h3 id="picking-patterns">Picking patterns</h3>
+<p>Stands for the path that the vehicle (equipment) takes through the warehouse and takes the goods from the shelves accordingly. There are three options to choose from, one of which is always active.</p>
+<div class="NOTE">
+<h5>Note</h5>
+<p>Below are graphs shown for better understanding.
+All graphics are based on the preferred picking direction <strong>Left</strong>.</p>
+</div>
+<ul>
+<li><strong>I (stitch)</strong> - Leads in and out of a corridor between two shelves. Goods are taken alternately from the left and right shelves. At the end of the aisle, the vehicle leaves the aisle again without making any further removals. (Cul-off)</li>
+</ul>
+<p><img src="../../media/uc/systemconfig/TransportUnitTypeConfig/commissioning-pattern-I-pick.png" alt="Picking Pattern I (Stitch)" title="Picking Pattern I (Stitch)"></p>
+<ul>
+<li><strong>S (Snake)</strong> - Leads between two shelves into a corridor and back via another corridor. Goods are taken alternately from the left and right shelves. The picking (removal of goods) is carried out in the same way as in the <strong>I (stitch)</strong>, with the difference that the return journey takes place in a different aisle and goods are also taken from the shelves there.</li>
+</ul>
+<p><img src="../../media/uc/systemconfig/TransportUnitTypeConfig/commissioning-pattern-S-snake.png" alt="Picking Pattern S (Snake)" title="Picking Pattern S (Snake)"></p>
+<ul>
+<li><strong>U (Large U)</strong> - Leads in and out of an aisle between two shelves. The goods are first removed from one side of the shelves and on the way back from the opposite side.</li>
+</ul>
+<p><img src="../../media/uc/systemconfig/TransportUnitTypeConfig/commissioning-pattern-U-bigU.png" alt="Picking Pattern U (Large U)" title="Picking Pattern U (Big U)"></p>
+<h3 id="picking-strategy-multiple-selection">Picking strategy (multiple selection)</h3>
+<p>The restriction of the vehicle type for a particular picking strategy determines the strategy according to which this vehicle type (equipment) may be used.</p>
+<p>If a setting is made, travel commands are only taken into account for the selected picking strategies (multiple selection possible). Without an appropriate attitude, there is no restriction and no specific strategy is used.</p>
+<p><u>Default: (All)</u></p>
+<p>The strategies that exist and how they work are described in the <a href="warehousing-picklist-editor.html"> Pick List Editor</a>.</p>
+<h3 id="loading-equipment-guided-removal">Loading equipment-guided removal</h3>
+<h3 id="always-back-to-request-after-parking">Always back to request after parking</h3>
+<h3 id="bulky-goods">Bulky goods</h3>
+<p>This setting specifies whether bulky goods may be transported with this vehicle type. The corresponding attribute must be maintained on the article master in order to be able to distinguish whether it is a bulky goods item or not.</p>
+<h3 id="sorted-picking">Sorted Picking</h3>
+<h3 id="source-zone-multiple-selection">Source Zone (Multiple Selection)</h3>
+<p>The source zone indicates from which zones in the warehouse goods may be picked up with this vehicle type.</p>
+<p>If a setting is made, only driving commands whose source corresponds to one of the specified source zones are taken into account for this vehicle type (equipment). Without a corresponding restriction, all zones are allowed.</p>
+<p><u>Default: (All)</u></p>
+<div class="NOTE">
+<h5>Note</h5>
+<p>Since the <strong>version 25.3.0.0</strong>, there is no longer just one <strong>zone</strong> on the component type, but a separate <strong>source zone</strong> and <strong>target zone</strong>. When updating to version <strong>25.3.0.0</strong>, the previous zone settings are automatically transferred to the <strong>Source Zone</strong>.</p>
+</div>
+<h3 id="target-zone-multiple-selection">Target Zone (Multiple Selection)</h3>
+<p>The destination zone indicates the zone to which this vehicle type is allowed to transport goods.</p>
+<p>If a setting is made, only driving commands are taken into account for this vehicle type (equipment) whose destination zone corresponds to one of the specified destination zones. Without a corresponding restriction, all zones are allowed.</p>
+<p><u>Default: (All)</u></p>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
