@@ -411,6 +411,9 @@ export class CustomsService {
         `Bruttogewicht: ${order.weightKg != null ? `${order.weightKg} kg` : '–'}`,
         `Nettogewicht: ${order.netWeightKg != null ? `${order.netWeightKg} kg` : '–'}`,
         `Inhalt: ${order.goodsDescription || '–'}`,
+        driverPhone ? `Fahrertelefon: ${driverPhone}` : '',
+        notifyEmail ? `E-Mail-Rückmeldung (SmartBorder): ${notifyEmail}` : '',
+        sendSms ? 'SmartBorder-Link per SMS: ja' : '',
         `Absender: ${order.absenderFirma}, ${order.absenderStreet}, ${order.absenderZip} ${order.absenderCity}`,
         `Empfänger: ${order.empfaengerFirma}, ${order.empfaengerStreet}, ${order.empfaengerZip} ${order.empfaengerCity}`,
         abweichend
@@ -508,6 +511,9 @@ export class CustomsService {
         netWeightKg: full.netWeightKg,
         goodsDescription: full.goodsDescription,
         notes: full.notes,
+        driverPhone: full.driverPhone,
+        smartborderNotifyEmail: full.smartborderNotifyEmail,
+        smartborderSendSms: full.smartborderSendSms,
         customerName: full.customer.name,
         customerNumber: full.customer.customerNumber,
         mandantName: full.mandant?.name,
@@ -569,6 +575,11 @@ export class CustomsService {
       full.weightKg != null ? `Bruttogewicht: ${full.weightKg} kg` : null,
       full.netWeightKg != null ? `Nettogewicht: ${full.netWeightKg} kg` : null,
       full.goodsDescription ? `Inhalt: ${full.goodsDescription}` : null,
+      full.driverPhone ? `Fahrertelefon: ${full.driverPhone}` : null,
+      full.smartborderNotifyEmail
+        ? `E-Mail-Rückmeldung (SmartBorder): ${full.smartborderNotifyEmail}`
+        : null,
+      full.smartborderSendSms ? 'SmartBorder-Link per SMS: ja (an Fahrertelefon)' : null,
       `Absender: ${full.absenderFirma}, ${full.absenderStreet}, ${full.absenderZip} ${full.absenderCity}`,
       `Empfänger: ${full.empfaengerFirma}, ${full.empfaengerStreet}, ${full.empfaengerZip} ${full.empfaengerCity}`,
       full.mandant ? `Mandant: ${full.mandant.name}` : null,

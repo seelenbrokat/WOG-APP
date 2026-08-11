@@ -29,6 +29,12 @@ export type VerzollungsauftragPdfInput = {
   netWeightKg?: number | null;
   goodsDescription?: string | null;
   notes?: string | null;
+  /** SmartBorder: Fahrertelefon für Companion-App */
+  driverPhone?: string | null;
+  /** Zusätzliche E-Mail für SmartBorder-Link */
+  smartborderNotifyEmail?: string | null;
+  /** Link zusätzlich per SMS an Fahrertelefon */
+  smartborderSendSms?: boolean | null;
   customerName: string;
   customerNumber?: string | null;
   mandantName?: string | null;
@@ -194,6 +200,12 @@ export function writeVerzollungsauftragPdf(
       order.netWeightKg != null ? `${order.netWeightKg} kg` : '–',
     );
     row('Inhalt', order.goodsDescription || '–');
+    row('Fahrertelefon', order.driverPhone || '–');
+    row('E-Mail-Rückmeldung', order.smartborderNotifyEmail || '–');
+    row(
+      'SmartBorder-Link SMS',
+      order.smartborderSendSms ? 'ja – an Fahrertelefon' : 'nein',
+    );
     doc.moveDown(0.4);
 
     // Absender / Empfänger
