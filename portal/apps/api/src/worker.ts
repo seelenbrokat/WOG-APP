@@ -102,6 +102,8 @@ async function bootstrap() {
       const ezoll = await ezollInbound.processInboundDir();
       if (
         ezoll.ignored ||
+        ezoll.smartborder ||
+        ezoll.smartborderFailed ||
         ezoll.cc529 ||
         ezoll.ez92x ||
         ezoll.cc029 ||
@@ -111,7 +113,12 @@ async function bootstrap() {
         ezoll.purged
       ) {
         console.log(
-          `eZoll: ${ezoll.ignored} ignoriert, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +
+          `eZoll: ${ezoll.ignored} ignoriert` +
+            (ezoll.smartborder || ezoll.smartborderFailed
+              ? `, ${ezoll.smartborder || 0} SmartBorder` +
+                (ezoll.smartborderFailed ? ` (${ezoll.smartborderFailed} fehl)` : '')
+              : '') +
+            `, ${ezoll.cc529} CC529, ${ezoll.ez92x || 0} EZ922/923, ${ezoll.cc029 || 0} CC029, ${ezoll.cc599 || 0} CC599→Soloplan` +
             (ezoll.customerExit ? `, ${ezoll.customerExit} Austritt→Kunde` : '') +
             `, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
             (ezoll.purged ? `, ${ezoll.purged} Cache gelöscht` : ''),

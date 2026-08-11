@@ -7,6 +7,7 @@ import { EzollTourCacheService } from './ezoll-tour-cache.service';
 import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
 import { EzollFreightPayerService } from './ezoll-freight-payer.service';
 import { EzollSoloplanReadApiService } from './ezoll-soloplan-read-api.service';
+import { EzollSmartborderService } from './ezoll-smartborder.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -27,6 +28,7 @@ import { DocumentsModule } from '../documents/documents.module';
     EzollInboundService,
     EzollSoloplanService,
     EzollSoloplanReadApiService,
+    EzollSmartborderService,
     EzollTourCacheService,
     EzollConsignmentCacheService,
     EzollFreightPayerService,
@@ -36,6 +38,7 @@ import { DocumentsModule } from '../documents/documents.module';
     EzollInboundService,
     EzollSoloplanService,
     EzollSoloplanReadApiService,
+    EzollSmartborderService,
     EzollTourCacheService,
     EzollConsignmentCacheService,
     EzollFreightPayerService,

@@ -36,14 +36,16 @@ import { EzollSoloplanService } from './ezoll-soloplan.service';
 import { EzollTourCacheService } from './ezoll-tour-cache.service';
 import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
 import { EzollFreightPayerService } from './ezoll-freight-payer.service';
+import { EzollSmartborderService } from './ezoll-smartborder.service';
 
 /**
  * eZoll-Inbound (PDF + XML):
  * 1) Ignore-Muster → processed/ignored/
- * 2) CC529C(C) → OrderEzoll (bestätigte Felder), XML primär
- * 3) EZ922/EZ923 XML → eZ922/eZ923
- * 4) CC029C XML → Tour-Cache (7 Tage)
- * 5) CC599C(C) → cC599C:true; Werte nur ohne vorherige Ausfuhr; PDF → Kunden CUSTOMS_EXIT
+ * 2) CCATBT02/12 → SmartBorder pdf-ingest (unabhängig von Soloplan-Writes)
+ * 3) CC529C(C) → OrderEzoll (bestätigte Felder), XML primär
+ * 4) EZ922/EZ923 XML → eZ922/eZ923
+ * 5) CC029C XML → Tour-Cache (7 Tage)
+ * 6) CC599C(C) → cC599C:true; Werte nur ohne vorherige Ausfuhr; PDF → Kunden CUSTOMS_EXIT
  * Match nur über Auftrag.Sendungsnummer / Tournummer – nie MRN/CRN.
  */
 @Injectable()
@@ -61,6 +63,7 @@ export class EzollInboundService {
     private freightPayer: EzollFreightPayerService,
     private customerDocs: CustomerDocumentsInboundService,
     private soloplan: SoloplanService,
+    private smartborder: EzollSmartborderService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -73,9 +76,11 @@ export class EzollInboundService {
       join(this.inboundRoot, 'processed', 'ez92x'),
       join(this.inboundRoot, 'processed', 'cc029'),
       join(this.inboundRoot, 'processed', 'cc599'),
+      join(this.inboundRoot, 'processed', 'smartborder'),
       join(this.inboundRoot, 'pending-customer-exit'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
+      join(this.inboundRoot, 'failed', 'smartborder'),
     ]) {
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     }
@@ -86,6 +91,8 @@ export class EzollInboundService {
     if (!orgId) {
       return {
         ignored: 0,
+        smartborder: 0,
+        smartborderFailed: 0,
         cc529: 0,
         ez92x: 0,
         cc029: 0,
@@ -123,6 +130,9 @@ export class EzollInboundService {
       this.log.log(`eZoll ignoriert (${prefixes.join(', ')}): ${fileName}`);
     }
 
+    // SmartBorder unabhängig von Soloplan-Writes (CC529-Schalter)
+    const sb = await this.smartborder.processInboundBatch(20);
+
     const enabled = this.config.get('SOLOPLAN_EZOLL_CC529_ENABLED') !== 'false';
     let cc529 = 0;
     let ez92x = 0;
@@ -150,6 +160,8 @@ export class EzollInboundService {
     const pending = this.listPendingFiles().length;
     return {
       ignored,
+      smartborder: sb.processed,
+      smartborderFailed: sb.failed,
       cc529,
       ez92x,
       cc029,
