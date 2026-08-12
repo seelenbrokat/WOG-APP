@@ -45,6 +45,14 @@ function ShipmentDetailInner() {
     LABEL: 'Etikett',
   };
 
+  const DOC_CAT_LABELS: Record<string, string> = {
+    INVOICE: 'Rechnung',
+    CUSTOMS_EXIT: 'Austrittsbestätigung',
+    POD: 'POD / Abliefernachweis',
+    CMR: 'CMR',
+    OTHER: 'Sonstiges',
+  };
+
   const needsInvoice =
     Boolean((shipment?.extras as ShipmentExtras | null)?.verzollung) &&
     !(shipment?.documents || []).some((d: any) => d.type === 'INVOICE');
@@ -396,36 +404,140 @@ function ShipmentDetailInner() {
                   Verzollung aktiv: bitte eine <strong>Rechnung</strong> hochladen.
                 </div>
               )}
-              {[
-                ...(shipment.documents || []),
-                ...((orderDetail?.documents || []).filter(
-                  (d: any) => !(shipment.documents || []).some((s: any) => s.id === d.id),
-                )),
-              ].map((d: any) => (
-                <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
-                  <span>
-                    {d.fileName}{' '}
-                    <span className="badge">{DOC_TYPE_LABELS[d.type] || d.type}</span>
-                  </span>
-                  <a
-                    href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const win = openBlankTabForAsyncWork();
-                      openDocumentInNewTab(d.id, d.fileName, { targetWin: win }).catch((err) => {
-                        try {
-                          win?.close();
-                        } catch {
-                          /* ignore */
-                        }
-                        console.error(err);
-                      });
-                    }}
-                  >
-                    Öffnen
-                  </a>
-                </div>
-              ))}
+              {(() => {
+                const allDocs = [
+                  ...(shipment.documents || []),
+                  ...((orderDetail?.documents || []).filter(
+                    (d: any) => !(shipment.documents || []).some((s: any) => s.id === d.id),
+                  )),
+                ];
+                const exitDoc = allDocs.find((d: any) => d.categoryCode === 'CUSTOMS_EXIT');
+                const otherDocs = allDocs.filter((d: any) => d.categoryCode !== 'CUSTOMS_EXIT');
+                return (
+                  <>
+                    <label
+                      className="row"
+                      style={{ gap: '0.5rem', alignItems: 'center', margin: 0 }}
+                      title={
+                        exitDoc
+                          ? exitDoc.downloaded
+                            ? 'Austritt geöffnet/heruntergeladen'
+                            : 'Austritt vorhanden – bitte öffnen'
+                          : 'Noch keine Austrittsbestätigung'
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(exitDoc?.downloaded)}
+                        readOnly
+                        disabled={!exitDoc}
+                        aria-label="Austritt hochgeladen"
+                      />
+                      <span>Austritt hochgeladen</span>
+                      {exitDoc ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ padding: '0.15rem 0.5rem' }}
+                          disabled={busy === `dl-${exitDoc.id}`}
+                          onClick={async () => {
+                            setBusy(`dl-${exitDoc.id}`);
+                            setError('');
+                            const win = openBlankTabForAsyncWork();
+                            try {
+                              await openDocumentInNewTab(exitDoc.id, exitDoc.fileName, {
+                                targetWin: win,
+                              });
+                              setShipment((prev: any) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      documents: (prev.documents || []).map((d: any) =>
+                                        d.id === exitDoc.id
+                                          ? {
+                                              ...d,
+                                              downloaded: true,
+                                              downloadedAt: new Date().toISOString(),
+                                            }
+                                          : d,
+                                      ),
+                                    }
+                                  : prev,
+                              );
+                            } catch (e: any) {
+                              try {
+                                win?.close();
+                              } catch {
+                                /* ignore */
+                              }
+                              setError(e?.message || 'Download fehlgeschlagen');
+                            } finally {
+                              setBusy('');
+                            }
+                          }}
+                        >
+                          {busy === `dl-${exitDoc.id}` ? '…' : 'Öffnen'}
+                        </button>
+                      ) : (
+                        <span className="muted">fehlt</span>
+                      )}
+                    </label>
+                    {otherDocs.map((d: any) => (
+                      <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
+                        <span>
+                          {d.fileName}{' '}
+                          <span className="badge">
+                            {d.categoryCode
+                              ? DOC_CAT_LABELS[d.categoryCode] || d.categoryCode
+                              : DOC_TYPE_LABELS[d.type] || d.type}
+                          </span>
+                          {d.downloaded ? (
+                            <span className="muted" style={{ marginLeft: '0.35rem', fontSize: '0.8rem' }}>
+                              ✓ geöffnet
+                            </span>
+                          ) : null}
+                        </span>
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/documents/${d.id}/download`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const win = openBlankTabForAsyncWork();
+                            openDocumentInNewTab(d.id, d.fileName, { targetWin: win })
+                              .then(() => {
+                                setShipment((prev: any) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        documents: (prev.documents || []).map((x: any) =>
+                                          x.id === d.id
+                                            ? {
+                                                ...x,
+                                                downloaded: true,
+                                                downloadedAt: new Date().toISOString(),
+                                              }
+                                            : x,
+                                        ),
+                                      }
+                                    : prev,
+                                );
+                              })
+                              .catch((err) => {
+                                try {
+                                  win?.close();
+                                } catch {
+                                  /* ignore */
+                                }
+                                console.error(err);
+                              });
+                          }}
+                        >
+                          Öffnen
+                        </a>
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
               <div className="field">
                 <label>Dokumenttyp</label>
                 <select

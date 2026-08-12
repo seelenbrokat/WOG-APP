@@ -457,28 +457,84 @@ export default function ShipmentsPage() {
                       {showDocs && (
                         <td className="col-docs">
                           <div className="stack" style={{ gap: '0.35rem', alignItems: 'flex-start' }}>
-                            {docs.length === 0 && <span className="muted">Keine Dokumente</span>}
-                            {docs.map((d) => (
-                              <label
-                                key={d.id}
-                                className="row"
-                                style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
-                              >
-                                <input type="checkbox" checked={d.downloaded} readOnly title="Heruntergeladen" />
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
-                                  disabled={dlBusy === d.id}
-                                  onClick={() => downloadCustomerDoc(d)}
-                                  title={d.fileName}
-                                >
-                                  {dlBusy === d.id
-                                    ? '…'
-                                    : DOC_CAT_LABELS[d.categoryCode || ''] || d.fileName}
-                                </button>
-                              </label>
-                            ))}
+                            {(() => {
+                              const exitDoc = docs.find((d) => d.categoryCode === 'CUSTOMS_EXIT');
+                              const exitEnabled = (docsModule?.categories || []).some(
+                                (c) => c.code === 'CUSTOMS_EXIT',
+                              );
+                              const otherDocs = docs.filter((d) => d.categoryCode !== 'CUSTOMS_EXIT');
+                              return (
+                                <>
+                                  {exitEnabled && (
+                                    <label
+                                      className="row"
+                                      style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
+                                      title={
+                                        exitDoc
+                                          ? exitDoc.downloaded
+                                            ? 'Austritt geöffnet/heruntergeladen'
+                                            : 'Austritt vorhanden – bitte öffnen'
+                                          : 'Noch keine Austrittsbestätigung'
+                                      }
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(exitDoc?.downloaded)}
+                                        readOnly
+                                        disabled={!exitDoc}
+                                        aria-label="Austritt hochgeladen"
+                                      />
+                                      <span style={{ fontSize: '0.85rem' }}>Austritt hochgeladen</span>
+                                      {exitDoc ? (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost"
+                                          style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
+                                          disabled={dlBusy === exitDoc.id}
+                                          onClick={() => downloadCustomerDoc(exitDoc)}
+                                          title={exitDoc.fileName}
+                                        >
+                                          {dlBusy === exitDoc.id ? '…' : 'Öffnen'}
+                                        </button>
+                                      ) : (
+                                        <span className="muted" style={{ fontSize: '0.8rem' }}>
+                                          fehlt
+                                        </span>
+                                      )}
+                                    </label>
+                                  )}
+                                  {otherDocs.map((d) => (
+                                    <label
+                                      key={d.id}
+                                      className="row"
+                                      style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={d.downloaded}
+                                        readOnly
+                                        title="Heruntergeladen"
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost"
+                                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
+                                        disabled={dlBusy === d.id}
+                                        onClick={() => downloadCustomerDoc(d)}
+                                        title={d.fileName}
+                                      >
+                                        {dlBusy === d.id
+                                          ? '…'
+                                          : DOC_CAT_LABELS[d.categoryCode || ''] || d.fileName}
+                                      </button>
+                                    </label>
+                                  ))}
+                                  {!exitEnabled && docs.length === 0 && (
+                                    <span className="muted">Keine Dokumente</span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                       )}

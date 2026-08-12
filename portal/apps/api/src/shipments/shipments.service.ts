@@ -258,7 +258,24 @@ export class ShipmentsService {
         positions: true,
         colli: { orderBy: { itemNumber: 'asc' } },
         events: { orderBy: { createdAt: 'asc' } },
-        documents: { orderBy: { createdAt: 'desc' } },
+        documents: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            // Kunde: eigener Download; Dispo/Admin: ob jemand geöffnet hat
+            downloads:
+              user.role === UserRole.CUSTOMER_USER && user.id
+                ? {
+                    where: { userId: user.id },
+                    select: { downloadedAt: true },
+                    take: 1,
+                  }
+                : {
+                    select: { downloadedAt: true },
+                    take: 1,
+                    orderBy: { downloadedAt: 'desc' as const },
+                  },
+          },
+        },
       },
     });
     if (!shipment) throw new NotFoundException();
@@ -275,7 +292,13 @@ export class ShipmentsService {
       reference: shipment.reference,
       orderExternalNumber: shipment.order?.externalNumber,
     });
-    return { ...shipment, eta };
+    const documents = (shipment.documents || []).map((d) => ({
+      ...d,
+      downloaded: (d.downloads || []).length > 0,
+      downloadedAt: d.downloads?.[0]?.downloadedAt || null,
+      downloads: undefined,
+    }));
+    return { ...shipment, documents, eta };
   }
 
   /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */
