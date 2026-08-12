@@ -458,11 +458,16 @@ export default function ShipmentsPage() {
                         <td className="col-docs">
                           <div className="stack" style={{ gap: '0.35rem', alignItems: 'flex-start' }}>
                             {(() => {
-                              const exitDoc = docs.find((d) => d.categoryCode === 'CUSTOMS_EXIT');
-                              const exitEnabled = (docsModule?.categories || []).some(
-                                (c) => c.code === 'CUSTOMS_EXIT',
+                              const allowedCats = new Set(
+                                (docsModule?.categories || []).map((c) => c.code),
                               );
-                              const otherDocs = docs.filter((d) => d.categoryCode !== 'CUSTOMS_EXIT');
+                              const exitEnabled = allowedCats.has('CUSTOMS_EXIT');
+                              const exitDoc = docs.find((d) => d.categoryCode === 'CUSTOMS_EXIT');
+                              const otherDocs = docs.filter(
+                                (d) =>
+                                  d.categoryCode !== 'CUSTOMS_EXIT' &&
+                                  (!d.categoryCode || allowedCats.has(d.categoryCode)),
+                              );
                               return (
                                 <>
                                   {exitEnabled && (

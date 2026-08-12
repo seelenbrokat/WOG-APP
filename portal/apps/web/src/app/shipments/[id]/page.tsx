@@ -405,6 +405,12 @@ function ShipmentDetailInner() {
                 </div>
               )}
               {(() => {
+                const isCustomerUser = user?.role === 'CUSTOMER_USER';
+                const moduleEnabled = Boolean(shipment.documentsModule?.enabled);
+                const moduleCats: string[] = shipment.documentsModule?.categories || [];
+                const exitFreigabe =
+                  !isCustomerUser ||
+                  (moduleEnabled && moduleCats.includes('CUSTOMS_EXIT'));
                 const allDocs = [
                   ...(shipment.documents || []),
                   ...((orderDetail?.documents || []).filter(
@@ -412,9 +418,21 @@ function ShipmentDetailInner() {
                   )),
                 ];
                 const exitDoc = allDocs.find((d: any) => d.categoryCode === 'CUSTOMS_EXIT');
-                const otherDocs = allDocs.filter((d: any) => d.categoryCode !== 'CUSTOMS_EXIT');
+                // Kunde: Modul-Dokumente nur bei Freigabe; sonst normale Upload-/Etikett-Docs
+                const otherDocs = allDocs.filter((d: any) => {
+                  if (d.categoryCode === 'CUSTOMS_EXIT') return false;
+                  if (
+                    isCustomerUser &&
+                    d.categoryCode &&
+                    (!moduleEnabled || !moduleCats.includes(String(d.categoryCode)))
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
                 return (
                   <>
+                    {exitFreigabe && (
                     <label
                       className="row"
                       style={{ gap: '0.5rem', alignItems: 'center', margin: 0 }}
@@ -482,6 +500,7 @@ function ShipmentDetailInner() {
                         <span className="muted">fehlt</span>
                       )}
                     </label>
+                    )}
                     {otherDocs.map((d: any) => (
                       <div className="row" key={d.id} style={{ justifyContent: 'space-between' }}>
                         <span>
