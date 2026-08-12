@@ -8,6 +8,7 @@ import {
   type EzollCc599Fields,
   type EzollEz92xFields,
   type EzollSoloplanMatch,
+  type MercurioEdecFields,
 } from '@wog/shared';
 
 export type EzollCc029WriteFields = {
@@ -164,6 +165,59 @@ export class EzollSoloplanService {
     }
 
     return this.writeConsignmentUpdate('cc599', sourceFileName, consignment);
+  }
+
+  /**
+   * Mercurio CH e-dec (Bezugsschein / Einfuhrliste) →
+   * - Match: ordernumber + itemNumber
+   * - Flags: bezugsschein / einfuhliste / definitiv
+   * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
+   * - kontoZoll / kontoMWST / zAZKonto
+   * - zollabgabenCH / mWSTCH / bearbeitungsgebührCH / tarifnummernCHAPI
+   */
+  writeMercurioEdecUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: MercurioEdecFields,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+    };
+    this.applyMatch(consignment, match, 'MERCURIO');
+
+    if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
+    if (fields.docType === 'EINFUHRLISTE') consignment.einfuhrliste = true;
+    // PDF zeigt oft „Einfuhrliste Definitiv“ auch auf dem Bezugsschein
+    if (fields.definitiv) {
+      consignment.definitiv = true;
+      if (fields.docType === 'BEZUGSSCHEIN') consignment.einfuhrliste = true;
+    }
+
+    if (fields.chDeclarationNumber) {
+      consignment.mRNAPI = fields.chDeclarationNumber;
+      consignment.zollanmeldungsnummer = fields.chDeclarationNumber;
+    }
+    if (fields.accessCode) consignment.zugangscode = fields.accessCode;
+    if (fields.refNumber) consignment.refNr = fields.refNumber;
+    if (fields.kontoZoll) consignment.kontoZoll = fields.kontoZoll;
+    if (fields.kontoMwst) consignment.kontoMWST = fields.kontoMwst;
+    if (fields.zazKonto) consignment.zAZKonto = fields.zazKonto;
+    if (fields.mwstCh != null) consignment.mWSTCH = fields.mwstCh;
+    if (fields.zollabgabenCh != null) consignment.zollabgabenCH = fields.zollabgabenCh;
+    if (fields.bearbeitungsgebuehrCh != null) {
+      consignment.bearbeitungsgebührCH = fields.bearbeitungsgebuehrCh;
+    }
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummernCHAPI = fields.totalItems;
+    }
+
+    const prefix =
+      fields.docType === 'BEZUGSSCHEIN'
+        ? 'mercurio-bs'
+        : fields.docType === 'EINFUHRLISTE'
+          ? 'mercurio-el'
+          : 'mercurio';
+    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 
   /**

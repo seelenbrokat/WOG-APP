@@ -22,16 +22,32 @@ export type MercurioEdecMatch = {
 
 export type MercurioEdecFields = {
   docType: MercurioEdecDocType;
-  /** CH Zollanmeldungsnummer (26CHEI…) → CustomsRef.mrn */
+  /** CH Zollanmeldungsnummer (26CHEI…) → mRNAPI / zollanmeldungsnummer */
   chDeclarationNumber: string | null;
-  /** Ref-Nr. z. B. 104/443153.1/CON/0/1 → CustomsRef.lrn */
+  /** Ref-Nr. z. B. 104/443153.1/CON/0/1 → refNr */
   refNumber: string | null;
   /** AT-Ausfuhr-MRN aus Vorpapiere (nur Info, kein Match) */
   atExportMrn: string | null;
   /** Anmeld. Nr. */
   registrationNumber: string | null;
-  /** Zugangscode (EL) */
+  /** Zugangscode (EL) → zugangscode */
   accessCode: string | null;
+  /** Definitiv-Flag aus PDF */
+  definitiv: boolean | null;
+  /** Konto Zoll → kontoZoll */
+  kontoZoll: string | null;
+  /** Konto MWST → kontoMWST */
+  kontoMwst: string | null;
+  /** ZAZ Konto falls vorhanden */
+  zazKonto: string | null;
+  /** MWST-Wert → mWSTCH */
+  mwstCh: number | null;
+  /** Zollabgaben → zollabgabenCH */
+  zollabgabenCh: number | null;
+  /** Bearbeitungsgebühr → bearbeitungsgebührCH */
+  bearbeitungsgebuehrCh: number | null;
+  /** Anzahl Positionen → tarifnummernCHAPI */
+  totalItems: number | null;
 };
 
 function fileBaseName(fileName: string): string {
@@ -128,6 +144,32 @@ export function extractAtExportMrnFromMercurioPdfText(text: string): string | nu
   return compact ? compact[1].toUpperCase() : null;
 }
 
+/** CH-Beträge: 53'424 / 1.234,56 / 3200.37 */
+function parseChAmount(raw: string | null | undefined): number | null {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  s = s.replace(/'/g, '').replace(/\s/g, '');
+  if (s.includes(',') && s.includes('.')) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function firstLabeledAmount(text: string, labels: RegExp[]): number | null {
+  for (const re of labels) {
+    const m = text.match(re);
+    if (m?.[1]) {
+      const n = parseChAmount(m[1]);
+      if (n != null) return n;
+    }
+  }
+  return null;
+}
+
 export function extractMercurioEdecFieldsFromPdfText(
   text: string,
   fileName?: string,
@@ -144,6 +186,43 @@ export function extractMercurioEdecFieldsFromPdfText(
   const reg = raw.match(/Anmeld\.\s*Nr\.\s*:\s*(\d+)/i)?.[1] || null;
   const access = raw.match(/Zugangscode\s*:\s*([A-Za-z0-9]+)/i)?.[1] || null;
 
+  let definitiv: boolean | null = null;
+  if (/\bDefinitiv\b/i.test(raw)) definitiv = true;
+
+  const kontoZoll =
+    raw.match(/Konto\s+Zoll\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
+    null;
+  const kontoMwst =
+    raw.match(/Konto\s+MWST\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
+    null;
+  const zazKonto =
+    raw.match(/ZAZ[-\s]?Konto\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
+    null;
+
+  const mwstCh = firstLabeledAmount(raw, [
+    /MWST-Wert\s+gesamt\s*:\s*([0-9.'\s]+)/i,
+    /MWST-Wert\s*:\s*([0-9.'\s]+)/i,
+  ]);
+  const zollabgabenCh = firstLabeledAmount(raw, [
+    /Zollansatz\s*:\s*([0-9.'\s]+)/i,
+    /Zollabgaben\s*:\s*([0-9.'\s]+)/i,
+  ]);
+  // „Andere Gebühren-150, 1, 5.00“ → letzter Betrag
+  let bearbeitungsgebuehrCh: number | null = null;
+  const fee = raw.match(
+    /Andere\s+Gebühren[^,]*,\s*[^,]*,\s*([0-9.'\s]+)/i,
+  );
+  if (fee?.[1]) bearbeitungsgebuehrCh = parseChAmount(fee[1]);
+  if (bearbeitungsgebuehrCh == null) {
+    bearbeitungsgebuehrCh = firstLabeledAmount(raw, [
+      /Bearbeitungsgebühr\s*:\s*([0-9.'\s]+)/i,
+    ]);
+  }
+
+  const posRaw = raw.match(/Positionen\s*:\s*(\d+)/i)?.[1];
+  const tot = posRaw ? Number(posRaw) : NaN;
+  const totalItems = Number.isFinite(tot) && tot > 0 ? tot : null;
+
   return {
     docType,
     chDeclarationNumber: extractChDeclarationNumberFromPdfText(raw),
@@ -151,6 +230,14 @@ export function extractMercurioEdecFieldsFromPdfText(
     atExportMrn: extractAtExportMrnFromMercurioPdfText(raw),
     registrationNumber: reg,
     accessCode: access,
+    definitiv,
+    kontoZoll,
+    kontoMwst,
+    zazKonto,
+    mwstCh,
+    zollabgabenCh,
+    bearbeitungsgebuehrCh,
+    totalItems,
   };
 }
 

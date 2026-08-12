@@ -49,13 +49,19 @@ describe('mercurio e-dec', () => {
     });
   });
 
-  it('extrahiert CH-Nummer, Ref und AT-Vorpapier aus Einfuhrliste', () => {
+  it('extrahiert CH-Nummer, Ref, Zugangscode und Konten aus Einfuhrliste', () => {
     const text = `
 VORANMELDUNG FREI OHNE Einfuhrliste Definitiv
 Zollstelle CH003451 Zoll Ost - Diepoldsau
+Positionen:                 1
 Anmeld. Nr.: 110525
 Ref-Nr.: 104/443153.1/CON/0/1
 Ausfuhrdeklaration, 26AT920000XA0DHKA1, ---
+Konto Zoll:                 6898-0 WOG Logistics Diepoldsau
+Konto MWST:                 6898-0 WOG Logistics Diepoldsau
+MWST-Wert gesamt:           53'424
+Zollansatz:                           0.00
+Andere Gebühren-150, 1, 5.00
 26CHEI004419042134.1
 Zollanmeldungsnummer:       26CHEI004419042134
 Zugangscode:      jzLBdDDNjvFSjRS0
@@ -70,6 +76,13 @@ Zugangscode:      jzLBdDDNjvFSjRS0
     assert.equal(fields.atExportMrn, '26AT920000XA0DHKA1');
     assert.equal(fields.registrationNumber, '110525');
     assert.equal(fields.accessCode, 'jzLBdDDNjvFSjRS0');
+    assert.equal(fields.definitiv, true);
+    assert.equal(fields.kontoZoll, '6898-0 WOG Logistics Diepoldsau');
+    assert.equal(fields.kontoMwst, '6898-0 WOG Logistics Diepoldsau');
+    assert.equal(fields.mwstCh, 53424);
+    assert.equal(fields.zollabgabenCh, 0);
+    assert.equal(fields.bearbeitungsgebuehrCh, 5);
+    assert.equal(fields.totalItems, 1);
   });
 
   it('extrahiert CH-Nummer aus Bezugsschein-Barcode ohne Label', () => {

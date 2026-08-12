@@ -22,6 +22,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomerDocumentsInboundService } from '../documents/customer-documents-inbound.service';
 import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
+import { EzollSoloplanService } from './ezoll-soloplan.service';
 
 /**
  * Mercurio CH e-dec Inbound (PDF):
@@ -29,8 +30,7 @@ import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
  * - Match über Auftrag.Sendung aus Dateiname (Fallback Ref-Nr. im PDF)
  * - CH-Zollanmeldungsnummer → ShipmentCustomsRef (MERCURIO_CH)
  * - PDF an Sendung als CUSTOMS_PAPER (source MERCURIO)
- *
- * Soloplan OrderEzoll-Writes bewusst noch nicht – CH-Feldmapping offen.
+ * - OrderEzoll CH-Felder (mRNAPI, zugangscode, …) wenn SOLOPLAN_MERCURIO_ENABLED≠false
  */
 @Injectable()
 export class MercurioInboundService {
@@ -43,6 +43,7 @@ export class MercurioInboundService {
     private config: ConfigService,
     private customerDocs: CustomerDocumentsInboundService,
     private customsRefs: ShipmentCustomsRefService,
+    private ezollSoloplan: EzollSoloplanService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') ||
@@ -66,7 +67,14 @@ export class MercurioInboundService {
   async processInboundDir(organizationId?: string, limit = 40) {
     const orgId = organizationId || (await this.resolveDefaultOrganizationId());
     if (!orgId) {
-      return { processed: 0, unmatched: 0, linked: 0, docs: 0, pending: 0 };
+      return {
+        processed: 0,
+        unmatched: 0,
+        linked: 0,
+        docs: 0,
+        soloplan: 0,
+        pending: 0,
+      };
     }
 
     try {
@@ -75,16 +83,18 @@ export class MercurioInboundService {
       this.log.warn(`CustomsRef-Purge übersprungen: ${e?.message || e}`);
     }
 
+    const writeSoloplan = this.config.get('SOLOPLAN_MERCURIO_ENABLED') !== 'false';
     let processed = 0;
     let unmatched = 0;
     let linked = 0;
     let docs = 0;
+    let soloplan = 0;
     const files = this.listPendingFiles().slice(0, limit);
 
     for (const filePath of files) {
       const fileName = basename(filePath);
       try {
-        const result = await this.processOne(orgId, filePath, fileName);
+        const result = await this.processOne(orgId, filePath, fileName, writeSoloplan);
         if (result === 'unmatched') {
           unmatched += 1;
           this.move(
@@ -96,6 +106,7 @@ export class MercurioInboundService {
         processed += 1;
         if (result.linked) linked += 1;
         if (result.docAttached) docs += 1;
+        if (result.soloplanWritten) soloplan += 1;
         const sub =
           result.docType === 'BEZUGSSCHEIN' ? 'bezugsschein' : 'einfuhrliste';
         this.move(
@@ -117,6 +128,7 @@ export class MercurioInboundService {
       unmatched,
       linked,
       docs,
+      soloplan,
       pending: this.listPendingFiles().length,
     };
   }
@@ -125,9 +137,15 @@ export class MercurioInboundService {
     organizationId: string,
     filePath: string,
     fileName: string,
+    writeSoloplan: boolean,
   ): Promise<
     | 'unmatched'
-    | { linked: boolean; docAttached: boolean; docType: MercurioEdecDocType }
+    | {
+        linked: boolean;
+        docAttached: boolean;
+        soloplanWritten: boolean;
+        docType: MercurioEdecDocType;
+      }
   > {
     if (!isMercurioEdecFilename(fileName)) {
       this.log.warn(`Mercurio unbekanntes Dateimuster: ${fileName}`);
@@ -161,6 +179,24 @@ export class MercurioInboundService {
       sourceFileName: fileName,
     });
 
+    let soloplanWritten = false;
+    if (writeSoloplan) {
+      try {
+        this.ezollSoloplan.writeMercurioEdecUpdate(
+          {
+            kind: 'orderConsignment',
+            orderNumber: match.orderNumber,
+            consignmentIndex,
+          },
+          fileName,
+          fields,
+        );
+        soloplanWritten = true;
+      } catch (e: any) {
+        this.log.warn(`Mercurio Soloplan-Write ${fileName}: ${e?.message || e}`);
+      }
+    }
+
     const shipment = await this.customerDocs.findShipmentForSoloplanOrder(
       organizationId,
       orderNumber,
@@ -187,7 +223,9 @@ export class MercurioInboundService {
     this.log.log(
       `Mercurio ${fields.docType} ${orderNumber}.${consignmentIndex}` +
         ` CH=${mrn || '-'} Ref=${lrn}` +
+        (fields.accessCode ? ` Zugang=${fields.accessCode}` : '') +
         (fields.atExportMrn ? ` AT=${fields.atExportMrn}` : '') +
+        (soloplanWritten ? ' → Soloplan' : '') +
         (shipment ? ` → ${shipment.trackingNumber}` : ' (ohne Sendung)') +
         ` ← ${fileName}`,
     );
@@ -195,6 +233,7 @@ export class MercurioInboundService {
     return {
       linked: Boolean(shipment),
       docAttached,
+      soloplanWritten,
       docType: fields.docType === 'UNKNOWN' ? 'EINFUHRLISTE' : fields.docType,
     };
   }

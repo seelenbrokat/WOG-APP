@@ -135,6 +135,51 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
     }
   });
 
+  it('Mercurio EL: zugangscode + mRNAPI Order-Root', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-mercurio-el-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 443153, consignmentIndex: 1 },
+        'edece-el-104-443153.1+CON-0-1.pdf',
+        {
+          docType: 'EINFUHRLISTE',
+          chDeclarationNumber: '26CHEI004419042134',
+          refNumber: '104/443153.1/CON/0/1',
+          atExportMrn: '26AT920000XA0DHKA1',
+          registrationNumber: '110525',
+          accessCode: 'jzLBdDDNjvFSjRS0',
+          definitiv: true,
+          kontoZoll: '6898-0 WOG Logistics Diepoldsau',
+          kontoMwst: '6898-0 WOG Logistics Diepoldsau',
+          zazKonto: null,
+          mwstCh: 53424,
+          zollabgabenCh: 0,
+          bearbeitungsgebuehrCh: 5,
+          totalItems: 1,
+        },
+      );
+
+      assert.match(path, /[/\\]consignment[/\\]/);
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      assert.equal(order.number, 443153);
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.itemNumber, 1);
+      assert.equal(row.einfuhrliste, true);
+      assert.equal(row.definitiv, true);
+      assert.equal(row.mRNAPI, '26CHEI004419042134');
+      assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
+      assert.equal(row.zugangscode, 'jzLBdDDNjvFSjRS0');
+      assert.equal(row.refNr, '104/443153.1/CON/0/1');
+      assert.equal(row.kontoZoll, '6898-0 WOG Logistics Diepoldsau');
+      assert.equal(row.mWSTCH, 53424);
+      assert.equal(row.tarifnummernCHAPI, 1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('order-Root CC599: nur Flag unter nested consignments', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
     try {
