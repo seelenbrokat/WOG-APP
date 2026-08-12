@@ -35,3 +35,6 @@ Automate-Job: weiterhin Pickup …/ezoll/consignment/, Mapping Order-Root.
   NEGATIV – bare Integer → ObjectExpected (nicht an Automate senden)
 
 Tour/CC029 → outbound/soloplan/ezoll/tour/
+
+06-orderezoll-cc599-443153.1-ORDER-ROOT-TEST.json
+  CC599 Live-Test für Automate (Pickup consignment/)
