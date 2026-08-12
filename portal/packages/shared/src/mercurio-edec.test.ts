@@ -77,12 +77,27 @@ Zugangscode:      jzLBdDDNjvFSjRS0
     assert.equal(fields.registrationNumber, '110525');
     assert.equal(fields.accessCode, 'jzLBdDDNjvFSjRS0');
     assert.equal(fields.definitiv, true);
-    assert.equal(fields.kontoZoll, '6898-0 WOG Logistics Diepoldsau');
-    assert.equal(fields.kontoMwst, '6898-0 WOG Logistics Diepoldsau');
+    assert.equal(fields.kontoZoll, '6898-0');
+    assert.equal(fields.kontoMwst, '6898-0');
     assert.equal(fields.mwstCh, 53424);
     assert.equal(fields.zollabgabenCh, 0);
     assert.equal(fields.bearbeitungsgebuehrCh, 5);
     assert.equal(fields.totalItems, 1);
+  });
+
+  it('Zugangscode mit Plus und Konto nur Nummer', () => {
+    const text = `
+Einfuhrliste Definitiv
+Konto Zoll:                 14037-9 WOG Logistics Diepoldsau
+Konto MWST:                 14037-9 WOG Logistics Diepoldsau
+Zollanmeldungsnummer: 26CHEI004408357547
+Zugangscode: xtqzX5+o45JDrMFN
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(text, 'edece-el-104-1.1+CON-0-1.pdf');
+    assert.equal(fields.chDeclarationNumber, '26CHEI004408357547');
+    assert.equal(fields.accessCode, 'xtqzX5+o45JDrMFN');
+    assert.equal(fields.kontoZoll, '14037-9');
+    assert.equal(fields.kontoMwst, '14037-9');
   });
 
   it('extrahiert CH-Nummer aus Bezugsschein-Barcode ohne Label', () => {

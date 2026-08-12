@@ -173,6 +173,7 @@ export {
   extractMercurioRefNumberFromPdfText,
   extractAtExportMrnFromMercurioPdfText,
   extractMercurioEdecFieldsFromPdfText,
+  extractChKontoNumber,
   isMercurioEdecFilename,
 } from './mercurio-edec';
 export type {

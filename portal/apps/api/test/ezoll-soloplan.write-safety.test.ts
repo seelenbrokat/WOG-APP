@@ -148,10 +148,10 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           refNumber: '104/443153.1/CON/0/1',
           atExportMrn: '26AT920000XA0DHKA1',
           registrationNumber: '110525',
-          accessCode: 'jzLBdDDNjvFSjRS0',
+          accessCode: 'xtqzX5+o45JDrMFN',
           definitiv: true,
-          kontoZoll: '6898-0 WOG Logistics Diepoldsau',
-          kontoMwst: '6898-0 WOG Logistics Diepoldsau',
+          kontoZoll: '14037-9',
+          kontoMwst: '14037-9',
           zazKonto: null,
           mwstCh: 53424,
           zollabgabenCh: 0,
@@ -170,9 +170,10 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.definitiv, true);
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
-      assert.equal(row.zugangscode, 'jzLBdDDNjvFSjRS0');
+      assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
       assert.equal(row.refNr, '104/443153.1/CON/0/1');
-      assert.equal(row.kontoZoll, '6898-0 WOG Logistics Diepoldsau');
+      assert.equal(row.kontoZoll, '14037-9');
+      assert.equal(row.kontoMWST, '14037-9');
       assert.equal(row.mWSTCH, 53424);
       assert.equal(row.tarifnummernCHAPI, 1);
     } finally {

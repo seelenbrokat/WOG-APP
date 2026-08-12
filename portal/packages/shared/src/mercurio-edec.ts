@@ -144,6 +144,14 @@ export function extractAtExportMrnFromMercurioPdfText(text: string): string | nu
   return compact ? compact[1].toUpperCase() : null;
 }
 
+/** „6898-0 WOG Logistics Diepoldsau“ / „14037-9“ → „6898-0“ / „14037-9“. */
+export function extractChKontoNumber(raw: string | null | undefined): string | null {
+  const m = String(raw || '')
+    .trim()
+    .match(/^(\d+(?:-\d+)*)\b/);
+  return m ? m[1] : null;
+}
+
 /** CH-Beträge: 53'424 / 1.234,56 / 3200.37 */
 function parseChAmount(raw: string | null | undefined): number | null {
   if (raw == null) return null;
@@ -184,20 +192,23 @@ export function extractMercurioEdecFieldsFromPdfText(
   }
 
   const reg = raw.match(/Anmeld\.\s*Nr\.\s*:\s*(\d+)/i)?.[1] || null;
-  const access = raw.match(/Zugangscode\s*:\s*([A-Za-z0-9]+)/i)?.[1] || null;
+  // z. B. jzLBdDDNjvFSjRS0 / xtqzX5+o45JDrMFN
+  const access =
+    raw.match(/Zugangscode\s*:\s*([A-Za-z0-9+/=_-]+)/i)?.[1]?.trim() || null;
 
   let definitiv: boolean | null = null;
   if (/\bDefinitiv\b/i.test(raw)) definitiv = true;
 
-  const kontoZoll =
-    raw.match(/Konto\s+Zoll\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
-    null;
-  const kontoMwst =
-    raw.match(/Konto\s+MWST\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
-    null;
-  const zazKonto =
-    raw.match(/ZAZ[-\s]?Konto\s*:\s*([^\n]+)/i)?.[1]?.trim().replace(/\s+/g, ' ') ||
-    null;
+  // Nur Kontonummer inkl. Bindestrich, ohne Name: „6898-0 WOG …“ → „6898-0“
+  const kontoZoll = extractChKontoNumber(
+    raw.match(/Konto\s+Zoll\s*:\s*([^\n]+)/i)?.[1],
+  );
+  const kontoMwst = extractChKontoNumber(
+    raw.match(/Konto\s+MWST\s*:\s*([^\n]+)/i)?.[1],
+  );
+  const zazKonto = extractChKontoNumber(
+    raw.match(/ZAZ[-\s]?Konto\s*:\s*([^\n]+)/i)?.[1],
+  );
 
   const mwstCh = firstLabeledAmount(raw, [
     /MWST-Wert\s+gesamt\s*:\s*([0-9.'\s]+)/i,
