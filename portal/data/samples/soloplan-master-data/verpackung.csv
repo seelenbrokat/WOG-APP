@@ -1,0 +1,14 @@
+Nummer;Matchcode;Bezeichnung;Art des Lademittels;Externe Nummer;LM-Buchungen erzeugen
+1;BEISPIEL;Beispiellademittel;Palette;;Ja
+2;EUP;Europalette;Palette;;Ja
+3;GIBO;Gitterbox;Offene Box;;Ja
+4;INDP;Industriepalette;Palette;;Ja
+5;DDP;Düsseldorferpalette;Palette;;Ja
+7;H1P;H1 Palette;Palette;;Ja
+8;RAHMEN;Euro-Rahmen;Palette;;Ja
+9;DECKEL;Euro-Deckel;Palette;;Ja
+15;DIV;Diverse Lademittel;Palette;;Nein
+17;GBX;Gitterbox;Offene Box;;Ja
+18;GL;Glas;Palette;;Nein
+19;CR;Crate;Palette;;Nein
+20;ÖBBRAHMEN;ÖBB Rahmen;Palette;;Ja

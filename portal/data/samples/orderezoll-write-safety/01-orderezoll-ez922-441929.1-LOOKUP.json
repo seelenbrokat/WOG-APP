@@ -1,0 +1,21 @@
+{
+  "header": {
+    "sendDate": "2026-08-11T21:00:00",
+    "exportItemReference": "ezoll-ez922:441929.1_EZ922-sample.xml"
+  },
+  "consignment": [
+    {
+      "actionAttribute": "update",
+      "ordernumber": {
+        "number": 441929
+      },
+      "itemNumber": 1,
+      "eZ922": true,
+      "mRNATAPI": "26ATCRNTEST000001",
+      "aufschubkonto": "AT123456",
+      "mWSTAT": 120.5,
+      "zollabgabenAT": 40.25,
+      "tarifnummerATAPI": 3
+    }
+  ]
+}
