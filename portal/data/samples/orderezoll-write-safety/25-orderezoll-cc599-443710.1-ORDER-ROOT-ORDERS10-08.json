@@ -1,0 +1,19 @@
+{
+  "header": {
+    "sendDate": "2026-08-12T15:17:20",
+    "exportItemReference": "SAFE-SAMPLE:ezoll-cc599:443710.1-orders10-08"
+  },
+  "order": [
+    {
+      "actionAttribute": "update",
+      "number": 443710,
+      "consignments": [
+        {
+          "actionAttribute": "update",
+          "itemNumber": 1,
+          "cC599C": true
+        }
+      ]
+    }
+  ]
+}
