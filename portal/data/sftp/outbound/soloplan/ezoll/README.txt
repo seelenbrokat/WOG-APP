@@ -1,12 +1,10 @@
 OrderEzoll-Updates aus dem Portal (eZoll-PDF-Analyse).
 
 Ordner:
-  order/        → nested header + order[] (Default, SOLOPLAN_EZOLL_ROOT=order)
-  consignment/  → flach header + consignment[] (Legacy)
+  consignment/  → Pickup für Auftrag/Sendung (JSON-Root: order nested oder flat)
   tour/         → header + tour[] (CC029)
-  samples-write-safety/ → NUR Tests, kein Automate-Pickup
+  samples-write-safety/ → Referenz-Samples
 
-Automate (empfohlen):
-  Job auf order/ mit Order-Root:
-  1) Order per number suchen
-  2) Sendung (itemNumber) nur innerhalb dieses Auftrags
+Default SOLOPLAN_EZOLL_ROOT=order:
+  nested order.number + consignments.itemNumber
+  Ausgabe trotzdem nach consignment/ (Automate-Pfad unverändert)

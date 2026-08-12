@@ -4,16 +4,15 @@ OrderEzoll – Write-Safety Samples (Portal-Tests)
 SFTP (User soloplan @ wog.logistikberater.at):
   outbound/soloplan/ezoll/samples-write-safety/
 
-WICHTIG: Niemals in live Pickup legen:
-  outbound/soloplan/ezoll/order/
+WICHTIG: Live-Pickup ist:
   outbound/soloplan/ezoll/consignment/
   outbound/soloplan/ezoll/tour/
 
-Default-Root ab jetzt: order (nested)
+Default JSON-Root: order (nested) – Ausgabe trotzdem nach consignment/
   Automate soll Order per number binden, dann consignments.itemNumber
   NUR innerhalb dieses Auftrags suchen.
 
---- Order-Root (empfohlen) ---
+--- Order-Root (empfohlen, Pfad = consignment/) ---
 
 04-orderezoll-cc529-443153.1-ORDER-ROOT.json
   CC529: order[].number=443153 + consignments[].itemNumber=1
@@ -21,8 +20,7 @@ Default-Root ab jetzt: order (nested)
 05-orderezoll-cc599-443153.1-ORDER-ROOT.json
   CC599: nur cC599C=true unter order.number + itemNumber
 
-Automate-Job: OrderEzoll mit Root=Order (nicht flaches Consignment).
-Pickup-Ordner Portal: outbound/soloplan/ezoll/order/
+Automate-Job: weiterhin Pickup …/ezoll/consignment/, Mapping Order-Root.
 
 --- Legacy flat consignment (nicht Default) ---
 

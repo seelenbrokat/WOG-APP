@@ -97,7 +97,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
     }
   });
 
-  it('order-Root: nested order.number + consignments.itemNumber nach order/', () => {
+  it('order-Root: nested order.number + consignments.itemNumber nach consignment/', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-root-'));
     try {
       const svc = makeService(root, 'order');
@@ -112,7 +112,8 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
         },
       );
 
-      assert.match(path, /[/\\]order[/\\]/);
+      // Pickup-Pfad bleibt consignment/ (Automate), JSON-Root ist nested order
+      assert.match(path, /[/\\]consignment[/\\]/);
       const json = readJson(path);
       assert.equal(json.consignment, undefined);
       assert.ok(Array.isArray(json.order));
@@ -143,7 +144,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
         false,
       );
 
-      assert.match(path, /[/\\]order[/\\]/);
+      assert.match(path, /[/\\]consignment[/\\]/);
       const json = readJson(path);
       const order = (json.order as Array<Record<string, unknown>>)[0];
       assert.equal(order.number, 443153);

@@ -21,26 +21,21 @@ export type EzollCc029WriteFields = {
 /**
  * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
  *
- * Getrennte Ausgabeordner für Automate:
- * - Auftrag/Sendung (order-Root, Default): …/ezoll/order/ → header + order[]
- * - Sendung flach (Legacy): …/ezoll/consignment/ → header + consignment[]
- * - Tour (18…/CC029): …/ezoll/tour/ → header + tour[]
+ * Ausgabeordner für Automate:
+ * - Auftrag/Sendung: …/ezoll/consignment/  (JSON-Root abhängig von SOLOPLAN_EZOLL_ROOT)
+ * - Tour (18…/CC029): …/ezoll/tour/      → header + tour[]
  *
- * Warum order-Root Default?
- * Flat consignment mit itemNumber als Lookup macht in Automate zuerst
- * `ASENDUNG WHERE SENDUNGSNUMMER=n` (Full-Scan ~290k Zeilen, ~30s) und
- * kann historische Sendungen treffen. Nested order.number → consignments.itemNumber
- * sucht die Sendung nur innerhalb des Auftrags (sicher + typisch schneller).
+ * Default JSON-Root = order (nested): order.number → consignments.itemNumber
+ * nur innerhalb des Auftrags. Pickup-Pfad bleibt consignment/ (Automate unverändert).
  */
 @Injectable()
 export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
-  private readonly orderOutDir: string;
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
   /**
    * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
-   * consignment = flach (Legacy/OrderEzollDuplicat-v5): ordernumber={number}+itemNumber.
+   * consignment = flach (Legacy): ordernumber={number}+itemNumber.
    */
   private readonly rootMode: 'order' | 'consignment';
 
@@ -52,8 +47,6 @@ export class EzollSoloplanService {
       this.config.get('SOLOPLAN_EZOLL_OUT_DIR') ||
       join(sftpOutbound, 'soloplan', 'ezoll');
 
-    this.orderOutDir =
-      this.config.get('SOLOPLAN_EZOLL_ORDER_OUT_DIR') || join(base, 'order');
     this.consignmentOutDir =
       this.config.get('SOLOPLAN_EZOLL_CONSIGNMENT_OUT_DIR') ||
       join(base, 'consignment');
@@ -67,7 +60,6 @@ export class EzollSoloplanService {
     this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
     this.log.log(`OrderEzoll root mode: ${this.rootMode}`);
 
-    this.ensureDir(this.orderOutDir);
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
   }
@@ -262,7 +254,8 @@ export class EzollSoloplanService {
     }
 
     const { ordernumber: _drop, ...consignmentUnderOrder } = consignment;
-    return this.writeJsonFile(this.orderOutDir, kind, sourceFileName, {
+    // Gleicher Pickup-Ordner wie bisher (consignment/) – nur JSON-Root ist nested order.
+    return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
       header,
       order: [
         {
