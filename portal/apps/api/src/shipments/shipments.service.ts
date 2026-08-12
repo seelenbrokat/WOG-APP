@@ -203,6 +203,28 @@ export class ShipmentsService {
 
     if (and.length) where.AND = and;
 
+    // Kunden-Rolle: nur freigeschaltete Dokument-Kategorien in der Übersicht
+    let customerAllowedCategories: Set<string> | null = null;
+    let customerModuleEnabled = false;
+    if (user.role === UserRole.CUSTOMER_USER && user.customerId) {
+      const cust = await this.prisma.customer.findFirst({
+        where: { id: user.customerId, organizationId: user.organizationId },
+        select: {
+          documentsModuleEnabled: true,
+          documentCategoryAccess: {
+            where: { active: true },
+            select: { category: true },
+          },
+        },
+      });
+      customerModuleEnabled = Boolean(cust?.documentsModuleEnabled);
+      if (customerModuleEnabled) {
+        customerAllowedCategories = new Set(
+          (cust?.documentCategoryAccess || []).map((a) => String(a.category)),
+        );
+      }
+    }
+
     const rows = await this.prisma.shipment.findMany({
       where,
       include: {
@@ -235,18 +257,30 @@ export class ShipmentsService {
       take: 500,
     });
 
-    return rows.map((s) => ({
-      ...s,
-      customerDocuments: (s.documents || []).map((d) => ({
-        id: d.id,
-        fileName: d.fileName,
-        categoryCode: d.categoryCode,
-        createdAt: d.createdAt,
-        downloaded: (d.downloads || []).length > 0,
-        downloadedAt: d.downloads?.[0]?.downloadedAt || null,
-      })),
-      documents: undefined,
-    }));
+    return rows.map((s) => {
+      let docs = s.documents || [];
+      if (user.role === UserRole.CUSTOMER_USER) {
+        if (!customerModuleEnabled || !customerAllowedCategories?.size) {
+          docs = [];
+        } else {
+          docs = docs.filter(
+            (d) => d.categoryCode && customerAllowedCategories!.has(String(d.categoryCode)),
+          );
+        }
+      }
+      return {
+        ...s,
+        customerDocuments: docs.map((d) => ({
+          id: d.id,
+          fileName: d.fileName,
+          categoryCode: d.categoryCode,
+          createdAt: d.createdAt,
+          downloaded: (d.downloads || []).length > 0,
+          downloadedAt: d.downloads?.[0]?.downloadedAt || null,
+        })),
+        documents: undefined,
+      };
+    });
   }
 
   async get(user: AuthUser, id: string) {
@@ -259,7 +293,24 @@ export class ShipmentsService {
         positions: true,
         colli: { orderBy: { itemNumber: 'asc' } },
         events: { orderBy: { createdAt: 'asc' } },
-        documents: { orderBy: { createdAt: 'desc' } },
+        documents: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            // Kunde: eigener Download; Dispo/Admin: ob jemand geöffnet hat
+            downloads:
+              user.role === UserRole.CUSTOMER_USER && user.id
+                ? {
+                    where: { userId: user.id },
+                    select: { downloadedAt: true },
+                    take: 1,
+                  }
+                : {
+                    select: { downloadedAt: true },
+                    take: 1,
+                    orderBy: { downloadedAt: 'desc' as const },
+                  },
+          },
+        },
         customsRefs: { orderBy: { lastSeenAt: 'desc' } },
       },
     });
@@ -281,7 +332,36 @@ export class ShipmentsService {
       ...r,
       sourceLabel: CUSTOMS_REF_SOURCE_LABELS[r.source] || r.source,
     }));
-    return { ...shipment, customsRefs, eta };
+    const documents = (shipment.documents || []).map((d) => ({
+      ...d,
+      downloaded: (d.downloads || []).length > 0,
+      downloadedAt: d.downloads?.[0]?.downloadedAt || null,
+      downloads: undefined,
+    }));
+
+    // Kunden-Rolle: Dokumentenfreigabe für Checkbox „Austritt hochgeladen“
+    let documentsModule: {
+      enabled: boolean;
+      categories: string[];
+    } | null = null;
+    if (user.role === UserRole.CUSTOMER_USER && user.customerId) {
+      const cust = await this.prisma.customer.findFirst({
+        where: { id: user.customerId, organizationId: user.organizationId },
+        select: {
+          documentsModuleEnabled: true,
+          documentCategoryAccess: {
+            where: { active: true },
+            select: { category: true },
+          },
+        },
+      });
+      documentsModule = {
+        enabled: Boolean(cust?.documentsModuleEnabled),
+        categories: (cust?.documentCategoryAccess || []).map((a) => String(a.category)),
+      };
+    }
+
+    return { ...shipment, documents, customsRefs, eta, documentsModule };
   }
 
   /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */
