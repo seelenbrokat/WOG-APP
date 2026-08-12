@@ -19,7 +19,7 @@ const CUSTOMS_REF_LABELS: Record<string, string> = {
   EZOLL_CC029: 'AT Transit (CC029)',
   SMARTBORDER_CCATBT02: 'SmartBorder Eingang',
   SMARTBORDER_CCATBT12: 'SmartBorder Transit',
-  MERCURIO_CH: 'CH Mercurio',
+  MERCURIO_CH: 'CH e-dec (Mercurio)',
 };
 
 function soloplanStatusLabel(ref?: string | null) {

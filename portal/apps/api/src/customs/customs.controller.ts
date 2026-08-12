@@ -18,6 +18,7 @@ import { UserRole } from '@prisma/client';
 import { IsBooleanString, IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 import { CustomsService } from './customs.service';
 import { EzollInboundService } from './ezoll-inbound.service';
+import { MercurioInboundService } from './mercurio-inbound.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
@@ -205,6 +206,7 @@ export class CustomsController {
   constructor(
     private service: CustomsService,
     private ezollInbound: EzollInboundService,
+    private mercurioInbound: MercurioInboundService,
   ) {}
 
   @Get()
@@ -218,6 +220,13 @@ export class CustomsController {
   @Roles(UserRole.ORG_ADMIN)
   processEzollInbound(@CurrentUser() user: AuthUser) {
     return this.ezollInbound.processInboundDir(user.organizationId);
+  }
+
+  /** Mercurio CH e-dec PDFs (Bezugsschein / Einfuhrliste) matchen. */
+  @Post('mercurio/process-inbound')
+  @Roles(UserRole.ORG_ADMIN)
+  processMercurioInbound(@CurrentUser() user: AuthUser) {
+    return this.mercurioInbound.processInboundDir(user.organizationId);
   }
 
   @Get('documents/:documentId/download')

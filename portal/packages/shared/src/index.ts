@@ -164,3 +164,19 @@ export type {
   EzollCc599Fields,
   EzollCc029Fields,
 } from './ezoll-doc-types';
+
+export {
+  detectMercurioEdecDocType,
+  parseMercurioEdecMatchFromFilename,
+  parseMercurioEdecMatchFromRef,
+  extractChDeclarationNumberFromPdfText,
+  extractMercurioRefNumberFromPdfText,
+  extractAtExportMrnFromMercurioPdfText,
+  extractMercurioEdecFieldsFromPdfText,
+  isMercurioEdecFilename,
+} from './mercurio-edec';
+export type {
+  MercurioEdecDocType,
+  MercurioEdecMatch,
+  MercurioEdecFields,
+} from './mercurio-edec';

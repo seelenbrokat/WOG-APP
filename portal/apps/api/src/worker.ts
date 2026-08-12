@@ -17,6 +17,7 @@ import { LademittelscheinService } from './lager/lademittelschein.service';
 import { CustomerDocumentsInboundService } from './documents/customer-documents-inbound.service';
 import { PartnerOrdersInboundService } from './integrations/partner-orders-inbound.service';
 import { EzollInboundService } from './customs/ezoll-inbound.service';
+import { MercurioInboundService } from './customs/mercurio-inbound.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -38,9 +39,10 @@ async function bootstrap() {
   const customerDocuments = app.get(CustomerDocumentsInboundService);
   const partnerOrders = app.get(PartnerOrdersInboundService);
   const ezollInbound = app.get(EzollInboundService);
+  const mercurioInbound = app.get(MercurioInboundService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + eZoll-Ignore + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + eZoll + Mercurio e-dec + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -123,6 +125,21 @@ async function bootstrap() {
             (ezoll.customerExit ? `, ${ezoll.customerExit} Austritt→Kunde` : '') +
             `, ${ezoll.unmatched} unmatched, ${ezoll.pending} offen` +
             (ezoll.purged ? `, ${ezoll.purged} Cache gelöscht` : ''),
+        );
+      }
+      const mercurio = await mercurioInbound.processInboundDir();
+      if (
+        mercurio.processed ||
+        mercurio.unmatched ||
+        mercurio.linked ||
+        mercurio.docs
+      ) {
+        console.log(
+          `Mercurio e-dec: ${mercurio.processed} verarbeitet` +
+            (mercurio.linked ? `, ${mercurio.linked} Sendung verknüpft` : '') +
+            (mercurio.docs ? `, ${mercurio.docs} PDF` : '') +
+            (mercurio.unmatched ? `, ${mercurio.unmatched} unmatched` : '') +
+            `, ${mercurio.pending} offen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);
