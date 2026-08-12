@@ -44,7 +44,7 @@ export class EzollSoloplanReadApiService {
   constructor(private config: ConfigService) {
     this.baseUrl = String(
       this.config.get('SOLOPLAN_EZOLL_API_BASE_URL') ||
-        'https://portal.worldofgreen.at',
+        'https://portal.worldofgreen.at:4712',
     ).replace(/\/$/, '');
     this.apiKey = String(this.config.get('SOLOPLAN_EZOLL_API_KEY') || '').trim();
     this.apiName = String(
