@@ -680,6 +680,12 @@ code {
 .table-shipments .col-ref { width: 22%; }
 .table-shipments .col-route { width: 28%; }
 .table-shipments .col-schedule { width: 16%; }
+.table-shipments .col-docs {
+  width: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+}
 .table-shipments .col-side {
   width: 18%;
   min-width: 10rem;
@@ -694,6 +700,52 @@ code {
 .table-shipments.is-customer .col-route { width: 34%; }
 .table-shipments.is-customer .col-schedule { width: 18%; }
 .table-shipments.is-customer .col-side { width: 22%; }
+/* Dokumente-/Austritt-Spalte: feste Breite, sonst table-layout:fixed quetscht sie weg */
+.table-shipments.has-docs {
+  min-width: 56rem;
+}
+.table-shipments.has-docs .col-docs {
+  width: 13.5rem;
+  min-width: 12.5rem;
+  padding: 0.55rem 0.45rem;
+  border: inherit;
+  overflow: visible;
+  vertical-align: middle;
+}
+.table-shipments.has-docs.is-customer .col-ref { width: 20%; }
+.table-shipments.has-docs.is-customer .col-route { width: 26%; }
+.table-shipments.has-docs.is-customer .col-schedule { width: 14%; }
+.table-shipments.has-docs.is-customer .col-side { width: 18%; }
+.table-shipments .exit-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+.table-shipments .exit-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  margin: 0;
+}
+.table-shipments .exit-status-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.table-shipments .exit-status-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.table-shipments .exit-status-hint.is-ready {
+  color: var(--wog-green-deep);
+  font-weight: 600;
+}
+.table-shipments .exit-status-hint.is-done {
+  color: var(--ink-soft);
+}
 .table-shipments thead .col-side { z-index: 2; }
 .table-shipments tbody .col-side { z-index: 1; }
 .table-shipments tbody tr:hover .col-side { background: var(--wog-green-tint); }

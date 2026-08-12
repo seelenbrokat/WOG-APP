@@ -90,6 +90,13 @@ export default function ShipmentsPage() {
   const user = getUser();
   const isCustomer = user?.role === 'CUSTOMER_USER';
   const showDocs = Boolean(isCustomer && docsModule?.documentsModuleEnabled);
+  const allowedDocCats = useMemo(
+    () => new Set((docsModule?.categories || []).map((c) => c.code)),
+    [docsModule],
+  );
+  const exitOnlyDocs =
+    showDocs && allowedDocCats.has('CUSTOMS_EXIT') && allowedDocCats.size === 1;
+  const docsColumnLabel = exitOnlyDocs ? 'Austritt' : 'Dokumente';
 
   async function load(opts?: {
     mandantId?: string;
@@ -348,7 +355,11 @@ export default function ShipmentsPage() {
 
         <div className="panel">
           <div className="table-scroll">
-            <table className={`table table-compact table-shipments${isCustomer ? ' is-customer' : ''}`}>
+            <table
+              className={`table table-compact table-shipments${isCustomer ? ' is-customer' : ''}${
+                showDocs ? ' has-docs' : ''
+              }`}
+            >
               <thead>
                 <tr>
                   {!isCustomer && (
@@ -365,7 +376,7 @@ export default function ShipmentsPage() {
                   <th className="col-ref">Auftrag</th>
                   <th className="col-route">Route</th>
                   <th className="col-schedule">Termine</th>
-                  {showDocs && <th className="col-docs">Dokumente</th>}
+                  {showDocs && <th className="col-docs">{docsColumnLabel}</th>}
                   <th className="col-side">Status / Aktion</th>
                 </tr>
               </thead>
@@ -456,64 +467,86 @@ export default function ShipmentsPage() {
                       </td>
                       {showDocs && (
                         <td className="col-docs">
-                          <div className="stack" style={{ gap: '0.35rem', alignItems: 'flex-start' }}>
+                          <div className="exit-status">
                             {(() => {
-                              const allowedCats = new Set(
-                                (docsModule?.categories || []).map((c) => c.code),
-                              );
-                              const exitEnabled = allowedCats.has('CUSTOMS_EXIT');
+                              const exitEnabled = allowedDocCats.has('CUSTOMS_EXIT');
                               const exitDoc = docs.find((d) => d.categoryCode === 'CUSTOMS_EXIT');
                               const otherDocs = docs.filter(
                                 (d) =>
                                   d.categoryCode !== 'CUSTOMS_EXIT' &&
-                                  (!d.categoryCode || allowedCats.has(d.categoryCode)),
+                                  (!d.categoryCode || allowedDocCats.has(d.categoryCode)),
                               );
+                              const exitHint = !exitDoc
+                                ? 'fehlt'
+                                : exitDoc.downloaded
+                                  ? 'heruntergeladen'
+                                  : 'vorhanden';
+                              const exitHintClass = !exitDoc
+                                ? ''
+                                : exitDoc.downloaded
+                                  ? 'is-done'
+                                  : 'is-ready';
                               return (
                                 <>
                                   {exitEnabled && (
-                                    <label
-                                      className="row"
-                                      style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
-                                      title={
-                                        exitDoc
-                                          ? exitDoc.downloaded
-                                            ? 'Austritt geöffnet/heruntergeladen'
-                                            : 'Austritt vorhanden – bitte öffnen'
-                                          : 'Noch keine Austrittsbestätigung'
-                                      }
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(exitDoc?.downloaded)}
-                                        readOnly
-                                        disabled={!exitDoc}
-                                        aria-label="Austritt hochgeladen"
-                                      />
-                                      <span style={{ fontSize: '0.85rem' }}>Austritt hochgeladen</span>
-                                      {exitDoc ? (
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost"
-                                          style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
-                                          disabled={dlBusy === exitDoc.id}
-                                          onClick={() => downloadCustomerDoc(exitDoc)}
-                                          title={exitDoc.fileName}
-                                        >
-                                          {dlBusy === exitDoc.id ? '…' : 'Öffnen'}
-                                        </button>
-                                      ) : (
-                                        <span className="muted" style={{ fontSize: '0.8rem' }}>
-                                          fehlt
+                                    <>
+                                      <label
+                                        className="exit-status-row"
+                                        title={
+                                          exitDoc
+                                            ? exitDoc.downloaded
+                                              ? 'Austrittsbestätigung vorhanden und heruntergeladen'
+                                              : 'Austrittsbestätigung vorhanden – noch nicht heruntergeladen'
+                                            : 'Noch keine Austrittsbestätigung'
+                                        }
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(exitDoc)}
+                                          readOnly
+                                          disabled={!exitDoc}
+                                          aria-label="Austritt vorhanden"
+                                        />
+                                        <span className="exit-status-label">Austritt</span>
+                                        <span className={`exit-status-hint ${exitHintClass}`.trim()}>
+                                          {exitHint}
                                         </span>
-                                      )}
-                                    </label>
+                                      </label>
+                                      <label
+                                        className="exit-status-row"
+                                        title={
+                                          exitDoc?.downloaded
+                                            ? 'Bereits geöffnet/heruntergeladen'
+                                            : exitDoc
+                                              ? 'Noch nicht heruntergeladen'
+                                              : 'Kein Austritt zum Herunterladen'
+                                        }
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(exitDoc?.downloaded)}
+                                          readOnly
+                                          disabled={!exitDoc}
+                                          aria-label="Austritt heruntergeladen"
+                                        />
+                                        <span className="exit-status-label">Geladen</span>
+                                        {exitDoc ? (
+                                          <button
+                                            type="button"
+                                            className="btn btn-ghost"
+                                            style={{ padding: '0.15rem 0.4rem', fontSize: '0.8rem' }}
+                                            disabled={dlBusy === exitDoc.id}
+                                            onClick={() => downloadCustomerDoc(exitDoc)}
+                                            title={exitDoc.fileName}
+                                          >
+                                            {dlBusy === exitDoc.id ? '…' : 'Öffnen'}
+                                          </button>
+                                        ) : null}
+                                      </label>
+                                    </>
                                   )}
                                   {otherDocs.map((d) => (
-                                    <label
-                                      key={d.id}
-                                      className="row"
-                                      style={{ gap: '0.4rem', alignItems: 'center', margin: 0 }}
-                                    >
+                                    <label key={d.id} className="exit-status-row">
                                       <input
                                         type="checkbox"
                                         checked={d.downloaded}
@@ -523,7 +556,7 @@ export default function ShipmentsPage() {
                                       <button
                                         type="button"
                                         className="btn btn-ghost"
-                                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.85rem' }}
+                                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.8rem' }}
                                         disabled={dlBusy === d.id}
                                         onClick={() => downloadCustomerDoc(d)}
                                         title={d.fileName}
