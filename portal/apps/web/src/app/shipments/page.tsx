@@ -348,7 +348,9 @@ export default function ShipmentsPage() {
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
           {isCustomer
             ? showDocs
-              ? 'Ihre Sendungen – Dokumente je Sendung herunterladen; Filter für fehlende / noch nicht geladene Belege.'
+              ? exitOnlyDocs
+                ? 'Ihre Sendungen – Austritt je Zeile: vorhanden und ob bereits heruntergeladen.'
+                : 'Ihre Sendungen – Dokumente je Sendung herunterladen; Filter für fehlende / noch nicht geladene Belege.'
               : 'Ihre Sendungen – Soloplan-Nummer unter dem Auftrag, Nachfrage rechts.'
             : 'Aufträge markieren und gemeinsam übergeben. Soloplan unter VLB · Aktion rechts.'}
         </p>
