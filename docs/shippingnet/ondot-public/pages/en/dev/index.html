@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Resources for Developers and Integrators | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Resources for Developers and Integrators | shippingNET ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="resources-for-developers-and-integrators">Resources for Developers and Integrators</h1>
+
+<p>The content of this section is intended for developers and integrators.
+Learn here how to save data with shippingNET or customize labels and documents.</p>
+<h2 id="exchange-data">Exchange data</h2>
+<h3 id="public-api">Public API</h3>
+<p>The <strong>Public API</strong> of shippingNET is a state-of-the-art web API in REST architecture (&quot;Representational State Transfer&quot;). It provides you with an interface for importing <strong>articles</strong>, <strong>Colli</strong>, <strong>orders</strong> and <strong>shipments</strong>.
+The services also include methods to export data to the above objects.</p>
+<p>For more information, see <a href="public-api.html">Public API</a>.</p>
+<h3 id="integration-scripting">Integration Scripting</h3>
+<p>If you have data in a different format, you can use the integration scripts to convert data and import it into shippingNET.</p>
+<p>The scripts also offer you many options for exporting data.
+For more information, see <a href="integration-scripting.html">Integration Scripting</a>.</p>
+<h2 id="customize-documents">Customize Documents</h2>
+<p>shippingNET comes with a variety of standard documents. You can activate these standard documents in System Configuration. See also <a href="../ui/ui-create-business-documents.html">Creating Business Documents</a>.</p>
+<p>Below you will find practical examples to adapt the documents to your wishes.
+For more complex requirements, see the <a href="business-documents-generation-process.html">Creation Process</a>.</p>
+<h3 id="deposit-company-logo">Deposit company logo</h3>
+<p>The company logo is printed on public documents.
+Follow these steps to add your logo:</p>
+<ol>
+<li>In the main view, navigate to the menu item <strong>System Configuration</strong>.</li>
+<li>In the <strong>Organization</strong> section, click on the sub-item <strong>Organizational structure</strong>.</li>
+<li>On the right side of the tree view, click on the desired organization.</li>
+<li>In the action bar of the Organization Editor, click on the <strong>Edit Logos</strong> action.</li>
+<li>Now enter your company logo under Business Document Logo.</li>
+</ol>
+<div class="NOTE">
+<h5>Note</h5>
+<p>A logo in the size of 480 * 80 pixels is recommended so that the representation in the header is sufficient. If this is not possible, you can edit the default headers and footers in the integration project.</p>
+</div>
+<h3 id="general-layout-adjustments">General Layout Adjustments</h3>
+<p>The business documents are generated with so-called <strong>liquid snippets</strong>. A liquid snippet is a template that renders the data of the underlying business document in FO syntax. When creating the standard documents, care was taken to ensure that the individual components of the document were mapped into separate templates (snippets). In the integration project, you can overwrite individual snippets and thus adjust the layout selectively.</p>
+<p>One use case for this is to adjust the headers or footers of the document:</p>
+<ol>
+<li>In the <strong>Integratiosnprojekt</strong>, create the file <strong>GlobalSnippets.liquid</strong> under documents.</li>
+<li>Override the <strong>CommonExternalPageHeader</strong> snippet according to your requirements.</li>
+</ol>
+<p>Example: Output logo on the left side of the header</p>
+<p>'''
+{%- snippet CommonExternalPageHeader %}
+&lt;fo:table border-width=&quot;0.1mm&quot; border-bottom-style=&quot;solid&quot; display-align=&quot;after&quot;&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(3)&quot; /&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(2)&quot; /&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(4)&quot; /&gt;
+&lt;fo:table-body&gt;
+&lt;fo:table-row&gt;
+&lt;fo:table-cell&gt;
+&lt;fo:block&gt;
+&lt;fo:external-graphic max-width=&quot;240px&quot; max-height=&quot;40px&quot; src=&quot;{{ CustomerLogo.BusinessDocumentLogo.UriString | default: 'Images/Logo_Shipping_Pos.jpg' }}&quot; /&gt;
+&lt;/fo:block&gt;
+&lt;/fo:table-cell&gt;
+&lt;fo:table-cell /&gt;
+&lt;fo:table-cell&gt;
+&lt;fo:block&gt;
+{% render AddressBox, Address: CurrentOwner.Address %}
+&lt;/fo:block&gt;
+&lt;/fo:table-cell&gt;
+&lt;/fo:table-row&gt;
+&lt;/fo:table-body&gt;
+&lt;/fo:table&gt;
+{% end snippet -%}
+'''</p>
+<h3 id="adaptation-of-standard-documents">Adaptation of standard documents</h3>
+<p>You can customize a standard document by either reworking only parts (snippets) or by redesigning the document from scratch.</p>
+<div class="TIP">
+<h5>Tip</h5>
+<p>Use the <strong>Business Document Playground</strong> tool in System Configuration to see the default documents and their structure. In the preview, you can immediately see your adjustments.</p>
+</div>
+<h4 id="customize-snippets">Customize snippets</h4>
+<ol>
+<li>In the <strong>Integration Project</strong>, under documents, create the file with the technical name of the document you want to customize and add the word <strong>snippets</strong> to the file name. For example, if you want to customize the shipping slip, name the file ShipmentShippingDeliveryNote<em><strong>Snippets</strong></em>.liquid.</li>
+<li>Now copy only the changed snippets from the <strong>Business Document Playground</strong> into this file.</li>
+</ol>
+<p>You have now adapted parts of the document, all other parts (snippets) are taken from the standard document.</p>
+<h4 id="customize-entire-document">Customize Entire Document</h4>
+<p>If the desired layout deviates greatly from the standard document, it is recommended to overwrite the document completely. The procedure is similar to the previous point, except that you only have to use the technical name of the standard oculation as the file name. So just ShipmentShippingDeliveryNote.liquid without the addition of snippets.</p>
+<p>See also:</p>
+<ul>
+<li><a href="business-documents-generation-process.html">Business Documents - Creation Process</a></li>
+<li><a href="liquid-examples.html">Liquid examples</a></li>
+<li><a href="https://shopify.github.io/liquid/">Liquid</a></li>
+<li><a href="https://www.data2type.de/xml-xslt-xslfo/xsl-fo">XSL-FO</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
