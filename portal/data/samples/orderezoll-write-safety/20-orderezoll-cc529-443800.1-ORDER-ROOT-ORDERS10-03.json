@@ -1,0 +1,22 @@
+{
+  "header": {
+    "sendDate": "2026-08-12T15:17:20",
+    "exportItemReference": "SAFE-SAMPLE:ezoll-cc529:443800.1-orders10-03"
+  },
+  "order": [
+    {
+      "actionAttribute": "update",
+      "number": 443800,
+      "consignments": [
+        {
+          "actionAttribute": "update",
+          "itemNumber": 1,
+          "cC529C": true,
+          "mRNATAPI": "26ATTEST0000443800",
+          "lRN": "443800.1/C TEST",
+          "tarifnummerATAPI": 1
+        }
+      ]
+    }
+  ]
+}
