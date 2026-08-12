@@ -145,6 +145,7 @@ export {
   extractCc529FieldsFromXml,
   isCc529Xml,
   extractEz92xFieldsFromXml,
+  extractEur1NumberFromEz92xXml,
   isEz92xXml,
   isCc599Xml,
   extractCc599FieldsFromXml,

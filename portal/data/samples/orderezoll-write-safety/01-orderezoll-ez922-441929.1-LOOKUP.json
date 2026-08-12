@@ -15,7 +15,8 @@
       "aufschubkonto": "AT123456",
       "mWSTAT": 120.5,
       "zollabgabenAT": 40.25,
-      "tarifnummerATAPI": 3
+      "tarifnummerATAPI": 3,
+      "eUR1_API": "T0795166"
     }
   ]
 }

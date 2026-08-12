@@ -104,6 +104,7 @@ export class EzollSoloplanService {
    * - DutyCalc EUSt → mWSTAT
    * - DutyCalc Zoll → zollabgabenAT
    * - TotItem → tarifnummerATAPI
+   * - DocCerts N954 (EUR.1) → eUR1_API (wie Ausfuhr)
    */
   writeEz92xUpdate(
     match: EzollSoloplanMatch,
@@ -125,6 +126,7 @@ export class EzollSoloplanService {
     if (fields.totalItems != null && fields.totalItems > 0) {
       consignment.tarifnummerATAPI = fields.totalItems;
     }
+    if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
     return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);

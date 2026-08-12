@@ -36,6 +36,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           mwstAt: 120.5,
           zollabgabenAt: 40.25,
           totalItems: 3,
+          eur1Number: 'T0795166',
         },
       );
 
@@ -53,6 +54,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.mWSTAT, 120.5);
       assert.equal(row.zollabgabenAT, 40.25);
       assert.equal(row.tarifnummerATAPI, 3);
+      assert.equal(row.eUR1_API, 'T0795166');
       assert.equal(typeof row.ordernumber, 'object');
     } finally {
       rmSync(root, { recursive: true, force: true });

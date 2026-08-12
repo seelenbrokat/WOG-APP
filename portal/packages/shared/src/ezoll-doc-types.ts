@@ -49,6 +49,11 @@ export type EzollEz92xFields = {
   zollabgabenAt: number | null;
   /** TotItem → tarifnummerATAPI (Anzahl Positionen). */
   totalItems: number | null;
+  /**
+   * EUR.1 aus DocCerts DocCd N954 / DRef → Soloplan eUR1_API
+   * (wie Ausfuhr SupportingDocument type N954).
+   */
+  eur1Number: string | null;
 };
 
 const DOC_SUFFIXES: EzollDocType[] = [
@@ -303,11 +308,35 @@ function roundMoney(n: number): number {
 }
 
 /**
+ * EUR.1 aus EZ922/EZ923:
+ * - DocCerts DocCd=N954 → DRef (z. B. „T0795166“, „T 0735872“)
+ * - Fallback SupportingDocument type=N954 → referenceNumber (wie Ausfuhr)
+ * Nicht N864 (Rechnung).
+ */
+export function extractEur1NumberFromEz92xXml(xml: string): string | null {
+  const raw = String(xml || '');
+  for (const block of raw.matchAll(/<DocCerts>([\s\S]*?)<\/DocCerts>/gi)) {
+    const code = block[1].match(/<DocCd>\s*([^<]+?)\s*<\/DocCd>/i)?.[1]?.trim().toUpperCase();
+    if (code !== 'N954') continue;
+    const ref = block[1].match(/<DRef>\s*([^<]*?)\s*<\/DRef>/i)?.[1]?.trim();
+    if (ref) return ref.replace(/\s+/g, ' ').toUpperCase();
+  }
+  for (const block of raw.matchAll(/<SupportingDocument>([\s\S]*?)<\/SupportingDocument>/gi)) {
+    const type = block[1].match(/<type>\s*([^<]+?)\s*<\/type>/i)?.[1]?.trim().toUpperCase();
+    if (type !== 'N954') continue;
+    const ref = block[1].match(/<referenceNumber>\s*([^<]*?)\s*<\/referenceNumber>/i)?.[1]?.trim();
+    if (ref) return ref.replace(/\s+/g, ' ').toUpperCase();
+  }
+  return null;
+}
+
+/**
  * EZ922/EZ923:
  * - CRN → mRNATAPI
  * - DefPayRef (Abgabenkonto) → aufschubkonto
  * - DutyCalc Ty B00/5EV (EUSt) Summe → mWSTAT
  * - DutyCalc Ty A00 (Zoll) Summe → zollabgabenAT
+ * - DocCerts N954 → eUR1_API
  */
 export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null {
   const raw = String(xml || '');
@@ -344,6 +373,7 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
     mwstAt: sawMwst ? roundMoney(mwst) : null,
     zollabgabenAt: sawZoll ? roundMoney(zoll) : null,
     totalItems,
+    eur1Number: extractEur1NumberFromEz92xXml(raw),
   };
 }
 
