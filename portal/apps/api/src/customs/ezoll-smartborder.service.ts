@@ -15,8 +15,10 @@ import {
   normalizeSmartBorderPlate,
   type EzollDocType,
 } from '@wog/shared';
+import { CustomsRefSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
 
 /** Dokumente, die an SmartBorder pdf-ingest gehen. */
 const SMARTBORDER_DOC_TYPES = new Set<EzollDocType>(['CCATBT02BC', 'CCATBT12BC']);
@@ -54,6 +56,7 @@ export class EzollSmartborderService {
     private config: ConfigService,
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private customsRefs: ShipmentCustomsRefService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') ||
@@ -208,6 +211,31 @@ export class EzollSmartborderService {
       this.log.log(
         `SmartBorder ${fileName}: kein offener Verzollungsauftrag für Kennzeichen ${plate}`,
       );
+    }
+
+    const borderTxn =
+      created.extracted?.borderTransactionNumber ||
+      parsed.extracted?.borderTransactionNumber ||
+      token ||
+      null;
+    const orgId = order?.organizationId;
+    if (orgId && (borderTxn || plate)) {
+      const source =
+        docType === 'CCATBT12BC'
+          ? CustomsRefSource.SMARTBORDER_CCATBT12
+          : CustomsRefSource.SMARTBORDER_CCATBT02;
+      await this.customsRefs
+        .upsertSmartborder({
+          organizationId: orgId,
+          source,
+          mrn: borderTxn,
+          lrn: plate || null,
+          sourceFileName: fileName,
+          customsExternalNumber: order?.externalNumber || null,
+        })
+        .catch((e: any) =>
+          this.log.warn(`SmartBorder CustomsRef ${fileName}: ${e?.message || e}`),
+        );
     }
 
     return {

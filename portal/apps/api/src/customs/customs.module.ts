@@ -8,6 +8,7 @@ import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service'
 import { EzollFreightPayerService } from './ezoll-freight-payer.service';
 import { EzollSoloplanReadApiService } from './ezoll-soloplan-read-api.service';
 import { EzollSmartborderService } from './ezoll-smartborder.service';
+import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -32,6 +33,7 @@ import { DocumentsModule } from '../documents/documents.module';
     EzollTourCacheService,
     EzollConsignmentCacheService,
     EzollFreightPayerService,
+    ShipmentCustomsRefService,
   ],
   exports: [
     CustomsService,
@@ -42,6 +44,7 @@ import { DocumentsModule } from '../documents/documents.module';
     EzollTourCacheService,
     EzollConsignmentCacheService,
     EzollFreightPayerService,
+    ShipmentCustomsRefService,
   ],
 })
 export class CustomsModule {}

@@ -11,6 +11,17 @@ const STATUSES = [
   'ACCEPTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'EXCEPTION', 'CANCELLED',
 ];
 
+const CUSTOMS_REF_LABELS: Record<string, string> = {
+  EZOLL_CC529: 'AT Ausfuhr (CC529)',
+  EZOLL_CC599: 'AT Austritt (CC599)',
+  EZOLL_EZ922: 'AT Import Abgaben (EZ922)',
+  EZOLL_EZ923: 'AT Import Freigabe (EZ923)',
+  EZOLL_CC029: 'AT Transit (CC029)',
+  SMARTBORDER_CCATBT02: 'SmartBorder Eingang',
+  SMARTBORDER_CCATBT12: 'SmartBorder Transit',
+  MERCURIO_CH: 'CH Mercurio',
+};
+
 function soloplanStatusLabel(ref?: string | null) {
   if (!ref) return { label: 'TMS: noch nicht übergeben', tone: 'muted' as const, orderNumber: null as string | null };
   if (ref.startsWith('SP-STUB-')) return { label: 'TMS: Stub', tone: 'muted' as const, orderNumber: null };
@@ -217,6 +228,30 @@ function ShipmentDetailInner() {
               <strong>Soloplan:</strong>{' '}
               {tms.orderNumber ? <strong>{tms.orderNumber}</strong> : <span className="muted">–</span>}
             </div>
+            {(shipment.customsRefs || []).length > 0 && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <strong>Zoll-Referenzen (MRN / LRN)</strong>
+                <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+                  {(shipment.customsRefs as any[]).map((r) => (
+                    <li key={r.id} style={{ marginBottom: '0.25rem' }}>
+                      <span className="badge">
+                        {r.sourceLabel || CUSTOMS_REF_LABELS[r.source] || r.source}
+                      </span>
+                      {r.mrn ? (
+                        <div style={{ fontSize: '0.9rem' }}>
+                          <strong>MRN:</strong> {r.mrn}
+                        </div>
+                      ) : null}
+                      {r.lrn ? (
+                        <div style={{ fontSize: '0.9rem' }}>
+                          <strong>LRN:</strong> {r.lrn}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div><strong>PIN:</strong> {shipment.trackingPin || '–'}</div>
             <div className="muted" style={{ fontSize: '0.85rem' }}>{tms.label}</div>
             <button

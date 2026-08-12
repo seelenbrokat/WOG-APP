@@ -51,6 +51,18 @@ enum CustomerDocCategory {
   OTHER
 }
 
+/// Quelle der Zoll-Referenz (MRN/LRN) an der Sendung
+enum CustomsRefSource {
+  EZOLL_CC529
+  EZOLL_CC599
+  EZOLL_EZ922
+  EZOLL_EZ923
+  EZOLL_CC029
+  SMARTBORDER_CCATBT02
+  SMARTBORDER_CCATBT12
+  MERCURIO_CH
+}
+
 enum NotificationEvent {
   SHIPMENT_CREATED
   STATUS_CHANGED
@@ -110,6 +122,36 @@ model Organization {
   settings                 OrganizationSetting[]
   ezollTourCaches          EzollTourCache[]
   ezollConsignmentCaches   EzollConsignmentCache[]
+  shipmentCustomsRefs      ShipmentCustomsRef[]
+}
+
+/// Dauerhafte MRN/LRN je Sendung (AT eZoll, SmartBorder, CH). Retention 60 Tage.
+model ShipmentCustomsRef {
+  id               String           @id @default(cuid())
+  organizationId   String
+  shipmentId       String?
+  /// Soloplan-Auftragsnummer bis/neben Sendungs-Link
+  orderNumber      String
+  consignmentIndex Int              @default(1)
+  tourNumber       String?
+  source           CustomsRefSource
+  /// MRN / CRN / SmartBorder-Transaktion
+  mrn              String?
+  lrn              String?
+  sourceFileName   String?
+  firstSeenAt      DateTime         @default(now())
+  lastSeenAt       DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, orderNumber, consignmentIndex, source])
+  @@index([shipmentId])
+  @@index([lastSeenAt])
+  @@index([organizationId, lastSeenAt])
+  @@index([mrn])
 }
 
 /// eZoll CC529/CC599: Sendungs-Fenster – ob Ausfuhr schon da war (Werte nicht doppelt schreiben).
@@ -900,10 +942,11 @@ model Shipment {
   mandant   Mandant         @relation(fields: [mandantId], references: [id])
   customer  Customer        @relation(fields: [customerId], references: [id])
   order     TransportOrder? @relation(fields: [orderId], references: [id])
-  positions ShipmentItem[]
-  colli     ShipmentCollo[]
-  events    StatusEvent[]
-  documents Document[]
+  positions   ShipmentItem[]
+  colli       ShipmentCollo[]
+  events      StatusEvent[]
+  documents   Document[]
+  customsRefs ShipmentCustomsRef[]
 
   @@index([mandantId, status])
   @@index([customerId])

@@ -4,6 +4,7 @@ import { IntegrationsController } from './integrations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
+import { CustomsModule } from '../customs/customs.module';
 import { ExchangeHubService } from './exchange-hub.service';
 import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-adapters';
 import { BusinessPartnerService } from './business-partner.service';
@@ -25,6 +26,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
     forwardRef(() => NotificationsModule),
     AuditModule,
     forwardRef(() => UsersModule),
+    forwardRef(() => CustomsModule),
   ],
   controllers: [IntegrationsController],
   providers: [

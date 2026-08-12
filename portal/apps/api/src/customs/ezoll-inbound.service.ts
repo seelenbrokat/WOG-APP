@@ -37,6 +37,8 @@ import { EzollTourCacheService } from './ezoll-tour-cache.service';
 import { EzollConsignmentCacheService } from './ezoll-consignment-cache.service';
 import { EzollFreightPayerService } from './ezoll-freight-payer.service';
 import { EzollSmartborderService } from './ezoll-smartborder.service';
+import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
+import { CustomsRefSource } from '@prisma/client';
 
 /**
  * eZoll-Inbound (PDF + XML):
@@ -64,6 +66,7 @@ export class EzollInboundService {
     private customerDocs: CustomerDocumentsInboundService,
     private soloplan: SoloplanService,
     private smartborder: EzollSmartborderService,
+    private customsRefs: ShipmentCustomsRefService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -117,6 +120,11 @@ export class EzollInboundService {
     } catch (e: any) {
       this.log.warn(`ConsignmentCache-Purge übersprungen: ${e?.message || e}`);
     }
+    try {
+      purged += await this.customsRefs.purgeExpired();
+    } catch (e: any) {
+      this.log.warn(`CustomsRef-Purge übersprungen: ${e?.message || e}`);
+    }
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
     let ignored = 0;
@@ -134,29 +142,28 @@ export class EzollInboundService {
     // SmartBorder unabhängig von Soloplan-Writes (CC529-Schalter)
     const sb = await this.smartborder.processInboundBatch(20);
 
-    const enabled = this.config.get('SOLOPLAN_EZOLL_CC529_ENABLED') !== 'false';
+    // Soloplan-FileAPI-Writes separat schaltbar; MRN/LRN + Kunden-Austritt laufen weiter.
+    const writeSoloplan = this.config.get('SOLOPLAN_EZOLL_CC529_ENABLED') !== 'false';
     let cc529 = 0;
     let ez92x = 0;
     let cc029 = 0;
     let cc599 = 0;
     let customerExit = 0;
     let unmatched = 0;
-    if (enabled) {
-      const a = await this.processCc529Batch(orgId, 40);
-      cc529 = a.processed;
-      unmatched += a.unmatched;
-      const b = this.processEz92xBatch(40);
-      ez92x = b.processed;
-      unmatched += b.unmatched;
-      const c = await this.processCc029Batch(orgId, 40);
-      cc029 = c.processed;
-      unmatched += c.unmatched;
-      const d = await this.processCc599Batch(orgId, 40);
-      cc599 = d.processed;
-      customerExit = d.customerExit;
-      unmatched += d.unmatched;
-      customerExit += await this.retryPendingCustomerExit(orgId, 40);
-    }
+    const a = await this.processCc529Batch(orgId, 40, writeSoloplan);
+    cc529 = a.processed;
+    unmatched += a.unmatched;
+    const b = await this.processEz92xBatch(orgId, 40, writeSoloplan);
+    ez92x = b.processed;
+    unmatched += b.unmatched;
+    const c = await this.processCc029Batch(orgId, 40, writeSoloplan);
+    cc029 = c.processed;
+    unmatched += c.unmatched;
+    const d = await this.processCc599Batch(orgId, 40, writeSoloplan);
+    cc599 = d.processed;
+    customerExit = d.customerExit;
+    unmatched += d.unmatched;
+    customerExit += await this.retryPendingCustomerExit(orgId, 40);
 
     const pending = this.listPendingFiles().length;
     return {
@@ -176,7 +183,11 @@ export class EzollInboundService {
     };
   }
 
-  private async processCc529Batch(organizationId: string, limit: number) {
+  private async processCc529Batch(
+    organizationId: string,
+    limit: number,
+    writeSoloplan = true,
+  ) {
     let processed = 0;
     let unmatched = 0;
     const pending = this.listPendingFiles().filter(
@@ -226,8 +237,20 @@ export class EzollInboundService {
           this.log.warn(`CC529 ohne Auftrag/Sendung: ${fileName}`);
           continue;
         }
-        this.ezollSoloplan.writeCc529FlagUpdate(match, fileName, fields);
+        if (writeSoloplan) {
+          this.ezollSoloplan.writeCc529FlagUpdate(match, fileName, fields);
+        }
         await this.markAusfuhr(organizationId, match, fields, fileName);
+        const keys = this.matchOrderKeys(match);
+        await this.customsRefs.upsertFromOrder({
+          organizationId,
+          orderNumber: keys.orderNumber,
+          consignmentIndex: keys.consignmentIndex,
+          source: CustomsRefSource.EZOLL_CC529,
+          mrn: fields.mrn,
+          lrn: fields.lrn,
+          sourceFileName: fileName,
+        });
         this.move(
           filePath,
           join(this.inboundRoot, 'processed', 'cc529', `${Date.now()}_${fileName}`),
@@ -248,7 +271,11 @@ export class EzollInboundService {
     return { processed, unmatched };
   }
 
-  private processEz92xBatch(limit: number) {
+  private async processEz92xBatch(
+    organizationId: string,
+    limit: number,
+    writeSoloplan = true,
+  ) {
     let processed = 0;
     let unmatched = 0;
     const files = this.listPendingFiles()
@@ -284,7 +311,22 @@ export class EzollInboundService {
           continue;
         }
 
-        this.ezollSoloplan.writeEz92xUpdate(match, fileName, fields);
+        if (writeSoloplan) {
+          this.ezollSoloplan.writeEz92xUpdate(match, fileName, fields);
+        }
+        const keys = this.matchOrderKeys(match);
+        await this.customsRefs.upsertFromOrder({
+          organizationId,
+          orderNumber: keys.orderNumber,
+          consignmentIndex: keys.consignmentIndex,
+          source:
+            fields.msgTyp === 'EZ922'
+              ? CustomsRefSource.EZOLL_EZ922
+              : CustomsRefSource.EZOLL_EZ923,
+          mrn: fields.crn,
+          lrn: null,
+          sourceFileName: fileName,
+        });
         this.move(
           filePath,
           join(this.inboundRoot, 'processed', 'ez92x', `${Date.now()}_${fileName}`),
@@ -310,7 +352,11 @@ export class EzollInboundService {
    * Pro Tour 7-Tage-Cache – bei Mehrfach-XMLs MRNs/LRNs ergänzen, nicht überschreiben.
    * Soloplan-Updates an alle Portal-Sendungen der Tour mit akkumulierten Werten.
    */
-  private async processCc029Batch(organizationId: string, limit: number) {
+  private async processCc029Batch(
+    organizationId: string,
+    limit: number,
+    writeSoloplan = true,
+  ) {
     let processed = 0;
     let unmatched = 0;
     const files = this.listPendingFiles()
@@ -341,11 +387,22 @@ export class EzollInboundService {
           sourceFile: fileName,
         });
 
-        // OrderEzoll auf Tour-Ebene (tourNumber), nicht Consignment
-        this.ezollSoloplan.writeCc029TourUpdate(fields.tourNumber, fileName, {
-          mrns: cache.mrns,
-          lrns: cache.lrns,
-          totalItems: cache.totalItems,
+        if (writeSoloplan) {
+          // OrderEzoll auf Tour-Ebene (tourNumber), nicht Consignment
+          this.ezollSoloplan.writeCc029TourUpdate(fields.tourNumber, fileName, {
+            mrns: cache.mrns,
+            lrns: cache.lrns,
+            totalItems: cache.totalItems,
+          });
+        }
+        await this.customsRefs.upsertFromOrder({
+          organizationId,
+          orderNumber: `TOUR-${fields.tourNumber}`,
+          consignmentIndex: 1,
+          source: CustomsRefSource.EZOLL_CC029,
+          mrn: fields.mrn,
+          lrn: fields.lrn,
+          sourceFileName: fileName,
         });
         this.move(
           filePath,
@@ -373,7 +430,11 @@ export class EzollInboundService {
    * - Wertfelder nur wenn keine Ausfuhr (Cache / processed/cc529) vorlag
    * - PDF zusätzlich als Kunden-Dokument CUSTOMS_EXIT (wenn Rechte)
    */
-  private async processCc599Batch(organizationId: string, limit: number) {
+  private async processCc599Batch(
+    organizationId: string,
+    limit: number,
+    writeSoloplan = true,
+  ) {
     let processed = 0;
     let unmatched = 0;
     let customerExit = 0;
@@ -434,12 +495,23 @@ export class EzollInboundService {
           });
         }
 
-        this.ezollSoloplan.writeCc599FlagUpdate(match, fileName, fields, includeValues);
+        if (writeSoloplan) {
+          this.ezollSoloplan.writeCc599FlagUpdate(match, fileName, fields, includeValues);
+        }
         await this.consignmentCache.markCc599({
           organizationId,
           orderNumber,
           consignmentIndex,
           sourceFile: fileName,
+        });
+        await this.customsRefs.upsertFromOrder({
+          organizationId,
+          orderNumber,
+          consignmentIndex,
+          source: CustomsRefSource.EZOLL_CC599,
+          mrn: fields.mrn,
+          lrn: fields.lrn,
+          sourceFileName: fileName,
         });
 
         if (!isXml) {

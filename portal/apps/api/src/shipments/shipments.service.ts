@@ -20,6 +20,7 @@ import { SoloplanService } from '../integrations/soloplan.service';
 import { TourEtaService } from '../integrations/tour-eta.service';
 import { LabelsService } from '../labels/labels.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
+import { CUSTOMS_REF_SOURCE_LABELS } from '../customs/shipment-customs-ref.service';
 import { allocateVlbExternalNumber } from './order-number';
 
 function trackingNumber() {
@@ -259,6 +260,7 @@ export class ShipmentsService {
         colli: { orderBy: { itemNumber: 'asc' } },
         events: { orderBy: { createdAt: 'asc' } },
         documents: { orderBy: { createdAt: 'desc' } },
+        customsRefs: { orderBy: { lastSeenAt: 'desc' } },
       },
     });
     if (!shipment) throw new NotFoundException();
@@ -275,7 +277,11 @@ export class ShipmentsService {
       reference: shipment.reference,
       orderExternalNumber: shipment.order?.externalNumber,
     });
-    return { ...shipment, eta };
+    const customsRefs = (shipment.customsRefs || []).map((r) => ({
+      ...r,
+      sourceLabel: CUSTOMS_REF_SOURCE_LABELS[r.source] || r.source,
+    }));
+    return { ...shipment, customsRefs, eta };
   }
 
   /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */
