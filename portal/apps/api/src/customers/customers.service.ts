@@ -137,6 +137,7 @@ export class CustomersService {
       vatId: string;
       active: boolean;
       documentsModuleEnabled: boolean;
+      neutralDeliveryReceipt: boolean;
     }>,
   ) {
     await this.get(user, id);

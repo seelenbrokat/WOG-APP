@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { ApiError, api, getUser } from '@/lib/api';
 import { DocumentsModulePanel } from './DocumentsModulePanel';
+import { NeutralDeliveryPanel } from './NeutralDeliveryPanel';
 import { SftpInboundPanel } from './SftpInboundPanel';
 
 type ContactFeedback = { type: 'ok' | 'err'; text: string };
@@ -170,6 +171,9 @@ export default function CustomersPage() {
                 {c.documentsModuleEnabled ? (
                   <span className="badge ok">Dokumente</span>
                 ) : null}
+                {c.neutralDeliveryReceipt ? (
+                  <span className="badge ok">Neutral</span>
+                ) : null}
                 {c.sftpInboundEnabled ? (
                   <span className="badge ok">SFTP</span>
                 ) : null}
@@ -177,10 +181,16 @@ export default function CustomersPage() {
               </div>
             </div>
             {canEdit && (
-              <DocumentsModulePanel
-                customerId={c.id}
-                initialEnabled={Boolean(c.documentsModuleEnabled)}
-              />
+              <>
+                <DocumentsModulePanel
+                  customerId={c.id}
+                  initialEnabled={Boolean(c.documentsModuleEnabled)}
+                />
+                <NeutralDeliveryPanel
+                  customerId={c.id}
+                  initialEnabled={Boolean(c.neutralDeliveryReceipt)}
+                />
+              </>
             )}
             {isAdmin && (
               <SftpInboundPanel

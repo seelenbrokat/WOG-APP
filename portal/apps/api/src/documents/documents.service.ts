@@ -620,11 +620,13 @@ export class DocumentsService {
       doc.pipe(stream);
       const pageBottom = () => doc.page.height - 36;
       const fits = (need: number) => doc.y + need <= pageBottom();
-      const auftraggeber =
-        shipment.customer?.name ||
-        shipment.pickupCompany ||
-        shipment.mandant?.name ||
-        null;
+      const neutral = Boolean(shipment.customer?.neutralDeliveryReceipt);
+      const auftraggeber = neutral
+        ? null
+        : shipment.customer?.name ||
+          shipment.pickupCompany ||
+          shipment.mandant?.name ||
+          null;
       drawA4BrandHeader(doc, {
         title: 'Ablieferbeleg',
         subtitle: auftraggeber
@@ -635,10 +637,19 @@ export class DocumentsService {
         .fontSize(9)
         .fillColor('#111')
         .text(`Sendungsnummer: ${shipment.trackingNumber}`)
-        .text(`Referenz: ${shipment.reference || '-'}`)
-        .text(`Auftraggeber: ${auftraggeber || '-'}`);
+        .text(`Referenz: ${shipment.reference || '-'}`);
+      if (!neutral && auftraggeber) {
+        doc.text(`Auftraggeber: ${auftraggeber}`);
+      }
       doc.moveDown(0.35);
-      doc.fontSize(9).text('Zustellung:');
+      doc.fontSize(9).text('Absender:');
+      doc.text(`${shipment.pickupCompany || ''}`);
+      doc.text(`${shipment.pickupStreet || ''}`);
+      doc.text(
+        `${shipment.pickupZip || ''} ${shipment.pickupCity || ''} ${shipment.pickupCountry || ''}`,
+      );
+      doc.moveDown(0.25);
+      doc.fontSize(9).text(neutral ? 'Empfänger:' : 'Zustellung:');
       doc.text(`${shipment.deliveryCompany || ''}`);
       doc.text(`${shipment.deliveryStreet || ''}`);
       doc.text(

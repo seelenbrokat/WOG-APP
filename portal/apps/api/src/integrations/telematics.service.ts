@@ -1209,16 +1209,16 @@ export class TelematicsService {
       null;
 
     // Auftraggeber: Soloplan Customer (z. B. DHL) > FreightPayer > Portal-Kunde > Absender
+    // Ausnahme: neutraler Ablieferbeleg (Kunde.neutralDeliveryReceipt) → kein Auftraggeber
     const consAny = consignment as {
       customerName?: string | null;
       freightPayerName?: string | null;
     } | null;
-    let auftraggeber: string | null =
-      consAny?.customerName?.trim() ||
-      consAny?.freightPayerName?.trim() ||
-      null;
-    if (!auftraggeber && toNumber) {
-      const portalShipment = await this.prisma.shipment.findFirst({
+    let portalShipment: {
+      customer?: { name: string; neutralDeliveryReceipt?: boolean } | null;
+    } | null = null;
+    if (toNumber) {
+      portalShipment = await this.prisma.shipment.findFirst({
         where: {
           organizationId: opts.organizationId,
           OR: [
@@ -1228,20 +1228,32 @@ export class TelematicsService {
             { order: { externalNumber: toNumber } },
           ],
         },
-        include: { customer: { select: { name: true } } },
+        include: {
+          customer: { select: { name: true, neutralDeliveryReceipt: true } },
+        },
         orderBy: { createdAt: 'desc' },
       });
-      auftraggeber = portalShipment?.customer?.name?.trim() || null;
     }
-    if (!auftraggeber && senderName?.trim()) {
-      auftraggeber = senderName.trim();
-    }
-    if (!auftraggeber && tour?.mandantId) {
-      const mandant = await this.prisma.mandant.findFirst({
-        where: { id: tour.mandantId },
-        select: { name: true },
-      });
-      auftraggeber = mandant?.name?.trim() || null;
+    const neutral = Boolean(portalShipment?.customer?.neutralDeliveryReceipt);
+    let auftraggeber: string | null = null;
+    if (!neutral) {
+      auftraggeber =
+        consAny?.customerName?.trim() ||
+        consAny?.freightPayerName?.trim() ||
+        null;
+      if (!auftraggeber) {
+        auftraggeber = portalShipment?.customer?.name?.trim() || null;
+      }
+      if (!auftraggeber && senderName?.trim()) {
+        auftraggeber = senderName.trim();
+      }
+      if (!auftraggeber && tour?.mandantId) {
+        const mandant = await this.prisma.mandant.findFirst({
+          where: { id: tour.mandantId },
+          select: { name: true },
+        });
+        auftraggeber = mandant?.name?.trim() || null;
+      }
     }
 
     const loadingUnitExchange = await this.loadingUnits.resolveExchangeNote({
@@ -1351,6 +1363,7 @@ export class TelematicsService {
         senderName,
         senderAddress,
         auftraggeber,
+        neutral,
         uebernehmerName,
         deliveryStatus: resolveZustellStatusLabel({
           delivered: deliveryMeta.delivered,

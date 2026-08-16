@@ -29,8 +29,13 @@ export type ZustellnachweisInput = {
   receiverAddress?: string | null;
   senderName?: string | null;
   senderAddress?: string | null;
-  /** Auftraggeber – oben rechts im Header */
+  /** Auftraggeber – oben rechts im Header (nicht bei neutral) */
   auftraggeber?: string | null;
+  /**
+   * Neutraler Ablieferbeleg: kein Auftraggeber, Absender + Empfänger andrucken.
+   * Typisch wenn Absender ≠ Auftraggeber (z. B. Europapier).
+   */
+  neutral?: boolean;
   /** Person, die die Ware übernommen hat (Unterschrift) */
   uebernehmerName?: string | null;
   identCodes?: string[];
@@ -334,10 +339,10 @@ export function writeZustellnachweisPdf(
       input.uebernehmerName?.trim() ||
       signedByFromSignatureFileName(input.signatureFileName) ||
       null;
-    const auftraggeber =
-      input.auftraggeber?.trim() ||
-      input.senderName?.trim() ||
-      null;
+    const neutral = Boolean(input.neutral);
+    const auftraggeber = neutral
+      ? null
+      : input.auftraggeber?.trim() || input.senderName?.trim() || null;
 
     drawA4BrandHeader(doc, {
       title,
@@ -383,14 +388,18 @@ export function writeZustellnachweisPdf(
     }
     doc.moveDown(singlePage ? 0.2 : 0.6);
 
+    // Neutral / Mehrseiten: Absender vor Empfänger (Auftraggeber nie bei neutral)
+    if (neutral || !singlePage) {
+      sectionTitle(doc, 'Absender');
+      kvRow(doc, 'Name', input.senderName || '—');
+      kvRow(doc, 'Adresse', input.senderAddress || '—');
+      doc.moveDown(singlePage ? 0.2 : 0.4);
+    }
+
     sectionTitle(doc, 'Empfänger');
     kvRow(doc, 'Name', input.receiverName || '—');
     kvRow(doc, 'Adresse', input.receiverAddress || '—');
     if (uebernehmer) kvRow(doc, 'Übernehmer', uebernehmer);
-    if (!singlePage && input.senderName) kvRow(doc, 'Absender', input.senderName);
-    if (!singlePage && input.senderAddress) {
-      kvRow(doc, 'Absenderadresse', input.senderAddress);
-    }
     if (!singlePage && input.identCodes?.length) {
       kvRow(doc, 'Identcode', input.identCodes.join(', '));
     }

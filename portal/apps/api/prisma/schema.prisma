@@ -678,6 +678,8 @@ model Customer {
   matchcode                String?
   /// Modul „Dokumente“ für diesen Kunden freigeschaltet
   documentsModuleEnabled   Boolean  @default(false)
+  /// Ablieferbelege immer neutral (nur Absender + Empfänger, kein Auftraggeber)
+  neutralDeliveryReceipt   Boolean  @default(false)
   /// SFTP-Inbound für Auftragsdateien (z. B. FORTRAS BORD512) – nur Admin-Freischaltung
   sftpInboundEnabled       Boolean  @default(false)
   /// Linux/SFTPGo-User, z. B. quehenberger
