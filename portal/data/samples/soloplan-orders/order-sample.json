@@ -1,0 +1,334 @@
+{
+  "header": {
+    "sendDate": "2026-07-20T19:36:01",
+    "exportItemReference": "8ed2233b-ee6f-4d21-9654-fc5d64f80910"
+  },
+  "order": [
+    {
+      "date": "2026-07-20",
+      "objectOwner": {
+        "id": 2
+      },
+      "number": 436142,
+      "externalNumber": "TR2601728",
+      "orderContext": 0,
+      "orderDate": "2026-07-20",
+      "customer": {
+        "number": 28,
+        "matchcode": "UNITELOCHA",
+        "name1": "Unitec Energietechnik GmbH",
+        "phoneNumberHeadOffice": "+43 5574 83630-0",
+        "contactPersons": [
+          {
+            "itemNumber": 2,
+            "salutation": "Frau",
+            "firstName": "Marion",
+            "lastName": "Beer",
+            "telephone": "+43(5574)83630-16",
+            "fax": "+43(5574)83630-99",
+            "emailAddress": "M.Beer@unitec-gmbh.at",
+            "homepage": "www.unitec-gmbh.at"
+          },
+          {
+            "itemNumber": 3,
+            "salutation": "Frau",
+            "firstName": "Sarah",
+            "lastName": "Boschi",
+            "telephone": "+43(5574)83630-16",
+            "fax": "+43(5574)83630-99",
+            "emailAddress": "S.Boschi@unitec-gmbh.at",
+            "homepage": "www.unitec-gmbh.at"
+          }
+        ],
+        "finAccAccountDebtor": "260008",
+        "finAccAccountCreditor": "360008",
+        "inttraRefType": 1,
+        "homeEditAddress": {
+          "location1": "Lochau",
+          "zipCode": "6911",
+          "street": "Lindauer Straße",
+          "houseNumber": "29",
+          "country": {
+            "isoTwoCharacterCountryCode": "AT",
+            "isoThreeCharacterCountryCode": "AUT",
+            "isoNumericCountryCode": "40",
+            "countryId": "A"
+          }
+        },
+        "senderReceiver": true,
+        "freightBusinessPartner": true,
+        "valueAddedTaxNumber": "U57876114",
+        "vATIsoTwoCharacterCountryCode": "AT"
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "BK2601408",
+          "sender": {
+            "masterDataBusinessPartner": {
+              "number": 2,
+              "matchcode": "WOGDIEPO",
+              "name1": "WOG Logistics AG",
+              "phoneNumberHeadOffice": "+41 71 733 77 00",
+              "contactPersons": [
+                {
+                  "itemNumber": 2,
+                  "lastName": "Info",
+                  "emailAddress": "info@worldofgreen.ch"
+                },
+                {
+                  "itemNumber": 3,
+                  "lastName": "Marcel",
+                  "emailAddress": "marcel.burtscher@worldofgreen.ch"
+                },
+                {
+                  "itemNumber": 4,
+                  "lastName": "Admin",
+                  "emailAddress": "admin@worldofgreen.ch"
+                }
+              ],
+              "finAccAccountDebtor": "263694",
+              "finAccAccountCreditor": "364259",
+              "inttraRefType": 1,
+              "homeEditAddress": {
+                "location1": "Diepoldsau",
+                "zipCode": "9444",
+                "street": "Wildenaustraße",
+                "houseNumber": "22",
+                "country": {
+                  "isoTwoCharacterCountryCode": "CH",
+                  "isoThreeCharacterCountryCode": "CHE",
+                  "isoNumericCountryCode": "756",
+                  "countryId": "CH"
+                }
+              },
+              "senderReceiver": true,
+              "freightBusinessPartner": true,
+              "valueAddedTaxNumber": "E409.812.868",
+              "vATIsoTwoCharacterCountryCode": "CH"
+            },
+            "name1": "WOG Logistics AG",
+            "street": "Wildenaustraße",
+            "houseNumber": "22",
+            "country": "CH",
+            "zipCode": "9444",
+            "city1": "Diepoldsau"
+          },
+          "senderContactPerson": {},
+          "receiver": {
+            "name1": "Baustelle",
+            "street": "Schlossgasse 8",
+            "houseNumber": "8",
+            "country": "CH",
+            "zipCode": "8820",
+            "city1": "Wädenswil"
+          },
+          "receiverContactPerson": {
+            "lastName": "Markus Bruhin",
+            "phoneNumber": "+41796042573"
+          },
+          "differentLoadingPoint": {
+            "masterDataBusinessPartner": {
+              "number": 1313,
+              "matchcode": "UNITELOCHA",
+              "name1": "Unitec Energietechnik GmbH",
+              "phoneNumberHeadOffice": "+43 5574 83630-0",
+              "contactPersons": [
+                {
+                  "itemNumber": 2,
+                  "salutation": "Frau",
+                  "firstName": "Marion",
+                  "lastName": "Beer",
+                  "telephone": "+43(5574)83630-16",
+                  "fax": "+43(5574)83630-99",
+                  "emailAddress": "M.Beer@unitec-gmbh.at",
+                  "homepage": "www.unitec-gmbh.at"
+                },
+                {
+                  "itemNumber": 3,
+                  "salutation": "Frau",
+                  "firstName": "Sarah",
+                  "lastName": "Boschi",
+                  "telephone": "+43(5574)83630-16",
+                  "fax": "+43(5574)83630-99",
+                  "emailAddress": "S.Boschi@unitec-gmbh.at",
+                  "homepage": "www.unitec-gmbh.at"
+                },
+                {
+                  "itemNumber": 4,
+                  "firstName": "Mailadresse",
+                  "lastName": "Rechnung",
+                  "emailAddress": "m.beer@unitec-gmbh.at"
+                }
+              ],
+              "finAccAccountDebtor": "260213",
+              "finAccAccountCreditor": "363389",
+              "inttraRefType": 1,
+              "homeEditAddress": {
+                "location1": "Lochau",
+                "zipCode": "6911",
+                "street": "Lindauer Straße",
+                "houseNumber": "29",
+                "country": {
+                  "isoTwoCharacterCountryCode": "AT",
+                  "isoThreeCharacterCountryCode": "AUT",
+                  "isoNumericCountryCode": "40",
+                  "countryId": "A"
+                }
+              },
+              "senderReceiver": true,
+              "freightBusinessPartner": true,
+              "valueAddedTaxNumber": "U57876114",
+              "vATIsoTwoCharacterCountryCode": "AT"
+            },
+            "name1": "Unitec Energietechnik GmbH",
+            "street": "Lindauer Straße",
+            "houseNumber": "29",
+            "country": "AT",
+            "zipCode": "6911",
+            "city1": "Lochau"
+          },
+          "differentDeliveryPoint": {},
+          "loadingUnitItems": [
+            {
+              "itemNumber": 1,
+              "generateLoadingUnitPostings": 1,
+              "quantity": 1,
+              "loadingUnit": {
+                "number": 12,
+                "matchcode": "EWP",
+                "designation": "Einwegpal."
+              }
+            }
+          ],
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1.0,
+              "content1": "EWS0 750 HB NEU",
+              "content2": "300492.01",
+              "weights": {
+                "effectiveWeightInKilogram": 194.0,
+                "freightWeightInKilogram": 594.05,
+                "carrierWeightInKilogram": 194.0
+              },
+              "size": {
+                "lengthInMeters": 1.09,
+                "widthInMeters": 1.09,
+                "heightInMeters": 2.02
+              },
+              "storagePlaces": 1.1881,
+              "mark": "BK2601408",
+              "loadingUnitItem": {
+                "itemNumber": 1,
+                "generateLoadingUnitPostings": 1,
+                "quantity": 1,
+                "loadingUnit": {
+                  "number": 12,
+                  "matchcode": "EWP",
+                  "designation": "Einwegpal."
+                }
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "packaging": "EWP",
+              "waterHazardClass": 0,
+              "articleNumber": "7",
+              "articleQuantity": 1.0,
+              "ssccCurrents": [
+                {
+                  "code": "091201014196172801"
+                }
+              ],
+              "dimensions": {
+                "squareMeter": 1.1881,
+                "cubicMeter": 2.39996
+              }
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-07-20T00:00:00",
+            "loadingDateEnd": "2026-07-20T00:00:00",
+            "deliveryDateStart": "2026-07-21T00:00:00",
+            "deliveryDateEnd": "2026-07-21T00:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "kilometers": 118.0,
+          "quantity": 1.0,
+          "weights": {
+            "effectiveWeightInKilogram": 200.3,
+            "freightWeightInKilogram": 594.05,
+            "carrierWeightInKilogram": 194.0
+          },
+          "dimensions": {
+            "meter": 0.0,
+            "squareMeter": 0.0,
+            "cubicMeter": 0.0
+          },
+          "requiredStoragePlaces": 1.1881,
+          "flatRateCarrier": {},
+          "absEmpRelation": {
+            "matchcode": "CH_BL",
+            "designation": "CH_BL"
+          },
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference1": "+41796042573",
+            "consignmentReference2": "EiTherm GmbH",
+            "consignmentReference3": "Markus Bruhin",
+            "consignmentReference4": "+41796042573",
+            "consignmentReference6": "BTSWISS",
+            "customBool1": true,
+            "customBool2": false,
+            "customBool3": false,
+            "customBool4": false,
+            "customBool5": false,
+            "customBool6": false,
+            "customBool7": false,
+            "customBool8": false,
+            "customBool9": false,
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "EiTherm GmbH8723 Rufi Franziska Rusterholz +41(41)3120111 Auftragsnummer:  2026-B-1060,  ",
+            "senderInfo2": "Baustelle-CH-8820-Wädenswil",
+            "receiverInfo1": " Aviso für Lieferadresse, mind. 2 h vor Zustellung! +41796042573 Markus Buhrin\r\nZustelltermin fix: 21.07.2026   \r\n .",
+            "info10": "184047",
+            "info14": "https://shippingnet03.ondot.at/wog/Public.html#/PublicWeb/Tracking/Details/e72ae5c1-3d54-4ef0-9d0d-68e0353d7eb7"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0,
+          "id": 165578842,
+          "documentData": []
+        }
+      ],
+      "customInteger4": 2,
+      "isEmptyTrip": false,
+      "origin": 3,
+      "bordereauData": {},
+      "information": {},
+      "documentData": []
+    }
+  ]
+}
