@@ -13,11 +13,14 @@ import {
 } from 'fs';
 import { basename, dirname, join } from 'path';
 import {
+  extractMercurioBordereauFieldsFromPdfText,
   extractMercurioEdecFieldsFromPdfText,
   isMercurioEdecFilename,
+  mercurioProcessedSubdir,
   parseMercurioEdecMatchFromFilename,
   parseMercurioEdecMatchFromRef,
   type MercurioEdecDocType,
+  type MercurioEdecFields,
 } from '@wog/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomerDocumentsInboundService } from '../documents/customer-documents-inbound.service';
@@ -26,11 +29,10 @@ import { EzollSoloplanService } from './ezoll-soloplan.service';
 
 /**
  * Mercurio CH e-dec Inbound (PDF):
- * - Bezugsschein (edece-bs-…) / Einfuhrliste (edece-el-…)
+ * - Bezugsschein / Einfuhrliste / eVV MWST / eVV Zoll / Bordereau
  * - Match über Auftrag.Sendung aus Dateiname (Fallback Ref-Nr. im PDF)
- * - CH-Zollanmeldungsnummer → ShipmentCustomsRef (MERCURIO_CH)
- * - PDF an Sendung als CUSTOMS_PAPER (source MERCURIO)
- * - OrderEzoll CH-Felder (mRNAPI, zugangscode, …) wenn SOLOPLAN_MERCURIO_ENABLED≠false
+ * - Beträge (mWSTCH / zollabgabenCH / Bordereau) nur aus eVV
+ * - OrderEzoll-Writes wenn SOLOPLAN_MERCURIO_ENABLED≠false
  */
 @Injectable()
 export class MercurioInboundService {
@@ -56,6 +58,9 @@ export class MercurioInboundService {
       join(this.inboundRoot, 'processed'),
       join(this.inboundRoot, 'processed', 'bezugsschein'),
       join(this.inboundRoot, 'processed', 'einfuhrliste'),
+      join(this.inboundRoot, 'processed', 'evv-mwst'),
+      join(this.inboundRoot, 'processed', 'evv-zoll'),
+      join(this.inboundRoot, 'processed', 'bordereau'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
       join(this.uploadDir, 'mercurio'),
@@ -107,11 +112,14 @@ export class MercurioInboundService {
         if (result.linked) linked += 1;
         if (result.docAttached) docs += 1;
         if (result.soloplanWritten) soloplan += 1;
-        const sub =
-          result.docType === 'BEZUGSSCHEIN' ? 'bezugsschein' : 'einfuhrliste';
         this.move(
           filePath,
-          join(this.inboundRoot, 'processed', sub, `${Date.now()}_${fileName}`),
+          join(
+            this.inboundRoot,
+            'processed',
+            mercurioProcessedSubdir(result.docType),
+            `${Date.now()}_${fileName}`,
+          ),
         );
       } catch (e: any) {
         unmatched += 1;
@@ -152,10 +160,14 @@ export class MercurioInboundService {
       return 'unmatched';
     }
 
-    let match = parseMercurioEdecMatchFromFilename(fileName);
     const text = this.pdfText(filePath);
     const fields = extractMercurioEdecFieldsFromPdfText(text, fileName);
 
+    if (fields.docType === 'BORDEREAU') {
+      return this.processBordereau(organizationId, filePath, fileName, text, writeSoloplan);
+    }
+
+    let match = parseMercurioEdecMatchFromFilename(fileName);
     if (!match && fields.refNumber) {
       match = parseMercurioEdecMatchFromRef(fields.refNumber);
     }
@@ -164,6 +176,142 @@ export class MercurioInboundService {
       return 'unmatched';
     }
 
+    return this.processMatchedDoc({
+      organizationId,
+      filePath,
+      fileName,
+      writeSoloplan,
+      match,
+      fields,
+    });
+  }
+
+  private async processBordereau(
+    organizationId: string,
+    filePath: string,
+    fileName: string,
+    text: string,
+    writeSoloplan: boolean,
+  ): Promise<{
+    linked: boolean;
+    docAttached: boolean;
+    soloplanWritten: boolean;
+    docType: MercurioEdecDocType;
+  }> {
+    const bordereau = extractMercurioBordereauFieldsFromPdfText(text, fileName);
+    if (!bordereau.lines.length) {
+      this.log.warn(`Mercurio Bordereau ohne Zeilen: ${fileName}`);
+      // trotzdem als verarbeitet ablegen (Buchungsbeleg), ohne Soloplan
+      return {
+        linked: false,
+        docAttached: false,
+        soloplanWritten: false,
+        docType: 'BORDEREAU',
+      };
+    }
+
+    let linked = false;
+    let docs = 0;
+    let soloplanWritten = false;
+
+    for (const line of bordereau.lines) {
+      const fields: MercurioEdecFields = {
+        docType: 'BORDEREAU',
+        chDeclarationNumber: line.chDeclarationNumber,
+        refNumber: `${line.match.mandantCode || '104'}/${line.match.orderNumber}.${line.match.consignmentIndex}/${line.match.siteCode || 'X'}/0/1`,
+        atExportMrn: null,
+        registrationNumber: null,
+        accessCode: null,
+        definitiv: true,
+        kontoZoll: null,
+        kontoMwst: null,
+        zazKonto: null,
+        // Beträge kommen aus eVV – Bordereau setzt nur Bordereaunummer
+        mwstCh: null,
+        zollabgabenCh: null,
+        bearbeitungsgebuehrCh: null,
+        totalItems: null,
+        bordereauNumber: bordereau.bordereauNumber,
+        veranlagungMwst: line.kind === 'VVM' ? true : null,
+        veranlagungZoll: line.kind === 'VVZ' ? true : null,
+      };
+
+      await this.customsRefs.upsertFromOrder({
+        organizationId,
+        orderNumber: String(line.match.orderNumber),
+        consignmentIndex: line.match.consignmentIndex,
+        source: CustomsRefSource.MERCURIO_CH,
+        mrn: line.chDeclarationNumber,
+        lrn: fields.refNumber,
+        sourceFileName: fileName,
+      });
+
+      if (writeSoloplan && bordereau.bordereauNumber) {
+        try {
+          this.ezollSoloplan.writeMercurioEdecUpdate(
+            {
+              kind: 'orderConsignment',
+              orderNumber: line.match.orderNumber,
+              consignmentIndex: line.match.consignmentIndex,
+            },
+            fileName,
+            fields,
+          );
+          soloplanWritten = true;
+        } catch (e: any) {
+          this.log.warn(
+            `Mercurio Bordereau Soloplan ${line.match.orderNumber}.${line.match.consignmentIndex}: ${e?.message || e}`,
+          );
+        }
+      }
+
+      const shipment = await this.customerDocs.findShipmentForSoloplanOrder(
+        organizationId,
+        String(line.match.orderNumber),
+        line.match.consignmentIndex,
+      );
+      if (shipment) {
+        linked = true;
+        const attached = await this.attachPdfToShipment({
+          organizationId,
+          shipmentId: shipment.id,
+          customerId: shipment.customerId,
+          trackingNumber: shipment.trackingNumber,
+          filePath,
+          fileName,
+          docType: 'BORDEREAU',
+          chNumber: bordereau.bordereauNumber,
+        });
+        if (attached) docs += 1;
+      }
+    }
+
+    this.log.log(
+      `Mercurio BORDEREAU ${bordereau.bordereauNumber || '-'} Zeilen=${bordereau.lines.length}` +
+        (soloplanWritten ? ' → Soloplan' : '') +
+        ` ← ${fileName}`,
+    );
+
+    return {
+      linked,
+      docAttached: docs > 0,
+      soloplanWritten,
+      docType: 'BORDEREAU',
+    };
+  }
+
+  private async processMatchedDoc(input: {
+    organizationId: string;
+    filePath: string;
+    fileName: string;
+    writeSoloplan: boolean;
+    match: {
+      orderNumber: number;
+      consignmentIndex: number;
+    };
+    fields: MercurioEdecFields;
+  }) {
+    const { organizationId, filePath, fileName, writeSoloplan, match, fields } = input;
     const orderNumber = String(match.orderNumber);
     const consignmentIndex = match.consignmentIndex;
     const mrn = fields.chDeclarationNumber;
@@ -212,7 +360,7 @@ export class MercurioInboundService {
         filePath,
         fileName,
         docType: fields.docType,
-        chNumber: mrn,
+        chNumber: mrn || fields.bordereauNumber,
       });
     } else {
       this.log.log(
@@ -220,9 +368,18 @@ export class MercurioInboundService {
       );
     }
 
+    const amountHint =
+      fields.mwstCh != null
+        ? ` MWST=${fields.mwstCh}`
+        : fields.zollabgabenCh != null
+          ? ` Zoll=${fields.zollabgabenCh}`
+          : '';
+
     this.log.log(
       `Mercurio ${fields.docType} ${orderNumber}.${consignmentIndex}` +
         ` CH=${mrn || '-'} Ref=${lrn}` +
+        (fields.bordereauNumber ? ` Bordereau=${fields.bordereauNumber}` : '') +
+        amountHint +
         (fields.accessCode ? ` Zugang=${fields.accessCode}` : '') +
         (fields.atExportMrn ? ` AT=${fields.atExportMrn}` : '') +
         (soloplanWritten ? ' → Soloplan' : '') +
@@ -263,7 +420,13 @@ export class MercurioInboundService {
         ? 'CH Bezugsschein'
         : input.docType === 'EINFUHRLISTE'
           ? 'CH Einfuhrliste'
-          : 'CH e-dec';
+          : input.docType === 'EVV_MWST'
+            ? 'CH eVV MWST'
+            : input.docType === 'EVV_ZOLL'
+              ? 'CH eVV Zoll'
+              : input.docType === 'BORDEREAU'
+                ? 'CH Bordereau'
+                : 'CH e-dec';
     const safeName = `${Date.now()}-mercurio-${input.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, 'mercurio', safeName);
     copyFileSync(input.filePath, storagePath);

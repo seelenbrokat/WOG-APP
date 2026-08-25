@@ -168,12 +168,13 @@ export class EzollSoloplanService {
   }
 
   /**
-   * Mercurio CH e-dec (Bezugsschein / Einfuhrliste) →
+   * Mercurio CH e-dec (Bezugsschein / Einfuhrliste / eVV) →
    * - Match: ordernumber + itemNumber
-   * - Flags: bezugsschein / einfuhliste / definitiv
+   * - Flags: bezugsschein / einfuhliste / definitiv / veranlagungsverfügung*
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
-   * - kontoZoll / kontoMWST / zAZKonto
-   * - zollabgabenCH / mWSTCH / bearbeitungsgebührCH / tarifnummernCHAPI
+   * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
+   * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV
+   * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
   writeMercurioEdecUpdate(
     match: EzollSoloplanMatch,
@@ -200,8 +201,20 @@ export class EzollSoloplanService {
     if (fields.accessCode) consignment.zugangscode = fields.accessCode;
     if (fields.refNumber) consignment.refNr = fields.refNumber;
     if (fields.kontoZoll) consignment.kontoZoll = fields.kontoZoll;
-    if (fields.kontoMwst) consignment.kontoMWST = fields.kontoMwst;
+    // kontoMWST ohne Bindestrich (6898-0 / 68980 → 68980)
+    if (fields.kontoMwst) {
+      consignment.kontoMWST = String(fields.kontoMwst).replace(/-/g, '');
+    }
     if (fields.zazKonto) consignment.zAZKonto = fields.zazKonto;
+    // Soloplan: bordereaunummer ist Integer (Read-API: 0), kein String
+    if (fields.bordereauNumber) {
+      const bn = Number(String(fields.bordereauNumber).replace(/\D/g, ''));
+      if (Number.isFinite(bn) && bn > 0) consignment.bordereaunummer = bn;
+    }
+
+    // Beträge + Veranlagungsflags (eVV; Bordereau setzt nur Nr./Flags)
+    if (fields.veranlagungMwst) consignment.veranlagungsverfügungMWST = true;
+    if (fields.veranlagungZoll) consignment.veranlagungsverfügungZoll = true;
     if (fields.mwstCh != null) consignment.mWSTCH = fields.mwstCh;
     if (fields.zollabgabenCh != null) consignment.zollabgabenCH = fields.zollabgabenCh;
     if (fields.bearbeitungsgebuehrCh != null) {
@@ -216,7 +229,11 @@ export class EzollSoloplanService {
         ? 'mercurio-bs'
         : fields.docType === 'EINFUHRLISTE'
           ? 'mercurio-el'
-          : 'mercurio';
+          : fields.docType === 'EVV_MWST'
+            ? 'mercurio-evvvat'
+            : fields.docType === 'EVV_ZOLL'
+              ? 'mercurio-evvdut'
+              : 'mercurio';
     return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 

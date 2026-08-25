@@ -169,15 +169,23 @@ export {
   detectMercurioEdecDocType,
   parseMercurioEdecMatchFromFilename,
   parseMercurioEdecMatchFromRef,
+  parseMercurioBordereauNumberFromFilename,
   extractChDeclarationNumberFromPdfText,
   extractMercurioRefNumberFromPdfText,
   extractAtExportMrnFromMercurioPdfText,
   extractMercurioEdecFieldsFromPdfText,
+  extractMercurioBordereauFieldsFromPdfText,
   extractChKontoNumber,
+  normalizeChKontoMwstForSoloplan,
+  normalizeChKontoForSoloplan,
+  parseChAmount,
   isMercurioEdecFilename,
+  mercurioProcessedSubdir,
 } from './mercurio-edec';
 export type {
   MercurioEdecDocType,
   MercurioEdecMatch,
   MercurioEdecFields,
+  MercurioBordereauFields,
+  MercurioBordereauLine,
 } from './mercurio-edec';

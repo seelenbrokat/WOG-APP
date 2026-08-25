@@ -2,9 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   detectMercurioEdecDocType,
+  extractMercurioBordereauFieldsFromPdfText,
   extractMercurioEdecFieldsFromPdfText,
   parseMercurioEdecMatchFromFilename,
   parseMercurioEdecMatchFromRef,
+  parseMercurioBordereauNumberFromFilename,
 } from './mercurio-edec';
 
 describe('mercurio e-dec', () => {
@@ -17,6 +19,20 @@ describe('mercurio e-dec', () => {
       detectMercurioEdecDocType('edece-el-104-442990.1+Diep-0-1.pdf'),
       'EINFUHRLISTE',
     );
+    assert.equal(
+      detectMercurioEdecDocType('edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1.pdf'),
+      'EVV_MWST',
+    );
+    assert.equal(
+      detectMercurioEdecDocType('edece_evvdut-edeceinfuhr-104-444230.1+CON-0-1.pdf'),
+      'EVV_ZOLL',
+    );
+    assert.equal(
+      detectMercurioEdecDocType(
+        'edece_bordereau_104_68980_CHE409812868_1557466_72_20260824.pdf',
+      ),
+      'BORDEREAU',
+    );
     assert.deepEqual(
       parseMercurioEdecMatchFromFilename('edece-bs-104-443153.1+CON-0-1.pdf'),
       {
@@ -28,13 +44,15 @@ describe('mercurio e-dec', () => {
       },
     );
     assert.deepEqual(
-      parseMercurioEdecMatchFromFilename('edece-el-104-442990.1+Diep-0-1.pdf'),
+      parseMercurioEdecMatchFromFilename(
+        'edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+      ),
       {
         kind: 'orderConsignment',
-        orderNumber: 442990,
+        orderNumber: 444230,
         consignmentIndex: 1,
         mandantCode: '104',
-        siteCode: 'Diep',
+        siteCode: 'CON',
       },
     );
   });
@@ -49,7 +67,7 @@ describe('mercurio e-dec', () => {
     });
   });
 
-  it('extrahiert CH-Nummer, Ref, Zugangscode und Konten aus Einfuhrliste', () => {
+  it('Einfuhrliste: Meta ja, Beträge nein (kommen aus eVV)', () => {
     const text = `
 VORANMELDUNG FREI OHNE Einfuhrliste Definitiv
 Zollstelle CH003451 Zoll Ost - Diepoldsau
@@ -79,10 +97,84 @@ Zugangscode:      jzLBdDDNjvFSjRS0
     assert.equal(fields.definitiv, true);
     assert.equal(fields.kontoZoll, '6898-0');
     assert.equal(fields.kontoMwst, '6898-0');
-    assert.equal(fields.mwstCh, 53424);
-    assert.equal(fields.zollabgabenCh, 0);
-    assert.equal(fields.bearbeitungsgebuehrCh, 5);
+    assert.equal(fields.mwstCh, null);
+    assert.equal(fields.zollabgabenCh, null);
+    assert.equal(fields.bearbeitungsgebuehrCh, null);
     assert.equal(fields.totalItems, 1);
+  });
+
+  it('eVV MWST: Gesamtbetrag + Bordereau + Flag', () => {
+    const text = `
+VERANLAGUNGSVERFÜGUNG MWST Import Definitiv
+Bordereaunummer: 1510331
+Konto MWST:       68980-WOG Logistics Diepoldsau
+Gesamtbetrag MWST [CHF]:                          184.50
+Anmeld. Nr: 110682
+Ref-Nr.: 104/444230.1/CON/0/1
+Zollanmeldungsnummer: 26CHEI004427317513
+Zugangscode: ebN9HRo!e8QJVkOg
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(
+      text,
+      'edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+    );
+    assert.equal(fields.docType, 'EVV_MWST');
+    assert.equal(fields.mwstCh, 184.5);
+    assert.equal(fields.bordereauNumber, '1510331');
+    assert.equal(fields.veranlagungMwst, true);
+    assert.equal(fields.veranlagungZoll, null);
+    assert.equal(fields.chDeclarationNumber, '26CHEI004427317513');
+    assert.equal(fields.accessCode, 'ebN9HRo!e8QJVkOg');
+    assert.equal(fields.refNumber, '104/444230.1/CON/0/1');
+    // eVV „68980-WOG“ → Ziffern ohne Bindestrich (Write macht 68980)
+    assert.equal(fields.kontoMwst, '68980');
+    assert.equal(fields.definitiv, true);
+  });
+
+  it('eVV Zoll: Zollabgaben + Flag + Konto', () => {
+    const text = `
+VERANLAGUNGSVERFÜGUNG ZOLL Import Definitiv
+Bordereaunummer: 1510331
+Konto Zoll:      68980-WOG Logistics Diepoldsau
+Zollabgaben                                       0.00
+Gesamtbetrag:                                     0.00
+Ref-Nr.: 104/444230.1/CON/0/1
+Zollanmeldungsnummer: 26CHEI004427317513
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(
+      text,
+      'edece_evvdut-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+    );
+    assert.equal(fields.docType, 'EVV_ZOLL');
+    assert.equal(fields.zollabgabenCh, 0);
+    assert.equal(fields.veranlagungZoll, true);
+    assert.equal(fields.bordereauNumber, '1510331');
+    assert.equal(fields.kontoZoll, '68980');
+  });
+
+  it('Bordereau: Nr. aus Dateiname + VVZ/VVM-Zeilen', () => {
+    assert.equal(
+      parseMercurioBordereauNumberFromFilename(
+        'edece_bordereau_104_68980_CHE409812868_1557466_72_20260824.pdf',
+      ),
+      '1557466',
+    );
+    const text = `
+BORDEREAU DER ABGABEN
+1557466
+VVZ 104/445921.1/Diep/0/1 26CHEI004440158958.1                   0.00
+VVM 104/445921.1/Diep/0/1 26CHEI004440158958.1                160.20
+`;
+    const b = extractMercurioBordereauFieldsFromPdfText(
+      text,
+      'edece_bordereau_104_68980_CHE409812868_1557466_72_20260824.pdf',
+    );
+    assert.equal(b.bordereauNumber, '1557466');
+    assert.equal(b.lines.length, 2);
+    assert.equal(b.lines[0].kind, 'VVZ');
+    assert.equal(b.lines[0].match.orderNumber, 445921);
+    assert.equal(b.lines[1].kind, 'VVM');
+    assert.equal(b.lines[1].amountChf, 160.2);
   });
 
   it('Zugangscode mit Plus und Konto nur Nummer', () => {

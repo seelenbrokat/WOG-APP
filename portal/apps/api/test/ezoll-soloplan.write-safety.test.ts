@@ -153,10 +153,13 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           kontoZoll: '14037-9',
           kontoMwst: '14037-9',
           zazKonto: null,
-          mwstCh: 53424,
-          zollabgabenCh: 0,
-          bearbeitungsgebuehrCh: 5,
+          mwstCh: null,
+          zollabgabenCh: null,
+          bearbeitungsgebuehrCh: null,
           totalItems: 1,
+          bordereauNumber: null,
+          veranlagungMwst: null,
+          veranlagungZoll: null,
         },
       );
 
@@ -173,14 +176,138 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
       assert.equal(row.refNr, '104/443153.1/CON/0/1');
       assert.equal(row.kontoZoll, '14037-9');
-      assert.equal(row.kontoMWST, '14037-9');
-      assert.equal(row.mWSTCH, 53424);
+      assert.equal(row.kontoMWST, '140379');
+      assert.equal(row.mWSTCH, undefined);
       assert.equal(row.tarifnummernCHAPI, 1);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
+  it('order-Root Mercurio eVV MWST: mWSTCH + Bordereau + Flag', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-evv-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 444230, consignmentIndex: 1 },
+        'edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+        {
+          docType: 'EVV_MWST',
+          chDeclarationNumber: '26CHEI004427317513',
+          refNumber: '104/444230.1/CON/0/1',
+          atExportMrn: null,
+          registrationNumber: '110682',
+          accessCode: 'ebN9HRo!e8QJVkOg',
+          definitiv: true,
+          kontoZoll: null,
+          kontoMwst: '6898-0',
+          zazKonto: null,
+          mwstCh: 184.5,
+          zollabgabenCh: null,
+          bearbeitungsgebuehrCh: null,
+          totalItems: 1,
+          bordereauNumber: '1510331',
+          veranlagungMwst: true,
+          veranlagungZoll: null,
+        },
+      );
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.mWSTCH, 184.5);
+      assert.equal(row.bordereaunummer, 1510331);
+      assert.equal(typeof row.bordereaunummer, 'number');
+      assert.equal(row.veranlagungsverfügungMWST, true);
+      assert.equal(row.zugangscode, 'ebN9HRo!e8QJVkOg');
+      assert.equal(row.kontoMWST, '68980');
+      assert.equal(row.tarifnummernCHAPI, 1);
+      assert.equal(row.definitiv, true);
+      assert.equal(row.mRNAPI, '26CHEI004427317513');
+      assert.equal(row.zollanmeldungsnummer, '26CHEI004427317513');
+      assert.equal(row.refNr, '104/444230.1/CON/0/1');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('order-Root Mercurio eVV Zoll: zollabgabenCH=0 + Flag + Integer-Bordereau', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-evvz-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 444230, consignmentIndex: 1 },
+        'edece_evvdut-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+        {
+          docType: 'EVV_ZOLL',
+          chDeclarationNumber: '26CHEI004427317513',
+          refNumber: '104/444230.1/CON/0/1',
+          atExportMrn: null,
+          registrationNumber: '110682',
+          accessCode: 'ebN9HRo!e8QJVkOg',
+          definitiv: true,
+          kontoZoll: '6898-0',
+          kontoMwst: null,
+          zazKonto: null,
+          mwstCh: null,
+          zollabgabenCh: 0,
+          bearbeitungsgebuehrCh: null,
+          totalItems: 1,
+          bordereauNumber: '1510331',
+          veranlagungMwst: null,
+          veranlagungZoll: true,
+        },
+      );
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.zollabgabenCH, 0);
+      assert.equal(row.mWSTCH, undefined);
+      assert.equal(row.bordereaunummer, 1510331);
+      assert.equal(row.veranlagungsverfügungZoll, true);
+      assert.equal(row.kontoZoll, '6898-0');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('kontoMWST Write: Bindestrich wird entfernt, zollabgabenCH=0 bleibt 0', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-konto-mwst-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 1, consignmentIndex: 1 },
+        'edece_evvvat-edeceinfuhr-104-1.1+CON-0-1.pdf',
+        {
+          docType: 'EVV_MWST',
+          chDeclarationNumber: '26CHEI000000000001',
+          refNumber: null,
+          atExportMrn: null,
+          registrationNumber: null,
+          accessCode: null,
+          definitiv: null,
+          kontoZoll: null,
+          kontoMwst: '6898-0',
+          zazKonto: null,
+          mwstCh: 10,
+          zollabgabenCh: 0,
+          bearbeitungsgebuehrCh: null,
+          totalItems: null,
+          bordereauNumber: null,
+          veranlagungMwst: true,
+          veranlagungZoll: true,
+        },
+      );
+      const row = (
+        (readJson(path).order as Array<Record<string, unknown>>)[0]
+          .consignments as Array<Record<string, unknown>>
+      )[0];
+      assert.equal(row.kontoMWST, '68980');
+      assert.equal(row.zollabgabenCH, 0);
+      assert.equal(row.mWSTCH, 10);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it('order-Root CC599: nur Flag unter nested consignments', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
     try {
