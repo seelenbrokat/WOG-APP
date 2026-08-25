@@ -126,8 +126,8 @@ Zugangscode: ebN9HRo!e8QJVkOg
     assert.equal(fields.chDeclarationNumber, '26CHEI004427317513');
     assert.equal(fields.accessCode, 'ebN9HRo!e8QJVkOg');
     assert.equal(fields.refNumber, '104/444230.1/CON/0/1');
-    // eVV „68980-WOG“ → Soloplan „6898-0“
-    assert.equal(fields.kontoMwst, '6898-0');
+    // eVV „68980-WOG“ → Ziffern ohne Bindestrich (Write macht 68980)
+    assert.equal(fields.kontoMwst, '68980');
     assert.equal(fields.definitiv, true);
   });
 
@@ -149,7 +149,7 @@ Zollanmeldungsnummer: 26CHEI004427317513
     assert.equal(fields.zollabgabenCh, 0);
     assert.equal(fields.veranlagungZoll, true);
     assert.equal(fields.bordereauNumber, '1510331');
-    assert.equal(fields.kontoZoll, '6898-0');
+    assert.equal(fields.kontoZoll, '68980');
   });
 
   it('Bordereau: Nr. aus Dateiname + VVZ/VVM-Zeilen', () => {

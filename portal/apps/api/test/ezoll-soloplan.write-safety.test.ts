@@ -176,7 +176,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
       assert.equal(row.refNr, '104/443153.1/CON/0/1');
       assert.equal(row.kontoZoll, '14037-9');
-      assert.equal(row.kontoMWST, '14037-9');
+      assert.equal(row.kontoMWST, '140379');
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.tarifnummernCHAPI, 1);
     } finally {
@@ -219,7 +219,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(typeof row.bordereaunummer, 'number');
       assert.equal(row.veranlagungsverfügungMWST, true);
       assert.equal(row.zugangscode, 'ebN9HRo!e8QJVkOg');
-      assert.equal(row.kontoMWST, '6898-0');
+      assert.equal(row.kontoMWST, '68980');
       assert.equal(row.tarifnummernCHAPI, 1);
       assert.equal(row.definitiv, true);
       assert.equal(row.mRNAPI, '26CHEI004427317513');
@@ -265,6 +265,45 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.bordereaunummer, 1510331);
       assert.equal(row.veranlagungsverfügungZoll, true);
       assert.equal(row.kontoZoll, '6898-0');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('kontoMWST Write: Bindestrich wird entfernt, zollabgabenCH=0 bleibt 0', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-konto-mwst-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 1, consignmentIndex: 1 },
+        'edece_evvvat-edeceinfuhr-104-1.1+CON-0-1.pdf',
+        {
+          docType: 'EVV_MWST',
+          chDeclarationNumber: '26CHEI000000000001',
+          refNumber: null,
+          atExportMrn: null,
+          registrationNumber: null,
+          accessCode: null,
+          definitiv: null,
+          kontoZoll: null,
+          kontoMwst: '6898-0',
+          zazKonto: null,
+          mwstCh: 10,
+          zollabgabenCh: 0,
+          bearbeitungsgebuehrCh: null,
+          totalItems: null,
+          bordereauNumber: null,
+          veranlagungMwst: true,
+          veranlagungZoll: true,
+        },
+      );
+      const row = (
+        (readJson(path).order as Array<Record<string, unknown>>)[0]
+          .consignments as Array<Record<string, unknown>>
+      )[0];
+      assert.equal(row.kontoMWST, '68980');
+      assert.equal(row.zollabgabenCH, 0);
+      assert.equal(row.mWSTCH, 10);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

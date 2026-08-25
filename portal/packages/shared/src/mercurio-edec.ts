@@ -209,25 +209,31 @@ export function extractAtExportMrnFromMercurioPdfText(text: string): string | nu
 }
 
 /**
- * „6898-0 WOG…“ / „14037-9“ / eVV „68980-WOG…“ → Soloplan-Form „6898-0“ / „14037-9“.
- * eVV hängt oft die Prüfziffer ohne Bindestrich an (68980 → 6898-0).
+ * „6898-0 WOG…“ / „14037-9“ / eVV „68980-WOG…“ → Ziffern inkl. optionalem Bindestrich.
+ * (Soloplan kontoMWST schreibt ohne Bindestrich – siehe Write.)
  */
 export function extractChKontoNumber(raw: string | null | undefined): string | null {
   const m = String(raw || '')
     .trim()
     .match(/^(\d+(?:-\d+)*)\b/);
-  if (!m) return null;
-  return normalizeChKontoForSoloplan(m[1]);
+  return m ? m[1] : null;
 }
 
-/** Soloplan speichert CH-Konten als Stamm-Prüfziffer (6898-0), nicht 68980. */
-export function normalizeChKontoForSoloplan(konto: string | null | undefined): string | null {
+/** kontoMWST ohne Bindestrich: 6898-0 → 68980, 68980 bleibt 68980. */
+export function normalizeChKontoMwstForSoloplan(
+  konto: string | null | undefined,
+): string | null {
   const s = String(konto || '').trim();
   if (!s) return null;
-  if (/^\d+-\d+$/.test(s)) return s;
-  const digits = s.match(/^(\d{4,})(\d)$/);
-  if (digits) return `${digits[1]}-${digits[2]}`;
-  return s;
+  const compact = s.replace(/-/g, '');
+  return /^\d+$/.test(compact) ? compact : s;
+}
+
+/** @deprecated Alias – MWST ohne Bindestrich. */
+export function normalizeChKontoForSoloplan(
+  konto: string | null | undefined,
+): string | null {
+  return normalizeChKontoMwstForSoloplan(konto);
 }
 
 /** CH-Beträge: 53'424 / 1.234,56 / 3200.37 / 184.50 */

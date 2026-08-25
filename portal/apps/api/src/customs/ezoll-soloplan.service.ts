@@ -201,7 +201,10 @@ export class EzollSoloplanService {
     if (fields.accessCode) consignment.zugangscode = fields.accessCode;
     if (fields.refNumber) consignment.refNr = fields.refNumber;
     if (fields.kontoZoll) consignment.kontoZoll = fields.kontoZoll;
-    if (fields.kontoMwst) consignment.kontoMWST = fields.kontoMwst;
+    // kontoMWST ohne Bindestrich (6898-0 / 68980 → 68980)
+    if (fields.kontoMwst) {
+      consignment.kontoMWST = String(fields.kontoMwst).replace(/-/g, '');
+    }
     if (fields.zazKonto) consignment.zAZKonto = fields.zazKonto;
     // Soloplan: bordereaunummer ist Integer (Read-API: 0), kein String
     if (fields.bordereauNumber) {

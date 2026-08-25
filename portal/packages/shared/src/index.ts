@@ -176,6 +176,7 @@ export {
   extractMercurioEdecFieldsFromPdfText,
   extractMercurioBordereauFieldsFromPdfText,
   extractChKontoNumber,
+  normalizeChKontoMwstForSoloplan,
   normalizeChKontoForSoloplan,
   parseChAmount,
   isMercurioEdecFilename,
