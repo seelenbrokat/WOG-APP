@@ -126,12 +126,16 @@ Zugangscode: ebN9HRo!e8QJVkOg
     assert.equal(fields.chDeclarationNumber, '26CHEI004427317513');
     assert.equal(fields.accessCode, 'ebN9HRo!e8QJVkOg');
     assert.equal(fields.refNumber, '104/444230.1/CON/0/1');
+    // eVV „68980-WOG“ → Soloplan „6898-0“
+    assert.equal(fields.kontoMwst, '6898-0');
+    assert.equal(fields.definitiv, true);
   });
 
-  it('eVV Zoll: Zollabgaben + Flag', () => {
+  it('eVV Zoll: Zollabgaben + Flag + Konto', () => {
     const text = `
 VERANLAGUNGSVERFÜGUNG ZOLL Import Definitiv
 Bordereaunummer: 1510331
+Konto Zoll:      68980-WOG Logistics Diepoldsau
 Zollabgaben                                       0.00
 Gesamtbetrag:                                     0.00
 Ref-Nr.: 104/444230.1/CON/0/1
@@ -145,6 +149,7 @@ Zollanmeldungsnummer: 26CHEI004427317513
     assert.equal(fields.zollabgabenCh, 0);
     assert.equal(fields.veranlagungZoll, true);
     assert.equal(fields.bordereauNumber, '1510331');
+    assert.equal(fields.kontoZoll, '6898-0');
   });
 
   it('Bordereau: Nr. aus Dateiname + VVZ/VVM-Zeilen', () => {

@@ -60,7 +60,10 @@ export type MercurioEdecFields = {
   bearbeitungsgebuehrCh: number | null;
   /** Anzahl Positionen → tarifnummernCHAPI */
   totalItems: number | null;
-  /** Bordereaunummer → bordereaunummer */
+  /**
+   * Bordereaunummer (PDF/Dateiname als Ziffernstring).
+   * Soloplan-Feld `bordereaunummer` ist Integer – Umwandlung beim Write.
+   */
   bordereauNumber: string | null;
   /** eVV MWST vorhanden → veranlagungsverfügungMWST */
   veranlagungMwst: boolean | null;
@@ -205,12 +208,26 @@ export function extractAtExportMrnFromMercurioPdfText(text: string): string | nu
   return compact ? compact[1].toUpperCase() : null;
 }
 
-/** „6898-0 WOG Logistics Diepoldsau“ / „14037-9“ → „6898-0“ / „14037-9“. */
+/**
+ * „6898-0 WOG…“ / „14037-9“ / eVV „68980-WOG…“ → Soloplan-Form „6898-0“ / „14037-9“.
+ * eVV hängt oft die Prüfziffer ohne Bindestrich an (68980 → 6898-0).
+ */
 export function extractChKontoNumber(raw: string | null | undefined): string | null {
   const m = String(raw || '')
     .trim()
     .match(/^(\d+(?:-\d+)*)\b/);
-  return m ? m[1] : null;
+  if (!m) return null;
+  return normalizeChKontoForSoloplan(m[1]);
+}
+
+/** Soloplan speichert CH-Konten als Stamm-Prüfziffer (6898-0), nicht 68980. */
+export function normalizeChKontoForSoloplan(konto: string | null | undefined): string | null {
+  const s = String(konto || '').trim();
+  if (!s) return null;
+  if (/^\d+-\d+$/.test(s)) return s;
+  const digits = s.match(/^(\d{4,})(\d)$/);
+  if (digits) return `${digits[1]}-${digits[2]}`;
+  return s;
 }
 
 /** CH-Beträge: 53'424 / 1.234,56 / 3200.37 / 184.50 */
@@ -346,7 +363,7 @@ export function extractMercurioBordereauFieldsFromPdfText(
 
   const lines: MercurioBordereauLine[] = [];
   for (const m of raw.matchAll(
-    /\b(VVZ|VVM)\s+(\d+\/\d{5,7}\.\d{1,3}\/[^\s]+)\s+(26CHEI[0-9A-Z.]+)\s+([0-9.'\s]+)/gi,
+    /\b(VVZ|VVM)\s+(\d+\/\d{5,7}\.\d{1,3}\/[^\s]+)\s+(26CHEI[0-9A-Z.]+)\s+([0-9.']+)/gi,
   )) {
     const match = parseMercurioEdecMatchFromRef(m[2]);
     if (!match) continue;
