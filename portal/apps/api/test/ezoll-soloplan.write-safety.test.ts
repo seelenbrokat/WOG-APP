@@ -153,10 +153,13 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           kontoZoll: '14037-9',
           kontoMwst: '14037-9',
           zazKonto: null,
-          mwstCh: 53424,
-          zollabgabenCh: 0,
-          bearbeitungsgebuehrCh: 5,
+          mwstCh: null,
+          zollabgabenCh: null,
+          bearbeitungsgebuehrCh: null,
           totalItems: 1,
+          bordereauNumber: null,
+          veranlagungMwst: null,
+          veranlagungZoll: null,
         },
       );
 
@@ -174,13 +177,51 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.refNr, '104/443153.1/CON/0/1');
       assert.equal(row.kontoZoll, '14037-9');
       assert.equal(row.kontoMWST, '14037-9');
-      assert.equal(row.mWSTCH, 53424);
+      assert.equal(row.mWSTCH, undefined);
       assert.equal(row.tarifnummernCHAPI, 1);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
+  it('order-Root Mercurio eVV MWST: mWSTCH + Bordereau + Flag', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-evv-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 444230, consignmentIndex: 1 },
+        'edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1.pdf',
+        {
+          docType: 'EVV_MWST',
+          chDeclarationNumber: '26CHEI004427317513',
+          refNumber: '104/444230.1/CON/0/1',
+          atExportMrn: null,
+          registrationNumber: '110682',
+          accessCode: 'ebN9HRo!e8QJVkOg',
+          definitiv: true,
+          kontoZoll: null,
+          kontoMwst: '68980',
+          zazKonto: null,
+          mwstCh: 184.5,
+          zollabgabenCh: null,
+          bearbeitungsgebuehrCh: null,
+          totalItems: 1,
+          bordereauNumber: '1510331',
+          veranlagungMwst: true,
+          veranlagungZoll: null,
+        },
+      );
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.mWSTCH, 184.5);
+      assert.equal(row.bordereaunummer, '1510331');
+      assert.equal(row.veranlagungsverfügungMWST, true);
+      assert.equal(row.zugangscode, 'ebN9HRo!e8QJVkOg');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it('order-Root CC599: nur Flag unter nested consignments', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
     try {

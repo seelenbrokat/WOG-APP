@@ -1,14 +1,23 @@
 /**
- * Mercurio CH e-dec PDFs (Bezugsschein / Einfuhrliste).
+ * Mercurio CH e-dec PDFs (Bezugsschein / Einfuhrliste / eVV / Bordereau).
  *
- * Dateiname: edece-{bs|el}-{mandant}-{auftrag}.{sendung}+{ort}-0-1.pdf
- * Beispiel:  edece-bs-104-443153.1+CON-0-1.pdf
- *            edece-el-104-442990.1+Diep-0-1.pdf
+ * Dateinamen:
+ * - edece-{bs|el}-{mandant}-{auftrag}.{sendung}+{ort}-0-1.pdf
+ * - edece_evvvat-edeceinfuhr-{mandant}-{auftrag}.{sendung}+{ort}-0-1.pdf
+ * - edece_evvdut-edeceinfuhr-{mandant}-{auftrag}.{sendung}+{ort}-0-1.pdf
+ * - edece_bordereau_{mandant}_{konto}_{uid}_{bordereau}_{n}_{yyyyMMdd}.pdf
  *
+ * Beträge (mWSTCH / zollabgabenCH / Bordereau) kommen aus eVV – nie aus Einfuhrliste.
  * Match nur über Auftrag.Sendung aus Dateiname/Ref-Nr – nie über CH-/AT-MRN.
  */
 
-export type MercurioEdecDocType = 'BEZUGSSCHEIN' | 'EINFUHRLISTE' | 'UNKNOWN';
+export type MercurioEdecDocType =
+  | 'BEZUGSSCHEIN'
+  | 'EINFUHRLISTE'
+  | 'EVV_MWST'
+  | 'EVV_ZOLL'
+  | 'BORDEREAU'
+  | 'UNKNOWN';
 
 export type MercurioEdecMatch = {
   kind: 'orderConsignment';
@@ -30,7 +39,7 @@ export type MercurioEdecFields = {
   atExportMrn: string | null;
   /** Anmeld. Nr. */
   registrationNumber: string | null;
-  /** Zugangscode (EL) → zugangscode */
+  /** Zugangscode → zugangscode */
   accessCode: string | null;
   /** Definitiv-Flag aus PDF */
   definitiv: boolean | null;
@@ -40,14 +49,36 @@ export type MercurioEdecFields = {
   kontoMwst: string | null;
   /** ZAZ Konto falls vorhanden */
   zazKonto: string | null;
-  /** MWST-Wert → mWSTCH */
+  /**
+   * MWST-Abgabe CHF → mWSTCH.
+   * Nur aus eVV MWST (Gesamtbetrag MWST), nie MWST-Wert aus Einfuhrliste.
+   */
   mwstCh: number | null;
-  /** Zollabgaben → zollabgabenCH */
+  /** Zollabgaben CHF → zollabgabenCH (nur eVV Zoll) */
   zollabgabenCh: number | null;
-  /** Bearbeitungsgebühr → bearbeitungsgebührCH */
+  /** Bearbeitungsgebühr → bearbeitungsgebührCH (falls auf eVV) */
   bearbeitungsgebuehrCh: number | null;
   /** Anzahl Positionen → tarifnummernCHAPI */
   totalItems: number | null;
+  /** Bordereaunummer → bordereaunummer */
+  bordereauNumber: string | null;
+  /** eVV MWST vorhanden → veranlagungsverfügungMWST */
+  veranlagungMwst: boolean | null;
+  /** eVV Zoll vorhanden → veranlagungsverfügungZoll */
+  veranlagungZoll: boolean | null;
+};
+
+/** Eine Zeile aus dem Abgaben-Bordereau (VVZ/VVM je Sendung). */
+export type MercurioBordereauLine = {
+  kind: 'VVZ' | 'VVM' | 'OTHER';
+  match: MercurioEdecMatch;
+  chDeclarationNumber: string | null;
+  amountChf: number | null;
+};
+
+export type MercurioBordereauFields = {
+  bordereauNumber: string | null;
+  lines: MercurioBordereauLine[];
 };
 
 function fileBaseName(fileName: string): string {
@@ -62,6 +93,11 @@ function fileBaseName(fileName: string): string {
 
 export function detectMercurioEdecDocType(fileName: string): MercurioEdecDocType {
   const base = fileBaseName(fileName).toLowerCase();
+  if (base.startsWith('edece_evvvat') || base.includes('evvvat')) return 'EVV_MWST';
+  if (base.startsWith('edece_evvdut') || base.includes('evvdut')) return 'EVV_ZOLL';
+  if (base.startsWith('edece_bordereau') || base.includes('bordereau')) {
+    return 'BORDEREAU';
+  }
   if (base.startsWith('edece-bs-') || /(?:^|-)bs-\d+-\d+\./.test(base)) {
     return 'BEZUGSSCHEIN';
   }
@@ -74,11 +110,25 @@ export function detectMercurioEdecDocType(fileName: string): MercurioEdecDocType
 /**
  * Soloplan-Match aus Mercurio-Dateiname.
  * edece-bs-104-443153.1+CON-0-1 → 443153.1
+ * edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1 → 444230.1
  */
 export function parseMercurioEdecMatchFromFilename(
   fileName: string,
 ): MercurioEdecMatch | null {
   const base = fileBaseName(fileName).replace(/^\d{10,16}_/, '');
+  // eVV: edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1
+  const evv = base.match(
+    /^edece_evv(?:vat|dut)-edeceinfuhr-(\d+)-(\d{5,7})\.(\d{1,3})\+([A-Za-z0-9]+?)(?:-\d+(?:-\d+)*)?$/i,
+  );
+  if (evv) {
+    return {
+      kind: 'orderConsignment',
+      orderNumber: Number(evv[2]),
+      consignmentIndex: Number(evv[3]),
+      mandantCode: evv[1] || null,
+      siteCode: evv[4] || null,
+    };
+  }
   // …+CON-0-1 / …+Diep-0-1 → Standort vor festem -0-1-Suffix
   const m = base.match(
     /^edece-(bs|el)-(\d+)-(\d{5,7})\.(\d{1,3})\+([A-Za-z0-9]+?)(?:-\d+(?:-\d+)*)?$/i,
@@ -111,6 +161,17 @@ export function parseMercurioEdecMatchFromRef(
     mandantCode: m[1] || null,
     siteCode: site,
   };
+}
+
+/** Bordereau-Nr. aus Dateiname: …_1557466_72_20260824 */
+export function parseMercurioBordereauNumberFromFilename(
+  fileName: string,
+): string | null {
+  const base = fileBaseName(fileName);
+  const m = base.match(
+    /^edece_bordereau_\d+_[^_]+_[^_]+_(\d+)_\d+_\d{8}$/i,
+  );
+  return m?.[1] || null;
 }
 
 /** CH Zollanmeldungsnummer 26CHEI… (ohne .Positions-Suffix). */
@@ -152,8 +213,8 @@ export function extractChKontoNumber(raw: string | null | undefined): string | n
   return m ? m[1] : null;
 }
 
-/** CH-Beträge: 53'424 / 1.234,56 / 3200.37 */
-function parseChAmount(raw: string | null | undefined): number | null {
+/** CH-Beträge: 53'424 / 1.234,56 / 3200.37 / 184.50 */
+export function parseChAmount(raw: string | null | undefined): number | null {
   if (raw == null) return null;
   let s = String(raw).trim();
   if (!s) return null;
@@ -185,21 +246,24 @@ export function extractMercurioEdecFieldsFromPdfText(
   const raw = String(text || '');
   let docType = fileName ? detectMercurioEdecDocType(fileName) : 'UNKNOWN';
   if (docType === 'UNKNOWN') {
-    if (/BEZUGSSCHEIN/i.test(raw)) docType = 'BEZUGSSCHEIN';
+    if (/VERANLAGUNGSVERFÜGUNG\s+MWST/i.test(raw)) docType = 'EVV_MWST';
+    else if (/VERANLAGUNGSVERFÜGUNG\s+ZOLL/i.test(raw)) docType = 'EVV_ZOLL';
+    else if (/BORDEREAU\s+DER\s+ABGABEN/i.test(raw)) docType = 'BORDEREAU';
+    else if (/BEZUGSSCHEIN/i.test(raw)) docType = 'BEZUGSSCHEIN';
     else if (/Einfuhrliste/i.test(raw) || /VORANMELDUNG/i.test(raw)) {
       docType = 'EINFUHRLISTE';
     }
   }
 
-  const reg = raw.match(/Anmeld\.\s*Nr\.\s*:\s*(\d+)/i)?.[1] || null;
-  // z. B. jzLBdDDNjvFSjRS0 / xtqzX5+o45JDrMFN
+  const reg =
+    raw.match(/Anmeld\.\s*Nr\.?\s*:\s*(\d+)/i)?.[1] || null;
+  // z. B. jzLBdDDNjvFSjRS0 / xtqzX5+o45JDrMFN / ebN9HRo!e8QJVkOg
   const access =
-    raw.match(/Zugangscode\s*:\s*([A-Za-z0-9+/=_-]+)/i)?.[1]?.trim() || null;
+    raw.match(/Zugangscode\s*:\s*([A-Za-z0-9+/=_!-]+)/i)?.[1]?.trim() || null;
 
   let definitiv: boolean | null = null;
   if (/\bDefinitiv\b/i.test(raw)) definitiv = true;
 
-  // Nur Kontonummer inkl. Bindestrich, ohne Name: „6898-0 WOG …“ → „6898-0“
   const kontoZoll = extractChKontoNumber(
     raw.match(/Konto\s+Zoll\s*:\s*([^\n]+)/i)?.[1],
   );
@@ -210,23 +274,34 @@ export function extractMercurioEdecFieldsFromPdfText(
     raw.match(/ZAZ[-\s]?Konto\s*:\s*([^\n]+)/i)?.[1],
   );
 
-  const mwstCh = firstLabeledAmount(raw, [
-    /MWST-Wert\s+gesamt\s*:\s*([0-9.'\s]+)/i,
-    /MWST-Wert\s*:\s*([0-9.'\s]+)/i,
-  ]);
-  const zollabgabenCh = firstLabeledAmount(raw, [
-    /Zollansatz\s*:\s*([0-9.'\s]+)/i,
-    /Zollabgaben\s*:\s*([0-9.'\s]+)/i,
-  ]);
-  // „Andere Gebühren-150, 1, 5.00“ → letzter Betrag
+  const bordereauNumber =
+    raw.match(/Bordereaunummer\s*:\s*(\d+)/i)?.[1] ||
+    (fileName ? parseMercurioBordereauNumberFromFilename(fileName) : null);
+
+  // Beträge nur aus eVV – Einfuhrliste liefert bewusst keine mWSTCH/zollabgabenCH
+  let mwstCh: number | null = null;
+  let zollabgabenCh: number | null = null;
   let bearbeitungsgebuehrCh: number | null = null;
-  const fee = raw.match(
-    /Andere\s+Gebühren[^,]*,\s*[^,]*,\s*([0-9.'\s]+)/i,
-  );
-  if (fee?.[1]) bearbeitungsgebuehrCh = parseChAmount(fee[1]);
-  if (bearbeitungsgebuehrCh == null) {
-    bearbeitungsgebuehrCh = firstLabeledAmount(raw, [
-      /Bearbeitungsgebühr\s*:\s*([0-9.'\s]+)/i,
+  let veranlagungMwst: boolean | null = null;
+  let veranlagungZoll: boolean | null = null;
+
+  if (docType === 'EVV_MWST') {
+    veranlagungMwst = true;
+    mwstCh = firstLabeledAmount(raw, [
+      /Gesamtbetrag\s+MWST\s*\[CHF\]\s*:\s*([0-9.'\s]+)/i,
+      /Gesamtbetrag\s+MWST\s*:\s*([0-9.'\s]+)/i,
+    ]);
+    // Fallback: letzte Spalte „MWST [CHF]“ in der Positionszeile Bemessungsgrundlage
+    if (mwstCh == null) {
+      mwstCh = firstLabeledAmount(raw, [
+        /Bemessungsgrundlage\s+MWST\s*:[^\n]*?([0-9.'\s]+)\s*$/im,
+      ]);
+    }
+  } else if (docType === 'EVV_ZOLL') {
+    veranlagungZoll = true;
+    zollabgabenCh = firstLabeledAmount(raw, [
+      /Zollabgaben\s+([0-9.'\s]+)/i,
+      /Gesamtbetrag\s*:\s*([0-9.'\s]+)/i,
     ]);
   }
 
@@ -249,9 +324,60 @@ export function extractMercurioEdecFieldsFromPdfText(
     zollabgabenCh,
     bearbeitungsgebuehrCh,
     totalItems,
+    bordereauNumber,
+    veranlagungMwst,
+    veranlagungZoll,
   };
+}
+
+/**
+ * Bordereau: Zeilen VVZ/VVM mit Ref + CH-Nr + Betrag.
+ * Beispiel: VVM 104/445921.1/Diep/0/1 26CHEI004440158958.1 160.20
+ */
+export function extractMercurioBordereauFieldsFromPdfText(
+  text: string,
+  fileName?: string,
+): MercurioBordereauFields {
+  const raw = String(text || '');
+  const bordereauNumber =
+    (fileName ? parseMercurioBordereauNumberFromFilename(fileName) : null) ||
+    raw.match(/^\s*(\d{6,})\s*$/m)?.[1] ||
+    null;
+
+  const lines: MercurioBordereauLine[] = [];
+  for (const m of raw.matchAll(
+    /\b(VVZ|VVM)\s+(\d+\/\d{5,7}\.\d{1,3}\/[^\s]+)\s+(26CHEI[0-9A-Z.]+)\s+([0-9.'\s]+)/gi,
+  )) {
+    const match = parseMercurioEdecMatchFromRef(m[2]);
+    if (!match) continue;
+    lines.push({
+      kind: m[1].toUpperCase() as 'VVZ' | 'VVM',
+      match,
+      chDeclarationNumber: String(m[3]).replace(/\.\d+$/, '').toUpperCase(),
+      amountChf: parseChAmount(m[4]),
+    });
+  }
+
+  return { bordereauNumber, lines };
 }
 
 export function isMercurioEdecFilename(fileName: string): boolean {
   return detectMercurioEdecDocType(fileName) !== 'UNKNOWN';
+}
+
+export function mercurioProcessedSubdir(docType: MercurioEdecDocType): string {
+  switch (docType) {
+    case 'BEZUGSSCHEIN':
+      return 'bezugsschein';
+    case 'EINFUHRLISTE':
+      return 'einfuhrliste';
+    case 'EVV_MWST':
+      return 'evv-mwst';
+    case 'EVV_ZOLL':
+      return 'evv-zoll';
+    case 'BORDEREAU':
+      return 'bordereau';
+    default:
+      return 'other';
+  }
 }

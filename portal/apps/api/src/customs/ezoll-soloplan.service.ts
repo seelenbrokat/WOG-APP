@@ -168,12 +168,11 @@ export class EzollSoloplanService {
   }
 
   /**
-   * Mercurio CH e-dec (Bezugsschein / Einfuhrliste) →
+   * Mercurio CH e-dec (Bezugsschein / Einfuhrliste / eVV) →
    * - Match: ordernumber + itemNumber
-   * - Flags: bezugsschein / einfuhliste / definitiv
-   * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
-   * - kontoZoll / kontoMWST / zAZKonto
-   * - zollabgabenCH / mWSTCH / bearbeitungsgebührCH / tarifnummernCHAPI
+   * - Flags: bezugsschein / einfuhliste / definitiv / veranlagungsverfügung*
+   * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr, bordereaunummer
+   * - Beträge mWSTCH / zollabgabenCH nur aus eVV (nicht Einfuhrliste)
    */
   writeMercurioEdecUpdate(
     match: EzollSoloplanMatch,
@@ -202,6 +201,11 @@ export class EzollSoloplanService {
     if (fields.kontoZoll) consignment.kontoZoll = fields.kontoZoll;
     if (fields.kontoMwst) consignment.kontoMWST = fields.kontoMwst;
     if (fields.zazKonto) consignment.zAZKonto = fields.zazKonto;
+    if (fields.bordereauNumber) consignment.bordereaunummer = fields.bordereauNumber;
+
+    // Beträge + Veranlagungsflags nur aus eVV
+    if (fields.veranlagungMwst) consignment.veranlagungsverfügungMWST = true;
+    if (fields.veranlagungZoll) consignment.veranlagungsverfügungZoll = true;
     if (fields.mwstCh != null) consignment.mWSTCH = fields.mwstCh;
     if (fields.zollabgabenCh != null) consignment.zollabgabenCH = fields.zollabgabenCh;
     if (fields.bearbeitungsgebuehrCh != null) {
@@ -216,7 +220,11 @@ export class EzollSoloplanService {
         ? 'mercurio-bs'
         : fields.docType === 'EINFUHRLISTE'
           ? 'mercurio-el'
-          : 'mercurio';
+          : fields.docType === 'EVV_MWST'
+            ? 'mercurio-evvvat'
+            : fields.docType === 'EVV_ZOLL'
+              ? 'mercurio-evvdut'
+              : 'mercurio';
     return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 

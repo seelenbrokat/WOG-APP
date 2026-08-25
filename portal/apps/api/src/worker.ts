@@ -127,7 +127,7 @@ async function bootstrap() {
             (ezoll.purged ? `, ${ezoll.purged} Cache gelöscht` : ''),
         );
       }
-      const mercurio = await mercurioInbound.processInboundDir();
+      const mercurio = await mercurioInbound.processInboundDir(undefined, 80);
       if (
         mercurio.processed ||
         mercurio.unmatched ||
