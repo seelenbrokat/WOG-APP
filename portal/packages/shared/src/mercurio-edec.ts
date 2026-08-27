@@ -105,7 +105,9 @@ function fileBaseName(fileName: string): string {
 }
 
 export function detectMercurioEdecDocType(fileName: string): MercurioEdecDocType {
-  const base = fileBaseName(fileName).toLowerCase();
+  const base = fileBaseName(fileName)
+    .replace(/^\d{10,16}_/, '')
+    .toLowerCase();
   if (base.startsWith('ausfuhr_wa-a_vv') || /^ausfuhr_.*_vv_/.test(base)) {
     return 'AUSFUHR_VV';
   }

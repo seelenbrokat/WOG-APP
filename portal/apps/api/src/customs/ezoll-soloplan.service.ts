@@ -174,7 +174,8 @@ export class EzollSoloplanService {
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
-   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv,
+   *   customFields.customBool7 (CH-Ausfuhr / CFBOOLEAN7)
    * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
@@ -226,6 +227,11 @@ export class EzollSoloplanService {
       consignment.tarifnummernCHAPI = fields.totalItems;
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+
+    // Soloplan Custom Field „CH-Ausfuhr“ (CFBOOLEAN7) → customFields.customBool7
+    if (fields.docType === 'AUSFUHR_VV') {
+      consignment.customFields = { customBool7: true };
+    }
 
     const prefix =
       fields.docType === 'BEZUGSSCHEIN'
