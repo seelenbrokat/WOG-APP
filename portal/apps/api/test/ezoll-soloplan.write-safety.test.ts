@@ -361,48 +361,6 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
     }
   });
 
-  it('order-Root Mercurio Ausfuhr WA: Zugangscode eVV + GDRN', () => {
-    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-ausfuhr-wa-'));
-    try {
-      const svc = makeService(root, 'order');
-      const path = svc.writeMercurioEdecUpdate(
-        { kind: 'orderConsignment', orderNumber: 417181, consignmentIndex: 1 },
-        'ausfuhr_wa-a_wa_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
-        {
-          docType: 'AUSFUHR_WA',
-          chDeclarationNumber: '26CH06EXGSPQ2YZ2N5',
-          refNumber: '104/417181.1/Diep/0',
-          atExportMrn: null,
-          registrationNumber: null,
-          accessCode: '2BsKQtCdngNdZPsH',
-          definitiv: null,
-          kontoZoll: null,
-          kontoMwst: null,
-          zazKonto: null,
-          mwstCh: null,
-          zollabgabenCh: null,
-          bearbeitungsgebuehrCh: null,
-          totalItems: 1,
-          bordereauNumber: null,
-          veranlagungMwst: null,
-          veranlagungZoll: null,
-          eur1Number: null,
-        },
-      );
-      assert.match(path, /mercurio-ausfuhr-wa/);
-      const row = (
-        (readJson(path).order as Array<Record<string, unknown>>)[0]
-          .consignments as Array<Record<string, unknown>>
-      )[0];
-      assert.equal(row.mRNAPI, '26CH06EXGSPQ2YZ2N5');
-      assert.equal(row.zugangscode, '2BsKQtCdngNdZPsH');
-      assert.equal(row.tarifnummernCHAPI, 1);
-      assert.equal(row.definitiv, undefined);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
   it('order-Root CC599: nur Flag unter nested consignments', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
     try {

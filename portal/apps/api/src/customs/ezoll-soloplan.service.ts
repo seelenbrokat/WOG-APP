@@ -168,13 +168,14 @@ export class EzollSoloplanService {
   }
 
   /**
-   * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr WA+VV) →
+   * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
    * - Flags: bezugsschein / einfuhliste / definitiv / veranlagungsverfügung*
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
-   * - Passar Ausfuhr: GDRN → mRNAPI, Zugangscode eVV, tarifnummernCHAPI, eUR1_API
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv
+   * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
   writeMercurioEdecUpdate(

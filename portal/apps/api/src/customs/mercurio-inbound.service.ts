@@ -13,6 +13,7 @@ import {
 } from 'fs';
 import { basename, dirname, join } from 'path';
 import {
+  detectMercurioEdecDocType,
   extractMercurioBordereauFieldsFromPdfText,
   extractMercurioEdecFieldsFromPdfText,
   isMercurioEdecFilename,
@@ -30,7 +31,7 @@ import { EzollSoloplanService } from './ezoll-soloplan.service';
 /**
  * Mercurio CH e-dec / Passar Inbound (PDF):
  * - Bezugsschein / Einfuhrliste / eVV MWST / eVV Zoll / Bordereau
- * - Passar Ausfuhr WA + VV (GDRN / Zugangscode / EUR.1 → OrderEzoll)
+ * - Passar Ausfuhr VV (GDRN / EUR.1 → OrderEzoll); Ausfuhr WA wird gelöscht (nicht benötigt)
  * - Durchfuhr / Transportanmeldung: nur archivieren (Tour-Ebene, kein Consignment-Write)
  * - Match über Auftrag.Sendung aus Dateiname (Fallback Ref-Nr. im PDF)
  * - Beträge (mWSTCH / zollabgabenCH) nur aus eVV Einfuhr – nie Ausfuhr
@@ -84,6 +85,7 @@ export class MercurioInboundService {
         linked: 0,
         docs: 0,
         soloplan: 0,
+        deleted: 0,
         pending: 0,
       };
     }
@@ -100,6 +102,7 @@ export class MercurioInboundService {
     let linked = 0;
     let docs = 0;
     let soloplan = 0;
+    let deleted = 0;
     const files = this.listPendingFiles().slice(0, limit);
 
     for (const filePath of files) {
@@ -112,6 +115,10 @@ export class MercurioInboundService {
             filePath,
             join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
           );
+          continue;
+        }
+        if (result === 'deleted') {
+          deleted += 1;
           continue;
         }
         processed += 1;
@@ -143,6 +150,7 @@ export class MercurioInboundService {
       linked,
       docs,
       soloplan,
+      deleted,
       pending: this.listPendingFiles().length,
     };
   }
@@ -154,6 +162,7 @@ export class MercurioInboundService {
     writeSoloplan: boolean,
   ): Promise<
     | 'unmatched'
+    | 'deleted'
     | {
         linked: boolean;
         docAttached: boolean;
@@ -166,8 +175,21 @@ export class MercurioInboundService {
       return 'unmatched';
     }
 
+    // Früher Doc-Typ-Check ohne pdftotext: Ausfuhr-WA wird nicht benötigt
+    if (detectMercurioEdecDocType(fileName) === 'AUSFUHR_WA') {
+      this.deleteFile(filePath);
+      this.log.log(`Mercurio AUSFUHR_WA ignoriert/gelöscht ← ${fileName}`);
+      return 'deleted';
+    }
+
     const text = this.pdfText(filePath);
     const fields = extractMercurioEdecFieldsFromPdfText(text, fileName);
+
+    if (fields.docType === 'AUSFUHR_WA') {
+      this.deleteFile(filePath);
+      this.log.log(`Mercurio AUSFUHR_WA ignoriert/gelöscht ← ${fileName}`);
+      return 'deleted';
+    }
 
     if (fields.docType === 'BORDEREAU') {
       return this.processBordereau(organizationId, filePath, fileName, text, writeSoloplan);
@@ -512,6 +534,14 @@ export class MercurioInboundService {
         this.log.warn(`pdftotext ${basename(filePath)}: ${e?.message || e}`);
         return '';
       }
+    }
+  }
+
+  private deleteFile(filePath: string) {
+    try {
+      unlinkSync(filePath);
+    } catch (e: any) {
+      this.log.warn(`Mercurio Löschen ${basename(filePath)}: ${e?.message || e}`);
     }
   }
 
