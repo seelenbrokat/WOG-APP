@@ -133,10 +133,12 @@ async function bootstrap() {
         mercurio.unmatched ||
         mercurio.linked ||
         mercurio.docs ||
-        mercurio.soloplan
+        mercurio.soloplan ||
+        mercurio.deleted
       ) {
         console.log(
           `Mercurio e-dec: ${mercurio.processed} verarbeitet` +
+            (mercurio.deleted ? `, ${mercurio.deleted} WA gelöscht` : '') +
             (mercurio.linked ? `, ${mercurio.linked} Sendung verknüpft` : '') +
             (mercurio.docs ? `, ${mercurio.docs} PDF` : '') +
             (mercurio.soloplan ? `, ${mercurio.soloplan} Soloplan` : '') +

@@ -13,6 +13,7 @@ import {
 } from 'fs';
 import { basename, dirname, join } from 'path';
 import {
+  detectMercurioEdecDocType,
   extractMercurioBordereauFieldsFromPdfText,
   extractMercurioEdecFieldsFromPdfText,
   isMercurioEdecFilename,
@@ -28,10 +29,12 @@ import { ShipmentCustomsRefService } from './shipment-customs-ref.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
 
 /**
- * Mercurio CH e-dec Inbound (PDF):
+ * Mercurio CH e-dec / Passar Inbound (PDF):
  * - Bezugsschein / Einfuhrliste / eVV MWST / eVV Zoll / Bordereau
+ * - Passar Ausfuhr VV (GDRN / EUR.1 → OrderEzoll); Ausfuhr WA wird gelöscht (nicht benötigt)
+ * - Durchfuhr / Transportanmeldung: nur archivieren (Tour-Ebene, kein Consignment-Write)
  * - Match über Auftrag.Sendung aus Dateiname (Fallback Ref-Nr. im PDF)
- * - Beträge (mWSTCH / zollabgabenCH / Bordereau) nur aus eVV
+ * - Beträge (mWSTCH / zollabgabenCH) nur aus eVV Einfuhr – nie Ausfuhr
  * - OrderEzoll-Writes wenn SOLOPLAN_MERCURIO_ENABLED≠false
  */
 @Injectable()
@@ -61,6 +64,10 @@ export class MercurioInboundService {
       join(this.inboundRoot, 'processed', 'evv-mwst'),
       join(this.inboundRoot, 'processed', 'evv-zoll'),
       join(this.inboundRoot, 'processed', 'bordereau'),
+      join(this.inboundRoot, 'processed', 'ausfuhr-wa'),
+      join(this.inboundRoot, 'processed', 'ausfuhr-vv'),
+      join(this.inboundRoot, 'processed', 'durchfuhr'),
+      join(this.inboundRoot, 'processed', 'transport'),
       join(this.inboundRoot, 'failed'),
       join(this.inboundRoot, 'failed', 'unmatched'),
       join(this.uploadDir, 'mercurio'),
@@ -78,6 +85,7 @@ export class MercurioInboundService {
         linked: 0,
         docs: 0,
         soloplan: 0,
+        deleted: 0,
         pending: 0,
       };
     }
@@ -94,6 +102,7 @@ export class MercurioInboundService {
     let linked = 0;
     let docs = 0;
     let soloplan = 0;
+    let deleted = 0;
     const files = this.listPendingFiles().slice(0, limit);
 
     for (const filePath of files) {
@@ -106,6 +115,10 @@ export class MercurioInboundService {
             filePath,
             join(this.inboundRoot, 'failed', 'unmatched', `${Date.now()}_${fileName}`),
           );
+          continue;
+        }
+        if (result === 'deleted') {
+          deleted += 1;
           continue;
         }
         processed += 1;
@@ -137,6 +150,7 @@ export class MercurioInboundService {
       linked,
       docs,
       soloplan,
+      deleted,
       pending: this.listPendingFiles().length,
     };
   }
@@ -148,6 +162,7 @@ export class MercurioInboundService {
     writeSoloplan: boolean,
   ): Promise<
     | 'unmatched'
+    | 'deleted'
     | {
         linked: boolean;
         docAttached: boolean;
@@ -160,11 +175,39 @@ export class MercurioInboundService {
       return 'unmatched';
     }
 
+    // Früher Doc-Typ-Check ohne pdftotext: Ausfuhr-WA wird nicht benötigt
+    if (detectMercurioEdecDocType(fileName) === 'AUSFUHR_WA') {
+      this.deleteFile(filePath);
+      this.log.log(`Mercurio AUSFUHR_WA ignoriert/gelöscht ← ${fileName}`);
+      return 'deleted';
+    }
+
     const text = this.pdfText(filePath);
     const fields = extractMercurioEdecFieldsFromPdfText(text, fileName);
 
+    if (fields.docType === 'AUSFUHR_WA') {
+      this.deleteFile(filePath);
+      this.log.log(`Mercurio AUSFUHR_WA ignoriert/gelöscht ← ${fileName}`);
+      return 'deleted';
+    }
+
     if (fields.docType === 'BORDEREAU') {
       return this.processBordereau(organizationId, filePath, fileName, text, writeSoloplan);
+    }
+
+    // Durchfuhr / Transport: Tour-Ebene – archivieren ohne Soloplan-Consignment
+    if (fields.docType === 'DURCHFUHRT' || fields.docType === 'TRANSPORT_DTS') {
+      this.log.log(
+        `Mercurio ${fields.docType} archiviert (kein Consignment-Match)` +
+          (fields.chDeclarationNumber ? ` GDRN=${fields.chDeclarationNumber}` : '') +
+          ` ← ${fileName}`,
+      );
+      return {
+        linked: false,
+        docAttached: false,
+        soloplanWritten: false,
+        docType: fields.docType,
+      };
     }
 
     let match = parseMercurioEdecMatchFromFilename(fileName);
@@ -234,6 +277,7 @@ export class MercurioInboundService {
         bordereauNumber: bordereau.bordereauNumber,
         veranlagungMwst: line.kind === 'VVM' ? true : null,
         veranlagungZoll: line.kind === 'VVZ' ? true : null,
+        eur1Number: null,
       };
 
       await this.customsRefs.upsertFromOrder({
@@ -381,6 +425,7 @@ export class MercurioInboundService {
         (fields.bordereauNumber ? ` Bordereau=${fields.bordereauNumber}` : '') +
         amountHint +
         (fields.accessCode ? ` Zugang=${fields.accessCode}` : '') +
+        (fields.eur1Number ? ` EUR1=${fields.eur1Number}` : '') +
         (fields.atExportMrn ? ` AT=${fields.atExportMrn}` : '') +
         (soloplanWritten ? ' → Soloplan' : '') +
         (shipment ? ` → ${shipment.trackingNumber}` : ' (ohne Sendung)') +
@@ -426,7 +471,15 @@ export class MercurioInboundService {
               ? 'CH eVV Zoll'
               : input.docType === 'BORDEREAU'
                 ? 'CH Bordereau'
-                : 'CH e-dec';
+                : input.docType === 'AUSFUHR_WA'
+                  ? 'CH Ausfuhr WA'
+                  : input.docType === 'AUSFUHR_VV'
+                    ? 'CH Ausfuhr VV'
+                    : input.docType === 'DURCHFUHRT'
+                      ? 'CH Durchfuhr'
+                      : input.docType === 'TRANSPORT_DTS'
+                        ? 'CH Transportanmeldung'
+                        : 'CH e-dec';
     const safeName = `${Date.now()}-mercurio-${input.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const storagePath = join(this.uploadDir, 'mercurio', safeName);
     copyFileSync(input.filePath, storagePath);
@@ -481,6 +534,14 @@ export class MercurioInboundService {
         this.log.warn(`pdftotext ${basename(filePath)}: ${e?.message || e}`);
         return '';
       }
+    }
+  }
+
+  private deleteFile(filePath: string) {
+    try {
+      unlinkSync(filePath);
+    } catch (e: any) {
+      this.log.warn(`Mercurio Löschen ${basename(filePath)}: ${e?.message || e}`);
     }
   }
 

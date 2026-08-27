@@ -4,6 +4,8 @@ import {
   detectMercurioEdecDocType,
   extractMercurioBordereauFieldsFromPdfText,
   extractMercurioEdecFieldsFromPdfText,
+  extractMercurioEur1FromPdfText,
+  parseMercurioAusfuhrGdrnFromFilename,
   parseMercurioEdecMatchFromFilename,
   parseMercurioEdecMatchFromRef,
   parseMercurioBordereauNumberFromFilename,
@@ -33,6 +35,30 @@ describe('mercurio e-dec', () => {
       ),
       'BORDEREAU',
     );
+    assert.equal(
+      detectMercurioEdecDocType(
+        'ausfuhr_wa-a_wa_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
+      ),
+      'AUSFUHR_WA',
+    );
+    assert.equal(
+      detectMercurioEdecDocType(
+        'ausfuhr_wa-a_vv_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
+      ),
+      'AUSFUHR_VV',
+    );
+    assert.equal(
+      detectMercurioEdecDocType(
+        'durchfuhr_wa-d_vbd-grenze_1000012896_104_180485_1_1_26CH06NN5L604AK9J2.pdf',
+      ),
+      'DURCHFUHRT',
+    );
+    assert.equal(
+      detectMercurioEdecDocType(
+        'transportanmeldung_ta_dts_1000012896_104_180459_0_1_2606sQjAd.pdf',
+      ),
+      'TRANSPORT_DTS',
+    );
     assert.deepEqual(
       parseMercurioEdecMatchFromFilename('edece-bs-104-443153.1+CON-0-1.pdf'),
       {
@@ -42,6 +68,24 @@ describe('mercurio e-dec', () => {
         mandantCode: '104',
         siteCode: 'CON',
       },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename(
+        'ausfuhr_wa-a_vv_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
+      ),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 417181,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Diep',
+      },
+    );
+    assert.equal(
+      parseMercurioAusfuhrGdrnFromFilename(
+        'ausfuhr_wa-a_wa_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
+      ),
+      '26CH06EXGSPQ2YZ2N5',
     );
     assert.deepEqual(
       parseMercurioEdecMatchFromFilename(
@@ -207,5 +251,69 @@ Ausfuhrdeklaration, 26AT920000RHSGICA2, ---
     assert.equal(fields.docType, 'BEZUGSSCHEIN');
     assert.equal(fields.chDeclarationNumber, '26CHEI004419217290');
     assert.equal(fields.atExportMrn, '26AT920000RHSGICA2');
+  });
+
+  it('Passar Ausfuhr WA: GDRN + Zugangscode eVV + Ref, ohne Beträge', () => {
+    const text = `
+WARENANMELDUNG AUSFUHR
+ordentlich
+GDRN:                                    26CH06EXGSPQ2YZ2N5
+Zugangscode eVV:                         2BsKQtCdngNdZPsH
+Positionen total           1
+104/417181.1/Diep/0
+1                                                   9603.4000
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(
+      text,
+      'ausfuhr_wa-a_wa_1000012896_104_417181.1Diep_0_1_26CH06EXGSPQ2YZ2N5.pdf',
+    );
+    assert.equal(fields.docType, 'AUSFUHR_WA');
+    assert.equal(fields.chDeclarationNumber, '26CH06EXGSPQ2YZ2N5');
+    assert.equal(fields.accessCode, '2BsKQtCdngNdZPsH');
+    assert.equal(fields.refNumber, '104/417181.1/Diep/0');
+    assert.equal(fields.totalItems, 1);
+    assert.equal(fields.mwstCh, null);
+    assert.equal(fields.zollabgabenCh, null);
+    assert.equal(fields.definitiv, null);
+  });
+
+  it('Passar Ausfuhr VV: GDRN ohne Suffix + EUR.1 + definitiv', () => {
+    const text = `
+VERANLAGUNGSVERFÜGUNG AUSFUHR
+GDRN:                                                      26CH06EXVOIW7XIEN8.1
+104/424111.2/DIEP/0
+Begleitdokument (Typ, Ref.Nr.)   1. WVB EUR.1, T 0691198
+1                                                   9603.4000
+2                                                   3926.9000
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(
+      text,
+      'ausfuhr_wa-a_vv_1000012896_104_424111.2DIEP_0_1_26CH06EXVOIW7XIEN8.pdf',
+    );
+    assert.equal(fields.docType, 'AUSFUHR_VV');
+    assert.equal(fields.chDeclarationNumber, '26CH06EXVOIW7XIEN8');
+    assert.equal(fields.definitiv, true);
+    assert.equal(fields.eur1Number, 'T 0691198');
+    assert.equal(fields.totalItems, 2);
+    assert.equal(fields.mwstCh, null);
+  });
+
+  it('EUR.1 Varianten T/R/S, digital ignorieren', () => {
+    assert.equal(
+      extractMercurioEur1FromPdfText('1. WVB EUR.1, T 0691146'),
+      'T 0691146',
+    );
+    assert.equal(
+      extractMercurioEur1FromPdfText('1. WVB EUR.1, R0252843'),
+      'R0252843',
+    );
+    assert.equal(
+      extractMercurioEur1FromPdfText('1. WVB EUR.1, S 0981912'),
+      'S 0981912',
+    );
+    assert.equal(
+      extractMercurioEur1FromPdfText('1. WVB EUR.1 digital, 260-123'),
+      null,
+    );
   });
 });

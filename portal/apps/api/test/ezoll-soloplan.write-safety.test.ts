@@ -160,6 +160,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           bordereauNumber: null,
           veranlagungMwst: null,
           veranlagungZoll: null,
+          eur1Number: null,
         },
       );
 
@@ -209,6 +210,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           bordereauNumber: '1510331',
           veranlagungMwst: true,
           veranlagungZoll: null,
+          eur1Number: null,
         },
       );
       const json = readJson(path);
@@ -255,6 +257,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           bordereauNumber: '1510331',
           veranlagungMwst: null,
           veranlagungZoll: true,
+          eur1Number: null,
         },
       );
       const json = readJson(path);
@@ -295,6 +298,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
           bordereauNumber: null,
           veranlagungMwst: true,
           veranlagungZoll: true,
+          eur1Number: null,
         },
       );
       const row = (
@@ -308,6 +312,56 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('order-Root Mercurio Ausfuhr VV: GDRN + EUR.1 + definitiv, ohne Beträge', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ezoll-order-ausfuhr-'));
+    try {
+      const svc = makeService(root, 'order');
+      const path = svc.writeMercurioEdecUpdate(
+        { kind: 'orderConsignment', orderNumber: 424111, consignmentIndex: 2 },
+        'ausfuhr_wa-a_vv_1000012896_104_424111.2DIEP_0_1_26CH06EXVOIW7XIEN8.pdf',
+        {
+          docType: 'AUSFUHR_VV',
+          chDeclarationNumber: '26CH06EXVOIW7XIEN8',
+          refNumber: '104/424111.2/DIEP/0',
+          atExportMrn: null,
+          registrationNumber: null,
+          accessCode: null,
+          definitiv: true,
+          kontoZoll: null,
+          kontoMwst: null,
+          zazKonto: null,
+          mwstCh: null,
+          zollabgabenCh: null,
+          bearbeitungsgebuehrCh: null,
+          totalItems: 2,
+          bordereauNumber: null,
+          veranlagungMwst: null,
+          veranlagungZoll: null,
+          eur1Number: 'T 0691198',
+        },
+      );
+      assert.match(path, /mercurio-ausfuhr-vv/);
+      const json = readJson(path);
+      const order = (json.order as Array<Record<string, unknown>>)[0];
+      assert.equal(order.number, 424111);
+      const row = (order.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(row.itemNumber, 2);
+      assert.equal(row.mRNAPI, '26CH06EXVOIW7XIEN8');
+      assert.equal(row.zollanmeldungsnummer, '26CH06EXVOIW7XIEN8');
+      assert.equal(row.definitiv, true);
+      assert.equal(row.eUR1_API, 'T 0691198');
+      assert.equal(row.tarifnummernCHAPI, 2);
+      assert.deepEqual(row.customFields, { customBool7: true });
+      assert.equal(row.mWSTCH, undefined);
+      assert.equal(row.zollabgabenCH, undefined);
+      assert.equal(row.bezugsschein, undefined);
+      assert.equal(row.einfuhrliste, undefined);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('order-Root CC599: nur Flag unter nested consignments', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-cc599-'));
     try {
