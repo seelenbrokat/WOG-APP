@@ -441,9 +441,10 @@ export class PostAblieferbelegService {
   }
 
   /**
-   * POD-Mail analog Herzog-Austritt (Portal-User + optional CC).
-   * Quehenberger (4390): PDF-Anhang + CC (Standard: marcel.burtscher@worldofgreen.ch).
-   * Falls noch keine Portal-User: Direktversand an QUEHENBERGER_POD_MAIL_TO.
+   * POD-Benachrichtigung.
+   * Quehenberger (4390): eine Mail an alle Empfänger im An-Feld (nicht einzeln),
+   * PDF-Anhang + CC (Standard: marcel.burtscher@worldofgreen.ch).
+   * Andere Kunden: Portal-User wie bisher (notifyShipmentUsers).
    */
   private async notifyPodMail(
     shipment: {
@@ -469,47 +470,31 @@ export class PostAblieferbelegService {
     }
 
     const isQuehenberger = customerNumber === '4390';
-    const cc = isQuehenberger
-      ? this.notifications.normalizeEmails(
-          this.config.get('QUEHENBERGER_POD_MAIL_CC') ||
-            'marcel.burtscher@worldofgreen.ch',
-        )
-      : [];
-    const attachment = {
-      filename: fileName,
-      path: storagePath,
-      contentType: mimeType,
-    };
+    if (!isQuehenberger) {
+      await this.notifications.notifyShipmentUsers(
+        shipment.id,
+        NotificationEvent.POD_AVAILABLE,
+        {
+          fileName,
+          category: CustomerDocCategory.POD,
+          source: 'POST',
+        },
+      );
+      return;
+    }
 
-    await this.notifications.notifyShipmentUsers(
-      shipment.id,
-      NotificationEvent.POD_AVAILABLE,
-      {
-        fileName,
-        category: CustomerDocCategory.POD,
-        source: 'POST',
-      },
-      {
-        attachments: isQuehenberger ? [attachment] : undefined,
-        cc: cc.length ? cc : undefined,
-      },
+    const toList = this.notifications.normalizeEmails(
+      this.config.get('QUEHENBERGER_POD_MAIL_TO') ||
+        'christian.kerschbaumer@quehenberger.com,Michael.Ecker@quehenberger.com',
     );
-
-    if (!isQuehenberger) return;
-
-    // Direktversand an feste Empfänger, falls noch kein Portal-User existiert
-    const existingUsers = await this.prisma.user.findMany({
-      where: { customerId: shipment.customerId || undefined, active: true },
-      select: { email: true },
-    });
-    const have = new Set(existingUsers.map((u) => u.email.toLowerCase()));
-    const fallbackTo = this.notifications
-      .normalizeEmails(
-        this.config.get('QUEHENBERGER_POD_MAIL_TO') ||
-          'christian.kerschbaumer@quehenberger.com,Michael.Ecker@quehenberger.com',
-      )
-      .filter((e) => !have.has(e.toLowerCase()));
-    if (!fallbackTo.length) return;
+    const cc = this.notifications.normalizeEmails(
+      this.config.get('QUEHENBERGER_POD_MAIL_CC') ||
+        'marcel.burtscher@worldofgreen.ch',
+    );
+    if (!toList.length) {
+      this.log.warn('Quehenberger POD-Mail: keine Empfänger konfiguriert');
+      return;
+    }
 
     const subject = `POD verfügbar ${shipment.trackingNumber}`;
     const body = [
@@ -530,16 +515,22 @@ export class PostAblieferbelegService {
       .join('\n');
 
     await this.notifications.sendRaw(
-      fallbackTo.join(', '),
+      toList.join(', '),
       subject,
       body,
       NotificationEvent.POD_AVAILABLE,
-      [attachment],
+      [
+        {
+          filename: fileName,
+          path: storagePath,
+          contentType: mimeType,
+        },
+      ],
       cc.length ? { cc } : undefined,
     );
     this.log.log(
-      `Quehenberger POD-Mail → ${fallbackTo.join(', ')}` +
-        (cc.length ? ` cc=${cc.join(',')}` : ''),
+      `Quehenberger POD-Mail → An: ${toList.join(', ')}` +
+        (cc.length ? ` | CC: ${cc.join(', ')}` : ''),
     );
   }
 
