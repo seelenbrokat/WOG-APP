@@ -20,6 +20,8 @@ import { WareneingangService } from './wareneingang.service';
 import { MtrackService } from './mtrack.service';
 import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
 import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
+import { PostAblieferbelegService } from './post-ablieferbeleg.service';
+import { PostAblieferbelegController } from './post-ablieferbeleg.controller';
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
     forwardRef(() => UsersModule),
     forwardRef(() => CustomsModule),
   ],
-  controllers: [IntegrationsController],
+  controllers: [IntegrationsController, PostAblieferbelegController],
   providers: [
     SoloplanService,
     PartnerImportService,
@@ -46,6 +48,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
     ShippingNetService,
     PartnerOrdersInboundService,
     PartnerOrdersSftpService,
+    PostAblieferbelegService,
     LdvAdapter,
     MercurioAdapter,
     SoloplanCustomsAdapter,
@@ -67,6 +70,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
     ShippingNetService,
     PartnerOrdersInboundService,
     PartnerOrdersSftpService,
+    PostAblieferbelegService,
   ],
 })
 export class IntegrationsModule {}
