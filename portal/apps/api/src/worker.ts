@@ -18,6 +18,7 @@ import { CustomerDocumentsInboundService } from './documents/customer-documents-
 import { PartnerOrdersInboundService } from './integrations/partner-orders-inbound.service';
 import { EzollInboundService } from './customs/ezoll-inbound.service';
 import { MercurioInboundService } from './customs/mercurio-inbound.service';
+import { PostAblieferbelegService } from './integrations/post-ablieferbeleg.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -40,9 +41,10 @@ async function bootstrap() {
   const partnerOrders = app.get(PartnerOrdersInboundService);
   const ezollInbound = app.get(EzollInboundService);
   const mercurioInbound = app.get(MercurioInboundService);
+  const postAblieferbelege = app.get(PostAblieferbelegService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + eZoll + Mercurio e-dec + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + eZoll + Mercurio e-dec + Post-Ablieferbelege + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -144,6 +146,15 @@ async function bootstrap() {
             (mercurio.soloplan ? `, ${mercurio.soloplan} Soloplan` : '') +
             (mercurio.unmatched ? `, ${mercurio.unmatched} unmatched` : '') +
             `, ${mercurio.pending} offen`,
+        );
+      }
+      const postPod = await postAblieferbelege.processInboundDir(40);
+      if (postPod.processed || postPod.unmatched || postPod.failed) {
+        console.log(
+          `Post-Ablieferbelege: ${postPod.processed} verarbeitet` +
+            (postPod.unmatched ? `, ${postPod.unmatched} unmatched` : '') +
+            (postPod.failed ? `, ${postPod.failed} fehlgeschlagen` : '') +
+            `, ${postPod.pending} offen`,
         );
       }
       await intouch.processInboundDir(undefined, 50);
