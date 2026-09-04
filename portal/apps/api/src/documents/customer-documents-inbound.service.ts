@@ -120,6 +120,14 @@ export class CustomerDocumentsInboundService {
     await this.notifications.notifyShipmentUsers(shipment.id, NotificationEvent.DOCUMENT_RECEIVED, {
       fileName: doc.fileName,
       category: CustomerDocCategory.CUSTOMS_EXIT,
+    }, {
+      attachments: [
+        {
+          filename: doc.fileName,
+          path: storagePath,
+          contentType: 'application/pdf',
+        },
+      ],
     });
 
     this.log.log(
