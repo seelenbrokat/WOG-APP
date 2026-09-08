@@ -241,6 +241,10 @@ export class ShipmentsController {
     @Query('missingDocCategory') missingDocCategory?: string,
     @Query('docDownload') docDownload?: string,
     @Query('docCategory') docCategory?: string,
+    /** pickupDate | deliveryDate | createdAt */
+    @Query('sort') sort?: string,
+    /** asc | desc */
+    @Query('dir') dir?: string,
   ) {
     return this.service.list(user, {
       mandantId,
@@ -248,6 +252,8 @@ export class ShipmentsController {
       missingDocCategory,
       docDownload,
       docCategory,
+      sort,
+      dir,
     });
   }
 

@@ -128,6 +128,10 @@ export class ShipmentsService {
       /** Kunden-Dokumente: not_downloaded | downloaded */
       docDownload?: string;
       docCategory?: string;
+      /** pickupDate | deliveryDate | createdAt */
+      sort?: string;
+      /** asc | desc */
+      dir?: string;
     },
   ) {
     const where: Record<string, unknown> = { ...this.scope(user) };
@@ -153,7 +157,12 @@ export class ShipmentsService {
           { deliveryZip: { contains: q, mode: 'insensitive' } },
           { pickupZip: { contains: q, mode: 'insensitive' } },
           { notes: { contains: q, mode: 'insensitive' } },
+          // Soloplan / Kunden: externe Auftragsnr. (z. B. A-… / VLB…) + Soloplan-Auftrag
           { order: { externalNumber: { contains: q, mode: 'insensitive' } } },
+          { order: { soloplanRef: { contains: q, mode: 'insensitive' } } },
+          // Soloplan externe Sendungsnummer (WE/LAK) + Post-Barcode in extras
+          { extras: { path: ['externalShipmentNumber'], string_contains: q } },
+          { extras: { path: ['postBarcode'], string_contains: q } },
           { customer: { name: { contains: q, mode: 'insensitive' } } },
         ],
       });
@@ -225,6 +234,15 @@ export class ShipmentsService {
       }
     }
 
+    const sortKey = String(opts?.sort || 'createdAt').trim();
+    const sortDir = String(opts?.dir || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const orderBy =
+      sortKey === 'pickupDate'
+        ? [{ pickupDate: sortDir as 'asc' | 'desc' }, { createdAt: 'desc' as const }]
+        : sortKey === 'deliveryDate'
+          ? [{ deliveryDate: sortDir as 'asc' | 'desc' }, { createdAt: 'desc' as const }]
+          : [{ createdAt: sortDir as 'asc' | 'desc' }];
+
     const rows = await this.prisma.shipment.findMany({
       where,
       include: {
@@ -253,7 +271,7 @@ export class ShipmentsService {
           orderBy: { createdAt: 'desc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       take: 500,
     });
 
@@ -268,8 +286,17 @@ export class ShipmentsService {
           );
         }
       }
+      const extras =
+        s.extras && typeof s.extras === 'object' && !Array.isArray(s.extras)
+          ? (s.extras as Record<string, unknown>)
+          : {};
       return {
         ...s,
+        postBarcode: typeof extras.postBarcode === 'string' ? extras.postBarcode : null,
+        externalShipmentNumber:
+          typeof extras.externalShipmentNumber === 'string'
+            ? extras.externalShipmentNumber
+            : null,
         customerDocuments: docs.map((d) => ({
           id: d.id,
           fileName: d.fileName,

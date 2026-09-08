@@ -196,6 +196,11 @@ export class PostAblieferbelegService {
       },
     });
 
+    // Post-Barcode früh sichtbar machen (auch wenn schon bei Übergabe gesetzt)
+    if (input.postBarcode?.trim()) {
+      await this.mergePostBarcode(shipment.id, shipment.extras, input.postBarcode.trim());
+    }
+
     let delivered = false;
     if (input.markDelivered !== false) {
       const deliveredAt = this.parseDate(input.deliveredAt) || new Date();
@@ -438,6 +443,68 @@ export class PostAblieferbelegService {
       if (hit) return hit;
     }
     return candidates[0];
+  }
+
+  /**
+   * Früh: Post-Tracking-Nummer / Barcode an Portal-Sendung hängen
+   * (bei Übergabe an die Post, noch ohne POD).
+   */
+  async registerTracking(input: {
+    shipmentNumber?: string | null;
+    orderNumber?: string | null;
+    itemNumber?: number | string | null;
+    trackingNumber?: string | null;
+    postBarcode: string;
+    clientReference?: string | null;
+  }) {
+    const barcode = String(input.postBarcode || '').trim();
+    if (!barcode) throw new BadRequestException('postBarcode fehlt');
+    const orgId = await this.resolveOrganizationId();
+    const shipment = await this.findShipment(orgId, {
+      ...input,
+      postBarcode: barcode,
+      buffer: Buffer.alloc(0),
+    });
+    if (!shipment) {
+      throw new NotFoundException(
+        'Keine Portal-Sendung gefunden – bitte shipmentNumber (z. B. 435958.1) oder trackingNumber angeben',
+      );
+    }
+    await this.mergePostBarcode(shipment.id, shipment.extras, barcode);
+    this.log.log(
+      `Post-Tracking gesetzt → ${shipment.trackingNumber}` +
+        (shipment.soloplanRef ? ` (${shipment.soloplanRef})` : '') +
+        ` barcode=${barcode}`,
+    );
+    return {
+      ok: true,
+      shipmentId: shipment.id,
+      trackingNumber: shipment.trackingNumber,
+      soloplanRef: shipment.soloplanRef,
+      postBarcode: barcode,
+    };
+  }
+
+  private async mergePostBarcode(
+    shipmentId: string,
+    currentExtras: unknown,
+    postBarcode: string,
+  ) {
+    const prev =
+      currentExtras && typeof currentExtras === 'object' && !Array.isArray(currentExtras)
+        ? { ...(currentExtras as Record<string, unknown>) }
+        : {};
+    if (prev.postBarcode === postBarcode) return;
+    await this.prisma.shipment.update({
+      where: { id: shipmentId },
+      data: {
+        extras: {
+          ...prev,
+          postBarcode,
+          postBarcodeSetAt: new Date().toISOString(),
+        },
+      },
+    });
   }
 
   /**

@@ -14,6 +14,7 @@ Schnittstelle, damit die **Schweizerische Post** (oder ein angebundener Dienst) 
 | `GET` | `/integrations/post/health` | Health / Konfigurationsstatus |
 | `POST` | `/integrations/post/ablieferbelege` | Upload per **multipart/form-data** |
 | `POST` | `/integrations/post/ablieferbelege/json` | Upload per **JSON + Base64** |
+| `POST` | `/integrations/post/tracking` | Früh: nur **Post-Barcode** setzen (bei Übergabe, ohne POD) |
 
 ---
 
@@ -85,6 +86,24 @@ curl -sS -X POST 'https://wog.logistikberater.at/api/integrations/post/ablieferb
   "contentBase64": "<Base64 ohne oder mit data:application/pdf;base64,-Prefix>"
 }
 ```
+
+---
+
+## 3) Früh: Post-Tracking bei Übergabe
+
+`POST /api/integrations/post/tracking`  
+**Content-Type:** `application/json`
+
+Sobald die Sendung an die Post übergeben wurde (Label/Barcode bekannt), **ohne** auf den POD zu warten:
+
+```json
+{
+  "shipmentNumber": "435958.1",
+  "postBarcode": "99.00.123456.12345678"
+}
+```
+
+Der Barcode erscheint dann in der Portal-Sendungsliste (Feld „Post …“) und ist suchbar. Tracking auf **post.ch** erfolgt mit diesem **Post-Barcode**, nicht mit der WOG-Trackingnummer.
 
 ---
 
