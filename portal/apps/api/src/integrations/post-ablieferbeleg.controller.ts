@@ -192,4 +192,36 @@ export class PostAblieferbelegController {
       buffer,
     });
   }
+
+  /**
+   * Früh: nur Post-Tracking setzen (ohne POD), sobald die Sendung an die Post übergeben wurde.
+   * Body: { postBarcode, shipmentNumber? | trackingNumber? | orderNumber? }
+   */
+  @Public()
+  @Post('tracking')
+  registerTracking(
+    @Headers('x-api-key') apiKey: string,
+    @Body()
+    dto: {
+      postBarcode?: string;
+      shipmentNumber?: string;
+      orderNumber?: string;
+      itemNumber?: string;
+      trackingNumber?: string;
+      clientReference?: string;
+    },
+  ) {
+    this.service.assertApiKey(apiKey);
+    if (!dto?.postBarcode?.trim()) {
+      throw new BadRequestException('postBarcode fehlt');
+    }
+    return this.service.registerTracking({
+      postBarcode: dto.postBarcode,
+      shipmentNumber: dto.shipmentNumber,
+      orderNumber: dto.orderNumber,
+      itemNumber: dto.itemNumber,
+      trackingNumber: dto.trackingNumber,
+      clientReference: dto.clientReference,
+    });
+  }
 }

@@ -73,6 +73,8 @@ export default function ShipmentsPage() {
   const [mandanten, setMandanten] = useState<any[]>([]);
   const [mandantId, setMandantId] = useState('');
   const [q, setQ] = useState('');
+  const [sort, setSort] = useState<'createdAt' | 'pickupDate' | 'deliveryDate'>('deliveryDate');
+  const [dir, setDir] = useState<'asc' | 'desc'>('desc');
   const [missingDocCategory, setMissingDocCategory] = useState('');
   const [docDownload, setDocDownload] = useState('');
   const [docCategory, setDocCategory] = useState('');
@@ -101,6 +103,8 @@ export default function ShipmentsPage() {
   async function load(opts?: {
     mandantId?: string;
     q?: string;
+    sort?: string;
+    dir?: string;
     missingDocCategory?: string;
     docDownload?: string;
     docCategory?: string;
@@ -108,6 +112,8 @@ export default function ShipmentsPage() {
     const params = new URLSearchParams();
     if (opts?.mandantId) params.set('mandantId', opts.mandantId);
     if (opts?.q?.trim()) params.set('q', opts.q.trim());
+    if (opts?.sort) params.set('sort', opts.sort);
+    if (opts?.dir) params.set('dir', opts.dir);
     if (opts?.missingDocCategory) params.set('missingDocCategory', opts.missingDocCategory);
     if (opts?.docDownload) params.set('docDownload', opts.docDownload);
     if (opts?.docCategory) params.set('docCategory', opts.docCategory);
@@ -124,7 +130,7 @@ export default function ShipmentsPage() {
         .then((m) => setDocsModule(m))
         .catch(() => setDocsModule(null));
     }
-    load();
+    load({ sort: 'deliveryDate', dir: 'desc' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -133,6 +139,8 @@ export default function ShipmentsPage() {
       load({
         mandantId: mandantId || undefined,
         q,
+        sort,
+        dir,
         missingDocCategory: missingDocCategory || undefined,
         docDownload: docDownload || undefined,
         docCategory: docCategory || undefined,
@@ -140,7 +148,21 @@ export default function ShipmentsPage() {
     }, 280);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, mandantId, missingDocCategory, docDownload, docCategory]);
+  }, [q, mandantId, sort, dir, missingDocCategory, docDownload, docCategory]);
+
+  function toggleSort(next: 'createdAt' | 'pickupDate' | 'deliveryDate') {
+    if (sort === next) {
+      setDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSort(next);
+    setDir(next === 'createdAt' ? 'desc' : 'asc');
+  }
+
+  function sortLabel(key: 'createdAt' | 'pickupDate' | 'deliveryDate', label: string) {
+    if (sort !== key) return label;
+    return `${label} ${dir === 'asc' ? '↑' : '↓'}`;
+  }
 
   const selectable = useMemo(
     () => shipments.filter((s) => s.orderId),
@@ -260,12 +282,32 @@ export default function ShipmentsPage() {
         <div className="row" style={{ marginBottom: 0, flexWrap: 'wrap', gap: '0.65rem' }}>
           <input
             type="search"
-            placeholder="Suche: Empfänger, Tracking, Referenz, Ort…"
+            placeholder="Suche: A-Nr./externe Nr., Soloplan, Tracking, Post-Barcode, Empfänger…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 260, flex: '1 1 220px' }}
+            style={{ minWidth: 280, flex: '1 1 240px' }}
             aria-label="Sendungen suchen"
           />
+          <select
+            value={`${sort}:${dir}`}
+            onChange={(e) => {
+              const [s, d] = e.target.value.split(':') as [
+                'createdAt' | 'pickupDate' | 'deliveryDate',
+                'asc' | 'desc',
+              ];
+              setSort(s);
+              setDir(d);
+            }}
+            aria-label="Sortierung"
+            title="Liste sortieren"
+          >
+            <option value="deliveryDate:asc">Zustellung ↑ (früh zuerst)</option>
+            <option value="deliveryDate:desc">Zustellung ↓ (spät zuerst)</option>
+            <option value="pickupDate:asc">Abholung ↑</option>
+            <option value="pickupDate:desc">Abholung ↓</option>
+            <option value="createdAt:desc">Angelegt ↓ (neueste)</option>
+            <option value="createdAt:asc">Angelegt ↑ (älteste)</option>
+          </select>
           {!isCustomer && (
             <select
               value={mandantId}
@@ -375,9 +417,19 @@ export default function ShipmentsPage() {
                       />
                     </th>
                   )}
-                  <th className="col-ref">Auftrag</th>
+                  <th className="col-ref">Auftrag / Referenzen</th>
                   <th className="col-route">Route</th>
-                  <th className="col-schedule">Termine</th>
+                  <th className="col-schedule">
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ padding: 0, fontWeight: 600 }}
+                      onClick={() => toggleSort('deliveryDate')}
+                      title="Nach Zustelldatum sortieren"
+                    >
+                      {sortLabel('deliveryDate', 'Termine')}
+                    </button>
+                  </th>
                   {showDocs && <th className="col-docs">{docsColumnLabel}</th>}
                   <th className="col-side">Status / Aktion</th>
                 </tr>
@@ -436,6 +488,19 @@ export default function ShipmentsPage() {
                         {s.reference ? (
                           <span className="meta" title={s.reference}>
                             Ref {clip(s.reference, 22)}
+                          </span>
+                        ) : null}
+                        {s.externalShipmentNumber ? (
+                          <span
+                            className="meta mono"
+                            title={`Externe Sendungsnummer ${s.externalShipmentNumber}`}
+                          >
+                            Ext {clip(s.externalShipmentNumber, 22)}
+                          </span>
+                        ) : null}
+                        {s.postBarcode ? (
+                          <span className="meta mono" title={`Post-Tracking ${s.postBarcode}`}>
+                            Post {clip(s.postBarcode, 24)}
                           </span>
                         ) : null}
                         {!isCustomer && s.mandant?.code ? (
