@@ -272,7 +272,7 @@ export class CustomsController {
     return this.service.get(user, id);
   }
 
-  /** Soloplan erneut exportieren + PDF/E-Mail an info@worldofgreen.ch */
+  /** Soloplan erneut exportieren + PDF/E-Mail an zoll@worldofgreen.at */
   @Post(':id/submit')
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
   submit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
