@@ -439,7 +439,7 @@ export class CustomsService {
   }
 
   /**
-   * Soloplan-Export + sauberes PDF + E-Mail an info@worldofgreen.ch (Anhänge inkl. PDF).
+   * Soloplan-Export + sauberes PDF + E-Mail an zoll@worldofgreen.at (Anhänge inkl. PDF).
    * Kann auch für bereits erstellte Aufträge erneut aufgerufen werden.
    */
   async finalizeSubmission(orderIdOrFull: string | Awaited<ReturnType<CustomsService['get']>>) {
@@ -553,7 +553,7 @@ export class CustomsService {
     });
 
     const notifyTo =
-      this.config.get<string>('CUSTOMS_NOTIFY_EMAIL') || 'info@worldofgreen.ch';
+      this.config.get<string>('CUSTOMS_NOTIFY_EMAIL') || 'zoll@worldofgreen.at';
     const subject = `${grenzeWhen} · ${full.customer.name}`;
     const body = [
       'Neuer Verzollungsauftrag im WOG Portal.',
