@@ -1,0 +1,5 @@
+@@PHSTAT512 0512003500107 BTSWISS WOGSTAT
+Q00100SA BT SWISS AG                        WOG LOGISTICS AG                   BT SWISS AG
+Q10A-21438081-A-1                     A-21438081-A-1                                                        070100920261430                                                                          Zustellung OK BT Swiss
+Z0000000210092026143000
+@@PT

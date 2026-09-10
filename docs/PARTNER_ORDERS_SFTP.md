@@ -13,6 +13,9 @@ Kunden und Partner können Auftragsdateien **per SFTP** liefern, ohne Sendungen 
 
 Sample-Datei und Specs liegen unter den Uploads / Specs BORD512, STAT512, ENTL512.
 
+> **Statusmeldungen (BT Swiss u. a.):** eigener Kanal `inbound/partner-status/{user}/`
+> mit FORTRAS **STAT512** → siehe [BT_SWISS_STATUS_SFTP.md](../portal/docs/BT_SWISS_STATUS_SFTP.md).
+
 ## Admin-Freischaltung
 
 1. Portal → **Kundenverwaltung** → Kunde wählen  
