@@ -200,14 +200,14 @@ export class PartnerStatusInboundService {
 
     const shipment = await this.prisma.shipment.findFirst({
       where: {
-        OR: [{ externalNumber: key }, { soloplanRef: key }],
+        OR: [{ trackingNumber: key }, { reference: key }, { soloplanRef: key }],
       },
-      select: { externalNumber: true, soloplanRef: true },
+      select: { trackingNumber: true, reference: true, soloplanRef: true },
       orderBy: { createdAt: 'desc' },
     });
     if (shipment) {
       return {
-        transportOrderNumber: shipment.soloplanRef || shipment.externalNumber || key,
+        transportOrderNumber: shipment.soloplanRef || shipment.trackingNumber || key,
       };
     }
 
