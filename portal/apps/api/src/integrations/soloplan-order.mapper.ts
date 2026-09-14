@@ -74,8 +74,10 @@ export type PortalShipmentForSoloplan = {
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
    * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang,
-   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
-   * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+   * Hinweis: Telefon_Smartborder / MailSmartborder / SMSSmartBorder sind im
+   * aktuellen CarLo-Schema nicht erlaubt (NoAdditionalPropertiesAllowed) und
+   * gehören nicht ins Create-JSON – nur als Hinweis in notes.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -88,12 +90,6 @@ export type PortalShipmentForSoloplan = {
   zAZVLBPortal?: string | null;
   /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
-  /** Fahrertelefon → Soloplan Telefon_Smartborder */
-  telefonSmartborder?: string | null;
-  /** E-Mail-Rückmeldung → Soloplan MailSmartborder */
-  mailSmartborder?: string | null;
-  /** SMS-Link-Flag → Soloplan SMSSmartBorder */
-  smsSmartBorder?: boolean | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
@@ -655,35 +651,6 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
         extras.verzollungsort ||
         '',
     ).trim() || undefined;
-  const telefonSmartborder =
-    String(
-      shipment.telefonSmartborder ||
-        extras.Telefon_Smartborder ||
-        extras.telefonSmartborder ||
-        extras.driverPhone ||
-        '',
-    ).trim() || undefined;
-  const mailSmartborder =
-    String(
-      shipment.mailSmartborder ||
-        extras.MailSmartborder ||
-        extras.mailSmartborder ||
-        extras.smartborderNotifyEmail ||
-        '',
-    )
-      .trim()
-      .toLowerCase() || undefined;
-  const smsRaw =
-    shipment.smsSmartBorder ??
-    extras.SMSSmartBorder ??
-    extras.smsSmartBorder ??
-    extras.smartborderSendSms;
-  const smsSmartBorder =
-    smsRaw === true || smsRaw === 'true' || smsRaw === 1 || smsRaw === '1'
-      ? true
-      : smsRaw === false || smsRaw === 'false' || smsRaw === 0 || smsRaw === '0'
-        ? false
-        : undefined;
   return {
     kennzeichen,
     kennzeichenAnhaenger,
@@ -693,17 +660,14 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
     importeurVLBPortal,
     zAZVLBPortal,
     warenortVLBPortal,
-    telefonSmartborder,
-    mailSmartborder,
-    smsSmartBorder,
   };
 }
 
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6 (Order schema).
  * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
- * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+ * SmartBorder-Kontaktfelder nicht hier – CarLo lehnt zusätzliche Properties ab.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -720,16 +684,10 @@ function applyCustomsConsignmentFields(
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
   if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
-  // Exact Schema-Namen (OrderImportPORTAL-v6 / SmartBorder-Kategorie)
-  if (fields.telefonSmartborder) {
-    consignment.Telefon_Smartborder = fields.telefonSmartborder;
-  }
-  if (fields.mailSmartborder) {
-    consignment.MailSmartborder = fields.mailSmartborder;
-  }
-  if (fields.smsSmartBorder != null) {
-    consignment.SMSSmartBorder = fields.smsSmartBorder;
-  }
+  // Defensiv: falls ältere Caller/extras die Keys gesetzt haben – nie an CarLo senden
+  delete consignment.Telefon_Smartborder;
+  delete consignment.MailSmartborder;
+  delete consignment.SMSSmartBorder;
   return consignment;
 }
 

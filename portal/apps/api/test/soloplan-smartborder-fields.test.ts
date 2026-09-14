@@ -32,45 +32,39 @@ function baseShipment(
   };
 }
 
-describe('Soloplan FileAPI SmartBorder-Felder', () => {
-  it('mapped Telefon_Smartborder, MailSmartborder, SMSSmartBorder', () => {
+describe('Soloplan FileAPI – keine SmartBorder-Zusatzproperties', () => {
+  it('resolveCustomsFileApiFields enthält keine SmartBorder-Kontaktfelder', () => {
     const fields = resolveCustomsFileApiFields(
       baseShipment({
-        telefonSmartborder: '+436769075070',
-        mailSmartborder: 'disposition@beispiel.at',
-        smsSmartBorder: true,
-      }),
-    );
-
-    assert.equal(fields.telefonSmartborder, '+436769075070');
-    assert.equal(fields.mailSmartborder, 'disposition@beispiel.at');
-    assert.equal(fields.smsSmartBorder, true);
-  });
-
-  it('akzeptiert Schema-Keys auch aus extras', () => {
-    const fields = resolveCustomsFileApiFields(
-      baseShipment({
+        kennzeichen: 'W-12345T',
         extras: {
           Telefon_Smartborder: '+436641234567',
           MailSmartborder: 'Info@Beispiel.AT',
           SMSSmartBorder: 'true',
+          driverPhone: '+436769075070',
+          smartborderNotifyEmail: 'disposition@beispiel.at',
+          smartborderSendSms: true,
         },
       }),
     );
 
-    assert.equal(fields.telefonSmartborder, '+436641234567');
-    assert.equal(fields.mailSmartborder, 'info@beispiel.at');
-    assert.equal(fields.smsSmartBorder, true);
+    assert.equal(fields.kennzeichen, 'W-12345T');
+    assert.equal('telefonSmartborder' in fields, false);
+    assert.equal('mailSmartborder' in fields, false);
+    assert.equal('smsSmartBorder' in fields, false);
   });
 
-  it('schreibt Exact-Keys in OrderImportPORTAL-v6 Create-JSON', () => {
+  it('Create-JSON enthält keine Telefon_Smartborder/MailSmartborder/SMSSmartBorder', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({
         verzollungsauftrag: true,
         kennzeichen: 'W-12345T',
-        telefonSmartborder: '+436769075070',
-        mailSmartborder: 'disposition@beispiel.at',
-        smsSmartBorder: true,
+        notes: 'Fahrertelefon: +436769075070',
+        extras: {
+          Telefon_Smartborder: '+436769075070',
+          MailSmartborder: 'disposition@beispiel.at',
+          SMSSmartBorder: true,
+        },
       }),
       { format: 'order' },
     ) as {
@@ -78,9 +72,9 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     };
 
     const c = payload.order[0].consignments[0];
-    assert.equal(c.Telefon_Smartborder, '+436769075070');
-    assert.equal(c.MailSmartborder, 'disposition@beispiel.at');
-    assert.equal(c.SMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
+    assert.equal('Telefon_Smartborder' in c, false);
+    assert.equal('MailSmartborder' in c, false);
+    assert.equal('SMSSmartBorder' in c, false);
   });
 });
