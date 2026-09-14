@@ -196,6 +196,52 @@ function formatSoloplanDate(value?: Date | string | null): string | undefined {
   return dt ? dt.slice(0, 10) : undefined;
 }
 
+/** CarLo Address/BP Name1–Name4: max. 35 Zeichen (wie FORTRAS/ASENDUNG). */
+export const SOLOPLAN_NAME_MAX_LEN = 35;
+
+/**
+ * Teilt einen langen Firmennamen auf name1…name4 (je max. 35 Zeichen),
+ * bevorzugt an Wortgrenzen. Verhindert CarLo-Fehler „name 1 ist zu lang“.
+ */
+export function splitSoloplanNames(full?: string | null): {
+  name1: string;
+  name2?: string;
+  name3?: string;
+  name4?: string;
+} {
+  let remaining = String(full || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!remaining) return { name1: '' };
+
+  const parts: string[] = [];
+  while (remaining.length && parts.length < 4) {
+    if (remaining.length <= SOLOPLAN_NAME_MAX_LEN) {
+      parts.push(remaining);
+      remaining = '';
+      break;
+    }
+    let cut = remaining.lastIndexOf(' ', SOLOPLAN_NAME_MAX_LEN);
+    if (cut <= 0) cut = SOLOPLAN_NAME_MAX_LEN;
+    parts.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+  if (remaining && parts.length) {
+    // Rest an letztes Feld anhängen (hart abschneiden auf 35)
+    const last = parts[parts.length - 1];
+    parts[parts.length - 1] = `${last} ${remaining}`
+      .trim()
+      .slice(0, SOLOPLAN_NAME_MAX_LEN);
+  }
+
+  return {
+    name1: parts[0] || '',
+    ...(parts[1] ? { name2: parts[1] } : {}),
+    ...(parts[2] ? { name3: parts[2] } : {}),
+    ...(parts[3] ? { name4: parts[3] } : {}),
+  };
+}
+
 /** Trennt Straßenname und Hausnummer (z. B. "Chipf 5" → street/houseNumber). */
 export function splitStreet(street?: string | null): { street: string; houseNumber?: string } {
   const raw = String(street || '').trim();
@@ -235,10 +281,12 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
     })
     .filter(Boolean);
 
+  const names = splitSoloplanNames(bp.name);
+
   return {
     ...(number !== undefined ? { number } : {}),
     ...(bp.matchcode ? { matchcode: bp.matchcode } : {}),
-    name1: bp.name || '',
+    ...names,
     ...(bp.phone ? { phoneNumberHeadOffice: bp.phone } : {}),
     ...(contactPersons.length ? { contactPersons } : {}),
     ...(bp.vatId
@@ -255,8 +303,9 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
 
 function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
   const { street, houseNumber } = splitStreet(addr.street);
+  const names = splitSoloplanNames(addr.company);
   const party: Record<string, unknown> = {
-    name1: addr.company || '',
+    ...names,
     street: street || addr.street || '',
     ...(houseNumber ? { houseNumber } : {}),
     country: countryCode(addr.country),
