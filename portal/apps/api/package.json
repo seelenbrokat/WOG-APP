@@ -37,6 +37,7 @@
     "pdfkit": "^0.16.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "utif2": "^4.1.0",
     "uuid": "^11.0.5"
   },
   "devDependencies": {
