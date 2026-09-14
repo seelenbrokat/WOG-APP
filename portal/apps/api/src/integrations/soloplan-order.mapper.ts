@@ -744,7 +744,8 @@ export function buildSoloplanUpdatePayload(
         d.category === 'UNTER' ||
         d.category === 'AUFABL' ||
         d.category === 'RG' ||
-        d.category === 'CHBEL',
+        d.category === 'CHBEL' ||
+        d.category === 'INFO',
     );
     return {
       itemNumber: soloplanConsignmentNumber(s, idx + 1),

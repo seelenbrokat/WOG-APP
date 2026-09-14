@@ -1136,7 +1136,9 @@ export class SoloplanService implements TransportIntegration {
         mandant: true,
         documents: {
           where: {
-            type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+            type: {
+              in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE, DocumentType.OTHER],
+            },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -1179,7 +1181,9 @@ export class SoloplanService implements TransportIntegration {
       order.goodsDescription?.trim() ||
       `Verzollungsauftrag ${order.importeur}`.trim();
     const customsSoloplanNumber =
-      order.soloplanRef && /^\d+$/.test(order.soloplanRef.trim())
+      order.soloplanRef &&
+      /^\d+$/.test(order.soloplanRef.trim()) &&
+      Number(order.soloplanRef.trim()) > 0
         ? order.soloplanRef.trim()
         : null;
     const shipmentBase: PortalShipmentForSoloplan = {
