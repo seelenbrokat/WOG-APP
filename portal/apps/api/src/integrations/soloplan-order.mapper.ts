@@ -74,8 +74,10 @@ export type PortalShipmentForSoloplan = {
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
    * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang,
-   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
-   * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+   * Hinweis: Telefon_Smartborder / MailSmartborder / SMSSmartBorder sind im
+   * aktuellen CarLo-Schema nicht erlaubt (NoAdditionalPropertiesAllowed) und
+   * gehören nicht ins Create-JSON – nur als Hinweis in notes.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -88,12 +90,6 @@ export type PortalShipmentForSoloplan = {
   zAZVLBPortal?: string | null;
   /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
-  /** Fahrertelefon → Soloplan Telefon_Smartborder */
-  telefonSmartborder?: string | null;
-  /** E-Mail-Rückmeldung → Soloplan MailSmartborder */
-  mailSmartborder?: string | null;
-  /** SMS-Link-Flag → Soloplan SMSSmartBorder */
-  smsSmartBorder?: boolean | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
   customer: CustomerLike;
@@ -200,6 +196,52 @@ function formatSoloplanDate(value?: Date | string | null): string | undefined {
   return dt ? dt.slice(0, 10) : undefined;
 }
 
+/** CarLo Address/BP Name1–Name4: max. 35 Zeichen (wie FORTRAS/ASENDUNG). */
+export const SOLOPLAN_NAME_MAX_LEN = 35;
+
+/**
+ * Teilt einen langen Firmennamen auf name1…name4 (je max. 35 Zeichen),
+ * bevorzugt an Wortgrenzen. Verhindert CarLo-Fehler „name 1 ist zu lang“.
+ */
+export function splitSoloplanNames(full?: string | null): {
+  name1: string;
+  name2?: string;
+  name3?: string;
+  name4?: string;
+} {
+  let remaining = String(full || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!remaining) return { name1: '' };
+
+  const parts: string[] = [];
+  while (remaining.length && parts.length < 4) {
+    if (remaining.length <= SOLOPLAN_NAME_MAX_LEN) {
+      parts.push(remaining);
+      remaining = '';
+      break;
+    }
+    let cut = remaining.lastIndexOf(' ', SOLOPLAN_NAME_MAX_LEN);
+    if (cut <= 0) cut = SOLOPLAN_NAME_MAX_LEN;
+    parts.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+  if (remaining && parts.length) {
+    // Rest an letztes Feld anhängen (hart abschneiden auf 35)
+    const last = parts[parts.length - 1];
+    parts[parts.length - 1] = `${last} ${remaining}`
+      .trim()
+      .slice(0, SOLOPLAN_NAME_MAX_LEN);
+  }
+
+  return {
+    name1: parts[0] || '',
+    ...(parts[1] ? { name2: parts[1] } : {}),
+    ...(parts[2] ? { name3: parts[2] } : {}),
+    ...(parts[3] ? { name4: parts[3] } : {}),
+  };
+}
+
 /** Trennt Straßenname und Hausnummer (z. B. "Chipf 5" → street/houseNumber). */
 export function splitStreet(street?: string | null): { street: string; houseNumber?: string } {
   const raw = String(street || '').trim();
@@ -239,10 +281,12 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
     })
     .filter(Boolean);
 
+  const names = splitSoloplanNames(bp.name);
+
   return {
     ...(number !== undefined ? { number } : {}),
     ...(bp.matchcode ? { matchcode: bp.matchcode } : {}),
-    name1: bp.name || '',
+    ...names,
     ...(bp.phone ? { phoneNumberHeadOffice: bp.phone } : {}),
     ...(contactPersons.length ? { contactPersons } : {}),
     ...(bp.vatId
@@ -259,8 +303,9 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
 
 function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
   const { street, houseNumber } = splitStreet(addr.street);
+  const names = splitSoloplanNames(addr.company);
   const party: Record<string, unknown> = {
-    name1: addr.company || '',
+    ...names,
     street: street || addr.street || '',
     ...(houseNumber ? { houseNumber } : {}),
     country: countryCode(addr.country),
@@ -655,35 +700,6 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
         extras.verzollungsort ||
         '',
     ).trim() || undefined;
-  const telefonSmartborder =
-    String(
-      shipment.telefonSmartborder ||
-        extras.Telefon_Smartborder ||
-        extras.telefonSmartborder ||
-        extras.driverPhone ||
-        '',
-    ).trim() || undefined;
-  const mailSmartborder =
-    String(
-      shipment.mailSmartborder ||
-        extras.MailSmartborder ||
-        extras.mailSmartborder ||
-        extras.smartborderNotifyEmail ||
-        '',
-    )
-      .trim()
-      .toLowerCase() || undefined;
-  const smsRaw =
-    shipment.smsSmartBorder ??
-    extras.SMSSmartBorder ??
-    extras.smsSmartBorder ??
-    extras.smartborderSendSms;
-  const smsSmartBorder =
-    smsRaw === true || smsRaw === 'true' || smsRaw === 1 || smsRaw === '1'
-      ? true
-      : smsRaw === false || smsRaw === 'false' || smsRaw === 0 || smsRaw === '0'
-        ? false
-        : undefined;
   return {
     kennzeichen,
     kennzeichenAnhaenger,
@@ -693,17 +709,14 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
     importeurVLBPortal,
     zAZVLBPortal,
     warenortVLBPortal,
-    telefonSmartborder,
-    mailSmartborder,
-    smsSmartBorder,
   };
 }
 
 /**
  * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6 (Order schema).
  * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
- * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+ * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal.
+ * SmartBorder-Kontaktfelder nicht hier – CarLo lehnt zusätzliche Properties ab.
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -720,16 +733,10 @@ function applyCustomsConsignmentFields(
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
   if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
-  // Exact Schema-Namen (OrderImportPORTAL-v6 / SmartBorder-Kategorie)
-  if (fields.telefonSmartborder) {
-    consignment.Telefon_Smartborder = fields.telefonSmartborder;
-  }
-  if (fields.mailSmartborder) {
-    consignment.MailSmartborder = fields.mailSmartborder;
-  }
-  if (fields.smsSmartBorder != null) {
-    consignment.SMSSmartBorder = fields.smsSmartBorder;
-  }
+  // Defensiv: falls ältere Caller/extras die Keys gesetzt haben – nie an CarLo senden
+  delete consignment.Telefon_Smartborder;
+  delete consignment.MailSmartborder;
+  delete consignment.SMSSmartBorder;
   return consignment;
 }
 
@@ -786,7 +793,8 @@ export function buildSoloplanUpdatePayload(
         d.category === 'UNTER' ||
         d.category === 'AUFABL' ||
         d.category === 'RG' ||
-        d.category === 'CHBEL',
+        d.category === 'CHBEL' ||
+        d.category === 'INFO',
     );
     return {
       itemNumber: soloplanConsignmentNumber(s, idx + 1),

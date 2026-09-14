@@ -412,6 +412,17 @@ export class WareneingangService {
     let transportOrderId: string | undefined;
     const shipmentIds: string[] = [];
 
+    // OrderNumber 0 / leer = Soloplan-Feedback ohne echte Auftragsnummer (kein Docs-Update möglich)
+    const orderNumberValid = /^\d+$/.test(orderNumber) && Number(orderNumber) > 0;
+    if (!orderNumberValid) {
+      this.logger.warn(
+        `Wareneingang: ungültige Soloplan-OrderNumber "${orderNumber}"` +
+          (ext ? ` für ${ext}` : '') +
+          ' – Verknüpfung übersprungen',
+      );
+      return { matched: 0, updated: 0, shipmentIds: [] };
+    }
+
     if (ext) {
       const customs = await this.prisma.customsOrder.findFirst({
         where: { organizationId, externalNumber: ext },

@@ -1136,7 +1136,9 @@ export class SoloplanService implements TransportIntegration {
         mandant: true,
         documents: {
           where: {
-            type: { in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE] },
+            type: {
+              in: [DocumentType.CUSTOMS_PAPER, DocumentType.INVOICE, DocumentType.OTHER],
+            },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -1179,7 +1181,9 @@ export class SoloplanService implements TransportIntegration {
       order.goodsDescription?.trim() ||
       `Verzollungsauftrag ${order.importeur}`.trim();
     const customsSoloplanNumber =
-      order.soloplanRef && /^\d+$/.test(order.soloplanRef.trim())
+      order.soloplanRef &&
+      /^\d+$/.test(order.soloplanRef.trim()) &&
+      Number(order.soloplanRef.trim()) > 0
         ? order.soloplanRef.trim()
         : null;
     const shipmentBase: PortalShipmentForSoloplan = {
@@ -1206,6 +1210,13 @@ export class SoloplanService implements TransportIntegration {
       notes: [
         order.notes,
         order.netWeightKg != null ? `Nettogewicht: ${order.netWeightKg} kg` : null,
+        order.driverPhone ? `Fahrertelefon: ${order.driverPhone}` : null,
+        order.smartborderNotifyEmail
+          ? `E-Mail-Rückmeldung (SmartBorder): ${order.smartborderNotifyEmail}`
+          : null,
+        order.smartborderSendSms
+          ? 'SmartBorder-Link per SMS: ja (an Fahrertelefon)'
+          : null,
       ]
         .filter(Boolean)
         .join('\n') || null,
@@ -1222,9 +1233,6 @@ export class SoloplanService implements TransportIntegration {
       importeurVLBPortal: order.importeur,
       zAZVLBPortal: order.zazKonto,
       warenortVLBPortal: order.warenort,
-      telefonSmartborder: order.driverPhone,
-      mailSmartborder: order.smartborderNotifyEmail,
-      smsSmartBorder: order.smartborderSendSms,
       customer: {
         customerNumber: order.customer.customerNumber,
         name: order.customer.name,
