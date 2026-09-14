@@ -35,17 +35,25 @@ function strField(obj: Record<string, unknown> | null, ...keys: string[]): strin
   if (!obj) return '';
   for (const k of keys) {
     const v = obj[k];
-    if (v != null && String(v).trim()) return String(v).trim();
+    if (v == null) continue;
+    if (typeof v === 'object') continue; // nested Soloplan-Objekte überspringen
+    const s = String(v).trim();
+    if (s && s !== '[object Object]') return s;
   }
   return '';
 }
 
 function formatAddress(obj: Record<string, unknown> | null): string {
   if (!obj) return '';
-  const street = strField(obj, 'street', 'Street', 'strasse', 'address');
+  const street =
+    strField(obj, 'street', 'Street', 'strasse', 'address') ||
+    strField(asRec(obj.street), 'name', 'name1', 'value') ||
+    '';
+  const house = strField(obj, 'houseNumber', 'houseNo', 'hausnummer');
   const zip = strField(obj, 'zip', 'Zip', 'zipCode', 'plz');
   const city = strField(obj, 'city', 'City', 'city1', 'ort');
-  return [street, [zip, city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const streetLine = [street, house].filter(Boolean).join(' ').trim();
+  return [streetLine, [zip, city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 }
 
 /** Adressen aus TourConsignment.details (Soloplan-JSON). */
