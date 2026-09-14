@@ -10,14 +10,16 @@ Ablage:
   Verarbeitet → processed/
   Fehler      → failed/
 
-Unterstütztes Format:
-  FORTRAS STAT512 (Package-Header @@PHSTAT512)
+Unterstützte Formate:
+  1) BT Swiss Cargo-Status-XML (<status><shipment event="C50" …>)
+  2) FORTRAS STAT512 (Package-Header @@PHSTAT512)
   → Soloplan StdTelematics TransportOrderStatus
+  → bei Unterschrift/Foto: Ablieferbeleg-PDF (Document)
 
 Beispiel BT Swiss:
   User:   btswiss
   Pfad:   inbound/partner-status/btswiss/
-  Format: STAT512
+  Format: Cargo-XML (Live) oder STAT512
 
 OS-User auf dem Server anlegen:
   sudo bash portal/scripts/provision-partner-status-sftp.sh btswiss
