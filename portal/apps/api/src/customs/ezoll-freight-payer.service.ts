@@ -14,8 +14,8 @@ export class EzollFreightPayerService {
 
   constructor(
     private prisma: PrismaService,
-    /** @deprecated API nicht mehr für Frachtzahler – bleibt injiziert für Kompatibilität. */
-    private ezollApi: EzollSoloplanReadApiService,
+    /** Behalten für DI/Module – Frachtzahler nutzt die API nicht mehr. */
+    private readonly _ezollApi: EzollSoloplanReadApiService,
   ) {}
 
   async resolveFreightPayerCustomer(

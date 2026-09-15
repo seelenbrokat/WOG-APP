@@ -671,12 +671,13 @@ export class WareneingangService {
         goodsDescription: 'Wareneingang',
         packageCount: colliPlan.length,
         weightKg,
-        extras: consLak
-          ? {
-              externalShipmentNumber: consLak,
-              soloplanWeReference: `WE-${parsed.orderNumber}`,
-            }
-          : undefined,
+        // Spiegel aus Soloplan-WE: nie zurück als Create nach Soloplan exportieren
+        extras: {
+          wareneingangMirror: true,
+          soloplanOrderNumber: parsed.orderNumber,
+          soloplanWeReference: `WE-${parsed.orderNumber}`,
+          ...(consLak ? { externalShipmentNumber: consLak } : {}),
+        },
         pickupCompany: consignment.absName || parsed.name1,
         pickupStreet: consignment.absStreet || parsed.street,
         pickupZip: consignment.absZip || parsed.zipCode,
@@ -752,6 +753,11 @@ export class WareneingangService {
     if (createdColli.length) {
       await this.writeLabels(shipment, customer.id, createdColli, admin?.id);
     }
+
+    this.logger.log(
+      `Wareneingang angelegt: ${shipment.trackingNumber} Order ${parsed.orderNumber}` +
+        ` Frachtzahler-BP ${parsed.businessPartnerId || '–'} (${customer.name}) ← ${sourceFile}`,
+    );
 
     return { id: shipment.id, linked: false };
   }

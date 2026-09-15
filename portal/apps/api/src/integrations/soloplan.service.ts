@@ -849,6 +849,28 @@ export class SoloplanService implements TransportIntegration {
     };
   }
 
+  /**
+   * Portal-Spiegel aus Soloplan-Wareneingang (bereits in CarLo vorhanden).
+   * Darf nie als neuer Auftrag nach Soloplan geschrieben werden.
+   */
+  isWareneingangMirrorShipment(shipment: {
+    goodsDescription?: string | null;
+    reference?: string | null;
+    soloplanRef?: string | null;
+    extras?: unknown;
+  }): boolean {
+    const extras =
+      shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+        ? (shipment.extras as Record<string, unknown>)
+        : null;
+    if (extras?.wareneingangMirror === true) return true;
+    if (String(shipment.goodsDescription || '').trim() === 'Wareneingang') return true;
+    if (/^WE-\d+$/i.test(String(shipment.reference || '').trim()) && this.isSoloplanImported(shipment.soloplanRef)) {
+      return true;
+    }
+    return false;
+  }
+
   async createOrder(shipmentId: string, opts: { forceUpdate?: boolean } = {}) {
     const shipmentInclude = {
       positions: true,
@@ -867,6 +889,20 @@ export class SoloplanService implements TransportIntegration {
     // Ohne Portal-Auftrag keinen Soloplan-Export (Auftrag + mind. 1 Sendung erforderlich)
     if (!shipment.order) {
       this.logger.warn(`Soloplan export übersprungen – Sendung ${shipment.trackingNumber} hat keinen Auftrag`);
+      return;
+    }
+
+    // WE-Spiegel: Soloplan-Auftrag existiert bereits → kein Create.
+    // Docs-only Update (forceUpdate) bleibt erlaubt (z. B. Austritts-PDF).
+    if (this.isWareneingangMirrorShipment(shipment) && opts.forceUpdate !== true) {
+      const already =
+        this.isSoloplanImported(shipment.soloplanRef) ||
+        this.isSoloplanImported(shipment.order.soloplanRef);
+      this.logger.log(
+        `Soloplan Create übersprungen – Wareneingang-Spiegel ${shipment.trackingNumber}` +
+          ` (Order ${shipment.soloplanRef || shipment.order.soloplanRef || '–'}` +
+          `${already ? ', bereits in Soloplan' : ''})`,
+      );
       return;
     }
 
