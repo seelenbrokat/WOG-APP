@@ -667,6 +667,14 @@ export class SoloplanService implements TransportIntegration {
       this.isSoloplanImported(shipment.order.soloplanRef) ||
       this.wasCreatePickedUp(ext);
 
+    // Wareneingang-Spiegel: Auftrag kommt aus Soloplan – nie Create, nur Docs-Update.
+    if (this.isWareneingangMirrorShipment(shipment) && !alreadyInSoloplan) {
+      this.logger.warn(
+        `Soloplan: WE-Spiegel ${ext} ohne erkannte Soloplan-ID – Create unterdrückt, warte auf soloplanRef`,
+      );
+      return { ok: true, mode: 'wait' as const, reason: 'wareneingang-mirror', externalNumber: ext };
+    }
+
     if (alreadyInSoloplan) {
       await this.syncOrderSoloplanRefFromShipments(shipment.order.id);
       const keys = await this.resolveSoloplanOrderKeys(shipmentId);
