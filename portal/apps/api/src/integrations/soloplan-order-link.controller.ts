@@ -121,12 +121,7 @@ export class SoloplanOrderLinkController {
         if (s.soloplanRef !== orderKey) {
           await this.prisma.shipment.update({
             where: { id: s.id },
-            data: {
-              soloplanRef: orderKey,
-              ...(consignmentNumber != null
-                ? { extras: { soloplanConsignmentIndex: consignmentNumber } }
-                : {}),
-            },
+            data: { soloplanRef: orderKey },
           });
         }
       }
