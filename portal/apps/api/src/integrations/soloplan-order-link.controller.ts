@@ -7,7 +7,6 @@ import {
   Post,
 } from '@nestjs/common';
 import { Allow, IsOptional } from 'class-validator';
-import { Transform } from 'class-transformer';
 import { Public } from '../auth/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { SoloplanService } from './soloplan.service';
@@ -16,23 +15,136 @@ import { SoloplanService } from './soloplan.service';
  * Soloplan/CarLo → Portal: echte Auftragsnummer nach Import zurückmelden.
  *
  * POST /api/integrations/soloplan/order-link
- * Body: { "externalNumber": "VLB…", "orderNumber": 454144, "consignmentNumber": 1 }
  *
- * Vorerst ohne API-Key (Automate: Authentifizierung = Keine).
- * orderNumber muss > 0 sein (0 wird abgelehnt).
+ * Akzeptierte Bodies:
+ * 1) Flach:
+ *    { "externalNumber": "VLB…", "orderNumber": 454144, "consignmentNumber": 1 }
+ * 2) Soloplan normalOrder (wie Automate oft sendet):
+ *    { "normalOrder": [{ "externalNumber": "VLB…", "number": 454143,
+ *        "consignments": [{ "number": 1, "externalNumber": "VLB…" }] }] }
+ *
+ * Vorerst ohne API-Key. Order-Nummer muss > 0 sein.
  */
 class SoloplanOrderLinkDto {
+  @IsOptional()
   @Allow()
-  @Transform(({ value }) => String(value ?? '').trim())
-  externalNumber!: string;
-
-  /** Soloplan-Auftragsnummer (Zahl oder String) */
-  @Allow()
-  orderNumber!: number | string;
+  externalNumber?: unknown;
 
   @IsOptional()
   @Allow()
-  consignmentNumber?: number | string;
+  ExternalNumber?: unknown;
+
+  @IsOptional()
+  @Allow()
+  orderNumber?: unknown;
+
+  @IsOptional()
+  @Allow()
+  OrderNumber?: unknown;
+
+  /** Soloplan: Auftragsnummer heißt oft `number` */
+  @IsOptional()
+  @Allow()
+  number?: unknown;
+
+  @IsOptional()
+  @Allow()
+  consignmentNumber?: unknown;
+
+  @IsOptional()
+  @Allow()
+  ConsignmentNumber?: unknown;
+
+  @IsOptional()
+  @Allow()
+  consignments?: unknown;
+
+  @IsOptional()
+  @Allow()
+  normalOrder?: unknown;
+}
+
+type NormalizedLink = {
+  externalNumber: string;
+  orderNumber: number;
+  consignmentNumber?: number;
+};
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === 'object' && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+function pickStr(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
+function pickPositiveInt(...vals: unknown[]): number | undefined {
+  for (const v of vals) {
+    if (v == null || String(v).trim() === '') continue;
+    const n = Number(String(v).trim());
+    if (Number.isFinite(n) && Number.isInteger(n) && n > 0) return Math.trunc(n);
+  }
+  return undefined;
+}
+
+function normalizeOne(raw: Record<string, unknown>): NormalizedLink | null {
+  const consignments = Array.isArray(raw.consignments) ? raw.consignments : [];
+  const firstCons = asRecord(consignments[0]);
+
+  const externalNumber = pickStr(
+    raw.externalNumber,
+    raw.ExternalNumber,
+    firstCons?.externalNumber,
+    firstCons?.ExternalNumber,
+  );
+  const orderNumber = pickPositiveInt(
+    raw.orderNumber,
+    raw.OrderNumber,
+    raw.number,
+    raw.Number,
+  );
+  const consignmentNumber = pickPositiveInt(
+    raw.consignmentNumber,
+    raw.ConsignmentNumber,
+    firstCons?.number,
+    firstCons?.Number,
+    firstCons?.consignmentNumber,
+  );
+
+  if (!externalNumber || orderNumber == null) return null;
+  return { externalNumber, orderNumber, consignmentNumber };
+}
+
+function normalizeBody(dto: SoloplanOrderLinkDto): NormalizedLink[] {
+  const root = dto as unknown as Record<string, unknown>;
+  const fromRoot = normalizeOne(root);
+  const out: NormalizedLink[] = [];
+  if (fromRoot) out.push(fromRoot);
+
+  const normalOrder = Array.isArray(dto.normalOrder)
+    ? dto.normalOrder
+    : dto.normalOrder
+      ? [dto.normalOrder]
+      : [];
+
+  for (const item of normalOrder) {
+    const rec = asRecord(item);
+    if (!rec) continue;
+    const n = normalizeOne(rec);
+    if (n) out.push(n);
+  }
+
+  // Dedup by externalNumber (last wins)
+  const byExt = new Map<string, NormalizedLink>();
+  for (const n of out) byExt.set(n.externalNumber, n);
+  return [...byExt.values()];
 }
 
 @Controller('integrations/soloplan')
@@ -47,28 +159,29 @@ export class SoloplanOrderLinkController {
   @Public()
   @Post('order-link')
   async linkOrder(@Body() dto: SoloplanOrderLinkDto) {
-    const externalNumber = String(dto.externalNumber || '').trim();
-    if (!externalNumber) {
-      throw new BadRequestException('externalNumber fehlt');
-    }
-
-    const orderNumber = Number(String(dto.orderNumber ?? '').trim());
-    if (!Number.isFinite(orderNumber) || orderNumber <= 0 || !Number.isInteger(orderNumber)) {
+    const links = normalizeBody(dto);
+    if (!links.length) {
+      const keys = Object.keys(dto || {}).join(',');
+      this.log.warn(
+        `Soloplan order-link: kein gültiges externalNumber/number (keys=${keys || '—'})`,
+      );
       throw new BadRequestException(
-        'orderNumber muss eine echte Soloplan-Auftragsnummer > 0 sein (0 ist ungültig)',
+        'externalNumber/orderNumber fehlen (flach oder normalOrder[].externalNumber + number)',
       );
     }
-    const orderKey = String(Math.trunc(orderNumber));
 
-    const consignmentRaw = dto.consignmentNumber;
-    let consignmentNumber: number | undefined;
-    if (consignmentRaw != null && String(consignmentRaw).trim() !== '') {
-      const n = Number(String(consignmentRaw).trim());
-      if (!Number.isFinite(n) || n < 1) {
-        throw new BadRequestException('consignmentNumber ungültig');
-      }
-      consignmentNumber = Math.trunc(n);
+    const results = [];
+    for (const link of links) {
+      results.push(await this.applyLink(link));
     }
+
+    if (results.length === 1) return results[0];
+    return { ok: true, count: results.length, results };
+  }
+
+  private async applyLink(link: NormalizedLink) {
+    const { externalNumber, orderNumber, consignmentNumber } = link;
+    const orderKey = String(orderNumber);
 
     const customs = await this.prisma.customsOrder.findFirst({
       where: { externalNumber },
