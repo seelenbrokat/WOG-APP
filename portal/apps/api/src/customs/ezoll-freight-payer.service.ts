@@ -6,7 +6,7 @@ import { EzollSoloplanReadApiService } from './ezoll-soloplan-read-api.service';
 
 /**
  * Kunde im Portal = Soloplan-Frachtzahler.
- * Quellen: 1) TourConsignment 2) OrderEzoll_NurLesen API 3) sonst null.
+ * Quellen (ohne Soloplan-REST-API): 1) Wareneingang-/Portal-Sendung 2) TourConsignment.
  */
 @Injectable()
 export class EzollFreightPayerService {
@@ -14,7 +14,8 @@ export class EzollFreightPayerService {
 
   constructor(
     private prisma: PrismaService,
-    private ezollApi: EzollSoloplanReadApiService,
+    /** Behalten für DI/Module – Frachtzahler nutzt die API nicht mehr. */
+    private readonly _ezollApi: EzollSoloplanReadApiService,
   ) {}
 
   async resolveFreightPayerCustomer(
@@ -22,8 +23,49 @@ export class EzollFreightPayerService {
     orderNumber: number | string,
   ): Promise<{ customerId: string; bpNumber: string; name: string | null } | null> {
     const orderKey = String(orderNumber).trim();
-    if (!orderKey) return null;
+    if (!orderKey || orderKey === '0') return null;
 
+    // 1) Wareneingang / Portal-Sendung (Kunde = Frachtzahler)
+    const shipment = await this.prisma.shipment.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { soloplanRef: { equals: orderKey, mode: 'insensitive' } },
+          { reference: { equals: `WE-${orderKey}`, mode: 'insensitive' } },
+          { order: { soloplanRef: { equals: orderKey, mode: 'insensitive' } } },
+        ],
+      },
+      select: {
+        customerId: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            soloplanBusinessPartnerId: true,
+            customerNumber: true,
+            matchcode: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (shipment?.customerId && shipment.customer) {
+      const bp =
+        shipment.customer.soloplanBusinessPartnerId ||
+        shipment.customer.customerNumber ||
+        shipment.customer.matchcode ||
+        '';
+      this.log.debug(
+        `Frachtzahler Order ${orderKey} via Wareneingang/Sendung: ${shipment.customer.name || shipment.customerId}`,
+      );
+      return {
+        customerId: shipment.customerId,
+        bpNumber: String(bp),
+        name: shipment.customer.name,
+      };
+    }
+
+    // 2) TourConsignment (Soloplan-Tour-File)
     let bpNumber = '';
     let name: string | null = null;
 
@@ -42,19 +84,8 @@ export class EzollFreightPayerService {
       name = cons.freightPayerName || cons.customerName || null;
     }
 
-    if (!bpNumber && this.ezollApi.isEnabled()) {
-      const n = Number(orderKey);
-      if (Number.isFinite(n) && n > 0) {
-        const api = await this.ezollApi.resolveFreightPayerBp(n);
-        if (api?.bpNumber) {
-          bpNumber = api.bpNumber;
-          name = api.name;
-          this.log.log(
-            `Frachtzahler Order ${orderKey} via ${api.source}: BP ${bpNumber} (${name || '–'})`,
-          );
-        }
-      }
-    }
+    // Keine OrderEzoll_NurLesen-API mehr – blockiert Worker bei HTTP 500 und liefert
+    // nichts, was der Wareneingang nicht ohnehin liefern soll.
 
     if (!bpNumber) return null;
 

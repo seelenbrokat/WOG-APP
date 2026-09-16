@@ -538,6 +538,17 @@ export class WareneingangService {
       };
     }
 
+    // Soloplan Orga 1 = WOG GmbH (Mandant1) – im Portal deaktiviert, nicht importieren
+    if (parsed.orgaNumber === '1') {
+      this.logger.warn(
+        `Wareneingang übersprungen (OrgaNumber 1 / Mandant GMBH): ${parsed.orderNumber} (${sourceFile})`,
+      );
+      return { linked: false };
+    }
+
+    const orderNo = Number(String(parsed.orderNumber || '').trim());
+    const hasCreatableOrder = Number.isFinite(orderNo) && orderNo > 0;
+
     const hasImportableColli = parsed.consignments.some((c) =>
       c.items.some((it) => !!normalizeIncomingSscc(it.sscc || '')),
     );
@@ -545,20 +556,15 @@ export class WareneingangService {
       .map((c) => c.externalNumber?.trim())
       .find((v) => v && /^LAK/i.test(v));
 
-    // Feedback mit VLB/RPK ohne Portal-Treffer: nur überspringen, wenn keine SSCC-/LAK-Nutzlast
-    // (Sammel-Rechnungsnr. wie RPK… blockiert sonst den Erstimport von Schmidts-WEs)
-    if (parsed.externalNumber?.trim() && !hasImportableColli && !consLak) {
-      this.logger.warn(
-        `Wareneingang: Soloplan ${parsed.orderNumber} ExternalNumber ${parsed.externalNumber} ohne Portal-Treffer (${sourceFile})`,
-      );
-      return { linked: false };
-    }
-
-    // Soloplan Orga 1 = WOG GmbH (Mandant1) – im Portal deaktiviert, nicht importieren
-    if (parsed.orgaNumber === '1') {
-      this.logger.warn(
-        `Wareneingang übersprungen (OrgaNumber 1 / Mandant GMBH): ${parsed.orderNumber} (${sourceFile})`,
-      );
+    // OrderNumber 0 / leer: nur Link-Feedback (ExternalNumber→Order). Keine Portal-Sendung WE-0.
+    // Mit gültiger Soloplan-OrderNumber (≥1) außer Org1 → immer Portal-Sendung anlegen,
+    // auch ohne SSCC/LAK (Frachtzahler für eZoll/Austritt muss aus dem WE kommen).
+    if (!hasCreatableOrder) {
+      if (parsed.externalNumber?.trim() && !hasImportableColli && !consLak) {
+        this.logger.warn(
+          `Wareneingang: ExternalNumber ${parsed.externalNumber} ohne OrderNumber/Portal-Treffer (${sourceFile})`,
+        );
+      }
       return { linked: false };
     }
 
@@ -603,10 +609,10 @@ export class WareneingangService {
         mandantId: mandant.id,
         freightPayerCustomerId: customer.id,
         externalNumber,
+        soloplanRef: parsed.orderNumber,
         createdById: admin?.id,
       },
     });
-
     const flatItems = consignment.items.length
       ? consignment.items
       : [
@@ -665,12 +671,13 @@ export class WareneingangService {
         goodsDescription: 'Wareneingang',
         packageCount: colliPlan.length,
         weightKg,
-        extras: consLak
-          ? {
-              externalShipmentNumber: consLak,
-              soloplanWeReference: `WE-${parsed.orderNumber}`,
-            }
-          : undefined,
+        // Spiegel aus Soloplan-WE: nie zurück als Create nach Soloplan exportieren
+        extras: {
+          wareneingangMirror: true,
+          soloplanOrderNumber: parsed.orderNumber,
+          soloplanWeReference: `WE-${parsed.orderNumber}`,
+          ...(consLak ? { externalShipmentNumber: consLak } : {}),
+        },
         pickupCompany: consignment.absName || parsed.name1,
         pickupStreet: consignment.absStreet || parsed.street,
         pickupZip: consignment.absZip || parsed.zipCode,
@@ -746,6 +753,11 @@ export class WareneingangService {
     if (createdColli.length) {
       await this.writeLabels(shipment, customer.id, createdColli, admin?.id);
     }
+
+    this.logger.log(
+      `Wareneingang angelegt: ${shipment.trackingNumber} Order ${parsed.orderNumber}` +
+        ` Frachtzahler-BP ${parsed.businessPartnerId || '–'} (${customer.name}) ← ${sourceFile}`,
+    );
 
     return { id: shipment.id, linked: false };
   }
