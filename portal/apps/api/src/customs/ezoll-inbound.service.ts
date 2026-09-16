@@ -163,7 +163,7 @@ export class EzollInboundService {
     cc599 = d.processed;
     customerExit = d.customerExit;
     unmatched += d.unmatched;
-    customerExit += await this.retryPendingCustomerExit(orgId, 40);
+    customerExit += await this.retryPendingCustomerExit(orgId, 250);
 
     const pending = this.listPendingFiles().length;
     return {
@@ -662,18 +662,37 @@ export class EzollInboundService {
     const dir = join(this.inboundRoot, 'pending-customer-exit');
     if (!existsSync(dir)) return 0;
     let ok = 0;
-    const files = readdirSync(dir)
-      .filter((f) => /\.pdf$/i.test(f))
-      .sort()
-      .slice(0, limit);
-    for (const name of files) {
+    // Alle Pending-PDFs laden; Zuordenbare (mit Portal-Sendung/Frachtzahler) zuerst,
+    // sonst blockieren alte Orders ohne Kundenkonto das Limit (früher slice(0,40)).
+    const all = readdirSync(dir)
+      .filter((f) => /\.pdf$/i.test(f) && !f.startsWith('.'))
+      .sort();
+    const scored: { name: string; orderNumber: number; consignmentIndex: number; hasShip: boolean }[] =
+      [];
+    for (const name of all) {
       const m = name.match(/^(\d{5,7})\.(\d{1,3})__CUSTOMS_EXIT__/);
       if (!m) continue;
       const orderNumber = Number(m[1]);
       const consignmentIndex = Number(m[2]);
+      const shipment = await this.customerDocs.findShipmentForSoloplanOrder(
+        organizationId,
+        String(orderNumber),
+        consignmentIndex,
+      );
+      scored.push({
+        name,
+        orderNumber,
+        consignmentIndex,
+        hasShip: Boolean(shipment?.customerId),
+      });
+    }
+    scored.sort((a, b) => Number(b.hasShip) - Number(a.hasShip) || a.name.localeCompare(b.name));
+    const files = scored.slice(0, Math.max(limit, 250));
+
+    for (const entry of files) {
+      const { name, orderNumber, consignmentIndex } = entry;
       const filePath = join(dir, name);
       try {
-        // Erst Frachtzahler aus Tour versuchen (falls WE noch fehlt)
         let shipment = await this.customerDocs.findShipmentForSoloplanOrder(
           organizationId,
           String(orderNumber),
@@ -706,10 +725,18 @@ export class EzollInboundService {
           filePath,
           sourceFileName: name,
         });
-        if (pub === 'ok' || pub === 'skipped' || pub === 'no_rights') {
+        if (pub === 'ok' || pub === 'skipped') {
           this.move(filePath, join(this.inboundRoot, 'processed', 'cc599', `${Date.now()}_pending_${name}`));
           if (pub === 'ok') ok += 1;
           this.log.log(`CC599 Pending ${orderNumber}.${consignmentIndex}: ${pub}`);
+        } else if (pub === 'no_rights') {
+          // Nicht verwerfen: Frachtzahler bekannt, Dokumentenmodul/CUSTOMS_EXIT fehlt noch.
+          const hold = join(dir, 'no-rights');
+          if (!existsSync(hold)) mkdirSync(hold, { recursive: true });
+          this.move(filePath, join(hold, name));
+          this.log.log(
+            `CC599 Pending ${orderNumber}.${consignmentIndex}: no_rights (Frachtzahler ohne CUSTOMS_EXIT) → no-rights/`,
+          );
         }
       } catch (e: any) {
         this.log.warn(`CC599 Pending ${name}: ${e?.message || e}`);
