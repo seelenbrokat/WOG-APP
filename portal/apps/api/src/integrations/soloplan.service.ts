@@ -1222,8 +1222,10 @@ export class SoloplanService implements TransportIntegration {
     const inhalt =
       order.goodsDescription?.trim() ||
       `Verzollungsauftrag ${order.importeur}`.trim();
+    // Echte Soloplan-Nummer > 0 (nicht FILE:, nicht 0 aus kaputtem WE-Feedback)
     const customsSoloplanNumber =
-      order.soloplanRef && /^\d+$/.test(order.soloplanRef.trim())
+      order.soloplanRef &&
+      /^[1-9]\d*$/.test(order.soloplanRef.trim())
         ? order.soloplanRef.trim()
         : null;
     const shipmentBase: PortalShipmentForSoloplan = {
@@ -1345,11 +1347,16 @@ export class SoloplanService implements TransportIntegration {
       );
       this.writeOutboundOrderFile(createFileName, JSON.stringify(createPayload, null, 2));
       createFileNameWritten = createFileName;
-      const fileRef = `FILE:${createFileName}`;
-      await this.prisma.customsOrder.update({
-        where: { id: order.id },
-        data: { soloplanRef: fileRef },
-      });
+      // Echte Soloplan-Nummer (>0) nie mit FILE: überschreiben (order-link Webhook)
+      const keepRealRef =
+        order.soloplanRef && /^[1-9]\d*$/.test(String(order.soloplanRef).trim());
+      if (!keepRealRef) {
+        const fileRef = `FILE:${createFileName}`;
+        await this.prisma.customsOrder.update({
+          where: { id: order.id },
+          data: { soloplanRef: fileRef },
+        });
+      }
       this.logger.log(
         `Soloplan PORTAL-v6 customs CREATE ${join(this.ordersOutDir, createFileName)} (ohne Dokumente; Docs folgen nach Abholung)`,
       );

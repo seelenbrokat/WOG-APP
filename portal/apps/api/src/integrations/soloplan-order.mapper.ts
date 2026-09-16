@@ -73,9 +73,10 @@ export type PortalShipmentForSoloplan = {
   extras?: unknown;
   /**
    * Smart-Border- / Verzollungsfelder (FileAPI OrderImportPORTAL-v6).
-   * Schema-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang,
-   * zeitpunktanderGrenze, importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
-   * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+   * JSON-Property-Keys (nicht die Title-Schreibweise!): kennzeichen,
+   * kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
+   * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
+   * telefon_Smartborder, mailSmartborder, sMSSmartBorder.
    */
   kennzeichen?: string | null;
   kennzeichenAnhaenger?: string | null;
@@ -88,11 +89,11 @@ export type PortalShipmentForSoloplan = {
   zAZVLBPortal?: string | null;
   /** Warenort/Verzollungsort → Soloplan warenortVLBPortal */
   warenortVLBPortal?: string | null;
-  /** Fahrertelefon → Soloplan Telefon_Smartborder */
+  /** Fahrertelefon → Soloplan telefon_Smartborder */
   telefonSmartborder?: string | null;
-  /** E-Mail-Rückmeldung → Soloplan MailSmartborder */
+  /** E-Mail-Rückmeldung → Soloplan mailSmartborder */
   mailSmartborder?: string | null;
-  /** SMS-Link-Flag → Soloplan SMSSmartBorder */
+  /** SMS-Link-Flag → Soloplan sMSSmartBorder */
   smsSmartBorder?: boolean | null;
   /** Explizit Verzollungsauftrag (sonst aus extras.verzollung). */
   verzollungsauftrag?: boolean | null;
@@ -700,6 +701,7 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
   const telefonSmartborder =
     String(
       shipment.telefonSmartborder ||
+        extras.telefon_Smartborder ||
         extras.Telefon_Smartborder ||
         extras.telefonSmartborder ||
         extras.driverPhone ||
@@ -708,8 +710,8 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
   const mailSmartborder =
     String(
       shipment.mailSmartborder ||
-        extras.MailSmartborder ||
         extras.mailSmartborder ||
+        extras.MailSmartborder ||
         extras.smartborderNotifyEmail ||
         '',
     )
@@ -717,6 +719,7 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
       .toLowerCase() || undefined;
   const smsRaw =
     shipment.smsSmartBorder ??
+    extras.sMSSmartBorder ??
     extras.SMSSmartBorder ??
     extras.smsSmartBorder ??
     extras.smartborderSendSms;
@@ -742,10 +745,11 @@ export function resolveCustomsFileApiFields(shipment: PortalShipmentForSoloplan)
 }
 
 /**
- * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6 (Order schema).
- * Exact-Keys: kennzeichen, kennzeichenAnhänger, grenzübergang, zeitpunktanderGrenze,
- * importeurVLBPortal, zAZVLBPortal, warenortVLBPortal,
- * Telefon_Smartborder, MailSmartborder, SMSSmartBorder.
+ * Consignment-Zusatzfelder laut SoloplanOrderImportPORTAL-v6.
+ * JSON-Keys = Schema-properties (camelCase), nicht die Title-Labels.
+ * Falsch: SMSSmartBorder / MailSmartborder / Telefon_Smartborder
+ *   → NoAdditionalPropertiesAllowed in CarLo.
+ * Richtig: sMSSmartBorder / mailSmartborder / telefon_Smartborder
  */
 function applyCustomsConsignmentFields(
   consignment: Record<string, unknown>,
@@ -762,16 +766,20 @@ function applyCustomsConsignmentFields(
   if (fields.importeurVLBPortal) consignment.importeurVLBPortal = fields.importeurVLBPortal;
   if (fields.zAZVLBPortal) consignment.zAZVLBPortal = fields.zAZVLBPortal;
   if (fields.warenortVLBPortal) consignment.warenortVLBPortal = fields.warenortVLBPortal;
-  // Exact Schema-Namen (OrderImportPORTAL-v6 / SmartBorder-Kategorie)
+  // Schema property names (OrderImportPORTAL-v6)
   if (fields.telefonSmartborder) {
-    consignment.Telefon_Smartborder = fields.telefonSmartborder;
+    consignment.telefon_Smartborder = fields.telefonSmartborder;
   }
   if (fields.mailSmartborder) {
-    consignment.MailSmartborder = fields.mailSmartborder;
+    consignment.mailSmartborder = fields.mailSmartborder;
   }
   if (fields.smsSmartBorder != null) {
-    consignment.SMSSmartBorder = fields.smsSmartBorder;
+    consignment.sMSSmartBorder = fields.smsSmartBorder;
   }
+  // Alte Title-Keys nie mitsenden (CarLo: NoAdditionalPropertiesAllowed)
+  delete consignment.Telefon_Smartborder;
+  delete consignment.MailSmartborder;
+  delete consignment.SMSSmartBorder;
   return consignment;
 }
 

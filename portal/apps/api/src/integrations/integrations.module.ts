@@ -23,6 +23,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 import { PartnerStatusInboundService } from './partner-status-inbound.service';
 import { PostAblieferbelegService } from './post-ablieferbeleg.service';
 import { PostAblieferbelegController } from './post-ablieferbeleg.controller';
+import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { PostAblieferbelegController } from './post-ablieferbeleg.controller';
     forwardRef(() => UsersModule),
     forwardRef(() => CustomsModule),
   ],
-  controllers: [IntegrationsController, PostAblieferbelegController],
+  controllers: [IntegrationsController, PostAblieferbelegController, SoloplanOrderLinkController],
   providers: [
     SoloplanService,
     PartnerImportService,
