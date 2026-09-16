@@ -33,7 +33,7 @@ function baseShipment(
 }
 
 describe('Soloplan FileAPI SmartBorder-Felder', () => {
-  it('mapped Telefon_Smartborder, MailSmartborder, SMSSmartBorder', () => {
+  it('mapped telefon_Smartborder, mailSmartborder, sMSSmartBorder', () => {
     const fields = resolveCustomsFileApiFields(
       baseShipment({
         telefonSmartborder: '+436769075070',
@@ -47,13 +47,13 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(fields.smsSmartBorder, true);
   });
 
-  it('akzeptiert Schema-Keys auch aus extras', () => {
+  it('akzeptiert Schema-Keys und Legacy-Title-Keys aus extras', () => {
     const fields = resolveCustomsFileApiFields(
       baseShipment({
         extras: {
-          Telefon_Smartborder: '+436641234567',
-          MailSmartborder: 'Info@Beispiel.AT',
-          SMSSmartBorder: 'true',
+          telefon_Smartborder: '+436641234567',
+          mailSmartborder: 'Info@Beispiel.AT',
+          sMSSmartBorder: 'true',
         },
       }),
     );
@@ -63,7 +63,7 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(fields.smsSmartBorder, true);
   });
 
-  it('schreibt Exact-Keys in OrderImportPORTAL-v6 Create-JSON', () => {
+  it('schreibt Schema-Property-Keys in OrderImportPORTAL-v6 Create-JSON', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({
         verzollungsauftrag: true,
@@ -78,9 +78,13 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     };
 
     const c = payload.order[0].consignments[0];
-    assert.equal(c.Telefon_Smartborder, '+436769075070');
-    assert.equal(c.MailSmartborder, 'disposition@beispiel.at');
-    assert.equal(c.SMSSmartBorder, true);
+    assert.equal(c.telefon_Smartborder, '+436769075070');
+    assert.equal(c.mailSmartborder, 'disposition@beispiel.at');
+    assert.equal(c.sMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
+    // Title-Schreibweise darf nicht im JSON landen (CarLo additionalProperties:false)
+    assert.equal(c.Telefon_Smartborder, undefined);
+    assert.equal(c.MailSmartborder, undefined);
+    assert.equal(c.SMSSmartBorder, undefined);
   });
 });

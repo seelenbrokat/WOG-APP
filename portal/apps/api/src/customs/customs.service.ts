@@ -372,6 +372,37 @@ export class CustomsService {
       },
     });
 
+    // Absender/Empfänger (und ggf. Frachtzahler) ins Kunden-Adressbuch
+    await this.ensureCustomerAddress(customerId, {
+      label: data.absenderFirma.trim(),
+      company: data.absenderFirma.trim(),
+      street: data.absenderStreet.trim(),
+      zip: data.absenderZip.trim(),
+      city: data.absenderCity.trim(),
+      country: absenderCountry,
+      usage: 'PICKUP',
+    });
+    await this.ensureCustomerAddress(customerId, {
+      label: data.empfaengerFirma.trim(),
+      company: data.empfaengerFirma.trim(),
+      street: data.empfaengerStreet.trim(),
+      zip: data.empfaengerZip.trim(),
+      city: data.empfaengerCity.trim(),
+      country: empfaengerCountry,
+      usage: 'DELIVERY',
+    });
+    if (abweichend && data.frachtzahlerStreet && data.frachtzahlerZip && data.frachtzahlerCity) {
+      await this.ensureCustomerAddress(customerId, {
+        label: (data.frachtzahlerFirma || 'Frachtzahler').trim(),
+        company: data.frachtzahlerFirma?.trim() || null,
+        street: data.frachtzahlerStreet.trim(),
+        zip: data.frachtzahlerZip.trim(),
+        city: data.frachtzahlerCity.trim(),
+        country: (data.frachtzahlerCountry || 'AT').trim().toUpperCase() || 'AT',
+        usage: 'BOTH',
+      });
+    }
+
     if (invoices.length) {
       await this.savePapers(user, order.id, invoices, DocumentType.INVOICE);
     }
@@ -754,6 +785,69 @@ export class CustomsService {
     if (!party.firma?.trim() || !party.street?.trim() || !party.zip?.trim() || !party.city?.trim()) {
       throw new BadRequestException(`${label}: Firma, Straße, PLZ und Ort sind erforderlich`);
     }
+  }
+
+  /**
+   * Absender/Empfänger aus dem Verzollungsauftrag ins Kunden-Adressbuch.
+   * Gleiche Straße/PLZ/Ort/Land → bestehender Eintrag (Usage ggf. erweitern).
+   */
+  private async ensureCustomerAddress(
+    customerId: string,
+    data: {
+      label?: string | null;
+      company?: string | null;
+      street: string;
+      zip: string;
+      city: string;
+      country?: string | null;
+      usage: 'PICKUP' | 'DELIVERY' | 'BOTH';
+    },
+  ) {
+    const street = data.street.trim();
+    const zip = data.zip.trim();
+    const city = data.city.trim();
+    const country = (data.country || 'AT').trim().toUpperCase() || 'AT';
+    if (!street || !zip || !city) return null;
+
+    const existing = await this.prisma.address.findFirst({
+      where: {
+        customerId,
+        zip,
+        country,
+        street: { equals: street, mode: 'insensitive' },
+        city: { equals: city, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      const nextUsage =
+        existing.usage === 'BOTH' || existing.usage === data.usage
+          ? existing.usage
+          : 'BOTH';
+      const patch: { usage?: string; company?: string; label?: string } = {};
+      if (nextUsage !== existing.usage) patch.usage = nextUsage;
+      if (data.company && !existing.company) patch.company = data.company;
+      if (data.label && (!existing.label || existing.label.startsWith('Delivery ') || existing.label.startsWith('Pickup '))) {
+        patch.label = data.label;
+      }
+      if (Object.keys(patch).length) {
+        return this.prisma.address.update({ where: { id: existing.id }, data: patch });
+      }
+      return existing;
+    }
+
+    return this.prisma.address.create({
+      data: {
+        customerId,
+        label: data.label || data.company || (data.usage === 'PICKUP' ? 'Absender' : 'Empfänger'),
+        company: data.company || undefined,
+        street,
+        zip,
+        city,
+        country,
+        usage: data.usage,
+      },
+    });
   }
 
   private async savePapers(
