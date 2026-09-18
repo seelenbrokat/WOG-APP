@@ -17,7 +17,7 @@ import { LademittelscheinService } from './lager/lademittelschein.service';
 import { CustomerDocumentsInboundService } from './documents/customer-documents-inbound.service';
 import { PartnerOrdersInboundService } from './integrations/partner-orders-inbound.service';
 import { PartnerStatusInboundService } from './integrations/partner-status-inbound.service';
-import { EbeleVipService } from './integrations/ebele/ebele-vip.service';
+import { EberleVipService } from './integrations/eberle/eberle-vip.service';
 import { EzollInboundService } from './customs/ezoll-inbound.service';
 import { MercurioInboundService } from './customs/mercurio-inbound.service';
 import { PostAblieferbelegService } from './integrations/post-ablieferbeleg.service';
@@ -42,13 +42,13 @@ async function bootstrap() {
   const customerDocuments = app.get(CustomerDocumentsInboundService);
   const partnerOrders = app.get(PartnerOrdersInboundService);
   const partnerStatus = app.get(PartnerStatusInboundService);
-  const ebeleVip = app.get(EbeleVipService);
+  const eberleVip = app.get(EberleVipService);
   const ezollInbound = app.get(EzollInboundService);
   const mercurioInbound = app.get(MercurioInboundService);
   const postAblieferbelege = app.get(PostAblieferbelegService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + Partner-Status/STAT512 + ebele VIP + eZoll + Mercurio e-dec + Post-Ablieferbelege + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + Partner-Status/STAT512 + eberle VIP + eZoll + Mercurio e-dec + Post-Ablieferbelege + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -115,19 +115,19 @@ async function bootstrap() {
             (partnerStat.files.length ? ` → ${partnerStat.files.join(', ')}` : ''),
         );
       }
-      const ebeleOut = await ebeleVip.processOutbound();
-      if (ebeleOut.exported || ebeleOut.files.length) {
+      const eberleOut = await eberleVip.processOutbound();
+      if (eberleOut.exported || eberleOut.files.length) {
         console.log(
-          `ebele VIP outbound: ${ebeleOut.exported} Sendungen` +
-            (ebeleOut.files.length ? ` → ${ebeleOut.files.join(', ')}` : ''),
+          `eberle VIP outbound: ${eberleOut.exported} Sendungen` +
+            (eberleOut.files.length ? ` → ${eberleOut.files.join(', ')}` : ''),
         );
       }
-      const ebeleIn = await ebeleVip.processInbound();
-      if (ebeleIn.processed || ebeleIn.failed || ebeleIn.events || ebeleIn.pods) {
+      const eberleIn = await eberleVip.processInbound();
+      if (eberleIn.processed || eberleIn.failed || eberleIn.events || eberleIn.pods) {
         console.log(
-          `ebele VIP inbound: ${ebeleIn.processed} Dateien, ${ebeleIn.events} Status, ${ebeleIn.pods} POD` +
-            (ebeleIn.failed ? `, ${ebeleIn.failed} fehlgeschlagen` : '') +
-            (ebeleIn.files.length ? ` → ${ebeleIn.files.join(', ')}` : ''),
+          `eberle VIP inbound: ${eberleIn.processed} Dateien, ${eberleIn.events} Status, ${eberleIn.pods} POD` +
+            (eberleIn.failed ? `, ${eberleIn.failed} fehlgeschlagen` : '') +
+            (eberleIn.files.length ? ` → ${eberleIn.files.join(', ')}` : ''),
         );
       }
       const ezoll = await ezollInbound.processInboundDir();

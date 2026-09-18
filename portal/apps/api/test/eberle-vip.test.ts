@@ -8,16 +8,16 @@ import {
   formatVipDate,
   mapVipCountry,
   mapVipUnit,
-} from '../src/integrations/ebele/vip.builder';
+} from '../src/integrations/eberle/vip.builder';
 import {
   isVipStatusContent,
   parseVipStatus,
   vipStatusMatchKeys,
-} from '../src/integrations/ebele/vip-status.parser';
-import { mapVipStatusToTransportOrderStatus } from '../src/integrations/ebele/vip-status-to-telematics';
-import type { VipShipmentInput } from '../src/integrations/ebele/vip.types';
+} from '../src/integrations/eberle/vip-status.parser';
+import { mapVipStatusToTransportOrderStatus } from '../src/integrations/eberle/vip-status-to-telematics';
+import type { VipShipmentInput } from '../src/integrations/eberle/vip.types';
 
-describe('ebele VIP Builder', () => {
+describe('eberle VIP Builder', () => {
   const sample: VipShipmentInput = {
     orderNumber: '929841',
     deliveryNote: '433366.1',
@@ -94,8 +94,8 @@ describe('ebele VIP Builder', () => {
   });
 });
 
-describe('ebele VIP Status', () => {
-  const samplePath = join(__dirname, '../../../data/samples/ebele/status-sample.txt');
+describe('eberle VIP Status', () => {
+  const samplePath = join(__dirname, '../../../data/samples/eberle/status-sample.txt');
 
   it('erkennt und parst gpANLAGE-Status', () => {
     const content = readFileSync(samplePath, 'utf8');

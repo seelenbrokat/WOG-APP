@@ -52,7 +52,7 @@ export type VipShipmentInput = {
 };
 
 export type VipBuildOptions = {
-  /** Auftraggebernummer (ANR) – vom VIP/ebele zugeteilt */
+  /** Auftraggebernummer (ANR) – vom VIP/eberle zugeteilt */
   anr: string;
   /** CRLF laut Spec */
   lineEnding?: '\r\n' | '\n';

@@ -21,7 +21,7 @@ import { MtrackService } from './mtrack.service';
 import { PartnerOrdersInboundService } from './partner-orders-inbound.service';
 import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 import { PartnerStatusInboundService } from './partner-status-inbound.service';
-import { EbeleVipService } from './ebele/ebele-vip.service';
+import { EberleVipService } from './eberle/eberle-vip.service';
 import { PostAblieferbelegService } from './post-ablieferbeleg.service';
 import { PostAblieferbelegController } from './post-ablieferbeleg.controller';
 import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
@@ -52,7 +52,7 @@ import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
     PartnerOrdersInboundService,
     PartnerOrdersSftpService,
     PartnerStatusInboundService,
-    EbeleVipService,
+    EberleVipService,
     PostAblieferbelegService,
     LdvAdapter,
     MercurioAdapter,
@@ -76,7 +76,7 @@ import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
     PartnerOrdersInboundService,
     PartnerOrdersSftpService,
     PartnerStatusInboundService,
-    EbeleVipService,
+    EberleVipService,
     PostAblieferbelegService,
   ],
 })

@@ -26,7 +26,7 @@ import type { VipAddress, VipGoodsLine, VipShipmentInput } from './vip.types';
 import { isVipStatusContent, parseVipStatus } from './vip-status.parser';
 import { mapVipStatusToTransportOrderStatus } from './vip-status-to-telematics';
 
-type EbeleVehicleRow = {
+type EberleVehicleRow = {
   id: string;
   soloplanVehicleId: string;
   matchcode: string | null;
@@ -34,7 +34,7 @@ type EbeleVehicleRow = {
   number: string | null;
 };
 
-type EbeleConsignmentRow = {
+type EberleConsignmentRow = {
   id: string;
   soloplanOrderNumber: string;
   orderNumber: string | null;
@@ -49,7 +49,7 @@ type EbeleConsignmentRow = {
     tourNumber: string;
     targetStart: Date | null;
     updatedAt: Date;
-    vehicle: EbeleVehicleRow | null;
+    vehicle: EberleVehicleRow | null;
   };
 };
 
@@ -97,25 +97,25 @@ function parseMaybeDate(v: unknown): Date | undefined {
 }
 
 /**
- * ebele VIP-Datenaustausch (bidirektional).
+ * eberle VIP-Datenaustausch (bidirektional).
  *
  * Outbound: Soloplan-Telematik-Touren für Fahrzeug „erbelre“ → VIP K/L (ohne Preise)
- *   → data/sftp/partners/ebele/outbound/
+ *   → data/sftp/partners/eberle/outbound/
  *
  * Inbound: Status (gpANLAGE) + POD-Dateien
- *   → data/sftp/partners/ebele/inbound/
+ *   → data/sftp/partners/eberle/inbound/
  *   → Soloplan StdTelematics TransportOrderStatus / Document
  */
 @Injectable()
-export class EbeleVipService {
-  private readonly log = new Logger(EbeleVipService.name);
+export class EberleVipService {
+  private readonly log = new Logger(EberleVipService.name);
   private readonly partnerRoot: string;
   private readonly outboundDir: string;
   private readonly inboundDir: string;
   private readonly stateDir: string;
   private readonly uploadDir: string;
   private readonly anr: string;
-  private readonly vehicleMatch: string;
+  private readonly vehicleMatches: string[];
   private readonly enabled: boolean;
   private readonly username: string;
 
@@ -127,28 +127,29 @@ export class EbeleVipService {
     const sftpRoot =
       this.config.get('SFTP_ROOT_DIR') || join(process.cwd(), '../../data/sftp');
     this.username = (
-      this.config.get<string>('EBELE_SFTP_USERNAME') || 'ebele'
+      this.config.get<string>('EBERLE_SFTP_USERNAME') || 'eberle'
     )
       .trim()
       .toLowerCase();
     this.partnerRoot = join(sftpRoot, 'partners', this.username);
     this.outboundDir =
-      this.config.get('EBELE_OUTBOUND_DIR') || join(this.partnerRoot, 'outbound');
+      this.config.get('EBERLE_OUTBOUND_DIR') || join(this.partnerRoot, 'outbound');
     this.inboundDir =
-      this.config.get('EBELE_INBOUND_DIR') || join(this.partnerRoot, 'inbound');
+      this.config.get('EBERLE_INBOUND_DIR') || join(this.partnerRoot, 'inbound');
     // State außerhalb des SFTP-Chroots (Partner sieht nur outbound/inbound)
     this.stateDir =
-      this.config.get('EBELE_STATE_DIR') ||
+      this.config.get('EBERLE_STATE_DIR') ||
       join(sftpRoot, 'state', this.username);
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
-    this.anr = String(this.config.get('EBELE_VIP_ANR') || '890037').trim();
-    this.vehicleMatch = String(
-      this.config.get('EBELE_VEHICLE_MATCH') || 'erbelre',
+    this.anr = String(this.config.get('EBERLE_VIP_ANR') || '890037').trim();
+    this.vehicleMatches = String(
+      this.config.get('EBERLE_VEHICLE_MATCH') || 'erbelre,eberle',
     )
-      .trim()
-      .toLowerCase();
-    const flag = String(this.config.get('EBELE_VIP_ENABLED') ?? '1').trim();
+      .split(/[,|;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const flag = String(this.config.get('EBERLE_VIP_ENABLED') ?? '1').trim();
     this.enabled = !['0', 'false', 'no', 'off'].includes(flag.toLowerCase());
     this.ensureDirs();
   }
@@ -173,7 +174,7 @@ export class EbeleVipService {
       enabled: this.enabled,
       username: this.username,
       anr: this.anr,
-      vehicleMatch: this.vehicleMatch,
+      vehicleMatch: this.vehicleMatches.join(','),
       outboundDir: this.outboundDir,
       inboundDir: this.inboundDir,
       pendingOutbound: existsSync(this.outboundDir)
@@ -184,7 +185,7 @@ export class EbeleVipService {
   }
 
   /**
-   * Exportiert offene Tour-Sendungen des Fahrzeugs erbelre als VIP-Datei.
+   * Exportiert offene Tour-Sendungen der Eberle-Fahrzeuge (erbelre/eberle) als VIP-Datei.
    */
   async processOutbound(limit = 40): Promise<{
     exported: number;
@@ -194,12 +195,12 @@ export class EbeleVipService {
     if (!this.enabled) return { exported: 0, skipped: 0, files: [] };
     this.ensureDirs();
 
-    const vehicles = await this.findEbeleVehicles();
+    const vehicles = await this.findEberleVehicles();
     if (!vehicles.length) {
       return { exported: 0, skipped: 0, files: [] };
     }
 
-    const vehicleIds = vehicles.map((v: EbeleVehicleRow) => v.id);
+    const vehicleIds = vehicles.map((v: EberleVehicleRow) => v.id);
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const consignments = (await this.prisma.tourConsignment.findMany({
       where: {
@@ -230,10 +231,10 @@ export class EbeleVipService {
       },
       orderBy: { id: 'desc' },
       take: Math.max(limit * 3, 60),
-    })) as EbeleConsignmentRow[];
+    })) as EberleConsignmentRow[];
 
     const pending = consignments
-      .filter((c: EbeleConsignmentRow) => !this.isExported(c.id))
+      .filter((c: EberleConsignmentRow) => !this.isExported(c.id))
       .slice(0, limit);
     if (!pending.length) return { exported: 0, skipped: consignments.length, files: [] };
 
@@ -249,14 +250,14 @@ export class EbeleVipService {
         exportedIds.push(cons.id);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.log.warn(`ebele VIP Skip ${cons.soloplanOrderNumber}: ${msg}`);
+        this.log.warn(`eberle VIP Skip ${cons.soloplanOrderNumber}: ${msg}`);
       }
     }
 
     if (!shipments.length) return { exported: 0, skipped: pending.length, files: [] };
 
     const stamp = formatZurichFileStamp();
-    const fileName = `VIP_ebele_${stamp}.txt`;
+    const fileName = `VIP_eberle_${stamp}.txt`;
     const content = buildVipFile(shipments, { anr: this.anr, lineEnding: '\r\n' });
     assertNoVipPrices(content);
     const full = join(this.outboundDir, fileName);
@@ -272,13 +273,13 @@ export class EbeleVipService {
     }
 
     this.log.log(
-      `ebele VIP outbound: ${fileName} (${shipments.length} Sendungen, Fahrzeug=${this.vehicleMatch})`,
+      `eberle VIP outbound: ${fileName} (${shipments.length} Sendungen, Fahrzeug=${this.vehicleMatches.join(',')})`,
     );
     return { exported: shipments.length, skipped: 0, files: [fileName] };
   }
 
   /**
-   * Verarbeitet Status- und POD-Dateien aus dem ebele-Inbound.
+   * Verarbeitet Status- und POD-Dateien aus dem eberle-Inbound.
    */
   async processInbound(limit = 40): Promise<{
     processed: number;
@@ -310,7 +311,7 @@ export class EbeleVipService {
       } catch (err: unknown) {
         failed += 1;
         const msg = err instanceof Error ? err.message : String(err);
-        this.log.warn(`ebele inbound ${name}: ${msg}`);
+        this.log.warn(`eberle inbound ${name}: ${msg}`);
         try {
           this.move(full, join(this.inboundDir, 'failed', `${Date.now()}_${name}`));
         } catch {
@@ -359,7 +360,7 @@ export class EbeleVipService {
       const vehicleId = await this.resolveVehicleId(resolved.vehicleId);
       if (!vehicleId) {
         this.log.warn(
-          `ebele Status: keine VehicleId für ${mapped.transportOrderNumber} – geparkt`,
+          `eberle Status: keine VehicleId für ${mapped.transportOrderNumber} – geparkt`,
         );
         continue;
       }
@@ -374,7 +375,7 @@ export class EbeleVipService {
       });
       written += 1;
       this.log.log(
-        `ebele Status: ${orderNumber} ${mapped.originalCode}→${mapped.status} vehicle=${vehicleId}`,
+        `eberle Status: ${orderNumber} ${mapped.originalCode}→${mapped.status} vehicle=${vehicleId}`,
       );
     }
 
@@ -409,10 +410,10 @@ export class EbeleVipService {
       fileName: destName,
       contentBase64: buf.toString('base64'),
     });
-    this.log.log(`ebele POD: ${destName} → Soloplan TO=${orderNumber}`);
+    this.log.log(`eberle POD: ${destName} → Soloplan TO=${orderNumber}`);
   }
 
-  private consignmentToVip(cons: EbeleConsignmentRow): VipShipmentInput {
+  private consignmentToVip(cons: EberleConsignmentRow): VipShipmentInput {
     const details = asRec(cons.details);
     const senderRaw = asRec(details?.sender) || asRec(details?.differentLoadingPoint);
     const receiverRaw =
@@ -590,23 +591,27 @@ export class EbeleVipService {
     return strField(rec, 'matchcode', 'Matchcode') || undefined;
   }
 
-  private async findEbeleVehicles(): Promise<EbeleVehicleRow[]> {
+  private async findEberleVehicles(): Promise<EberleVehicleRow[]> {
     const org =
       (await this.prisma.organization.findFirst({ where: { slug: 'wog' } })) ||
       (await this.prisma.organization.findFirst());
     if (!org) return [];
 
-    const match = this.vehicleMatch;
+    const matches = this.vehicleMatches;
+    if (!matches.length) return [];
+
+    const orFilters = matches.flatMap((match) => [
+      { matchcode: { contains: match, mode: 'insensitive' as const } },
+      { soloplanVehicleId: { contains: match, mode: 'insensitive' as const } },
+      { licensePlate: { contains: match, mode: 'insensitive' as const } },
+      { number: { contains: match, mode: 'insensitive' as const } },
+    ]);
+
     const vehicles = (await this.prisma.vehicle.findMany({
       where: {
         organizationId: org.id,
         active: true,
-        OR: [
-          { matchcode: { contains: match, mode: 'insensitive' } },
-          { soloplanVehicleId: { contains: match, mode: 'insensitive' } },
-          { licensePlate: { contains: match, mode: 'insensitive' } },
-          { number: { contains: match, mode: 'insensitive' } },
-        ],
+        OR: orFilters,
       },
       select: {
         id: true,
@@ -615,18 +620,18 @@ export class EbeleVipService {
         licensePlate: true,
         number: true,
       },
-    })) as EbeleVehicleRow[];
+    })) as EberleVehicleRow[];
     return vehicles;
   }
 
   private async resolveVehicleId(fromDb?: string): Promise<string> {
     if (fromDb?.trim()) return fromDb.trim();
     const fromEnv =
-      this.config.get<string>('EBELE_DEFAULT_VEHICLE_ID') ||
+      this.config.get<string>('EBERLE_DEFAULT_VEHICLE_ID') ||
       this.config.get<string>('PARTNER_STATUS_DEFAULT_VEHICLE_ID') ||
       '';
     if (fromEnv.trim()) return fromEnv.trim();
-    const vehicles = await this.findEbeleVehicles();
+    const vehicles = await this.findEberleVehicles();
     return vehicles[0]?.soloplanVehicleId || '';
   }
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Legt einen OpenSSH internal-sftp User für ebele VIP (In + Out) an.
+# Legt einen OpenSSH internal-sftp User für eberle VIP (In + Out) an.
 #
-# Struktur (Chroot = partners/ebele):
-#   outbound/  – VIP-Auftragsdateien zum Abholen (WOG → ebele)
-#   inbound/   – Status + POD zum Hochladen (ebele → WOG)
+# Struktur (Chroot = partners/eberle):
+#   outbound/  – VIP-Auftragsdateien zum Abholen (WOG → eberle)
+#   inbound/   – Status + POD zum Hochladen (eberle → WOG)
 #
 # Usage:
-#   sudo bash portal/scripts/provision-ebele-sftp.sh
-#   sudo bash portal/scripts/provision-ebele-sftp.sh ebele /opt/wog-portal/portal
+#   sudo bash portal/scripts/provision-eberle-sftp.sh
+#   sudo bash portal/scripts/provision-eberle-sftp.sh eberle /opt/wog-portal/portal
 
 set -euo pipefail
 
-USERNAME="${1:-ebele}"
+USERNAME="${1:-eberle}"
 APP_DIR="${2:-/opt/wog-portal/portal}"
 SFTP_ROOT="${APP_DIR}/data/sftp"
 PARTNER_ROOT="${SFTP_ROOT}/partners/${USERNAME}"
@@ -35,7 +35,7 @@ port=22
 outbound=partners/${USERNAME}/outbound
 inbound=partners/${USERNAME}/inbound
 format=VIP
-note=ebele VIP – keine Preise in Outbound-Dateien
+note=eberle VIP – keine Preise in Outbound-Dateien
 created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
   echo "Credentials angelegt: ${CRED_FILE}"
@@ -59,20 +59,20 @@ chmod 755 "$IN_DIR/processed" "$IN_DIR/failed" "$IN_DIR/pod"
 
 if ! id "$USERNAME" >/dev/null 2>&1; then
   useradd --system --home-dir "$PARTNER_ROOT" --shell /usr/sbin/nologin \
-    --comment "WOG ebele VIP SFTP ($USERNAME)" "$USERNAME"
+    --comment "WOG eberle VIP SFTP ($USERNAME)" "$USERNAME"
 fi
 echo "${USERNAME}:${PASSWORD}" | chpasswd
 
 # Outbound lesbar, Inbound beschreibbar
 chown root:root "$OUT_DIR"
 chmod 755 "$OUT_DIR"
-# Gruppe ebele darf outbound lesen (Dateien 664)
+# Gruppe eberle darf outbound lesen (Dateien 664)
 chgrp "$USERNAME" "$OUT_DIR" 2>/dev/null || true
 chmod 755 "$OUT_DIR"
 chown "${USERNAME}:${USERNAME}" "$IN_DIR" "$IN_DIR/processed" "$IN_DIR/failed" "$IN_DIR/pod"
 chmod 775 "$IN_DIR"
 
-SSHD_MARK="# WOG Portal – ebele VIP SFTP ($USERNAME)"
+SSHD_MARK="# WOG Portal – eberle VIP SFTP ($USERNAME)"
 if ! grep -q "^Match User ${USERNAME}\$" /etc/ssh/sshd_config 2>/dev/null; then
   cat >> /etc/ssh/sshd_config <<EOF
 
@@ -93,7 +93,7 @@ chmod 700 "$CRED_DIR" 2>/dev/null || true
 chown root:root "$CRED_DIR" 2>/dev/null || true
 chmod 600 "$CRED_FILE" 2>/dev/null || true
 
-echo "SFTP-User ${USERNAME} bereit (ebele VIP In+Out)"
+echo "SFTP-User ${USERNAME} bereit (eberle VIP In+Out)"
 echo "  host: $(grep '^host=' "$CRED_FILE" | cut -d= -f2-)"
 echo "  outbound (Download): /outbound/"
 echo "  inbound  (Upload):   /inbound/"

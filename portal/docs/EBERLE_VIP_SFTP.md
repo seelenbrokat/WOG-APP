@@ -1,14 +1,14 @@
-# ebele – VIP-Datenaustausch (SFTP In + Out)
+# Eberle – VIP-Datenaustausch (SFTP In + Out)
 
-Partner **ebele** erhält Sendungsdaten als VIP-eLogistics-Datei (BDK) und liefert
+Partner **Eberle** erhält Sendungsdaten als VIP-eLogistics-Datei (BDK) und liefert
 Status sowie PODs zurück. Quelle der ausgehenden Daten: Soloplan-**Telematik-Touren**
-für Fahrzeug **`erbelre`**.
+für Fahrzeug **`erbelre`** (Match auch `eberle`).
 
 ## Wichtig
 
 - **Keine Preise** in der Outbound-Datei (VBET / NNBET / WARENWERT bleiben leer).
-- Schnittstelle: `portal/docs/partners/ebele/Schnittstellenbeschreibung_VIP_41f0.pdf`
-- Status-Codes: `portal/data/samples/ebele/status-sample.txt` (gpANLAGE)
+- Schnittstelle: `portal/docs/partners/eberle/Schnittstellenbeschreibung_VIP_41f0.pdf`
+- Status-Codes: `portal/data/samples/eberle/status-sample.txt` (gpANLAGE)
 
 ## SFTP
 
@@ -17,38 +17,38 @@ für Fahrzeug **`erbelre`**.
 | Protokoll | **SFTP** (SSH) |
 | Host | `wog.logistikberater.at` |
 | Port | `22` |
-| Benutzer | `ebele` |
-| Passwort | Server `portal/data/sftp/credentials/ebele.txt` (**nicht in Git**) |
+| Benutzer | `eberle` |
+| Passwort | Server `portal/data/sftp/credentials/eberle.txt` (**nicht in Git**) |
 | Nach Login | `/outbound/` (Download), `/inbound/` (Upload) |
-| State (intern) | `data/sftp/state/ebele/` (nicht im Chroot) |
+| State (intern) | `data/sftp/state/eberle/` (nicht im Chroot) |
 
 ### Provisioning (VPS)
 
 ```bash
-sudo bash portal/scripts/provision-ebele-sftp.sh ebele /opt/wog-portal/portal
+sudo bash portal/scripts/provision-eberle-sftp.sh eberle /opt/wog-portal/portal
 ```
 
-Chroot: `data/sftp/partners/ebele/`
+Chroot: `data/sftp/partners/eberle/`
 
-## Outbound (WOG → ebele)
+## Outbound (WOG → Eberle)
 
 1. Soloplan legt StdTelematics-Tour für Fahrzeug **erbelre** ab.
 2. Portal importiert die Tour (bestehender Tour-Worker).
-3. `EbeleVipService.processOutbound()` baut VIP **K**- und **L**-Sätze und schreibt
-   `VIP_ebele_<stempel>.txt` nach `partners/ebele/outbound/`.
-4. ebele holt die Datei per SFTP ab.
+3. `EberleVipService.processOutbound()` baut VIP **K**- und **L**-Sätze und schreibt
+   `VIP_eberle_<stempel>.txt` nach `partners/eberle/outbound/`.
+4. Eberle holt die Datei per SFTP ab.
 
 ### Mapping (Auszug)
 
 | VIP | Quelle |
 |-----|--------|
-| ANR | `EBELE_VIP_ANR` (Default `890037`) |
+| ANR | `EBERLE_VIP_ANR` (Default `890037`) |
 | AUFTNR | Soloplan `TransportOrder.Number` |
 | LSR | ExternalConsignmentNumber / OrderNumber.Index |
 | Absender/Empfänger | Tour-Consignment Details |
 | GUTANZ / GUTEH / GUTKG | Freight / Items / Lademittel |
 
-## Inbound (ebele → WOG)
+## Inbound (Eberle → WOG)
 
 ### Status (Text)
 
@@ -73,14 +73,14 @@ Wird als StdTelematics **Document** an Soloplan gesendet.
 
 | Variable | Default | Bedeutung |
 |----------|---------|-------------|
-| `EBELE_VIP_ENABLED` | `1` | Ein/Aus |
-| `EBELE_VIP_ANR` | `890037` | Auftraggebernummer VIP |
-| `EBELE_VEHICLE_MATCH` | `erbelre` | Fahrzeug Matchcode/ID/Kennzeichen |
-| `EBELE_SFTP_USERNAME` | `ebele` | SFTP-/Ordnername |
-| `EBELE_DEFAULT_VEHICLE_ID` | – | Fallback Soloplan-VehicleId für Status |
-| `EBELE_OUTBOUND_DIR` / `EBELE_INBOUND_DIR` | partners/ebele/… | Override-Pfade |
+| `EBERLE_VIP_ENABLED` | `1` | Ein/Aus |
+| `EBERLE_VIP_ANR` | `890037` | Auftraggebernummer VIP |
+| `EBERLE_VEHICLE_MATCH` | `erbelre,eberle` | Fahrzeug Matchcode/ID/Kennzeichen (kommagetrennt) |
+| `EBERLE_SFTP_USERNAME` | `eberle` | SFTP-/Ordnername |
+| `EBERLE_DEFAULT_VEHICLE_ID` | – | Fallback Soloplan-VehicleId für Status |
+| `EBERLE_OUTBOUND_DIR` / `EBERLE_INBOUND_DIR` | partners/eberle/… | Override-Pfade |
 
 ## Worker
 
-Der Integration-Worker ruft in jedem Tick `ebeleVip.processOutbound()` und
-`ebeleVip.processInbound()` auf.
+Der Integration-Worker ruft in jedem Tick `eberleVip.processOutbound()` und
+`eberleVip.processInbound()` auf.

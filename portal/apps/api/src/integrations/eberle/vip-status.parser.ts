@@ -1,5 +1,5 @@
 /**
- * VIP Statusrückmeldung (ebele / gpANLAGE).
+ * VIP Statusrückmeldung (eberle / gpANLAGE).
  *
  * Beispiel:
  *   890037;B001-G0030;2026.03.11;0832;1772680;SPL19973;LS-500296-007;;0;;

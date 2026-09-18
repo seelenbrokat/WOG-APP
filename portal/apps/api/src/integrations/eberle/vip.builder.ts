@@ -70,7 +70,7 @@ export function mapVipCountry(raw?: string | null): string {
   return map[s] || s.slice(0, 4);
 }
 
-/** Einheit für GUTEH – Absprache mit ebele; sinnvolle Defaults. */
+/** Einheit für GUTEH – Absprache mit eberle; sinnvolle Defaults. */
 export function mapVipUnit(raw?: string | null): string {
   const s = String(raw || '')
     .trim()
