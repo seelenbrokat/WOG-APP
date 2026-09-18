@@ -136,7 +136,10 @@ export class EbeleVipService {
       this.config.get('EBELE_OUTBOUND_DIR') || join(this.partnerRoot, 'outbound');
     this.inboundDir =
       this.config.get('EBELE_INBOUND_DIR') || join(this.partnerRoot, 'inbound');
-    this.stateDir = join(this.partnerRoot, 'state');
+    // State außerhalb des SFTP-Chroots (Partner sieht nur outbound/inbound)
+    this.stateDir =
+      this.config.get('EBELE_STATE_DIR') ||
+      join(sftpRoot, 'state', this.username);
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     this.anr = String(this.config.get('EBELE_VIP_ANR') || '890037').trim();
@@ -701,6 +704,8 @@ export class EbeleVipService {
       .filter((f) => {
         if (f.startsWith('.')) return false;
         if (['processed', 'failed', 'pod'].includes(f)) return false;
+        const lower = f.toLowerCase();
+        if (lower === 'readme.txt' || lower === 'readme.md') return false;
         const full = join(this.inboundDir, f);
         try {
           return statSync(full).isFile();

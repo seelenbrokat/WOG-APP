@@ -20,6 +20,7 @@ für Fahrzeug **`erbelre`**.
 | Benutzer | `ebele` |
 | Passwort | Server `portal/data/sftp/credentials/ebele.txt` (**nicht in Git**) |
 | Nach Login | `/outbound/` (Download), `/inbound/` (Upload) |
+| State (intern) | `data/sftp/state/ebele/` (nicht im Chroot) |
 
 ### Provisioning (VPS)
 
