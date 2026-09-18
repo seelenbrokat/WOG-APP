@@ -352,6 +352,31 @@ export class PostAblieferbelegService {
     return org.id;
   }
 
+  /** Swiss-Post-Barcodes kommen mit/ohne Punkte (99.60… vs 9960…). */
+  private postBarcodeVariants(raw: string): string[] {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return [];
+    const digits = trimmed.replace(/\D/g, '');
+    const out = new Set<string>([trimmed]);
+    if (digits && digits !== trimmed) out.add(digits);
+    return [...out];
+  }
+
+  private extrasPostBarcode(extras: unknown): string {
+    if (!extras || typeof extras !== 'object' || Array.isArray(extras)) return '';
+    return String((extras as Record<string, unknown>).postBarcode || '').trim();
+  }
+
+  private barcodeEquals(a: string, b: string): boolean {
+    const aa = String(a || '').trim();
+    const bb = String(b || '').trim();
+    if (!aa || !bb) return false;
+    if (aa.toLowerCase() === bb.toLowerCase()) return true;
+    const da = aa.replace(/\D/g, '');
+    const db = bb.replace(/\D/g, '');
+    return Boolean(da && db && da === db);
+  }
+
   private async findShipment(
     organizationId: string,
     input: PostAblieferbelegIngestInput,
@@ -394,44 +419,72 @@ export class PostAblieferbelegService {
       }
     }
     if (postBarcode) {
-      or.push({ reference: { equals: postBarcode, mode: 'insensitive' } });
-      or.push({ soloplanRef: { equals: postBarcode, mode: 'insensitive' } });
-      or.push({ trackingNumber: { equals: postBarcode, mode: 'insensitive' } });
+      for (const v of this.postBarcodeVariants(postBarcode)) {
+        or.push({ reference: { equals: v, mode: 'insensitive' } });
+        or.push({ soloplanRef: { equals: v, mode: 'insensitive' } });
+        or.push({ trackingNumber: { equals: v, mode: 'insensitive' } });
+        // Früh gesetztes Tracking liegt in extras.postBarcode – bisher nicht gesucht → 404
+        or.push({ extras: { path: ['postBarcode'], equals: v } });
+      }
     }
     if (clientReference) {
       or.push({ reference: { equals: clientReference, mode: 'insensitive' } });
       or.push({ soloplanRef: { equals: clientReference, mode: 'insensitive' } });
     }
 
-    if (!or.length) return null;
+    const select = {
+      id: true,
+      trackingNumber: true,
+      organizationId: true,
+      customerId: true,
+      soloplanRef: true,
+      reference: true,
+      status: true,
+      deliveryDate: true,
+      extras: true,
+      customer: { select: { customerNumber: true, name: true } },
+    } as const;
 
-    const candidates = await this.prisma.shipment.findMany({
-      where: { organizationId, OR: or },
-      select: {
-        id: true,
-        trackingNumber: true,
-        organizationId: true,
-        customerId: true,
-        soloplanRef: true,
-        reference: true,
-        status: true,
-        deliveryDate: true,
-        extras: true,
-        customer: { select: { customerNumber: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
+    let candidates =
+      or.length > 0
+        ? await this.prisma.shipment.findMany({
+            where: { organizationId, OR: or },
+            select,
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+          })
+        : [];
+
+    // Fallback: Barcode nur in extras, Format mit/ohne Punkte unterschiedlich
+    if (!candidates.length && postBarcode) {
+      const digits = postBarcode.replace(/\D/g, '');
+      if (digits.length >= 8) {
+        const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM "Shipment"
+          WHERE "organizationId" = ${organizationId}
+            AND extras->>'postBarcode' IS NOT NULL
+            AND regexp_replace(extras->>'postBarcode', '\\D', '', 'g') = ${digits}
+          ORDER BY "createdAt" DESC
+          LIMIT 20
+        `;
+        if (rows.length) {
+          candidates = await this.prisma.shipment.findMany({
+            where: { id: { in: rows.map((r) => r.id) } },
+            select,
+            orderBy: { createdAt: 'desc' },
+          });
+        }
+      }
+    }
 
     if (!candidates.length) return null;
     if (candidates.length === 1) return candidates[0];
 
-    // Bei mehreren Treffern: Barcode in extras bevorzugen
+    // Bei mehreren Treffern: Barcode in extras bevorzugen (auch normalisiert)
     if (postBarcode) {
-      const hit = candidates.find((c) => {
-        const raw = JSON.stringify(c.extras || {}).toLowerCase();
-        return raw.includes(postBarcode.toLowerCase());
-      });
+      const hit = candidates.find((c) =>
+        this.barcodeEquals(this.extrasPostBarcode(c.extras), postBarcode),
+      );
       if (hit) return hit;
     }
     if (shipmentNumber) {
