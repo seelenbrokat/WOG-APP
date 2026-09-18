@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Public API | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Public API | shippingNET ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In diesem Artikel">
+      <meta name="loc:searchResultsCount" content="{count} Ergebnisse f&#252;r &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="Kein Ergebnis f&#252;r &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Nach Titel filtern">
+      <meta name="loc:nextArticle" content="n&#228;chster Artikel">
+      <meta name="loc:prevArticle" content="vorheriger Artikel">
+      <meta name="loc:themeLight" content="Hell">
+      <meta name="loc:themeDark" content="Dunkel">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Theme &#228;ndern">
+      <meta name="loc:copy" content="Kopieren">
+      <meta name="loc:downloadPdf" content="PDF herunterladen">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Suchen" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="public-api">Public API</h1>
+
+<p>Die <strong>Public API</strong> von shippingNET ist eine Web-API nach neuestem Stand der Technik in REST-Architektur („Representational State Transfer“).</p>
+<h2 id="voraussetzungen">Voraussetzungen</h2>
+<ol>
+<li>Ein mittels https erreichbares shippingNET System.</li>
+<li>Konfiguration der <strong>Aufbauorganisation</strong> mit hinterlegter Geschäftspartner Nr. (BusinessPartnerNumber). Siehe auch: <a href="../uc/administration/admin-orgunit-editor.html#create-orgunit">Organisation erstellen</a>.</li>
+<li><strong>Postman</strong> um Beispielrequests abzusetzen (Kostenloses Tool: <a href="https://www.postman.com/downloads/">https://www.postman.com/downloads/</a>).</li>
+<li>Anmeldeinformationen für die <strong>Authentifizierung</strong> der Requests.</li>
+</ol>
+<h2 id="anmeldeinformationen-erhalten">Anmeldeinformationen erhalten</h2>
+<ol>
+<li>Navigieren Sie in der Hauptansicht zu dem Menüpunkt Systemkonfiguration.</li>
+<li>Klicken Sie im Bereich <strong>Organisation</strong> auf den Unterpunkt <strong>API</strong>.</li>
+<li>Im Bereich <strong>Anmeldeinformationen</strong> finden Sie die Parameter für die Authentifizierung:</li>
+</ol>
+<div class="tabGroup" id="tabgroup_1">
+<ul role="tablist">
+<li role="presentation">
+<a href="#tabpanel_1_auth-new" role="tab" aria-controls="tabpanel_1_auth-new" data-tab="auth-new" tabindex="0" aria-selected="true"><strong>Authentifizierung ab Version 24.1.0.0</strong></a>
+</li>
+<li role="presentation">
+<a href="#tabpanel_1_auth-old" role="tab" aria-controls="tabpanel_1_auth-old" data-tab="auth-old" tabindex="-1"><strong>Authentifizierung vor Version 24.1.0.0</strong></a>
+</li>
+</ul>
+<section id="tabpanel_1_auth-new" role="tabpanel" data-tab="auth-new">
+
+<p>Sie benötigen nur mehr den <strong>api-key</strong>: Das ist ein zusammengesetzter Schlüssel der die <strong>ClientID</strong>, <strong>OrgUnitID</strong> und <strong>OrgUnitGUID</strong> kombiniert.</p>
+</section>
+<section id="tabpanel_1_auth-old" role="tabpanel" data-tab="auth-old" aria-hidden="true" hidden="hidden">
+
+<ul>
+<li><strong>ClientID (client-id)</strong>: Das ist die ID des Mandanten. In den meisten Systemen ist diese Nummer immer gleich, weil nur ein einziger Mandant konfiguriert ist.</li>
+<li><strong>ID (orgunit-id)</strong>: Das ist die eindeutige ID der Organisationseinheit für die Sie die Daten importieren bzw. exportieren möchten.</li>
+<li><strong>OrgUnitGUID (auth-token)</strong>: Ein Authorisierungs-Token abhängig von der ID der Organisationseinheit.</li>
+</ul>
+</section>
+</div>
+<h2 id="beispielrequest-für-artikelanlage-mit-postman">Beispielrequest für Artikelanlage mit Postman</h2>
+<p>Für den Import von Artikeldaten gehen Sie wie folgt vor.</p>
+<ol>
+<li>Navigieren Sie in der Hauptansicht zu dem Menüpunkt <strong>Systemkonfiguration</strong>.</li>
+<li>Klicken Sie im Bereich <strong>Organisation</strong> auf den Unterpunkt <strong>API</strong>.</li>
+<li>Im Bereich <strong>APIs</strong> klicken Sie in der Liste der verfügbaren APIs auf <strong>Article</strong>.</li>
+<li>Sie sehen nun die Dokumentation für die Artikel-API mit den verfügbaren Methoden und deren Request-Aufbau. <img src="../media/dev/api-article.png" alt="Artikel API" title="Artikel API"></li>
+<li>Klicken Sie auf die Aktion <strong>Download</strong> und speichern Sie die OpenAPI-Spezifikation für das Artikel-Service lokal auf Ihren PC.</li>
+<li>Öffnen Sie das Porgramm Postman und importieren Sie die Datei. Klicken Sie dazu in Postman unter Workspaces/My Workspace auf die Aktion <strong>Import</strong> und wählen Sie die Datei aus.</li>
+<li>Hinterlegen Sie nun in der Collection <strong>shippingNET PublicApi Article Service</strong> die Anmeldeinformationen. Für Versionen vor 24.1.0.0 setzen Sie unter  Variablen die Werte für client-id, orgunit-id und auth-token. Ab Version 24.1.0.0 setzen Sie unter Variablen nur mehr den <strong>apiKey</strong>.</li>
+<li>Bearbeiten Sie unter der Karteikarte  <strong>Body</strong> den Request und geben Sie die gewünschten Artikelinformationen ein. Siehe auch <a href="../model/Article.html">Artikelfelder</a>.</li>
+<li>Klicken Sie abschließend rechts neben der Adresse auf die Aktion <strong>Send</strong> um den Import durchzuführen.</li>
+</ol>
+<div class="TIP">
+<h5>Tipp</h5>
+<p>Starten Sie mit einem <strong>minimalen Set an Feldern</strong> und weiten Sie schrittweise die zu übertragende Daten aus!</p>
+</div>
+<div class="TIP">
+<h5>Tipp</h5>
+<p>Manche Felder benötigen die Übergabe von Codes bzw. IDs. Diese Werte hängen mit der Freischaltung diverser Stammdaten in der Systemkonfiguration zusammen.
+Die Liste mit den Codes und deren Bedeutung finden Sie in  der <strong>Systemkonfiguration</strong> im Bereich <strong>Organisation</strong>  im  Unterpunkt <strong>API</strong>. Klicken Sie im Bereich <strong>Beschreibung</strong> auf <strong>Sendungsübersicht</strong>.</p>
+</div>
+<div class="NOTE">
+<h5>Hinweis</h5>
+<p>Feldwerte die im Request <strong>nicht mitgeschickt</strong> werden, bleiben unverändert! Um Felder auf <strong>NULL</strong> bzw. '' (leer) zu setzen, übergeben Sie das Feld mit <strong>NULL</strong> bzw. '' (leer).</p>
+</div>
+<div class="NOTE">
+<h5>Hinweis</h5>
+<p>Sie können auch Datei-Anhang zum Beispiel beim Statusimport oder Dokumente zu einer Sendung importieren.
+Das Limit der Dateigröße ist auf maximal <strong>2MB</strong> festgesetzt.
+Folgende Dateitypen sind erlaubt: <strong>PDF</strong>, <strong>PNG</strong>, <strong>JPG</strong>, Ab der Version <strong>26.1</strong> auch <strong>XLSX</strong>, <strong>MSG</strong> Sie müssen die Datei in einen Bas64 String konvertiert werden.</p>
+</div>
+<p>Bei einem erfolgreichen Request (Status Code 200) werden die im Body angeforderten Felder zurückgeliefert.</p>
+<pre><code class="lang-json:">{
+  &quot;Article&quot;: {
+    &quot;ID&quot;: &quot;&lt;number&gt;&quot;,
+    &quot;Number&quot;: &quot;&lt;string&gt;&quot;,
+    &quot;CustomerBusinessPartnerNumber&quot;: &quot;&lt;string&gt;&quot;
+  }
+}
+</code></pre>
+<p>Im Fehlerfall (Status Code 500) erhalten Sie die Fehlerursache in folgender Form:</p>
+<pre><code class="lang-json:">{
+  &quot;ExceptionCode&quot;: &quot;&lt;string&gt;&quot;,
+  &quot;ExceptionType&quot;: &quot;&lt;string&gt;&quot;,
+  &quot;ExceptionMessage&quot;: &quot;&lt;string&gt;&quot;,
+  &quot;Source&quot;: &quot;&lt;string&gt;&quot;
+}
+</code></pre>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

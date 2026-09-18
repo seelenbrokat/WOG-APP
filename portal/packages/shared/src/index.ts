@@ -25,8 +25,30 @@ export enum DocumentType {
   CUSTOMER_UPLOAD = 'CUSTOMER_UPLOAD',
   PARTNER_FILE = 'PARTNER_FILE',
   CUSTOMS_PAPER = 'CUSTOMS_PAPER',
+  LABEL = 'LABEL',
+  LOADING_LIST = 'LOADING_LIST',
+  WAREHOUSE_PHOTO = 'WAREHOUSE_PHOTO',
+  ENTLADEBERICHT = 'ENTLADEBERICHT',
+  LADEMITTELSCHEIN = 'LADEMITTELSCHEIN',
   OTHER = 'OTHER',
 }
+
+/** Freischaltbare Kategorien im Kunden-Dokumente-Modul */
+export enum CustomerDocCategory {
+  INVOICE = 'INVOICE',
+  CUSTOMS_EXIT = 'CUSTOMS_EXIT',
+  POD = 'POD',
+  CMR = 'CMR',
+  OTHER = 'OTHER',
+}
+
+export const CUSTOMER_DOC_CATEGORY_LABELS: Record<CustomerDocCategory, string> = {
+  [CustomerDocCategory.INVOICE]: 'Rechnung',
+  [CustomerDocCategory.CUSTOMS_EXIT]: 'Austrittsbestätigung Verzollung',
+  [CustomerDocCategory.POD]: 'Abliefernachweis / POD',
+  [CustomerDocCategory.CMR]: 'CMR',
+  [CustomerDocCategory.OTHER]: 'Sonstiges Dokument',
+};
 
 export enum NotificationEvent {
   SHIPMENT_CREATED = 'SHIPMENT_CREATED',
@@ -64,9 +86,108 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export {
   VORARLBERG_CH_GOODS_BORDERS,
+  isValidGrenzuebergang,
   isVorarlbergChGoodsBorder,
 } from './borders';
 export type { VorarlbergChGoodsBorder } from './borders';
 
 export { FRANKATUREN, isFrankatur } from './frankatur';
 export type { Frankatur } from './frankatur';
+
+export { PACKAGING_TYPES, packagingLabel } from './packaging';
+export type { PackagingCode } from './packaging';
+
+export { SHIPMENT_EXTRA_OPTIONS, shipmentExtrasLabels } from './shipment-extras';
+export type { ShipmentExtraCode, ShipmentExtras } from './shipment-extras';
+
+export {
+  normalizeSmartBorderPlate,
+  isValidSmartBorderPlate,
+  smartBorderPlateHint,
+  SMART_BORDER_PLATE_COUNTRIES,
+} from './smart-border-plates';
+
+export {
+  normalizePhoneE164,
+  phoneDigitsForSmsGateway,
+  linkMobilitySmsAddress,
+  isValidPhoneE164,
+} from './phone-e164';
+
+export {
+  COUNTRIES,
+  countryLabel,
+  zipPatternForCountry,
+  isValidZipForCountry,
+  isSwitzerlandOrLiechtenstein,
+  requiresChLiCustomsDocuments,
+  CH_LI_CUSTOMS_MANDANT_CODES,
+} from './countries';
+export type { CountryCode } from './countries';
+
+export {
+  EZOLL_FILENAME_IGNORE_PREFIXES_KEY,
+  DEFAULT_EZOLL_FILENAME_IGNORE_PREFIXES,
+  normalizeFilenameIgnorePrefixes,
+  matchesFilenameIgnorePrefix,
+} from './ezoll-ignore';
+
+export {
+  detectEzollDocType,
+  parseSoloplanMatchFromFilename,
+  parseSoloplanMatchFromLrn,
+  soloplanMatchKey,
+  extractMrnFromPdfText,
+  extractLrnFromPdfText,
+  extractTotalItemsFromPdfText,
+  extractEur1NumberFromPdfText,
+  extractCc529FieldsFromPdfText,
+  extractCc529FieldsFromXml,
+  isCc529Xml,
+  extractEz92xFieldsFromXml,
+  extractEur1NumberFromEz92xXml,
+  isEz92xXml,
+  isCc599Xml,
+  extractCc599FieldsFromXml,
+  extractCc599FieldsFromPdfText,
+  parseTourNumberFromFilename,
+  parseTourNumberFromLrn,
+  isCc029Xml,
+  extractCc029FieldsFromXml,
+  joinEzollMrns,
+} from './ezoll-doc-types';
+export type {
+  EzollDocType,
+  EzollSoloplanMatch,
+  EzollCc529Fields,
+  EzollEz92xFields,
+  EzollCc599Fields,
+  EzollCc029Fields,
+} from './ezoll-doc-types';
+
+export {
+  detectMercurioEdecDocType,
+  parseMercurioEdecMatchFromFilename,
+  parseMercurioEdecMatchFromRef,
+  parseMercurioAusfuhrGdrnFromFilename,
+  parseMercurioBordereauNumberFromFilename,
+  extractChDeclarationNumberFromPdfText,
+  extractMercurioRefNumberFromPdfText,
+  extractMercurioEur1FromPdfText,
+  extractAtExportMrnFromMercurioPdfText,
+  extractMercurioEdecFieldsFromPdfText,
+  extractMercurioBordereauFieldsFromPdfText,
+  extractChKontoNumber,
+  normalizeChKontoMwstForSoloplan,
+  normalizeChKontoForSoloplan,
+  parseChAmount,
+  isMercurioEdecFilename,
+  mercurioProcessedSubdir,
+} from './mercurio-edec';
+export type {
+  MercurioEdecDocType,
+  MercurioEdecMatch,
+  MercurioEdecFields,
+  MercurioBordereauFields,
+  MercurioBordereauLine,
+} from './mercurio-edec';

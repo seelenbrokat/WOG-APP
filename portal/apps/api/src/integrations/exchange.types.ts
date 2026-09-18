@@ -18,6 +18,11 @@ export type CustomsExchangePayload = {
   customerNumber?: string;
   status?: string;
   notes?: string;
+  /** CH/AT Zollreferenzen, falls vom Quellsystem geliefert */
+  mrn?: string;
+  lrn?: string;
+  orderNumber?: string;
+  consignmentIndex?: number;
   /** Rohdaten des Quellsystems bis Mapping finalisiert ist */
   raw?: Record<string, unknown>;
 };

@@ -17,9 +17,25 @@ export function mandantFilter(user: AuthUser): { mandantId?: { in: string[] } } 
   return { mandantId: { in: user.mandantIds } };
 }
 
-export function customerFilter(user: AuthUser): { customerId?: string } | Record<string, never> {
-  if (user.role === UserRole.CUSTOMER_USER && user.customerId) {
+/**
+ * Kunden-Isolation: CUSTOMER_USER sieht ausschließlich eigene Daten.
+ * Ohne verknüpftes customerId → kein Zugriff (fail-closed).
+ */
+export function customerFilter(user: AuthUser): { customerId: string } | Record<string, never> {
+  if (user.role === UserRole.CUSTOMER_USER) {
+    if (!user.customerId) {
+      throw new ForbiddenException('Kein Kundenkonto verknüpft');
+    }
     return { customerId: user.customerId };
   }
   return {};
+}
+
+/** Explizit: Kunde darf nur auf die eigene customerId zugreifen. */
+export function assertCustomerAccess(user: AuthUser, customerId: string | null | undefined) {
+  if (user.role !== UserRole.CUSTOMER_USER) return;
+  if (!user.customerId) throw new ForbiddenException('Kein Kundenkonto verknüpft');
+  if (!customerId || customerId !== user.customerId) {
+    throw new ForbiddenException('Kein Zugriff auf diese Kundendaten');
+  }
 }

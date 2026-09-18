@@ -3,7 +3,7 @@ import { OrganizationsService } from './organizations.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '@prisma/client';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 class UpdateOrgDto {
   @IsOptional()
@@ -13,6 +13,13 @@ class UpdateOrgDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+class UpdateEzollInboundDto {
+  /** Dateiname-Präfixe, die im eZoll-Drop ignoriert werden (z. B. 131., 671.). */
+  @IsArray()
+  @IsString({ each: true })
+  filenameIgnorePrefixes!: string[];
 }
 
 @Controller('organizations')
@@ -29,5 +36,17 @@ export class OrganizationsController {
   @Roles(UserRole.ORG_ADMIN)
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateOrgDto) {
     return this.service.update(user, dto);
+  }
+
+  @Get('me/settings/ezoll-inbound')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  getEzollInbound(@CurrentUser() user: AuthUser) {
+    return this.service.getEzollInboundConfig(user);
+  }
+
+  @Patch('me/settings/ezoll-inbound')
+  @Roles(UserRole.ORG_ADMIN)
+  updateEzollInbound(@CurrentUser() user: AuthUser, @Body() dto: UpdateEzollInboundDto) {
+    return this.service.updateEzollInboundConfig(user, dto.filenameIgnorePrefixes);
   }
 }

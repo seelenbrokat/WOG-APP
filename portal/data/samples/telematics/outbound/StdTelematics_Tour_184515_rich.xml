@@ -1,0 +1,888 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Tour xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.soloplan.de/StdTelematics">
+  <Header>
+    <SendDate>2026-07-26T14:08:00.7871735Z</SendDate>
+    <VehicleId>123</VehicleId>
+    <VehicleParam1>123</VehicleParam1>
+    <VehicleParam2 />
+    <Action>Create</Action>
+    <TourId>167347576</TourId>
+    <TourNumber>184515</TourNumber>
+    <UtcDifference>120</UtcDifference>
+  </Header>
+  <TourData>
+    <Designation />
+    <Client>2</Client>
+    <TargetStart>2026-07-26T06:00:00Z</TargetStart>
+    <TargetEnd>2026-07-26T06:00:00Z</TargetEnd>
+    <Infotext />
+    <Truck>
+      <Number>123</Number>
+      <Matchcode>MABUTEST</Matchcode>
+      <LicensePlate>Mabu</LicensePlate>
+      <TemporaryVehicleGroups xsi:nil="true" />
+      <Informations xsi:nil="true" />
+      <VehicleGroups>
+        <VehicleGroup>
+          <Number>26</Number>
+          <Matchcode>TELEMATIK</Matchcode>
+          <Designation>Telematik</Designation>
+        </VehicleGroup>
+        <VehicleGroup>
+          <Number>28</Number>
+          <Matchcode>TEST</Matchcode>
+          <Designation>test</Designation>
+        </VehicleGroup>
+        <VehicleGroup>
+          <Number>29</Number>
+          <Matchcode>TELEGMBH</Matchcode>
+          <Designation>Telematik GMBH</Designation>
+        </VehicleGroup>
+      </VehicleGroups>
+    </Truck>
+    <Trailer xsi:nil="true" />
+    <ModeOfTransport1 xsi:nil="true" />
+    <ModeOfTransport2 xsi:nil="true" />
+    <VehicleDesignation xsi:nil="true" />
+    <Driver1Name>Burtscher, Marcel</Driver1Name>
+    <Driver2Name />
+    <Driver3Name />
+    <Driver1>
+      <FirstName>Marcel</FirstName>
+      <LastName>Burtscher</LastName>
+      <TelematicsId>53</TelematicsId>
+    </Driver1>
+    <Driver2 xsi:nil="true" />
+    <Driver3 xsi:nil="true" />
+    <Informations xsi:nil="true" />
+    <TourStopSummary>1 - CH 9427 Wolfhalden Fr, 2 - A 6923 Lauterach Reit, 3 - CH 9427 Wolfhalden Fr, 4 - A 6923 Lauterach Reit</TourStopSummary>
+    <Carrier xsi:nil="true" />
+    <Dispatcher>
+      <FirstName>Marcel</FirstName>
+      <LastName>Burtscher</LastName>
+      <TelephoneNumber>+41(71)7337700</TelephoneNumber>
+      <MobilePhoneNumber />
+      <EmailAddress>marcel.burtscher@worldofgreen.ch</EmailAddress>
+      <Title />
+      <Department />
+    </Dispatcher>
+    <FloatFields xsi:nil="true" />
+    <TransportOrders>
+      <TransportOrder>
+        <Number>929841</Number>
+        <ExternalNumber />
+        <OrderData>
+          <OrderNumber>433366</OrderNumber>
+          <ExternalOrderNumber>Shuttle SUN</ExternalOrderNumber>
+          <OrderInformations xsi:nil="true" />
+        </OrderData>
+        <ConsignmentData>
+          <ExternalConsignmentNumber />
+          <ConsignmentReferences>
+            <Reference>
+              <Number>6</Number>
+              <Value>MABUTEST</Value>
+            </Reference>
+          </ConsignmentReferences>
+          <Number>1</Number>
+          <Sender>
+            <BusinessPartnerNumber>5364</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber />
+            <Name1>SUN AG</Name1>
+            <Name2 />
+            <Name3 />
+            <Name4 />
+            <Address>
+              <Country>
+                <Matchcode>CH</Matchcode>
+                <IsoAlpha2>CH</IsoAlpha2>
+                <IsoAlpha3>CHE</IsoAlpha3>
+                <IsoNumeric>756</IsoNumeric>
+              </Country>
+              <ZipCode>9427</ZipCode>
+              <City1>Wolfhalden</City1>
+              <City2 />
+              <Street>Friedberg</Street>
+              <HouseNumber>234</HouseNumber>
+              <Appendix />
+            </Address>
+            <GeoCoordinate>
+              <Longitude>9.5524687</Longitude>
+              <Latitude>47.4547559</Latitude>
+            </GeoCoordinate>
+            <ContactPerson xsi:nil="true" />
+            <OpeningHours xsi:nil="true" />
+          </Sender>
+          <Receiver>
+            <BusinessPartnerNumber>5013</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber />
+            <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+            <Name2>&amp; Co KG</Name2>
+            <Name3 />
+            <Name4 />
+            <Address>
+              <Country>
+                <Matchcode>A</Matchcode>
+                <IsoAlpha2>AT</IsoAlpha2>
+                <IsoAlpha3>AUT</IsoAlpha3>
+                <IsoNumeric>40</IsoNumeric>
+              </Country>
+              <ZipCode>6923</ZipCode>
+              <City1>Lauterach</City1>
+              <City2 />
+              <Street>Reitschulstraße </Street>
+              <HouseNumber>7</HouseNumber>
+              <Appendix />
+            </Address>
+            <GeoCoordinate>
+              <Longitude>9.724828</Longitude>
+              <Latitude>47.484586</Latitude>
+            </GeoCoordinate>
+            <ContactPerson>
+              <FirstName />
+              <LastName>Service</LastName>
+              <TelephoneNumber />
+              <MobilePhoneNumber />
+              <EmailAddress>service@mhdirekt.com</EmailAddress>
+              <Title />
+              <Department />
+            </ContactPerson>
+            <OpeningHours xsi:nil="true" />
+          </Receiver>
+          <DifferentLoadingPoint xsi:nil="true" />
+          <DifferentUnloadingPoint xsi:nil="true" />
+          <CheckFields>
+            <CheckField>
+              <Value>false</Value>
+              <Number>1</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>2</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>3</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>4</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>5</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>6</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>7</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>8</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>9</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>10</Number>
+            </CheckField>
+          </CheckFields>
+          <SaleType xsi:nil="true" />
+          <SenderAreaRelation xsi:nil="true" />
+          <ReceiverAreaRelation xsi:nil="true" />
+          <ConsignmentEquipments />
+          <ConsignmentLookupFields />
+        </ConsignmentData>
+        <Sender>
+          <BusinessPartnerNumber>5364</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>SUN AG</Name1>
+          <Name2 />
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>CH</Matchcode>
+              <IsoAlpha2>CH</IsoAlpha2>
+              <IsoAlpha3>CHE</IsoAlpha3>
+              <IsoNumeric>756</IsoNumeric>
+            </Country>
+            <ZipCode>9427</ZipCode>
+            <City1>Wolfhalden</City1>
+            <City2 />
+            <Street>Friedberg</Street>
+            <HouseNumber>234</HouseNumber>
+            <Appendix />
+          </Address>
+          <GeoCoordinate>
+            <Longitude>9.5524687</Longitude>
+            <Latitude>47.4547559</Latitude>
+          </GeoCoordinate>
+          <ContactPerson xsi:nil="true" />
+          <OpeningHours xsi:nil="true" />
+        </Sender>
+        <Receiver>
+          <BusinessPartnerNumber>5013</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+          <Name2>&amp; Co KG</Name2>
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>A</Matchcode>
+              <IsoAlpha2>AT</IsoAlpha2>
+              <IsoAlpha3>AUT</IsoAlpha3>
+              <IsoNumeric>40</IsoNumeric>
+            </Country>
+            <ZipCode>6923</ZipCode>
+            <City1>Lauterach</City1>
+            <City2 />
+            <Street>Reitschulstraße </Street>
+            <HouseNumber>7</HouseNumber>
+            <Appendix />
+          </Address>
+          <GeoCoordinate>
+            <Longitude>9.724828</Longitude>
+            <Latitude>47.484586</Latitude>
+          </GeoCoordinate>
+          <ContactPerson>
+            <FirstName />
+            <LastName>Service</LastName>
+            <TelephoneNumber />
+            <MobilePhoneNumber />
+            <EmailAddress>service@mhdirekt.com</EmailAddress>
+            <Title />
+            <Department />
+          </ContactPerson>
+          <OpeningHours xsi:nil="true" />
+        </Receiver>
+        <Customer>
+          <BusinessPartnerNumber>5901</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>DHL Paket (Austria) GmbH</Name1>
+          <Name2>Stiege 8</Name2>
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>A</Matchcode>
+              <IsoAlpha2>AT</IsoAlpha2>
+              <IsoAlpha3>AUT</IsoAlpha3>
+              <IsoNumeric>40</IsoNumeric>
+            </Country>
+            <ZipCode>1120</ZipCode>
+            <City1>Wien</City1>
+            <City2 />
+            <Street>Am Europlatz</Street>
+            <HouseNumber>2</HouseNumber>
+          </Address>
+          <GeoCoordinate>
+            <Longitude>16.3334794</Longitude>
+            <Latitude>48.1710388</Latitude>
+          </GeoCoordinate>
+          <ContactPerson xsi:nil="true" />
+          <OpeningHours xsi:nil="true" />
+        </Customer>
+        <FreightPayer xsi:nil="true" />
+        <DifferentLoadingPoint xsi:nil="true" />
+        <DifferentUnloadingPoint xsi:nil="true" />
+        <Restrictions>
+          <TargetLoadingFrom>2026-07-03T08:30:00Z</TargetLoadingFrom>
+          <TargetLoadingUntil>2026-07-03T09:30:00Z</TargetLoadingUntil>
+          <TargetUnloadingFrom>2026-07-03T11:00:00Z</TargetUnloadingFrom>
+          <TargetUnloadingUntil>2026-07-03T11:00:00Z</TargetUnloadingUntil>
+          <LoadingOrder>3</LoadingOrder>
+          <DeliveryOrder>4</DeliveryOrder>
+          <VehicleEquipment xsi:nil="true" />
+          <VehicleType xsi:nil="true" />
+          <TransportType xsi:nil="true" />
+          <TransportTypeNumber xsi:nil="true" />
+        </Restrictions>
+        <FreightData>
+          <EffectiveWeight>550</EffectiveWeight>
+          <ChargeableWeight>550</ChargeableWeight>
+          <CarrierWeight>550</CarrierWeight>
+          <LoadingMeter>0</LoadingMeter>
+          <SquareMeter>0</SquareMeter>
+          <CubicMeter>0</CubicMeter>
+          <Quantity>1</Quantity>
+          <StoragePlaces>0</StoragePlaces>
+          <Compartments xsi:nil="true" />
+          <Kilometer>17</Kilometer>
+          <TollKilometer>8</TollKilometer>
+          <Incoterms xsi:nil="true" />
+          <ContainerNumber />
+        </FreightData>
+        <Informations>
+          <SenderInformation1>+41765075692</SenderInformation1>
+          <SenderInformation2>MH Direkt e-commerce&amp;fulfillment GmbH-AT-6923-Lauterach</SenderInformation2>
+          <ReceiverInformation>WA: 7.15-12 / 13-14:30 Uhr
+VZ Instruktionen bei Hr. Fritz
+Burkhard einholen
+burkhard.fritz@mhdirekt.com
+</ReceiverInformation>
+          <Informations>
+            <Information>
+              <Number>9</Number>
+              <Value>EUP 20</Value>
+            </Information>
+          </Informations>
+          <ConsignmentInformations>
+            <Information>
+              <Number>10</Number>
+              <Value>184515</Value>
+            </Information>
+            <Information>
+              <Number>14</Number>
+              <Value>https://shippingnet03.ondot.at/wog/Public.html#/PublicWeb/Tracking/Details/9c6efb72-5fc8-4786-a7ac-6ff9da98d8e3</Value>
+            </Information>
+          </ConsignmentInformations>
+        </Informations>
+        <FinancialAccountingData xsi:nil="true" />
+        <FloatFields xsi:nil="true" />
+        <Items>
+          <Item>
+            <Number>1</Number>
+            <FreightData>
+              <EffectiveWeight>550</EffectiveWeight>
+              <ChargeableWeight>550</ChargeableWeight>
+              <CarrierWeight>550</CarrierWeight>
+              <LoadingMeter>0</LoadingMeter>
+              <SquareMeter>0</SquareMeter>
+              <CubicMeter>0</CubicMeter>
+              <Quantity>1</Quantity>
+              <StoragePlaces>0</StoragePlaces>
+              <Compartments xsi:nil="true" />
+              <Content1>Pakete</Content1>
+              <Content2 />
+              <Packaging>Ladung</Packaging>
+              <Unit />
+              <Sign />
+              <ArticleNumber />
+              <EanCode />
+              <Length>0</Length>
+              <Width>0</Width>
+              <Height>0</Height>
+              <Temperature xsi:nil="true" />
+              <TemperatureVariation xsi:nil="true" />
+              <ContainerNumber />
+            </FreightData>
+            <DangerousGoodsInformation>
+              <CompatibilityGroup />
+              <ClassificationCode />
+              <TunnelRestrictionCode />
+              <LetterInCode />
+              <Digit />
+              <CarrierNumber />
+              <PackageGroup />
+              <Class />
+              <TechnicalName />
+              <IsDangerousToEnvironment>false</IsDangerousToEnvironment>
+              <TransportationCategory />
+            </DangerousGoodsInformation>
+            <FloatFields xsi:nil="true" />
+            <Informations xsi:nil="true" />
+            <SSCCs>
+              <SSCC>
+                <Code>091201014123144328</Code>
+                <StatusTimestamp xsi:nil="true" />
+                <ScanPoint>Undefined</ScanPoint>
+                <CarloFieldValues xsi:nil="true" />
+                <Comment xsi:nil="true" />
+                <Master xsi:nil="true" />
+                <SsccLinesLoading xsi:nil="true" />
+                <SsccLinesUnloading xsi:nil="true" />
+              </SSCC>
+            </SSCCs>
+            <ExtNumber />
+          </Item>
+        </Items>
+        <BordereauTourNumber xsi:nil="true" />
+        <TransportOrderResources />
+      </TransportOrder>
+      <TransportOrder>
+        <Number>929094</Number>
+        <ExternalNumber />
+        <OrderData>
+          <OrderNumber>432984</OrderNumber>
+          <ExternalOrderNumber>Shuttle SUN</ExternalOrderNumber>
+          <OrderInformations xsi:nil="true" />
+        </OrderData>
+        <ConsignmentData>
+          <ExternalConsignmentNumber />
+          <ConsignmentReferences>
+            <Reference>
+              <Number>6</Number>
+              <Value>MABUTEST</Value>
+            </Reference>
+          </ConsignmentReferences>
+          <Number>1</Number>
+          <Sender>
+            <BusinessPartnerNumber>5364</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber />
+            <Name1>SUN AG</Name1>
+            <Name2 />
+            <Name3 />
+            <Name4 />
+            <Address>
+              <Country>
+                <Matchcode>CH</Matchcode>
+                <IsoAlpha2>CH</IsoAlpha2>
+                <IsoAlpha3>CHE</IsoAlpha3>
+                <IsoNumeric>756</IsoNumeric>
+              </Country>
+              <ZipCode>9427</ZipCode>
+              <City1>Wolfhalden</City1>
+              <City2 />
+              <Street>Friedberg</Street>
+              <HouseNumber>234</HouseNumber>
+              <Appendix />
+            </Address>
+            <GeoCoordinate>
+              <Longitude>9.5524687</Longitude>
+              <Latitude>47.4547559</Latitude>
+            </GeoCoordinate>
+            <ContactPerson xsi:nil="true" />
+            <OpeningHours xsi:nil="true" />
+          </Sender>
+          <Receiver>
+            <BusinessPartnerNumber>5013</BusinessPartnerNumber>
+            <ExternalBusinessPartnerNumber />
+            <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+            <Name2>&amp; Co KG</Name2>
+            <Name3 />
+            <Name4 />
+            <Address>
+              <Country>
+                <Matchcode>A</Matchcode>
+                <IsoAlpha2>AT</IsoAlpha2>
+                <IsoAlpha3>AUT</IsoAlpha3>
+                <IsoNumeric>40</IsoNumeric>
+              </Country>
+              <ZipCode>6923</ZipCode>
+              <City1>Lauterach</City1>
+              <City2 />
+              <Street>Reitschulstraße </Street>
+              <HouseNumber>7</HouseNumber>
+              <Appendix />
+            </Address>
+            <GeoCoordinate>
+              <Longitude>9.724828</Longitude>
+              <Latitude>47.484586</Latitude>
+            </GeoCoordinate>
+            <ContactPerson>
+              <FirstName />
+              <LastName>Service</LastName>
+              <TelephoneNumber />
+              <MobilePhoneNumber />
+              <EmailAddress>service@mhdirekt.com</EmailAddress>
+              <Title />
+              <Department />
+            </ContactPerson>
+            <OpeningHours xsi:nil="true" />
+          </Receiver>
+          <DifferentLoadingPoint xsi:nil="true" />
+          <DifferentUnloadingPoint xsi:nil="true" />
+          <CheckFields>
+            <CheckField>
+              <Value>false</Value>
+              <Number>1</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>2</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>3</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>4</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>5</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>6</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>7</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>8</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>9</Number>
+            </CheckField>
+            <CheckField>
+              <Value>false</Value>
+              <Number>10</Number>
+            </CheckField>
+          </CheckFields>
+          <SaleType xsi:nil="true" />
+          <SenderAreaRelation xsi:nil="true" />
+          <ReceiverAreaRelation xsi:nil="true" />
+          <ConsignmentEquipments />
+          <ConsignmentLookupFields />
+        </ConsignmentData>
+        <Sender>
+          <BusinessPartnerNumber>5364</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>SUN AG</Name1>
+          <Name2 />
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>CH</Matchcode>
+              <IsoAlpha2>CH</IsoAlpha2>
+              <IsoAlpha3>CHE</IsoAlpha3>
+              <IsoNumeric>756</IsoNumeric>
+            </Country>
+            <ZipCode>9427</ZipCode>
+            <City1>Wolfhalden</City1>
+            <City2 />
+            <Street>Friedberg</Street>
+            <HouseNumber>234</HouseNumber>
+            <Appendix />
+          </Address>
+          <GeoCoordinate>
+            <Longitude>9.5524687</Longitude>
+            <Latitude>47.4547559</Latitude>
+          </GeoCoordinate>
+          <ContactPerson xsi:nil="true" />
+          <OpeningHours xsi:nil="true" />
+        </Sender>
+        <Receiver>
+          <BusinessPartnerNumber>5013</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+          <Name2>&amp; Co KG</Name2>
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>A</Matchcode>
+              <IsoAlpha2>AT</IsoAlpha2>
+              <IsoAlpha3>AUT</IsoAlpha3>
+              <IsoNumeric>40</IsoNumeric>
+            </Country>
+            <ZipCode>6923</ZipCode>
+            <City1>Lauterach</City1>
+            <City2 />
+            <Street>Reitschulstraße </Street>
+            <HouseNumber>7</HouseNumber>
+            <Appendix />
+          </Address>
+          <GeoCoordinate>
+            <Longitude>9.724828</Longitude>
+            <Latitude>47.484586</Latitude>
+          </GeoCoordinate>
+          <ContactPerson>
+            <FirstName />
+            <LastName>Service</LastName>
+            <TelephoneNumber />
+            <MobilePhoneNumber />
+            <EmailAddress>service@mhdirekt.com</EmailAddress>
+            <Title />
+            <Department />
+          </ContactPerson>
+          <OpeningHours xsi:nil="true" />
+        </Receiver>
+        <Customer>
+          <BusinessPartnerNumber>5901</BusinessPartnerNumber>
+          <ExternalBusinessPartnerNumber />
+          <Name1>DHL Paket (Austria) GmbH</Name1>
+          <Name2>Stiege 8</Name2>
+          <Name3 />
+          <Name4 />
+          <Address>
+            <Country>
+              <Matchcode>A</Matchcode>
+              <IsoAlpha2>AT</IsoAlpha2>
+              <IsoAlpha3>AUT</IsoAlpha3>
+              <IsoNumeric>40</IsoNumeric>
+            </Country>
+            <ZipCode>1120</ZipCode>
+            <City1>Wien</City1>
+            <City2 />
+            <Street>Am Europlatz</Street>
+            <HouseNumber>2</HouseNumber>
+          </Address>
+          <GeoCoordinate>
+            <Longitude>16.3334794</Longitude>
+            <Latitude>48.1710388</Latitude>
+          </GeoCoordinate>
+          <ContactPerson xsi:nil="true" />
+          <OpeningHours xsi:nil="true" />
+        </Customer>
+        <FreightPayer xsi:nil="true" />
+        <DifferentLoadingPoint xsi:nil="true" />
+        <DifferentUnloadingPoint xsi:nil="true" />
+        <Restrictions>
+          <TargetLoadingFrom>2026-07-02T08:30:00Z</TargetLoadingFrom>
+          <TargetLoadingUntil>2026-07-02T09:30:00Z</TargetLoadingUntil>
+          <TargetUnloadingFrom>2026-07-02T11:00:00Z</TargetUnloadingFrom>
+          <TargetUnloadingUntil>2026-07-02T11:00:00Z</TargetUnloadingUntil>
+          <LoadingOrder>1</LoadingOrder>
+          <DeliveryOrder>2</DeliveryOrder>
+          <VehicleEquipment xsi:nil="true" />
+          <VehicleType xsi:nil="true" />
+          <TransportType xsi:nil="true" />
+          <TransportTypeNumber xsi:nil="true" />
+        </Restrictions>
+        <FreightData>
+          <EffectiveWeight>550</EffectiveWeight>
+          <ChargeableWeight>550</ChargeableWeight>
+          <CarrierWeight>550</CarrierWeight>
+          <LoadingMeter>0</LoadingMeter>
+          <SquareMeter>0</SquareMeter>
+          <CubicMeter>0</CubicMeter>
+          <Quantity>1</Quantity>
+          <StoragePlaces>0</StoragePlaces>
+          <Compartments xsi:nil="true" />
+          <Kilometer>17</Kilometer>
+          <TollKilometer>8</TollKilometer>
+          <Incoterms xsi:nil="true" />
+          <ContainerNumber />
+        </FreightData>
+        <Informations>
+          <SenderInformation1>+41765075692</SenderInformation1>
+          <SenderInformation2>MH Direkt e-commerce&amp;fulfillment GmbH-AT-6923-Lauterach</SenderInformation2>
+          <ReceiverInformation>WA: 7.15-12 / 13-14:30 Uhr
+VZ Instruktionen bei Hr. Fritz
+Burkhard einholen
+burkhard.fritz@mhdirekt.com
+</ReceiverInformation>
+          <Informations>
+            <Information>
+              <Number>9</Number>
+              <Value>EUP 20</Value>
+            </Information>
+          </Informations>
+          <ConsignmentInformations>
+            <Information>
+              <Number>10</Number>
+              <Value>184515</Value>
+            </Information>
+            <Information>
+              <Number>14</Number>
+              <Value>https://shippingnet03.ondot.at/wog/Public.html#/PublicWeb/Tracking/Details/e0f9dd4d-ff1a-472d-9f94-38159ad10693</Value>
+            </Information>
+          </ConsignmentInformations>
+        </Informations>
+        <FinancialAccountingData xsi:nil="true" />
+        <FloatFields xsi:nil="true" />
+        <Items>
+          <Item>
+            <Number>1</Number>
+            <FreightData>
+              <EffectiveWeight>550</EffectiveWeight>
+              <ChargeableWeight>550</ChargeableWeight>
+              <CarrierWeight>550</CarrierWeight>
+              <LoadingMeter>0</LoadingMeter>
+              <SquareMeter>0</SquareMeter>
+              <CubicMeter>0</CubicMeter>
+              <Quantity>1</Quantity>
+              <StoragePlaces>0</StoragePlaces>
+              <Compartments xsi:nil="true" />
+              <Content1>Pakete</Content1>
+              <Content2 />
+              <Packaging>Ladung</Packaging>
+              <Unit />
+              <Sign />
+              <ArticleNumber />
+              <EanCode />
+              <Length>0</Length>
+              <Width>0</Width>
+              <Height>0</Height>
+              <Temperature xsi:nil="true" />
+              <TemperatureVariation xsi:nil="true" />
+              <ContainerNumber />
+            </FreightData>
+            <DangerousGoodsInformation>
+              <CompatibilityGroup />
+              <ClassificationCode />
+              <TunnelRestrictionCode />
+              <LetterInCode />
+              <Digit />
+              <CarrierNumber />
+              <PackageGroup />
+              <Class />
+              <TechnicalName />
+              <IsDangerousToEnvironment>false</IsDangerousToEnvironment>
+              <TransportationCategory />
+            </DangerousGoodsInformation>
+            <FloatFields xsi:nil="true" />
+            <Informations xsi:nil="true" />
+            <SSCCs>
+              <SSCC>
+                <Code>091201014123130570</Code>
+                <StatusTimestamp xsi:nil="true" />
+                <ScanPoint>Undefined</ScanPoint>
+                <CarloFieldValues xsi:nil="true" />
+                <Comment xsi:nil="true" />
+                <Master xsi:nil="true" />
+                <SsccLinesLoading xsi:nil="true" />
+                <SsccLinesUnloading xsi:nil="true" />
+              </SSCC>
+            </SSCCs>
+            <ExtNumber />
+          </Item>
+        </Items>
+        <BordereauTourNumber xsi:nil="true" />
+        <TransportOrderResources />
+      </TransportOrder>
+    </TransportOrders>
+    <Stops>
+      <Stop>
+        <Order>1</Order>
+        <StopType>Sender</StopType>
+        <TourStopId>167347573</TourStopId>
+        <TransportOrderNumber>929094</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>CH</Matchcode>
+            <IsoAlpha2>CH</IsoAlpha2>
+            <IsoAlpha3>CHE</IsoAlpha3>
+            <IsoNumeric>756</IsoNumeric>
+          </Country>
+          <ZipCode>9427</ZipCode>
+          <City1>Wolfhalden</City1>
+          <City2 />
+          <Street>Friedberg</Street>
+          <HouseNumber>234</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>9.5524687</Longitude>
+          <Latitude>47.4547559</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Ladung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>SUN AG</Name1>
+        <Name2 />
+        <TargetStart>2026-07-02T08:30:00Z</TargetStart>
+        <TargetEnd>2026-07-02T09:30:00Z</TargetEnd>
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+        <ExtNumber />
+        <TourStopLines xsi:nil="true" />
+      </Stop>
+      <Stop>
+        <Order>2</Order>
+        <StopType>Receiver</StopType>
+        <TourStopId>167347572</TourStopId>
+        <TransportOrderNumber>929094</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>A</Matchcode>
+            <IsoAlpha2>AT</IsoAlpha2>
+            <IsoAlpha3>AUT</IsoAlpha3>
+            <IsoNumeric>40</IsoNumeric>
+          </Country>
+          <ZipCode>6923</ZipCode>
+          <City1>Lauterach</City1>
+          <City2 />
+          <Street>Reitschulstraße </Street>
+          <HouseNumber>7</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>9.724828</Longitude>
+          <Latitude>47.484586</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Lieferung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+        <Name2>&amp; Co KG</Name2>
+        <TargetStart>2026-07-02T11:00:00Z</TargetStart>
+        <TargetEnd>2026-07-02T11:00:00Z</TargetEnd>
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+        <ExtNumber />
+        <TourStopLines xsi:nil="true" />
+      </Stop>
+      <Stop>
+        <Order>3</Order>
+        <StopType>Sender</StopType>
+        <TourStopId>167347571</TourStopId>
+        <TransportOrderNumber>929841</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>CH</Matchcode>
+            <IsoAlpha2>CH</IsoAlpha2>
+            <IsoAlpha3>CHE</IsoAlpha3>
+            <IsoNumeric>756</IsoNumeric>
+          </Country>
+          <ZipCode>9427</ZipCode>
+          <City1>Wolfhalden</City1>
+          <City2 />
+          <Street>Friedberg</Street>
+          <HouseNumber>234</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>9.5524687</Longitude>
+          <Latitude>47.4547559</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Ladung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>SUN AG</Name1>
+        <Name2 />
+        <TargetStart>2026-07-03T08:30:00Z</TargetStart>
+        <TargetEnd>2026-07-03T09:30:00Z</TargetEnd>
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+        <ExtNumber />
+        <TourStopLines xsi:nil="true" />
+      </Stop>
+      <Stop>
+        <Order>4</Order>
+        <StopType>Receiver</StopType>
+        <TourStopId>167347570</TourStopId>
+        <TransportOrderNumber>929841</TransportOrderNumber>
+        <Address>
+          <Country>
+            <Matchcode>A</Matchcode>
+            <IsoAlpha2>AT</IsoAlpha2>
+            <IsoAlpha3>AUT</IsoAlpha3>
+            <IsoNumeric>40</IsoNumeric>
+          </Country>
+          <ZipCode>6923</ZipCode>
+          <City1>Lauterach</City1>
+          <City2 />
+          <Street>Reitschulstraße </Street>
+          <HouseNumber>7</HouseNumber>
+        </Address>
+        <GeoCoordinate>
+          <Longitude>9.724828</Longitude>
+          <Latitude>47.484586</Latitude>
+        </GeoCoordinate>
+        <ActivityDescription1>Lieferung</ActivityDescription1>
+        <ActivityDescription2 />
+        <Name1>MH Direkt e-commerce&amp;fulfillment GmbH</Name1>
+        <Name2>&amp; Co KG</Name2>
+        <TargetStart>2026-07-03T11:00:00Z</TargetStart>
+        <TargetEnd>2026-07-03T11:00:00Z</TargetEnd>
+        <FloatFields xsi:nil="true" />
+        <Waypoints xsi:nil="true" />
+        <ExtNumber />
+        <TourStopLines xsi:nil="true" />
+      </Stop>
+    </Stops>
+    <ExtNumber>56453</ExtNumber>
+    <TourCaption xsi:nil="true" />
+    <TourLines xsi:nil="true" />
+  </TourData>
+</Tour>

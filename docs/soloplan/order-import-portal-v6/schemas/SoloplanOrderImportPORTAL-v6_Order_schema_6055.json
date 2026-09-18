@@ -1,0 +1,5347 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "additionalItems": false,
+  "additionalProperties": false,
+  "properties": {
+    "header": {
+      "title": "Header",
+      "type": "object",
+      "properties": {
+        "sendDate": {
+          "type": "string"
+        },
+        "exportItemReference": {
+          "type": "string"
+        }
+      }
+    },
+    "order": {
+      "type": "array",
+      "items": [
+        {
+          "title": "Order",
+          "type": "object",
+          "additionalItems": false,
+          "additionalProperties": false,
+          "properties": {
+            "actionAttribute": {
+              "title": "actionAttribute",
+              "type": "string",
+              "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "None",
+                    "Create",
+                    "Update",
+                    "Delete",
+                    "UpdateOrCreate",
+                    "none",
+                    "create",
+                    "update",
+                    "delete",
+                    "updateorcreate"
+                  ]
+                }
+              ]
+            },
+            "date": {
+              "title": "Date",
+              "type": "string",
+              "format": "date"
+            },
+            "number": {
+              "title": "Number",
+              "type": "integer"
+            },
+            "externalNumber": {
+              "title": "ExternalNumber",
+              "type": "string"
+            },
+            "orderContext": {
+              "title": "OrderContext",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    10,
+                    20,
+                    30,
+                    100,
+                    200
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "Normal",
+                    "Storage",
+                    "RemoveFromStorage",
+                    "StorageRelocation",
+                    "NormalStorageMovement",
+                    "GeneralOrderWithLoadingUnit",
+                    "normal",
+                    "storage",
+                    "removefromstorage",
+                    "storagerelocation",
+                    "normalstoragemovement",
+                    "generalorderwithloadingunit"
+                  ]
+                }
+              ]
+            },
+            "orderDate": {
+              "title": "OrderDate",
+              "type": "string",
+              "format": "date"
+            },
+            "orderReference1": {
+              "title": "OrderReference1",
+              "type": "string"
+            },
+            "orderReference2": {
+              "title": "OrderReference2",
+              "type": "string"
+            },
+            "orderReference3": {
+              "title": "OrderReference3",
+              "type": "string"
+            },
+            "info": {
+              "title": "Info",
+              "type": "string"
+            },
+            "customInteger1": {
+              "title": "CustomInteger1",
+              "type": "integer"
+            },
+            "customInteger2": {
+              "title": "CustomInteger2",
+              "type": "integer"
+            },
+            "customInteger3": {
+              "title": "CustomInteger3",
+              "type": "integer"
+            },
+            "customInteger4": {
+              "title": "CustomInteger4",
+              "type": "integer"
+            },
+            "customFloat1": {
+              "title": "CustomFloat1",
+              "type": "number"
+            },
+            "customFloat2": {
+              "title": "CustomFloat2",
+              "type": "number"
+            },
+            "customFloat3": {
+              "title": "CustomFloat3",
+              "type": "number"
+            },
+            "customFloat4": {
+              "title": "CustomFloat4",
+              "type": "number"
+            },
+            "customFloat5": {
+              "title": "CustomFloat5",
+              "type": "number"
+            },
+            "customDateTime1": {
+              "title": "CustomDateTime1",
+              "type": "string",
+              "format": "date-time"
+            },
+            "customDateTime2": {
+              "title": "CustomDateTime2",
+              "type": "string",
+              "format": "date-time"
+            },
+            "customDateTime3": {
+              "title": "CustomDateTime3",
+              "type": "string",
+              "format": "date-time"
+            },
+            "customDateTime4": {
+              "title": "CustomDateTime4",
+              "type": "string",
+              "format": "date-time"
+            },
+            "customDateTime5": {
+              "title": "CustomDateTime5",
+              "type": "string",
+              "format": "date-time"
+            },
+            "customDateTime6": {
+              "title": "CustomDateTime6",
+              "type": "string",
+              "format": "date-time"
+            },
+            "isEmptyTrip": {
+              "title": "IsEmptyTrip",
+              "type": "boolean"
+            },
+            "origin": {
+              "title": "Origin",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "Manually",
+                    "Template",
+                    "Offer",
+                    "Interface",
+                    "DocumentProcessing",
+                    "Duplicated",
+                    "MaintenanceOrder",
+                    "AnnualMaintenanceOrder",
+                    "Seafreight",
+                    "CarLoCloudServices",
+                    "SingleCalculation",
+                    "ClientReplication",
+                    "Airfreight",
+                    "manually",
+                    "template",
+                    "offer",
+                    "interface",
+                    "documentprocessing",
+                    "duplicated",
+                    "maintenanceorder",
+                    "annualmaintenanceorder",
+                    "seafreight",
+                    "carlocloudservices",
+                    "singlecalculation",
+                    "clientreplication",
+                    "airfreight"
+                  ]
+                }
+              ]
+            },
+            "postingReference1": {
+              "title": "PostingReference1",
+              "type": "string"
+            },
+            "postingReference2": {
+              "title": "PostingReference2",
+              "type": "string"
+            },
+            "postingReference3": {
+              "title": "PostingReference3",
+              "type": "string"
+            },
+            "postingReference4": {
+              "title": "PostingReference4",
+              "type": "string"
+            },
+            "vesselExchangeRate": {
+              "title": "VesselExchangeRate",
+              "type": "number"
+            },
+            "vesselExchangeDate": {
+              "title": "VesselExchangeDate",
+              "type": "string",
+              "format": "date"
+            },
+            "objectOwner": {
+              "type": "object",
+              "$ref": "#/definitions/OrganizationalUnit"
+            },
+            "customer": {
+              "type": "object",
+              "$ref": "#/definitions/BusinessPartner"
+            },
+            "customerContactPerson": {
+              "type": "object",
+              "$ref": "#/definitions/ContactPerson"
+            },
+            "freightPayer": {
+              "type": "object",
+              "$ref": "#/definitions/BusinessPartner"
+            },
+            "consignments": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/definitions/Consignment"
+                }
+              ]
+            },
+            "bordereauData": {
+              "type": "object",
+              "$ref": "#/definitions/OrderOfferBordereauData"
+            },
+            "channelOfDistribution": {
+              "type": "object",
+              "$ref": "#/definitions/ChannelOfDistribution"
+            },
+            "vesselExchangeCurrency": {
+              "type": "object",
+              "$ref": "#/definitions/Currency"
+            },
+            "information": {
+              "type": "object",
+              "$ref": "#/definitions/ORDEROrderOfferBaseInformation"
+            },
+            "documentData": {
+              "title": "DocumentData",
+              "type": "array",
+              "items": [
+                {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "content"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "MasterDataContactPerson": {
+      "title": "MasterDataContactPerson",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "firstName": {
+          "title": "FirstName",
+          "type": "string"
+        },
+        "lastName": {
+          "title": "LastName",
+          "type": "string"
+        },
+        "phoneNumber": {
+          "title": "PhoneNumber",
+          "type": "string"
+        },
+        "mobilPhone": {
+          "title": "MobilPhone",
+          "type": "string"
+        },
+        "emailAddress": {
+          "title": "EmailAddress",
+          "type": "string"
+        },
+        "faxNumber": {
+          "title": "FaxNumber",
+          "type": "string"
+        },
+        "isMainContactPerson": {
+          "title": "IsMainContactPerson",
+          "type": "boolean"
+        }
+      }
+    },
+    "BusinessPartnerAddress": {
+      "title": "BusinessPartnerAddress",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "location1": {
+          "title": "Location1",
+          "type": "string"
+        },
+        "location2": {
+          "title": "Location2",
+          "type": "string"
+        },
+        "zipCode": {
+          "title": "ZipCode",
+          "type": "string"
+        },
+        "street": {
+          "title": "Street",
+          "type": "string"
+        },
+        "houseNumber": {
+          "title": "HouseNumber",
+          "type": "string"
+        },
+        "country": {
+          "type": "object",
+          "$ref": "#/definitions/Country"
+        }
+      }
+    },
+    "OrganizationalUnit": {
+      "title": "OrganizationalUnit",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "internationalLocationNumber": {
+          "title": "InternationalLocationNumber",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        }
+      }
+    },
+    "BusinessPartner": {
+      "title": "BusinessPartner",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "globalLocationNumber": {
+          "title": "GlobalLocationNumber",
+          "type": "string"
+        },
+        "name1": {
+          "title": "Name1",
+          "type": "string"
+        },
+        "name2": {
+          "title": "Name2",
+          "type": "string"
+        },
+        "name3": {
+          "title": "Name3",
+          "type": "string"
+        },
+        "name4": {
+          "title": "Name4",
+          "type": "string"
+        },
+        "phoneNumberHeadOffice": {
+          "title": "PhoneNumberHeadOffice",
+          "type": "string"
+        },
+        "appendix": {
+          "title": "Appendix",
+          "type": "string"
+        },
+        "finAccAccountDebtor": {
+          "title": "FinAccAccountDebtor",
+          "type": "string"
+        },
+        "finAccAccountCreditor": {
+          "title": "FinAccAccountCreditor",
+          "type": "string"
+        },
+        "inttraRefNumber": {
+          "title": "InttraRefNumber",
+          "type": "string"
+        },
+        "inttraRefType": {
+          "title": "InttraRefType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "InttraCompanyId",
+                "InttraPartnerAlias",
+                "DunsCode",
+                "inttracompanyid",
+                "inttrapartneralias",
+                "dunscode"
+              ]
+            }
+          ]
+        },
+        "senderReceiver": {
+          "title": "SenderReceiver",
+          "type": "boolean"
+        },
+        "freightBusinessPartner": {
+          "title": "FreightBusinessPartner",
+          "type": "boolean"
+        },
+        "valueAddedTaxNumber": {
+          "title": "ValueAddedTaxNumber",
+          "type": "string"
+        },
+        "vATIsoTwoCharacterCountryCode": {
+          "title": "VATIsoTwoCharacterCountryCode",
+          "type": "string"
+        },
+        "contactPersons": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ContactPerson"
+            }
+          ]
+        },
+        "homeEditAddress": {
+          "type": "object",
+          "$ref": "#/definitions/Address"
+        }
+      }
+    },
+    "ContactPerson": {
+      "title": "ContactPerson",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "position": {
+          "title": "Position",
+          "type": "string"
+        },
+        "salutation": {
+          "title": "Salutation",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "firstName": {
+          "title": "FirstName",
+          "type": "string"
+        },
+        "lastName": {
+          "title": "LastName",
+          "type": "string"
+        },
+        "department": {
+          "title": "Department",
+          "type": "string"
+        },
+        "telephone": {
+          "title": "Telephone",
+          "type": "string"
+        },
+        "fax": {
+          "title": "Fax",
+          "type": "string"
+        },
+        "emailAddress": {
+          "title": "EmailAddress",
+          "type": "string"
+        },
+        "homepage": {
+          "title": "Homepage",
+          "type": "string"
+        },
+        "comment": {
+          "title": "Comment",
+          "type": "string"
+        }
+      }
+    },
+    "Consignment": {
+      "title": "Consignment",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "incoterms": {
+          "title": "Incoterms",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "ExWorks",
+                "FreeCarrier",
+                "FreeAlongsideShip",
+                "FreeOnBoard",
+                "CostAndFreight",
+                "CostInsuranceFreight",
+                "CarriagePaidTo",
+                "CarriageInsurancePaid",
+                "DeliveredDutyPaid",
+                "DeliveredAtPlace",
+                "DeliveredAtTerminal",
+                "DeliveredAtPlaceUnloaded",
+                "DeliveredAtFrontier",
+                "DeliveredExShip",
+                "DeliveredExQuay",
+                "DeliveredDutyUnpaid",
+                "none",
+                "exworks",
+                "freecarrier",
+                "freealongsideship",
+                "freeonboard",
+                "costandfreight",
+                "costinsurancefreight",
+                "carriagepaidto",
+                "carriageinsurancepaid",
+                "delivereddutypaid",
+                "deliveredatplace",
+                "deliveredatterminal",
+                "deliveredatplaceunloaded",
+                "deliveredatfrontier",
+                "deliveredexship",
+                "deliveredexquay",
+                "delivereddutyunpaid"
+              ]
+            }
+          ]
+        },
+        "deliveryTerms": {
+          "title": "DeliveryTerms",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "CustomerPays",
+                "CustomerAndReceiverPays",
+                "ReceiverPaysViaBill",
+                "ReceiverPaysWithoutBill",
+                "NobodyPays",
+                "customerpays",
+                "customerandreceiverpays",
+                "receiverpaysviabill",
+                "receiverpayswithoutbill",
+                "nobodypays"
+              ]
+            }
+          ]
+        },
+        "executionDate": {
+          "title": "ExecutionDate",
+          "type": "string",
+          "format": "date"
+        },
+        "pickup": {
+          "title": "Pickup",
+          "type": "boolean"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "containerNumber": {
+          "title": "ContainerNumber",
+          "type": "string"
+        },
+        "loadingDateType": {
+          "title": "LoadingDateType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Default",
+                "FixedDateTime",
+                "Week",
+                "Within1Day",
+                "Within2Days",
+                "Within3Days",
+                "Within4Days",
+                "Within5Days",
+                "AtTheEarliest",
+                "AtTheLatest",
+                "default",
+                "fixeddatetime",
+                "week",
+                "within1day",
+                "within2days",
+                "within3days",
+                "within4days",
+                "within5days",
+                "attheearliest",
+                "atthelatest"
+              ]
+            }
+          ]
+        },
+        "deliveryDateType": {
+          "title": "DeliveryDateType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Default",
+                "FixedDateTime",
+                "Week",
+                "Within1Day",
+                "Within2Days",
+                "Within3Days",
+                "Within4Days",
+                "Within5Days",
+                "AtTheEarliest",
+                "AtTheLatest",
+                "default",
+                "fixeddatetime",
+                "week",
+                "within1day",
+                "within2days",
+                "within3days",
+                "within4days",
+                "within5days",
+                "attheearliest",
+                "atthelatest"
+              ]
+            }
+          ]
+        },
+        "cashOnDeliveryValueAddedTaxRateInPercent": {
+          "title": "CashOnDeliveryValueAddedTaxRateInPercent",
+          "type": "number"
+        },
+        "paymentType": {
+          "title": "PaymentType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Undefined",
+                "AdvanceDebit",
+                "Invoice",
+                "undefined",
+                "advancedebit",
+                "invoice"
+              ]
+            }
+          ]
+        },
+        "paymentStatus": {
+          "title": "PaymentStatus",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Unknown",
+                "Unpaid",
+                "Paid",
+                "Installment",
+                "unknown",
+                "unpaid",
+                "paid",
+                "installment"
+              ]
+            }
+          ]
+        },
+        "finAccCostCenter1": {
+          "title": "FinAccCostCenter1",
+          "type": "string"
+        },
+        "finAccCostCenter2": {
+          "title": "FinAccCostCenter2",
+          "type": "string"
+        },
+        "kilometers": {
+          "title": "Kilometers",
+          "type": "number"
+        },
+        "quantity": {
+          "title": "Quantity",
+          "type": "number"
+        },
+        "requiredStoragePlaces": {
+          "title": "RequiredStoragePlaces",
+          "type": "number"
+        },
+        "timeframe": {
+          "title": "Timeframe",
+          "type": "string",
+          "format": "time"
+        },
+        "namedPlace": {
+          "title": "NamedPlace",
+          "type": "string"
+        },
+        "additionalAgreement": {
+          "title": "AdditionalAgreement",
+          "type": "string"
+        },
+        "calculationDefault": {
+          "title": "CalculationDefault",
+          "type": "string"
+        },
+        "maximumWeightInKilogram": {
+          "title": "MaximumWeightInKilogram",
+          "type": "number"
+        },
+        "loadingDurationInMinutes": {
+          "title": "LoadingDurationInMinutes",
+          "type": "integer"
+        },
+        "unloadingDurationInMinutes": {
+          "title": "UnloadingDurationInMinutes",
+          "type": "integer"
+        },
+        "containsDangerousGoods": {
+          "title": "ContainsDangerousGoods",
+          "type": "boolean"
+        },
+        "isHeavyDutyTransport": {
+          "title": "IsHeavyDutyTransport",
+          "type": "boolean"
+        },
+        "loadType": {
+          "title": "LoadType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "FullContainerLoad",
+                "LessThanContainerLoad",
+                "BuyersConsolidation",
+                "FullTruckLoad",
+                "LessThanTruckLoad",
+                "AirFreight",
+                "none",
+                "fullcontainerload",
+                "lessthancontainerload",
+                "buyersconsolidation",
+                "fulltruckload",
+                "lessthantruckload",
+                "airfreight"
+              ]
+            }
+          ]
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "sender": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentBusinessPartner"
+        },
+        "senderContactPerson": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentContactPerson"
+        },
+        "receiver": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentBusinessPartner"
+        },
+        "receiverContactPerson": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentContactPerson"
+        },
+        "differentLoadingPoint": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentBusinessPartner"
+        },
+        "differentDeliveryPoint": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentBusinessPartner"
+        },
+        "loadingUnitItems": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentLoadingUnitItem"
+            }
+          ]
+        },
+        "consignmentItems": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentItem"
+            }
+          ]
+        },
+        "times": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentTimes"
+        },
+        "flatRateCustomer": {
+          "type": "object",
+          "$ref": "#/definitions/AmountData"
+        },
+        "flatRateReceiver": {
+          "type": "object",
+          "$ref": "#/definitions/AmountData"
+        },
+        "saleType": {
+          "type": "object",
+          "$ref": "#/definitions/SaleType"
+        },
+        "trafficType": {
+          "type": "object",
+          "$ref": "#/definitions/TrafficType"
+        },
+        "transportType": {
+          "type": "object",
+          "$ref": "#/definitions/TransportType"
+        },
+        "vehicleEquipments": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentEquipmentRelation"
+            }
+          ]
+        },
+        "pickupSplittingBusinessPartner": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "defaultCarrier": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "senderTerminal": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "receiverTerminal": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "consignmentRestriction": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentRestriction"
+        },
+        "initialCostsTaxFree": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "initialCostsTaxable": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "cashOnDeliveryGrossAmount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "cashOnDeliveryTaxFree": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "cashOnDeliveryTaxable": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "cashOnDeliveryValueAddedTax": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "cashOnDeliveryCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "valueOfGoods": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "valueOfGoodsCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "finAccDebtorContraAccountGroup": {
+          "type": "object",
+          "$ref": "#/definitions/ContraAccountGroup"
+        },
+        "finAccCreditorContraAccountGroup": {
+          "type": "object",
+          "$ref": "#/definitions/ContraAccountGroup"
+        },
+        "namedLocation": {
+          "type": "object",
+          "$ref": "#/definitions/Address"
+        },
+        "weights": {
+          "type": "object",
+          "$ref": "#/definitions/Weights"
+        },
+        "dimensions": {
+          "type": "object",
+          "$ref": "#/definitions/Dimensions"
+        },
+        "flatRateCarrier": {
+          "type": "object",
+          "$ref": "#/definitions/AmountData"
+        },
+        "vehicleType": {
+          "type": "object",
+          "$ref": "#/definitions/VehicleType"
+        },
+        "senderRelation": {
+          "type": "object",
+          "$ref": "#/definitions/AreaRelation"
+        },
+        "receiverRelation": {
+          "type": "object",
+          "$ref": "#/definitions/AreaRelation"
+        },
+        "absEmpRelation": {
+          "type": "object",
+          "$ref": "#/definitions/AreaRelation"
+        },
+        "maximumSize": {
+          "type": "object",
+          "$ref": "#/definitions/Size"
+        },
+        "editStatus": {
+          "type": "object",
+          "$ref": "#/definitions/EditStatus"
+        },
+        "customFields": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentCustomFields"
+        },
+        "splittingSequenceProposal": {
+          "type": "object",
+          "$ref": "#/definitions/SplittingSequence"
+        },
+        "information": {
+          "type": "object",
+          "$ref": "#/definitions/CONSConsignmentInformation"
+        },
+        "airAndSea": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentAirAndSea"
+        },
+        "additionalTimes": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentAdditionalTimes"
+        },
+        "containerType": {
+          "type": "object",
+          "$ref": "#/definitions/ContainerType"
+        },
+        "documentData": {
+          "title": "DocumentData",
+          "type": "array",
+          "items": [
+            {
+              "type": "object",
+              "required": [
+                "name",
+                "content"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "OrderOfferBordereauData": {
+      "title": "OrderOfferBordereauData",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "trafficType": {
+          "title": "TrafficType",
+          "type": "string"
+        },
+        "senderId": {
+          "title": "SenderId",
+          "type": "string"
+        },
+        "receiverId": {
+          "title": "ReceiverId",
+          "type": "string"
+        },
+        "carrierAddress": {
+          "title": "CarrierAddress",
+          "type": "string"
+        },
+        "vehicleLicensePlate": {
+          "title": "VehicleLicensePlate",
+          "type": "string"
+        }
+      }
+    },
+    "ChannelOfDistribution": {
+      "title": "ChannelOfDistribution",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        }
+      }
+    },
+    "Currency": {
+      "title": "Currency",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "isoCurrencyCode": {
+          "title": "IsoCurrencyCode",
+          "type": "string"
+        }
+      }
+    },
+    "ORDEROrderOfferBaseInformation": {
+      "title": "ORDEROrderOfferBaseInformation",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "info1": {
+          "title": "Info1",
+          "type": "string"
+        },
+        "info2": {
+          "title": "Info2",
+          "type": "string"
+        },
+        "info3": {
+          "title": "Info3",
+          "type": "string"
+        },
+        "info4": {
+          "title": "Info4",
+          "type": "string"
+        },
+        "info5": {
+          "title": "Info5",
+          "type": "string"
+        },
+        "info6": {
+          "title": "Info6",
+          "type": "string"
+        },
+        "info7": {
+          "title": "Info7",
+          "type": "string"
+        },
+        "info8": {
+          "title": "Info8",
+          "type": "string"
+        },
+        "info9": {
+          "title": "Info9",
+          "type": "string"
+        },
+        "info10": {
+          "title": "Info10",
+          "type": "string"
+        },
+        "info11": {
+          "title": "Info11",
+          "type": "string"
+        },
+        "info12": {
+          "title": "Info12",
+          "type": "string"
+        },
+        "info13": {
+          "title": "Info13",
+          "type": "string"
+        },
+        "info14": {
+          "title": "Info14",
+          "type": "string"
+        },
+        "info15": {
+          "title": "Info15",
+          "type": "string"
+        },
+        "info16": {
+          "title": "Info16",
+          "type": "string"
+        },
+        "info17": {
+          "title": "Info17",
+          "type": "string"
+        },
+        "info18": {
+          "title": "Info18",
+          "type": "string"
+        },
+        "info19": {
+          "title": "Info19",
+          "type": "string"
+        },
+        "info20": {
+          "title": "Info20",
+          "type": "string"
+        },
+        "info21": {
+          "title": "Info21",
+          "type": "string"
+        },
+        "info22": {
+          "title": "Info22",
+          "type": "string"
+        },
+        "info23": {
+          "title": "Info23",
+          "type": "string"
+        },
+        "info24": {
+          "title": "Info24",
+          "type": "string"
+        },
+        "info25": {
+          "title": "Info25",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentBusinessPartner": {
+      "title": "ConsignmentBusinessPartner",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "name1": {
+          "title": "Name1",
+          "type": "string"
+        },
+        "name2": {
+          "title": "Name2",
+          "type": [
+            "boolean",
+            "integer",
+            "number",
+            "string"
+          ]
+        },
+        "street": {
+          "title": "Street",
+          "type": "string"
+        },
+        "houseNumber": {
+          "title": "HouseNumber",
+          "type": "string"
+        },
+        "country": {
+          "title": "Country",
+          "type": "string"
+        },
+        "zipCode": {
+          "title": "ZipCode",
+          "type": "string"
+        },
+        "city1": {
+          "title": "City1",
+          "type": "string"
+        },
+        "city2": {
+          "title": "City2",
+          "type": "string"
+        },
+        "masterDataBusinessPartner": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        }
+      }
+    },
+    "ConsignmentContactPerson": {
+      "title": "ConsignmentContactPerson",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "firstName": {
+          "title": "FirstName",
+          "type": "string"
+        },
+        "lastName": {
+          "title": "LastName",
+          "type": "string"
+        },
+        "phoneNumber": {
+          "title": "PhoneNumber",
+          "type": "string"
+        },
+        "emailAddress": {
+          "title": "EmailAddress",
+          "type": "string"
+        },
+        "masterDataContactPerson": {
+          "type": "object",
+          "$ref": "#/definitions/ContactPerson"
+        }
+      }
+    },
+    "ConsignmentLoadingUnitItem": {
+      "title": "ConsignmentLoadingUnitItem",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "generateLoadingUnitPostings": {
+          "title": "GenerateLoadingUnitPostings",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Yes",
+                "No",
+                "DecideLater",
+                "yes",
+                "no",
+                "decidelater"
+              ]
+            }
+          ]
+        },
+        "quantity": {
+          "title": "Quantity",
+          "type": "integer"
+        },
+        "graiNumbers": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentLoadingUnitGrai"
+            }
+          ]
+        },
+        "loadingUnit": {
+          "type": "object",
+          "$ref": "#/definitions/LoadingUnit"
+        }
+      }
+    },
+    "ConsignmentItem": {
+      "title": "ConsignmentItem",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "quantity": {
+          "title": "Quantity",
+          "type": "number"
+        },
+        "content1": {
+          "title": "Content1",
+          "type": "string"
+        },
+        "content2": {
+          "title": "Content2",
+          "type": "string"
+        },
+        "storagePlaces": {
+          "title": "StoragePlaces",
+          "type": "number"
+        },
+        "mark": {
+          "title": "Mark",
+          "type": "string"
+        },
+        "hazardousMaterial": {
+          "title": "HazardousMaterial",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Yes",
+                "LimitedQuantities",
+                "ExceptedQuantities",
+                "ExceptedAndLimitedQuantities",
+                "none",
+                "yes",
+                "limitedquantities",
+                "exceptedquantities",
+                "exceptedandlimitedquantities"
+              ]
+            }
+          ]
+        },
+        "packaging": {
+          "title": "Packaging",
+          "type": "string"
+        },
+        "float1": {
+          "title": "Float1",
+          "type": "number"
+        },
+        "float2": {
+          "title": "Float2",
+          "type": "number"
+        },
+        "float3": {
+          "title": "Float3",
+          "type": "number"
+        },
+        "float4": {
+          "title": "Float4",
+          "type": "number"
+        },
+        "float5": {
+          "title": "Float5",
+          "type": "number"
+        },
+        "customFloat6": {
+          "title": "CustomFloat6",
+          "type": "number"
+        },
+        "customFloat7": {
+          "title": "CustomFloat7",
+          "type": "number"
+        },
+        "customFloat8": {
+          "title": "CustomFloat8",
+          "type": "number"
+        },
+        "customFloat9": {
+          "title": "CustomFloat9",
+          "type": "number"
+        },
+        "customFloat10": {
+          "title": "CustomFloat10",
+          "type": "number"
+        },
+        "customFloat11": {
+          "title": "CustomFloat11",
+          "type": "number"
+        },
+        "customFloat12": {
+          "title": "CustomFloat12",
+          "type": "number"
+        },
+        "customFloat13": {
+          "title": "CustomFloat13",
+          "type": "number"
+        },
+        "customFloat14": {
+          "title": "CustomFloat14",
+          "type": "number"
+        },
+        "customFloat15": {
+          "title": "CustomFloat15",
+          "type": "number"
+        },
+        "bestBeforeDate": {
+          "title": "BestBeforeDate",
+          "type": "string",
+          "format": "date-time"
+        },
+        "storagePeriod": {
+          "title": "StoragePeriod",
+          "type": "string",
+          "format": "date-time"
+        },
+        "temperatureInCelsius": {
+          "title": "TemperatureInCelsius",
+          "type": "number"
+        },
+        "temperatureVariationInCelsius": {
+          "title": "TemperatureVariationInCelsius",
+          "type": "number"
+        },
+        "waterHazardClass": {
+          "title": "WaterHazardClass",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                -1
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "NotSpecified",
+                "Wgk1",
+                "Wgk2",
+                "Wgk3",
+                "None",
+                "notspecified",
+                "wgk1",
+                "wgk2",
+                "wgk3",
+                "none"
+              ]
+            }
+          ]
+        },
+        "commodityTariffCode": {
+          "title": "CommodityTariffCode",
+          "type": "string"
+        },
+        "netMass": {
+          "title": "NetMass",
+          "type": "number"
+        },
+        "articleNumber": {
+          "title": "ArticleNumber",
+          "type": "string"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "fzgMatchcode": {
+          "title": "FzgMatchcode",
+          "type": "string"
+        },
+        "fzgDescription": {
+          "title": "FzgDescription",
+          "type": "string"
+        },
+        "eanCode": {
+          "title": "EanCode",
+          "type": "string"
+        },
+        "articleQuantity": {
+          "title": "ArticleQuantity",
+          "type": "number"
+        },
+        "manufacturer": {
+          "title": "Manufacturer",
+          "type": "string"
+        },
+        "currencyMatchcode": {
+          "title": "CurrencyMatchcode",
+          "type": "string"
+        },
+        "isoCurrencyCode": {
+          "title": "IsoCurrencyCode",
+          "type": "string"
+        },
+        "batchNumber": {
+          "title": "BatchNumber",
+          "type": "string"
+        },
+        "storageSerialNumbers": {
+          "title": "StorageSerialNumbers",
+          "type": "string"
+        },
+        "sealNumber": {
+          "title": "SealNumber",
+          "type": "string"
+        },
+        "info1": {
+          "title": "Info1",
+          "type": "string"
+        },
+        "info2": {
+          "title": "Info2",
+          "type": "string"
+        },
+        "info3": {
+          "title": "Info3",
+          "type": "string"
+        },
+        "info4": {
+          "title": "Info4",
+          "type": "string"
+        },
+        "info5": {
+          "title": "Info5",
+          "type": "string"
+        },
+        "info6": {
+          "title": "Info6",
+          "type": "string"
+        },
+        "info7": {
+          "title": "Info7",
+          "type": "string"
+        },
+        "info8": {
+          "title": "Info8",
+          "type": "string"
+        },
+        "info9": {
+          "title": "Info9",
+          "type": "string"
+        },
+        "info10": {
+          "title": "Info10",
+          "type": "string"
+        },
+        "loadingDurationInMinutes": {
+          "title": "LoadingDurationInMinutes",
+          "type": "integer"
+        },
+        "unloadingDurationInMinutes": {
+          "title": "UnloadingDurationInMinutes",
+          "type": "integer"
+        },
+        "weights": {
+          "type": "object",
+          "$ref": "#/definitions/Weights"
+        },
+        "size": {
+          "type": "object",
+          "$ref": "#/definitions/Size"
+        },
+        "loadingUnitItem": {
+          "type": "object",
+          "$ref": "#/definitions/ConsignmentLoadingUnitItem"
+        },
+        "dangerousGoods": {
+          "type": "object",
+          "$ref": "#/definitions/DangerousGoods"
+        },
+        "originCountry": {
+          "type": "object",
+          "$ref": "#/definitions/Country"
+        },
+        "pricePerUnit": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "totalPrice": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "ssccCurrents": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/SsccCurrent"
+            }
+          ]
+        },
+        "dimensions": {
+          "type": "object",
+          "$ref": "#/definitions/Dimensions"
+        }
+      }
+    },
+    "ConsignmentTimes": {
+      "title": "ConsignmentTimes",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "loadingDateStart": {
+          "title": "LoadingDateStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "loadingDateEnd": {
+          "title": "LoadingDateEnd",
+          "type": "string",
+          "format": "date-time"
+        },
+        "deliveryDateStart": {
+          "title": "DeliveryDateStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "deliveryDateEnd": {
+          "title": "DeliveryDateEnd",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AmountData": {
+      "title": "AmountData",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "currency": {
+          "title": "Currency",
+          "type": "string"
+        },
+        "info": {
+          "title": "Info",
+          "type": "string"
+        },
+        "amount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        }
+      }
+    },
+    "SaleType": {
+      "title": "SaleType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "TrafficType": {
+      "title": "TrafficType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "TransportType": {
+      "title": "TransportType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentEquipmentRelation": {
+      "title": "ConsignmentEquipmentRelation",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "itemNumber": {
+          "title": "ItemNumber",
+          "type": "integer"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "wasAddedManually": {
+          "title": "WasAddedManually",
+          "type": "boolean"
+        }
+      }
+    },
+    "ConsignmentRestriction": {
+      "title": "ConsignmentRestriction",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "Money": {
+      "title": "Money",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number"
+        },
+        "currency": {
+          "type": "string"
+        }
+      }
+    },
+    "ContraAccountGroup": {
+      "title": "ContraAccountGroup",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "Address": {
+      "title": "Address",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "location1": {
+          "title": "Location1",
+          "type": "string"
+        },
+        "location2": {
+          "title": "Location2",
+          "type": "string"
+        },
+        "zipCode": {
+          "title": "ZipCode",
+          "type": "string"
+        },
+        "street": {
+          "title": "Street",
+          "type": "string"
+        },
+        "houseNumber": {
+          "title": "HouseNumber",
+          "type": "string"
+        },
+        "country": {
+          "type": "object",
+          "$ref": "#/definitions/Country"
+        }
+      }
+    },
+    "Weights": {
+      "title": "Weights",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "effectiveWeightInKilogram": {
+          "title": "EffectiveWeightInKilogram",
+          "type": "number"
+        },
+        "freightWeightInKilogram": {
+          "title": "FreightWeightInKilogram",
+          "type": "number"
+        },
+        "carrierWeightInKilogram": {
+          "title": "CarrierWeightInKilogram",
+          "type": "number"
+        }
+      }
+    },
+    "Dimensions": {
+      "title": "Dimensions",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "meter": {
+          "title": "Meter",
+          "type": "number"
+        },
+        "squareMeter": {
+          "title": "SquareMeter",
+          "type": "number"
+        },
+        "cubicMeter": {
+          "title": "CubicMeter",
+          "type": "number"
+        }
+      }
+    },
+    "VehicleType": {
+      "title": "VehicleType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "AreaRelation": {
+      "title": "AreaRelation",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "Size": {
+      "title": "Size",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "lengthInMeters": {
+          "title": "LengthInMeters",
+          "type": "number"
+        },
+        "widthInMeters": {
+          "title": "WidthInMeters",
+          "type": "number"
+        },
+        "heightInMeters": {
+          "title": "HeightInMeters",
+          "type": "number"
+        }
+      }
+    },
+    "EditStatus": {
+      "title": "EditStatus",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentCustomFields": {
+      "title": "ConsignmentCustomFields",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "consignmentReference1": {
+          "title": "ConsignmentReference1",
+          "type": "string"
+        },
+        "consignmentReference2": {
+          "title": "ConsignmentReference2",
+          "type": "string"
+        },
+        "consignmentReference3": {
+          "title": "ConsignmentReference3",
+          "type": "string"
+        },
+        "consignmentReference4": {
+          "title": "ConsignmentReference4",
+          "type": "string"
+        },
+        "consignmentReference5": {
+          "title": "ConsignmentReference5",
+          "type": "string"
+        },
+        "consignmentReference6": {
+          "title": "ConsignmentReference6",
+          "type": "string"
+        },
+        "float1": {
+          "title": "Float1",
+          "type": "number"
+        },
+        "customFloat2": {
+          "title": "CustomFloat2",
+          "type": "number"
+        },
+        "customFloat3": {
+          "title": "CustomFloat3",
+          "type": "number"
+        },
+        "customFloat4": {
+          "title": "CustomFloat4",
+          "type": "number"
+        },
+        "customFloat5": {
+          "title": "CustomFloat5",
+          "type": "number"
+        },
+        "customBool1": {
+          "title": "CustomBool1",
+          "type": "boolean"
+        },
+        "customBool2": {
+          "title": "CustomBool2",
+          "type": "boolean"
+        },
+        "customBool3": {
+          "title": "CustomBool3",
+          "type": "boolean"
+        },
+        "customBool4": {
+          "title": "CustomBool4",
+          "type": "boolean"
+        },
+        "customBool5": {
+          "title": "CustomBool5",
+          "type": "boolean"
+        },
+        "customBool6": {
+          "title": "CustomBool6",
+          "type": "boolean"
+        },
+        "customBool7": {
+          "title": "CustomBool7",
+          "type": "boolean"
+        },
+        "customBool8": {
+          "title": "CustomBool8",
+          "type": "boolean"
+        },
+        "customBool9": {
+          "title": "CustomBool9",
+          "type": "boolean"
+        },
+        "customBool10": {
+          "title": "CustomBool10",
+          "type": "boolean"
+        },
+        "customDateTime1": {
+          "title": "CustomDateTime1",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime2": {
+          "title": "CustomDateTime2",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime3": {
+          "title": "CustomDateTime3",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime4": {
+          "title": "CustomDateTime4",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime5": {
+          "title": "CustomDateTime5",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime6": {
+          "title": "CustomDateTime6",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customTypeValue1": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue2": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue3": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue4": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue5": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue6": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue7": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue8": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue9": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue10": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue11": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue12": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue13": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue14": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue15": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        },
+        "customTypeValue16": {
+          "type": "object",
+          "$ref": "#/definitions/CustomTypeValue"
+        }
+      }
+    },
+    "SplittingSequence": {
+      "title": "SplittingSequence",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "caption": {
+          "title": "Caption",
+          "type": "string"
+        }
+      }
+    },
+    "CONSConsignmentInformation": {
+      "title": "CONSConsignmentInformation",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "senderInfo1": {
+          "title": "SenderInfo1",
+          "type": "string"
+        },
+        "senderInfo2": {
+          "title": "SenderInfo2",
+          "type": "string"
+        },
+        "receiverInfo1": {
+          "title": "ReceiverInfo1",
+          "type": "string"
+        },
+        "info1": {
+          "title": "Info1",
+          "type": "string"
+        },
+        "info2": {
+          "title": "Info2",
+          "type": "string"
+        },
+        "info3": {
+          "title": "Info3",
+          "type": "string"
+        },
+        "info4": {
+          "title": "Info4",
+          "type": "string"
+        },
+        "info5": {
+          "title": "Info5",
+          "type": "string"
+        },
+        "info6": {
+          "title": "Info6",
+          "type": "string"
+        },
+        "info7": {
+          "title": "Info7",
+          "type": "string"
+        },
+        "info8": {
+          "title": "Info8",
+          "type": "string"
+        },
+        "info9": {
+          "title": "Info9",
+          "type": "string"
+        },
+        "info10": {
+          "title": "Info10",
+          "type": "string"
+        },
+        "info11": {
+          "title": "Info11",
+          "type": "string"
+        },
+        "info12": {
+          "title": "Info12",
+          "type": "string"
+        },
+        "info13": {
+          "title": "Info13",
+          "type": "string"
+        },
+        "info14": {
+          "title": "Info14",
+          "type": "string"
+        },
+        "info15": {
+          "title": "Info15",
+          "type": "string"
+        },
+        "info16": {
+          "title": "Info16",
+          "type": "string"
+        },
+        "info17": {
+          "title": "Info17",
+          "type": "string"
+        },
+        "info18": {
+          "title": "Info18",
+          "type": "string"
+        },
+        "info19": {
+          "title": "Info19",
+          "type": "string"
+        },
+        "info20": {
+          "title": "Info20",
+          "type": "string"
+        },
+        "info21": {
+          "title": "Info21",
+          "type": "string"
+        },
+        "info22": {
+          "title": "Info22",
+          "type": "string"
+        },
+        "info23": {
+          "title": "Info23",
+          "type": "string"
+        },
+        "info24": {
+          "title": "Info24",
+          "type": "string"
+        },
+        "info25": {
+          "title": "Info25",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentAirAndSea": {
+      "title": "ConsignmentAirAndSea",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "securityStatusDateTime": {
+          "title": "SecurityStatusDateTime",
+          "type": "string",
+          "format": "date-time"
+        },
+        "isShipperSecure": {
+          "title": "IsShipperSecure",
+          "type": "boolean"
+        },
+        "transportWay": {
+          "title": "TransportWay",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Undefined",
+                "DoorToDoor",
+                "PortToDoor",
+                "DoorToPort",
+                "PortToPort",
+                "undefined",
+                "doortodoor",
+                "porttodoor",
+                "doortoport",
+                "porttoport"
+              ]
+            }
+          ]
+        },
+        "freightType": {
+          "title": "FreightType",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                -1
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "RoadFreight",
+                "AirFreight",
+                "SeaFreight",
+                "None",
+                "roadfreight",
+                "airfreight",
+                "seafreight",
+                "none"
+              ]
+            }
+          ]
+        },
+        "firstNotifyInfo": {
+          "title": "FirstNotifyInfo",
+          "type": "string"
+        },
+        "secondNotifyInfo": {
+          "title": "SecondNotifyInfo",
+          "type": "string"
+        },
+        "osiInstructions": {
+          "title": "OsiInstructions",
+          "type": "string"
+        },
+        "ssrInstructions": {
+          "title": "SsrInstructions",
+          "type": "string"
+        },
+        "handlingInformation": {
+          "title": "HandlingInformation",
+          "type": "string"
+        },
+        "accountingInformation": {
+          "title": "AccountingInformation",
+          "type": "string"
+        },
+        "additionalConsignmentSecurityDeclarationInformation": {
+          "title": "AdditionalConsignmentSecurityDeclarationInformation",
+          "type": "string"
+        },
+        "regulatedEntityCategory": {
+          "title": "RegulatedEntityCategory",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Undefined",
+                "KnownConsignor",
+                "AircraftOperator",
+                "RegulatedAgent",
+                "undefined",
+                "knownconsignor",
+                "aircraftoperator",
+                "regulatedagent"
+              ]
+            }
+          ]
+        },
+        "regulatedEntityIdentifier": {
+          "title": "RegulatedEntityIdentifier",
+          "type": "string"
+        },
+        "houseBillOfLadingIssuedLocation": {
+          "title": "HouseBillOfLadingIssuedLocation",
+          "type": "string"
+        },
+        "houseBillOfLadingIssuedDate": {
+          "title": "HouseBillOfLadingIssuedDate",
+          "type": "string",
+          "format": "date-time"
+        },
+        "houseBillOfLadingSignedStatement": {
+          "title": "HouseBillOfLadingSignedStatement",
+          "type": "string"
+        },
+        "deliveryCity": {
+          "title": "DeliveryCity",
+          "type": "string"
+        },
+        "recipientCity": {
+          "title": "RecipientCity",
+          "type": "string"
+        },
+        "invoiceNumber": {
+          "title": "InvoiceNumber",
+          "type": "string"
+        },
+        "originalHouseBillOfLadingIssuedCount": {
+          "title": "OriginalHouseBillOfLadingIssuedCount",
+          "type": "integer"
+        },
+        "freightTerms": {
+          "type": "object",
+          "$ref": "#/definitions/FreightTerms"
+        },
+        "freightTermsOthers": {
+          "type": "object",
+          "$ref": "#/definitions/FreightTerms"
+        },
+        "securityStatus": {
+          "type": "object",
+          "$ref": "#/definitions/SecurityStatus"
+        },
+        "screeningMethod1": {
+          "type": "object",
+          "$ref": "#/definitions/ScreeningMethod"
+        },
+        "screeningMethod2": {
+          "type": "object",
+          "$ref": "#/definitions/ScreeningMethod"
+        },
+        "screeningPerson": {
+          "type": "object",
+          "$ref": "#/definitions/Person"
+        },
+        "departureDestination": {
+          "type": "object",
+          "$ref": "#/definitions/LocationCode"
+        },
+        "finalDestination": {
+          "type": "object",
+          "$ref": "#/definitions/LocationCode"
+        },
+        "goodsType": {
+          "type": "object",
+          "$ref": "#/definitions/GoodsType"
+        },
+        "freightAmount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "freightCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "firstAgent": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "secondAgent": {
+          "type": "object",
+          "$ref": "#/definitions/BusinessPartner"
+        },
+        "handlingCodes": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/HandlingCode"
+            }
+          ]
+        },
+        "movementReferenceNumbers": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentMovementReferenceNumber"
+            }
+          ]
+        },
+        "airAdditionalRatesDetails": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentAirAdditionalRatesDetail"
+            }
+          ]
+        },
+        "airTactRatesDetails": {
+          "type": "array",
+          "items": [
+            {
+              "$ref": "#/definitions/ConsignmentAirTactRatesDetail"
+            }
+          ]
+        },
+        "carriageAmount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "carriageCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "insuranceAmount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "insuranceCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "customsAmount": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        },
+        "customsCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        },
+        "deliveryCountry": {
+          "type": "object",
+          "$ref": "#/definitions/Country"
+        },
+        "recipientCountry": {
+          "type": "object",
+          "$ref": "#/definitions/Country"
+        },
+        "generalCurrency": {
+          "type": "object",
+          "$ref": "#/definitions/Currency"
+        }
+      }
+    },
+    "ConsignmentAdditionalTimes": {
+      "title": "ConsignmentAdditionalTimes",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "loadingDepartureLoadingStart": {
+          "title": "LoadingDepartureLoadingStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "loadingDepartureLoadingEnd": {
+          "title": "LoadingDepartureLoadingEnd",
+          "type": "string",
+          "format": "date-time"
+        },
+        "unLoadingDepartureLoadingStart": {
+          "title": "UnLoadingDepartureLoadingStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "unLoadingDepartureLoadingEnd": {
+          "title": "UnLoadingDepartureLoadingEnd",
+          "type": "string",
+          "format": "date-time"
+        },
+        "unLoadingArrivalLoadingStart": {
+          "title": "UnLoadingArrivalLoadingStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "unLoadingArrivalLoadingEnd": {
+          "title": "UnLoadingArrivalLoadingEnd",
+          "type": "string",
+          "format": "date-time"
+        },
+        "loadingArrivalLoadingStart": {
+          "title": "LoadingArrivalLoadingStart",
+          "type": "string",
+          "format": "date-time"
+        },
+        "loadingArrivalLoadingEnd": {
+          "title": "LoadingArrivalLoadingEnd",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ContainerType": {
+      "title": "ContainerType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "isoCode": {
+          "title": "IsoCode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "cubicMeter": {
+          "title": "CubicMeter",
+          "type": "number"
+        },
+        "isTemperatureControlled": {
+          "title": "IsTemperatureControlled",
+          "type": "boolean"
+        }
+      }
+    },
+    "DangerousGoods": {
+      "title": "DangerousGoods",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "carrierNumber": {
+          "title": "CarrierNumber",
+          "type": "string"
+        },
+        "technicalName": {
+          "title": "TechnicalName",
+          "type": "string"
+        },
+        "additionalText": {
+          "title": "AdditionalText",
+          "type": "string"
+        },
+        "class": {
+          "title": "Class",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "packageGroup": {
+          "title": "PackageGroup",
+          "type": "string"
+        },
+        "tunnelRestrictionCode": {
+          "title": "TunnelRestrictionCode",
+          "type": "string"
+        },
+        "areDangerToEnvironment": {
+          "title": "AreDangerToEnvironment",
+          "type": "boolean"
+        },
+        "mainDanger": {
+          "title": "MainDanger",
+          "type": "string"
+        },
+        "additionalDanger1": {
+          "title": "AdditionalDanger1",
+          "type": "string"
+        },
+        "additionalDanger2": {
+          "title": "AdditionalDanger2",
+          "type": "string"
+        },
+        "additionalDanger3": {
+          "title": "AdditionalDanger3",
+          "type": "string"
+        },
+        "limitedAmount": {
+          "title": "LimitedAmount",
+          "type": "boolean"
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "number"
+        },
+        "flashpointEmergencyTemperature": {
+          "title": "FlashpointEmergencyTemperature",
+          "type": "string"
+        },
+        "points": {
+          "title": "Points",
+          "type": "number"
+        },
+        "compatibilityGroup": {
+          "title": "CompatibilityGroup",
+          "type": "string"
+        },
+        "digits": {
+          "title": "Digits",
+          "type": "string"
+        },
+        "letterInCode": {
+          "title": "LetterInCode",
+          "type": "string"
+        },
+        "classificationCode": {
+          "title": "ClassificationCode",
+          "type": "string"
+        },
+        "dataSheetFirstAid": {
+          "title": "DataSheetFirstAid",
+          "type": "string"
+        },
+        "dataSheetAccident": {
+          "title": "DataSheetAccident",
+          "type": "string"
+        },
+        "netExplosiveWeight": {
+          "title": "NetExplosiveWeight",
+          "type": "number"
+        },
+        "transportationCategory": {
+          "title": "TransportationCategory",
+          "type": "string"
+        },
+        "areaOfValidity": {
+          "title": "AreaOfValidity",
+          "type": "string"
+        }
+      }
+    },
+    "Country": {
+      "title": "Country",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "isoTwoCharacterCountryCode": {
+          "title": "IsoTwoCharacterCountryCode",
+          "type": "string"
+        },
+        "isoThreeCharacterCountryCode": {
+          "title": "IsoThreeCharacterCountryCode",
+          "type": "string"
+        },
+        "isoNumericCountryCode": {
+          "title": "IsoNumericCountryCode",
+          "type": "string"
+        },
+        "countryId": {
+          "title": "CountryId",
+          "type": "string"
+        }
+      }
+    },
+    "SsccCurrent": {
+      "title": "SsccCurrent",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      }
+    },
+    "CustomTypeValue": {
+      "title": "CustomTypeValue",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "FreightTerms": {
+      "title": "FreightTerms",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "SecurityStatus": {
+      "title": "SecurityStatus",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        }
+      }
+    },
+    "ScreeningMethod": {
+      "title": "ScreeningMethod",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "Person": {
+      "title": "Person",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        }
+      }
+    },
+    "LocationCode": {
+      "title": "LocationCode",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        }
+      }
+    },
+    "GoodsType": {
+      "title": "GoodsType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "information": {
+          "title": "Information",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        }
+      }
+    },
+    "HandlingCode": {
+      "title": "HandlingCode",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentMovementReferenceNumber": {
+      "title": "ConsignmentMovementReferenceNumber",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "type": {
+          "title": "Type",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Mrn",
+                "Expedition",
+                "mrn",
+                "expedition"
+              ]
+            }
+          ]
+        },
+        "information": {
+          "title": "Information",
+          "type": "string"
+        },
+        "movementReferenceNumber": {
+          "title": "MovementReferenceNumber",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentAirAdditionalRatesDetail": {
+      "title": "ConsignmentAirAdditionalRatesDetail",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "effectiveWeightInKg": {
+          "title": "EffectiveWeightInKg",
+          "type": "number"
+        },
+        "freightWeightInKg": {
+          "title": "FreightWeightInKg",
+          "type": "number"
+        },
+        "calculationBase": {
+          "title": "CalculationBase",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "EffectiveWeight",
+                "FreightWeight",
+                "effectiveweight",
+                "freightweight"
+              ]
+            }
+          ]
+        },
+        "rate": {
+          "title": "Rate",
+          "type": "number"
+        },
+        "due": {
+          "title": "Due",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Undefined",
+                "DueAgent",
+                "DueCarrier",
+                "undefined",
+                "dueagent",
+                "duecarrier"
+              ]
+            }
+          ]
+        },
+        "costType": {
+          "type": "object",
+          "$ref": "#/definitions/AirAndSeaCostType"
+        },
+        "total": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        }
+      }
+    },
+    "ConsignmentAirTactRatesDetail": {
+      "title": "ConsignmentAirTactRatesDetail",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "effectiveWeightInKg": {
+          "title": "EffectiveWeightInKg",
+          "type": "number"
+        },
+        "freightWeightInKg": {
+          "title": "FreightWeightInKg",
+          "type": "number"
+        },
+        "rate": {
+          "title": "Rate",
+          "type": "number"
+        },
+        "rateClass": {
+          "type": "object",
+          "$ref": "#/definitions/RateClass"
+        },
+        "total": {
+          "type": "object",
+          "$ref": "#/definitions/Money"
+        }
+      }
+    },
+    "AirAndSeaCostType": {
+      "title": "AirAndSeaCostType",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "due": {
+          "title": "Due",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Undefined",
+                "DueAgent",
+                "DueCarrier",
+                "undefined",
+                "dueagent",
+                "duecarrier"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "RateClass": {
+      "title": "RateClass",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "ConsignmentLoadingUnitGrai": {
+      "title": "ConsignmentLoadingUnitGrai",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "externalGrai": {
+          "title": "ExternalGrai",
+          "type": "string"
+        },
+        "grai": {
+          "title": "Grai",
+          "type": "string"
+        }
+      }
+    },
+    "LoadingUnit": {
+      "title": "LoadingUnit",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "matchcode": {
+          "title": "Matchcode",
+          "type": "string"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "type": "object",
+      "additionalItems": false,
+      "additionalProperties": false,
+      "properties": {
+        "actionAttribute": {
+          "title": "actionAttribute",
+          "type": "string",
+          "description": "Import action tag: Indicates a special action for the import of referenced objects or collections. Serves to explicitly specify the procedure for the individual item. Possible values are create, update, updateorcreate or delete.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "None",
+                "Create",
+                "Update",
+                "Delete",
+                "UpdateOrCreate",
+                "none",
+                "create",
+                "update",
+                "delete",
+                "updateorcreate"
+              ]
+            }
+          ]
+        },
+        "date": {
+          "title": "Date",
+          "type": "string",
+          "format": "date"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "externalNumber": {
+          "title": "ExternalNumber",
+          "type": "string"
+        },
+        "orderContext": {
+          "title": "OrderContext",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                10,
+                20,
+                30,
+                100,
+                200
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Normal",
+                "Storage",
+                "RemoveFromStorage",
+                "StorageRelocation",
+                "NormalStorageMovement",
+                "GeneralOrderWithLoadingUnit",
+                "normal",
+                "storage",
+                "removefromstorage",
+                "storagerelocation",
+                "normalstoragemovement",
+                "generalorderwithloadingunit"
+              ]
+            }
+          ]
+        },
+        "orderDate": {
+          "title": "OrderDate",
+          "type": "string",
+          "format": "date"
+        },
+        "orderReference1": {
+          "title": "OrderReference1",
+          "type": "string"
+        },
+        "orderReference2": {
+          "title": "OrderReference2",
+          "type": "string"
+        },
+        "orderReference3": {
+          "title": "OrderReference3",
+          "type": "string"
+        },
+        "info": {
+          "title": "Info",
+          "type": "string"
+        },
+        "customInteger1": {
+          "title": "CustomInteger1",
+          "type": "integer"
+        },
+        "customInteger2": {
+          "title": "CustomInteger2",
+          "type": "integer"
+        },
+        "customInteger3": {
+          "title": "CustomInteger3",
+          "type": "integer"
+        },
+        "customInteger4": {
+          "title": "CustomInteger4",
+          "type": "integer"
+        },
+        "customFloat1": {
+          "title": "CustomFloat1",
+          "type": "number"
+        },
+        "customFloat2": {
+          "title": "CustomFloat2",
+          "type": "number"
+        },
+        "customFloat3": {
+          "title": "CustomFloat3",
+          "type": "number"
+        },
+        "customFloat4": {
+          "title": "CustomFloat4",
+          "type": "number"
+        },
+        "customFloat5": {
+          "title": "CustomFloat5",
+          "type": "number"
+        },
+        "customDateTime1": {
+          "title": "CustomDateTime1",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime2": {
+          "title": "CustomDateTime2",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime3": {
+          "title": "CustomDateTime3",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime4": {
+          "title": "CustomDateTime4",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime5": {
+          "title": "CustomDateTime5",
+          "type": "string",
+          "format": "date-time"
+        },
+        "customDateTime6": {
+          "title": "CustomDateTime6",
+          "type": "string",
+          "format": "date-time"
+        },
+        "isEmptyTrip": {
+          "title": "IsEmptyTrip",
+          "type": "boolean"
+        },
+        "origin": {
+          "title": "Origin",
+          "anyOf": [
+            {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Manually",
+                "Template",
+                "Offer",
+                "Interface",
+                "DocumentProcessing",
+                "Duplicated",
+                "MaintenanceOrder",
+                "AnnualMaintenanceOrder",
+                "Seafreight",
+                "CarLoCloudServices",
+                "SingleCalculation",
+                "ClientReplication",
+                "Airfreight",
+                "manually",
+                "template",
+                "offer",
+                "interface",
+                "documentprocessing",
+                "duplicated",
+                "maintenanceorder",
+                "annualmaintenanceorder",
+                "seafreight",
+                "carlocloudservices",
+                "singlecalculation",
+                "clientreplication",
+                "airfreight"
+              ]
+            }
+          ]
+        },
+        "postingReference1": {
+          "title": "PostingReference1",
+          "type": "string"
+        },
+        "postingReference2": {
+          "title": "PostingReference2",
+          "type": "string"
+        },
+        "postingReference3": {
+          "title": "PostingReference3",
+          "type": "string"
+        },
+        "postingReference4": {
+          "title": "PostingReference4",
+          "type": "string"
+        },
+        "vesselExchangeRate": {
+          "title": "VesselExchangeRate",
+          "type": "number"
+        },
+        "vesselExchangeDate": {
+          "title": "VesselExchangeDate",
+          "type": "string",
+          "format": "date"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DriverStatus xmlns="http://www.soloplan.de/StdTelematics">
+	<DriverId>6</DriverId>
+	<StatusDate>2015-07-07T13:35:01+02:00</StatusDate>
+	<RemainingDrivingTimePerDay>300</RemainingDrivingTimePerDay>
+	<RemainingDrivingTimePerWeek>1600</RemainingDrivingTimePerWeek>
+	<RemainingDrivingTimeDoubleWeek>4001</RemainingDrivingTimeDoubleWeek>
+	<RemainingWorkingTime>120</RemainingWorkingTime>
+	<DrivingTimeExtension>1</DrivingTimeExtension>
+</DriverStatus>

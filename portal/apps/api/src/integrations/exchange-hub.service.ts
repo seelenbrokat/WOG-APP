@@ -1,9 +1,18 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IntegrationSystem, IntegrationTransferStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
+import { ShipmentCustomsRefService } from '../customs/shipment-customs-ref.service';
 import { CustomsExchangePayload } from './exchange.types';
 import { LdvAdapter, MercurioAdapter, SoloplanCustomsAdapter } from './customs-adapters';
 
@@ -18,6 +27,9 @@ export class ExchangeHubService {
     private ldv: LdvAdapter,
     private mercurio: MercurioAdapter,
     private soloplanCustoms: SoloplanCustomsAdapter,
+    @Optional()
+    @Inject(forwardRef(() => ShipmentCustomsRefService))
+    private customsRefs?: ShipmentCustomsRefService,
   ) {}
 
   status() {
@@ -205,6 +217,11 @@ export class ExchangeHubService {
     let processed = 0;
     for (const bucket of inbound) {
       for (const item of bucket.items) {
+        if (bucket.from === IntegrationSystem.MERCURIO) {
+          await this.persistMercurioCustomsRef(org, item).catch((e: any) =>
+            this.logger.warn(`Mercurio CustomsRef ${item.reference}: ${e?.message || e}`),
+          );
+        }
         const toSystem = (item.targetSystem || 'SOLOPLAN') as IntegrationSystem;
         if (toSystem === bucket.from) continue;
         const transfer = await this.prisma.integrationTransfer.create({
@@ -225,6 +242,42 @@ export class ExchangeHubService {
       }
     }
     return { processed };
+  }
+
+  private async persistMercurioCustomsRef(organizationId: string, item: CustomsExchangePayload) {
+    if (!this.customsRefs) return;
+    const raw = item.raw || {};
+    const top = item as CustomsExchangePayload & Record<string, unknown>;
+    const pick = (...keys: string[]) => {
+      for (const k of keys) {
+        const v = top[k] ?? raw[k];
+        if (v != null && String(v).trim()) return String(v);
+      }
+      return null;
+    };
+    const mrn = pick('mrn', 'MRN', 'crn', 'CRN');
+    const lrn = pick('lrn', 'LRN');
+    if (!mrn && !lrn) return;
+    const orderRaw = pick('orderNumber', 'soloplanRef', 'auftrag');
+    let consignmentIndex =
+      typeof item.consignmentIndex === 'number' ? item.consignmentIndex : null;
+    let orderNumber = orderRaw;
+    if (orderRaw) {
+      const m = orderRaw.match(/^(\d+)(?:\.(\d+))?/);
+      if (m) {
+        orderNumber = m[1];
+        if (m[2]) consignmentIndex = Number(m[2]);
+      }
+    }
+    await this.customsRefs.upsertMercurio({
+      organizationId,
+      shipmentId: item.shipmentId || null,
+      orderNumber: orderNumber || item.reference || null,
+      consignmentIndex,
+      mrn,
+      lrn,
+      sourceFileName: item.reference || null,
+    });
   }
 
   private adapterFor(system: IntegrationSystem) {

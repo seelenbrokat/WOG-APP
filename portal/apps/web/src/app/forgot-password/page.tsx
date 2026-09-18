@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import { AuthLayout } from '@/components/AuthLayout';
 import { api } from '@/lib/api';
 
 export default function ForgotPasswordPage() {
@@ -19,22 +20,20 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="hero">
-      <section className="hero-brand">
-        <h1 className="brand-mark">WOG</h1>
-      </section>
-      <section className="hero-panel">
-        <form className="auth-card" onSubmit={onSubmit}>
-          <h1>Passwort vergessen</h1>
-          <div className="field">
-            <label>E-Mail</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          {message && <div className="success">{message}</div>}
-          <button className="btn btn-primary" type="submit">Link senden</button>
-          <Link href="/">Zurück</Link>
-        </form>
-      </section>
-    </div>
+    <AuthLayout
+      headline="Zugang wiederherstellen"
+      sub="Wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts."
+    >
+      <form className="auth-card" onSubmit={onSubmit}>
+        <h1>Passwort vergessen</h1>
+        <div className="field">
+          <label>E-Mail</label>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        {message && <div className="success">{message}</div>}
+        <button className="btn btn-primary" type="submit">Link senden</button>
+        <Link href="/">Zurück</Link>
+      </form>
+    </AuthLayout>
   );
 }

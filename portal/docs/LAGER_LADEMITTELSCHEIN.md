@@ -1,0 +1,58 @@
+# Lager · Lademittelscheine
+
+Digitale Ablösung des Papier-Lademittelscheins (Tablet 10″ im Lager).
+
+## Menü
+- **Lager** (nur `ORG_ADMIN` / `MANDANT_DISPATCHER`)
+  - **Lademittelscheine**
+- Partner: **Lademittelscheine** unter Partner-Bereich (nur eigene Scheine)
+
+## Ablauf
+1. Tour aus Soloplan wählen → Kopfdaten (Partner, LKW, Fahrer, Ort)
+2. Mengen EUP / Rahmen / Deckel / Gitterbox (Übergabe & Übernahme)
+3. Zwei Unterschriften (WOG + Partner/Fahrer)
+4. PDF erzeugen, an Partner-E-Mail senden, JSON nach Soloplan-FTP legen
+5. Mengen werden in die **Lademittelverwaltung → Partner-Saldo** gebucht (`LoadingUnitPosting`)
+6. Partner sieht Saldo + Scheine unter **Lademittelverwaltung**
+7. Browser-Druck über PDF (physischer Drucker folgt separat)
+
+### Mapping Schein → Lademittelverwaltung
+| Schein | Matchcode | given / taken |
+|--------|-----------|---------------|
+| Euro-Paletten | EUP | Out → given, In → taken |
+| Rahmen | RAH | Out → given, In → taken |
+| Deckel | DECKEL | Out → given, In → taken |
+| Gitterboxen | GIBO | Out → given, In → taken |
+
+## SFTP / FTP
+| Richtung | Pfad |
+|----------|------|
+| Eingang (Soloplan → Portal) | `data/sftp/inbound/soloplan/lademittel/` |
+| Ausgang (Portal → Soloplan) | `data/sftp/outbound/soloplan/lademittel/` |
+| Verarbeitet | `…/lademittel/processed/` |
+
+Inbound-JSON Beispiel:
+```json
+{
+  "tourNumber": "183434",
+  "reference": "294280",
+  "handover": { "eup": 7, "rahmen": 0, "deckel": 0, "gitterbox": 0 },
+  "takeover": { "eup": 23, "rahmen": 0, "deckel": 0, "gitterbox": 0 }
+}
+```
+
+## API
+- `GET /lager/lademittelscheine`
+- `POST /lager/lademittelscheine/from-tour` `{ tourId }`
+- `POST /lager/lademittelscheine/:id/complete` (Mengen + Signatur-DataURLs)
+- `GET /lager/lademittelscheine/:id/pdf`
+- `GET /lager/lademittelscheine/partner` (Partner-Rolle)
+- `GET /lager/lademittelscheine/partner/balances`
+- `GET /lager/lademittelscheine/partner/export?format=csv|pdf`
+
+## Listen-Export (Lademittelverwaltung)
+Unter **Lademittel → Partner-Saldo**:
+- Übersicht CSV / Matrix Offen CSV / Übersicht PDF
+- Partner wählen → Partner CSV / Partner PDF (Total je Lademittel)
+
+API: `GET /tours/loading-units/export?view=overview|partner&format=csv|csv-matrix|pdf&partnerName=`

@@ -11,18 +11,25 @@ export class MandantenService {
     private audit: AuditService,
   ) {}
 
-  list(user: AuthUser) {
-    const where =
-      user.role === UserRole.ORG_ADMIN
-        ? { organizationId: user.organizationId }
-        : { organizationId: user.organizationId, id: { in: user.mandantIds } };
+  list(user: AuthUser, opts?: { includeInactive?: boolean }) {
+    // Inaktive Mandanten (z. B. WOG GmbH) standardmäßig ausblenden
+    const activeFilter = opts?.includeInactive ? {} : { active: true };
 
     if (user.role === UserRole.CUSTOMER_USER) {
       return this.prisma.mandant.findMany({
-        where: { organizationId: user.organizationId, active: true },
+        where: { organizationId: user.organizationId, ...activeFilter },
         orderBy: { name: 'asc' },
       });
     }
+
+    const where =
+      user.role === UserRole.ORG_ADMIN
+        ? { organizationId: user.organizationId, ...activeFilter }
+        : {
+            organizationId: user.organizationId,
+            id: { in: user.mandantIds },
+            ...activeFilter,
+          };
 
     return this.prisma.mandant.findMany({ where, orderBy: { name: 'asc' } });
   }

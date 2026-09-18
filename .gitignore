@@ -34,3 +34,6 @@ app/build/
 
 portal/data/integrations/**/*
 !portal/data/integrations/**/.gitkeep
+
+# shipping.NET secrets
+docs/shippingnet/wog-apidata/credentials/

@@ -3,6 +3,7 @@
 import { FormEvent, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { AuthLayout } from '@/components/AuthLayout';
 import { api } from '@/lib/api';
 
 function VerifyInner() {
@@ -43,15 +44,13 @@ function VerifyInner() {
 
 export default function VerifyPage() {
   return (
-    <div className="hero">
-      <section className="hero-brand">
-        <h1 className="brand-mark">WOG</h1>
-      </section>
-      <section className="hero-panel">
-        <Suspense>
-          <VerifyInner />
-        </Suspense>
-      </section>
-    </div>
+    <AuthLayout
+      headline="E-Mail verifizieren"
+      sub="Bestätigen Sie Ihre Adresse, um das WOG-Portal freizuschalten."
+    >
+      <Suspense>
+        <VerifyInner />
+      </Suspense>
+    </AuthLayout>
   );
 }

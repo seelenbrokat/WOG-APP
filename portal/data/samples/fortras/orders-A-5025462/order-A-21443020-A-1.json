@@ -1,0 +1,182 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "39966304-3563-43b0-99e9-ce8eedb1a127"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21443020-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21443020-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Fabriksgasse",
+            "houseNumber": "13",
+            "country": "AT",
+            "zipCode": "8700",
+            "city1": "Leoben-Hinterberg"
+          },
+          "senderContactPerson": {
+            "lastName": "AT&S",
+            "telephone": "+43 3842 2005748"
+          },
+          "receiver": {
+            "name1": "HOFSTETTER PCB PLATING Hofstetter PCB AG",
+            "street": "Faennring",
+            "houseNumber": "10",
+            "country": "CH",
+            "zipCode": "6403",
+            "city1": "Kuessnacht"
+          },
+          "receiverContactPerson": {
+            "lastName": "VON 07:00 BIS 14:00 -"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062555"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062562"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 3,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 112,
+                "carrierWeightInKilogram": 112
+              },
+              "mark": "A-21443020-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066062579"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 3,
+          "weights": {
+            "effectiveWeightInKilogram": 336,
+            "carrierWeightInKilogram": 336
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "HOFSTETTER PCB PLATING Hofstetter PCB AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "AT&S | +43 3842 2005748",
+            "senderInfo2": "HOFSTETTER PCB PLATING Hofstetter PCB AG-CH-6403-Kuessnacht",
+            "receiverInfo1": "VON 07:00 BIS 14:00 - | VON 07:00 BIS 14:00 -|-",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

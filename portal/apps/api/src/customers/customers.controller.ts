@@ -3,7 +3,7 @@ import { CustomersService } from './customers.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { UserRole } from '@prisma/client';
-import { IsBoolean, IsEmail, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 class CreateCustomerDto {
   @IsString()
@@ -45,6 +45,14 @@ class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  documentsModuleEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  neutralDeliveryReceipt?: boolean;
 }
 
 class AddressDto {
@@ -183,6 +191,18 @@ class TemplateDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  scheduleEnabled?: boolean;
+
+  @IsOptional()
+  @IsIn(['DAILY', 'WEEKLY'])
+  scheduleFreq?: string;
+
+  @IsOptional()
+  @IsString()
+  scheduleWeekdays?: string;
 }
 
 @Controller('customers')
@@ -191,6 +211,7 @@ export class CustomersController {
   constructor(private service: CustomersService) {}
 
   @Get()
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   list(@CurrentUser() user: AuthUser) {
     return this.service.list(user);
   }
@@ -215,6 +236,18 @@ export class CustomersController {
     @Query('customerId') customerId?: string,
   ) {
     return this.service.addAddress(user, customerId || user.customerId || undefined, dto);
+  }
+
+  @Post('me/addresses/import-from-shipments')
+  @Roles(UserRole.CUSTOMER_USER, UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER)
+  importAddressesFromShipments(
+    @CurrentUser() user: AuthUser,
+    @Query('customerId') customerId?: string,
+  ) {
+    return this.service.importAddressesFromShipments(
+      user,
+      customerId || user.customerId || undefined,
+    );
   }
 
   @Post('me/templates')
@@ -260,6 +293,7 @@ export class CustomersController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.get(user, id);
   }

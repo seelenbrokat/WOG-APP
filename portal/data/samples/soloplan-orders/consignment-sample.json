@@ -1,0 +1,238 @@
+{
+  "header": {
+    "sendDate": "2026-07-20T19:36:01",
+    "exportItemReference": "39605996-903c-403f-8488-5b42dbaa8a5a"
+  },
+  "consignment": [
+    {
+      "itemNumber": 1,
+      "externalNumber": "BK2601988",
+      "sender": {
+        "masterDataBusinessPartner": {
+          "number": 2,
+          "matchcode": "WOGDIEPO",
+          "name1": "WOG Logistics AG",
+          "phoneNumberHeadOffice": "+41 71 733 77 00",
+          "contactPersons": [
+            {
+              "itemNumber": 2,
+              "lastName": "Info",
+              "emailAddress": "info@worldofgreen.ch"
+            },
+            {
+              "itemNumber": 3,
+              "lastName": "Marcel",
+              "emailAddress": "marcel.burtscher@worldofgreen.ch"
+            },
+            {
+              "itemNumber": 4,
+              "lastName": "Admin",
+              "emailAddress": "admin@worldofgreen.ch"
+            }
+          ],
+          "finAccAccountDebtor": "263694",
+          "finAccAccountCreditor": "364259",
+          "inttraRefType": 1,
+          "homeEditAddress": {
+            "location1": "Diepoldsau",
+            "zipCode": "9444",
+            "street": "Wildenaustraße",
+            "houseNumber": "22",
+            "country": {
+              "isoTwoCharacterCountryCode": "CH",
+              "isoThreeCharacterCountryCode": "CHE",
+              "isoNumericCountryCode": "756",
+              "countryId": "CH"
+            }
+          },
+          "senderReceiver": true,
+          "freightBusinessPartner": true,
+          "valueAddedTaxNumber": "E409.812.868",
+          "vATIsoTwoCharacterCountryCode": "CH"
+        },
+        "name1": "WOG Logistics AG",
+        "street": "Wildenaustraße",
+        "houseNumber": "22",
+        "country": "CH",
+        "zipCode": "9444",
+        "city1": "Diepoldsau"
+      },
+      "senderContactPerson": {},
+      "receiver": {
+        "name1": "Baumgartner Haustechnik GmbH",
+        "name2": "Sanitär - Heizungen - Solaranlagen",
+        "street": "Chipf",
+        "houseNumber": "5",
+        "country": "CH",
+        "zipCode": "3414",
+        "city1": "Oberburg"
+      },
+      "receiverContactPerson": {},
+      "differentLoadingPoint": {
+        "masterDataBusinessPartner": {
+          "number": 1313,
+          "matchcode": "UNITELOCHA",
+          "name1": "Unitec Energietechnik GmbH",
+          "phoneNumberHeadOffice": "+43 5574 83630-0",
+          "contactPersons": [
+            {
+              "itemNumber": 2,
+              "salutation": "Frau",
+              "firstName": "Marion",
+              "lastName": "Beer",
+              "telephone": "+43(5574)83630-16",
+              "fax": "+43(5574)83630-99",
+              "emailAddress": "M.Beer@unitec-gmbh.at",
+              "homepage": "www.unitec-gmbh.at"
+            },
+            {
+              "itemNumber": 3,
+              "salutation": "Frau",
+              "firstName": "Sarah",
+              "lastName": "Boschi",
+              "telephone": "+43(5574)83630-16",
+              "fax": "+43(5574)83630-99",
+              "emailAddress": "S.Boschi@unitec-gmbh.at",
+              "homepage": "www.unitec-gmbh.at"
+            },
+            {
+              "itemNumber": 4,
+              "firstName": "Mailadresse",
+              "lastName": "Rechnung",
+              "emailAddress": "m.beer@unitec-gmbh.at"
+            }
+          ],
+          "finAccAccountDebtor": "260213",
+          "finAccAccountCreditor": "363389",
+          "inttraRefType": 1,
+          "homeEditAddress": {
+            "location1": "Lochau",
+            "zipCode": "6911",
+            "street": "Lindauer Straße",
+            "houseNumber": "29",
+            "country": {
+              "isoTwoCharacterCountryCode": "AT",
+              "isoThreeCharacterCountryCode": "AUT",
+              "isoNumericCountryCode": "40",
+              "countryId": "A"
+            }
+          },
+          "senderReceiver": true,
+          "freightBusinessPartner": true,
+          "valueAddedTaxNumber": "U57876114",
+          "vATIsoTwoCharacterCountryCode": "AT"
+        },
+        "name1": "Unitec Energietechnik GmbH",
+        "street": "Lindauer Straße",
+        "houseNumber": "29",
+        "country": "AT",
+        "zipCode": "6911",
+        "city1": "Lochau"
+      },
+      "differentDeliveryPoint": {},
+      "consignmentItems": [
+        {
+          "itemNumber": 1,
+          "quantity": 1.0,
+          "content1": "HEIZFL20 240MM 400V",
+          "content2": "200872",
+          "weights": {
+            "effectiveWeightInKilogram": 9.4,
+            "carrierWeightInKilogram": 9.4
+          },
+          "size": {
+            "lengthInMeters": 0.7,
+            "widthInMeters": 0.27,
+            "heightInMeters": 0.27
+          },
+          "storagePlaces": 0.189,
+          "mark": "BK2601988",
+          "dangerousGoods": {
+            "areDangerToEnvironment": false,
+            "limitedAmount": false
+          },
+          "hazardousMaterial": 0,
+          "packaging": "KRT",
+          "waterHazardClass": 0,
+          "articleNumber": "KRT",
+          "articleQuantity": 1.0,
+          "ssccCurrents": [
+            {
+              "code": "091201014196178001"
+            }
+          ],
+          "dimensions": {
+            "cubicMeter": 0.05103
+          }
+        }
+      ],
+      "times": {
+        "loadingDateStart": "2026-07-20T00:00:00",
+        "loadingDateEnd": "2026-07-20T00:00:00",
+        "deliveryDateStart": "2026-07-22T00:00:00",
+        "deliveryDateEnd": "2026-07-22T00:00:00"
+      },
+      "flatRateCustomer": {},
+      "flatRateReceiver": {},
+      "incoterms": 0,
+      "deliveryTerms": 0,
+      "pickup": false,
+      "consignmentRestriction": {},
+      "loadingDateType": 0,
+      "deliveryDateType": 0,
+      "paymentType": 0,
+      "paymentStatus": 0,
+      "namedLocation": {},
+      "kilometers": 223.0,
+      "quantity": 1.0,
+      "weights": {
+        "effectiveWeightInKilogram": 9.4,
+        "carrierWeightInKilogram": 9.4
+      },
+      "dimensions": {
+        "meter": 0.0,
+        "cubicMeter": 0.0
+      },
+      "requiredStoragePlaces": 0.189,
+      "flatRateCarrier": {},
+      "absEmpRelation": {
+        "matchcode": "CH_BL",
+        "designation": "CH_BL"
+      },
+      "maximumSize": {},
+      "containsDangerousGoods": false,
+      "customFields": {
+        "consignmentReference2": "Hardegger",
+        "consignmentReference6": "DPD",
+        "customBool1": false,
+        "customBool2": false,
+        "customBool3": false,
+        "customBool4": false,
+        "customBool5": false,
+        "customBool6": false,
+        "customBool7": false,
+        "customBool8": false,
+        "customBool9": false,
+        "customBool10": true
+      },
+      "isHeavyDutyTransport": false,
+      "information": {
+        "senderInfo1": "Hardegger9473 Gams Patrick Hardegger +41(81)7711873 Auftragsnummer:  18669,  ",
+        "senderInfo2": "Baumgartner Haustechnik GmbH-CH-3414-Oberburg",
+        "receiverInfo1": "Zustelltermin fix: 22.07.2026   \r\n",
+        "info10": "184045",
+        "info14": "https://shippingnet03.ondot.at/wog/Public.html#/PublicWeb/Tracking/Details/0320b251-ed1c-4a06-bffa-8e32d389efa7"
+      },
+      "airAndSea": {
+        "isShipperSecure": false,
+        "transportWay": 0,
+        "freightType": 0,
+        "regulatedEntityCategory": 0
+      },
+      "additionalTimes": {},
+      "loadType": 0,
+      "id": 166180683,
+      "documentData": []
+    }
+  ]
+}

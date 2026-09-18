@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
@@ -15,11 +15,22 @@ export class AuditController {
 
   @Get()
   @Roles(UserRole.ORG_ADMIN)
-  async list(@CurrentUser() user: AuthUser) {
+  async list(
+    @CurrentUser() user: AuthUser,
+    @Query('take') take?: string,
+    @Query('entityType') entityType?: string,
+    @Query('action') action?: string,
+    @Query('q') q?: string,
+  ) {
     const users = await this.prisma.user.findMany({
       where: { organizationId: user.organizationId },
       select: { id: true },
     });
-    return this.audit.list(users.map((u) => u.id));
+    return this.audit.list(users.map((u) => u.id), {
+      take: take ? Number(take) : 150,
+      entityType,
+      action,
+      q,
+    });
   }
 }

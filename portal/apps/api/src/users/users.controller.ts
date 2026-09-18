@@ -29,6 +29,35 @@ class InviteUserDto {
   mandantIds?: string[];
 }
 
+class InviteFromContactDto {
+  @IsString()
+  contactId!: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  mandantIds?: string[];
+}
+
+class InviteCustomerContactsDto {
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  partnerId?: string;
+
+  /** Auch User erneut einladen, die ihr Passwort schon geändert haben */
+  @IsOptional()
+  @IsBoolean()
+  forceResend?: boolean;
+}
+
 class MandantAccessDto {
   @IsArray()
   @IsString({ each: true })
@@ -65,6 +94,25 @@ export class UsersController {
   @Roles(UserRole.ORG_ADMIN)
   invite(@CurrentUser() user: AuthUser, @Body() dto: InviteUserDto) {
     return this.service.invite(user, dto);
+  }
+
+  @Post('invite-from-contact')
+  @Roles(UserRole.ORG_ADMIN)
+  inviteFromContact(@CurrentUser() user: AuthUser, @Body() dto: InviteFromContactDto) {
+    return this.service.inviteFromContact(user, dto);
+  }
+
+  /** Alle Kontakte eines Kunden/Partners mit E-Mail zum Portal einladen */
+  @Post('invite-contacts')
+  @Roles(UserRole.ORG_ADMIN)
+  inviteContacts(@CurrentUser() user: AuthUser, @Body() dto: InviteCustomerContactsDto) {
+    return this.service.inviteContactsForCustomerOrPartner(user, dto);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(UserRole.ORG_ADMIN)
+  resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.adminResetPassword(user, id);
   }
 
   @Patch('me/notification-prefs')

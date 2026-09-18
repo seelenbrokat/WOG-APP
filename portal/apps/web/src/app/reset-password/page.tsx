@@ -3,6 +3,7 @@
 import { FormEvent, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { AuthLayout } from '@/components/AuthLayout';
 import { api } from '@/lib/api';
 
 function ResetInner() {
@@ -48,15 +49,13 @@ function ResetInner() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="hero">
-      <section className="hero-brand">
-        <h1 className="brand-mark">WOG</h1>
-      </section>
-      <section className="hero-panel">
-        <Suspense>
-          <ResetInner />
-        </Suspense>
-      </section>
-    </div>
+    <AuthLayout
+      headline="Neues Passwort wählen"
+      sub="Setzen Sie ein neues Passwort für Ihren WOG-Portal-Zugang."
+    >
+      <Suspense>
+        <ResetInner />
+      </Suspense>
+    </AuthLayout>
   );
 }

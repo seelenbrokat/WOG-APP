@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export type SessionUser = {
   id: string;
@@ -6,11 +6,32 @@ export type SessionUser = {
   firstName: string;
   lastName: string;
   role: string;
+  /** echte Rolle (ORG_ADMIN), wenn aktuell Kundenansicht aktiv */
+  realRole?: string;
   organizationId: string;
   customerId?: string | null;
   customerName?: string;
+  partnerId?: string | null;
+  partnerName?: string;
   mandantIds: string[];
+  mustChangePassword?: boolean;
+  impersonating?: boolean;
+  impersonatingCustomerName?: string | null;
 };
+
+export class ApiError extends Error {
+  status: number;
+  body: any;
+
+  constructor(status: number, body: any) {
+    const raw = body?.message;
+    const msg = Array.isArray(raw) ? raw.join(', ') : raw || `Fehler ${status}`;
+    super(String(msg));
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -48,7 +69,7 @@ export async function api<T = unknown>(
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `Fehler ${res.status}`);
+    throw new ApiError(res.status, err);
   }
   if (res.status === 204) return undefined as T;
   const contentType = res.headers.get('content-type') || '';

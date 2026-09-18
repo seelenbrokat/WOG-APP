@@ -1,0 +1,129 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "398cfc37-118c-4c2a-b1ff-e2627377d52e"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21438095-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21438095-A-1",
+          "sender": {
+            "name1": "Omya GmbH",
+            "street": "Gewerbepark",
+            "houseNumber": "7",
+            "country": "AT",
+            "zipCode": "8772",
+            "city1": "Traboch"
+          },
+          "senderContactPerson": {
+            "lastName": "SELINA GRUBER",
+            "telephone": "00436648262517"
+          },
+          "receiver": {
+            "name1": "Omya International AG",
+            "street": "Froschackerstrasse",
+            "houseNumber": "6",
+            "country": "CH",
+            "zipCode": "4622",
+            "city1": "Egerkingen"
+          },
+          "receiverContactPerson": {
+            "lastName": "FRAU POFFET PASCALE",
+            "telephone": "+41 62 7892814",
+            "emailAddress": "PASCALE.POFFET@OMYA.COM"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "BOROSILICATE GLASS POWDER (GLASS FR",
+              "weights": {
+                "effectiveWeightInKilogram": 0.8,
+                "carrierWeightInKilogram": 0.8
+              },
+              "mark": "A-21438095-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066052952"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 0.8,
+            "carrierWeightInKilogram": 0.8
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Omya International AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "SELINA GRUBER | 00436648262517",
+            "senderInfo2": "Omya International AG-CH-4622-Egerkingen",
+            "receiverInfo1": "FRAU POFFET PASCALE | Tel: +41 62 7892814 | PASCALE.POFFET@OMYA.COM",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>shippingNET Release Notes | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="shippingNET Release Notes | shippingNET ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="shippingnet-release-notes">shippingNET Release Notes</h1>
+
+<div class="rn-version">Version 25.4.0.0</div>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th style="text-align: right;">Features</th>
+<th style="text-align: right;">Bugfix</th>
+<th style="text-align: right;">Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#topic-accounting">Accounting</a></td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><a href="#topic-carrier">Carrier</a></td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td><a href="#topic-dashboard">Dashboard</a></td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr>
+<td><a href="#topic-lager">Stock</a></td>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">34</td>
+</tr>
+<tr>
+<td><a href="#topic-mobileclient">MobileClient</a></td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td><a href="#topic-sendung">Broadcast</a></td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td><a href="#topic-system">System</a></td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr>
+<td><a href="#topic-systemkonfiguration">System Configuration</a></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><a href="#topic-testing">Testing</a></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><a href="#topic-translation">Translation</a></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;"><strong>54</strong></td>
+<td style="text-align: right;"><strong>12</strong></td>
+<td style="text-align: right;"><strong>66</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="topic-accounting">Accounting</h2>
+<div class="rn-object">Bugfix</div>
+<ul>
+<li>Invoice stuck in shipping processing cannot be solved by user</li>
+</ul>
+<h2 id="topic-carrier">Carrier</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Porting Fedex PL Communicator</li>
+<li>DHL Express gets a new collo number range type (License Plate, JJD....)</li>
+<li>Default configuration for standard incoterm and insurance per carrier</li>
+<li>Extend FedExNew account registration with MFA bypass workflow</li>
+<li>Implement Bexity routing and label</li>
+<li>FedEx improved error handling</li>
+</ul>
+<h2 id="topic-dashboard">Dashboard</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Filtering picking performance per user</li>
+<li>Duplicate bookings in &quot;picking performance per user&quot;</li>
+<li>Order overview: Filter + sort</li>
+<li>Order overview totals line</li>
+<li>Outgoing Order Quantity by Days - Filter via Customer Shipping Method Group</li>
+<li>Open set-up processes - Filter via customer shipping method group</li>
+<li>Order overview: new columns &quot;On Pick List&quot; &amp; &quot;Equipped&quot;</li>
+</ul>
+<div class="rn-object">Bugfix</div>
+<ul>
+<li>&quot;Picking performance per user&quot; Picked quantity is calculated incorrectly</li>
+</ul>
+<h2 id="topic-lager">Stock</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>In the packaging new, the collo weight tolerance should be taken into account.</li>
+<li>We want to offer the possibility (adjustable via an AccessRight) to change a pre-calculated loading device</li>
+<li>Enable the use of Parent-Child Collo in the warehouse</li>
+<li>New feature &quot;recount on discrepancies&quot; for incorrect counts in the inventory</li>
+<li>Picking strategies with shipping loading equipment calculation should identify direct hits in advance and turn them into separate shipping collo</li>
+<li>New picking strategy &quot;endless pallets&quot;</li>
+<li>Complaints tool for customer complaints</li>
+<li>Shipping loading equipment calculation cannot handle weight/volume 0</li>
+<li>Message function in the avalanche transceiver</li>
+<li>Performance improvements - inventory correction/free space search</li>
+<li>Quality Deviation Report</li>
+<li>On the vehicle type, there should now be two zone lists instead of one zone list: Source Zones &amp; Target Zones</li>
+<li>Two-stage picking strategies to map three variants</li>
+<li>Dashboard Receipt (Accepted and Stored Quantity)</li>
+<li>Article master data changes to the properties should be logged with a VAC status</li>
+<li>In the warehouse movement list, sorting should only be possible according to the creation date. ( implicit ID)</li>
+<li>If the permanent inventory is active, no GoodsNotFound inventory drive command should be created for item transfers.</li>
+<li>When determining the target storage location for an emplacement, the determination of historical inventory should be omitted due to performance</li>
+<li>In the AvisoEditor, only open order items whose articles are stock-managed should be added.</li>
+<li>Improvement of the clarity of the goods transfer via ClientConfigs to hide superfluous elements.</li>
+<li>When taking over the goods, we would like to display only Quantity Open for the article instead of quantity according to LS and the quantity taken over</li>
+<li>In the view of fine picking, there should be a new button &quot;Create shipment and prepare label&quot;</li>
+<li>Display of the background color for orders in the order list based on the settings on the customer shipping method</li>
+<li>Fix for availability/driving command creation with driving commands without pick lists</li>
+<li>For fine picking, it should be possible to add the item with only one scan with a configuration.</li>
+<li>Permanent inventory - zero-crossing counting and low quantity counting should continue to be active even after complete inventory counting</li>
+<li>the new &quot;Commission Planning&quot; will be renamed &quot;Extended Commission Planning&quot;.</li>
+</ul>
+<div class="rn-object">Bugfix</div>
+<ul>
+<li>If the first group is exceeded in the shipping loading equipment calculation, the fallback shipping loading device is immediately used</li>
+<li>When creating the pick list, article transfer FB is not taken into account</li>
+<li>Reposting to production stations is no longer related to the order</li>
+<li>The wrong order is posted in the packaging if the same item is intended for multiple items</li>
+<li>In the pick list editor, it is not possible to sort by item number</li>
+<li>Additional picking with following driving commands from the same Src-Collo leads to problems</li>
+<li>the setting on the article Scan required is not inherited to the drive command</li>
+</ul>
+<h2 id="topic-mobileclient">MobileClient</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>New preview of the driving commands to be picked</li>
+<li>Driving commands: When selecting a component with zone restriction on the equipment type, all zones are still listed on the driving command.</li>
+</ul>
+<h2 id="topic-sendung">Broadcast</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Setting for collover sealing should not apply to collective pallet formation</li>
+<li>The shipment view does not remember default values for views</li>
+</ul>
+<div class="rn-object">Bugfix</div>
+<ul>
+<li>Freight counter field on the number range is not taken into account</li>
+</ul>
+<h2 id="topic-system">System</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Logging of getNext calls even if no FB was found</li>
+<li>ctColloLabelInfo must not have XA and XZ at the beginning/end according to current usage</li>
+<li>Revise WarehouseTransportGetNext query performance</li>
+<li>The WarehouseID is not correctly observed in ArticleLocks</li>
+<li>Loading/unloading scan transport query improve performance</li>
+<li>If &quot;ArchiveDatebaseName&quot; is set, the MaintenanceCleanup should only clean up certain tables</li>
+<li>Performance improvement for the data model of cTPicklistCommissionCollo FK for Create SourceZoneID</li>
+</ul>
+<div class="rn-object">Bugfix</div>
+<ul>
+<li>Test for multi-stage packaging with different characteristics</li>
+<li>Performance improvement in the getNext response, which can be over 2MB in size</li>
+</ul>
+<h2 id="topic-systemkonfiguration">System Configuration</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Role settings for masks &gt; entry Spear type in bulky type</li>
+</ul>
+<h2 id="topic-testing">Testing</h2>
+<div class="rn-object">Features</div>
+<ul>
+<li>Write new tests to calculate the available quantity</li>
+</ul>
+<h2 id="topic-translation">Translation</h2>
+<div class="rn-object">Features</div>
+- Add Polish translations
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

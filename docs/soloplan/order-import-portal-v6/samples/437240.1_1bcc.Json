@@ -1,0 +1,285 @@
+{
+  "header": {
+    "sendDate": "2026-07-20T19:36:01",
+    "exportItemReference": "3463410c-fc7b-4932-afa3-764b334efe0a"
+  },
+  "consignment": [
+    {
+      "itemNumber": 1,
+      "externalNumber": "BK2601979",
+      "sender": {
+        "masterDataBusinessPartner": {
+          "number": 2,
+          "matchcode": "WOGDIEPO",
+          "name1": "WOG Logistics AG",
+          "phoneNumberHeadOffice": "+41 71 733 77 00",
+          "contactPersons": [
+            {
+              "itemNumber": 2,
+              "lastName": "Info",
+              "emailAddress": "info@worldofgreen.ch"
+            },
+            {
+              "itemNumber": 3,
+              "lastName": "Marcel",
+              "emailAddress": "marcel.burtscher@worldofgreen.ch"
+            },
+            {
+              "itemNumber": 4,
+              "lastName": "Admin",
+              "emailAddress": "admin@worldofgreen.ch"
+            }
+          ],
+          "finAccAccountDebtor": "263694",
+          "finAccAccountCreditor": "364259",
+          "inttraRefType": 1,
+          "homeEditAddress": {
+            "location1": "Diepoldsau",
+            "zipCode": "9444",
+            "street": "Wildenaustraße",
+            "houseNumber": "22",
+            "country": {
+              "isoTwoCharacterCountryCode": "CH",
+              "isoThreeCharacterCountryCode": "CHE",
+              "isoNumericCountryCode": "756",
+              "countryId": "CH"
+            }
+          },
+          "senderReceiver": true,
+          "freightBusinessPartner": true,
+          "valueAddedTaxNumber": "E409.812.868",
+          "vATIsoTwoCharacterCountryCode": "CH"
+        },
+        "name1": "WOG Logistics AG",
+        "street": "Wildenaustraße",
+        "houseNumber": "22",
+        "country": "CH",
+        "zipCode": "9444",
+        "city1": "Diepoldsau"
+      },
+      "senderContactPerson": {},
+      "receiver": {
+        "masterDataBusinessPartner": {
+          "number": 2001184,
+          "matchcode": "SIGMASURSE",
+          "name1": "Sigmatic AG Heizsysteme",
+          "phoneNumberHeadOffice": "+41419251122",
+          "inttraRefType": 1,
+          "homeEditAddress": {
+            "location1": "Sursee",
+            "zipCode": "6210",
+            "street": "Infanteriestrasse",
+            "houseNumber": "2",
+            "country": {
+              "isoTwoCharacterCountryCode": "CH",
+              "isoThreeCharacterCountryCode": "CHE",
+              "isoNumericCountryCode": "756",
+              "countryId": "CH"
+            }
+          },
+          "senderReceiver": true,
+          "freightBusinessPartner": false,
+          "valueAddedTaxNumber": "E107.277.483",
+          "vATIsoTwoCharacterCountryCode": "CH"
+        },
+        "name1": "Sigmatic AG Heizsysteme",
+        "street": "Infanteriestrasse",
+        "houseNumber": "2",
+        "country": "CH",
+        "zipCode": "6210",
+        "city1": "Sursee"
+      },
+      "receiverContactPerson": {},
+      "differentLoadingPoint": {
+        "masterDataBusinessPartner": {
+          "number": 1313,
+          "matchcode": "UNITELOCHA",
+          "name1": "Unitec Energietechnik GmbH",
+          "phoneNumberHeadOffice": "+43 5574 83630-0",
+          "contactPersons": [
+            {
+              "itemNumber": 2,
+              "salutation": "Frau",
+              "firstName": "Marion",
+              "lastName": "Beer",
+              "telephone": "+43(5574)83630-16",
+              "fax": "+43(5574)83630-99",
+              "emailAddress": "M.Beer@unitec-gmbh.at",
+              "homepage": "www.unitec-gmbh.at"
+            },
+            {
+              "itemNumber": 3,
+              "salutation": "Frau",
+              "firstName": "Sarah",
+              "lastName": "Boschi",
+              "telephone": "+43(5574)83630-16",
+              "fax": "+43(5574)83630-99",
+              "emailAddress": "S.Boschi@unitec-gmbh.at",
+              "homepage": "www.unitec-gmbh.at"
+            },
+            {
+              "itemNumber": 4,
+              "firstName": "Mailadresse",
+              "lastName": "Rechnung",
+              "emailAddress": "m.beer@unitec-gmbh.at"
+            }
+          ],
+          "finAccAccountDebtor": "260213",
+          "finAccAccountCreditor": "363389",
+          "inttraRefType": 1,
+          "homeEditAddress": {
+            "location1": "Lochau",
+            "zipCode": "6911",
+            "street": "Lindauer Straße",
+            "houseNumber": "29",
+            "country": {
+              "isoTwoCharacterCountryCode": "AT",
+              "isoThreeCharacterCountryCode": "AUT",
+              "isoNumericCountryCode": "40",
+              "countryId": "A"
+            }
+          },
+          "senderReceiver": true,
+          "freightBusinessPartner": true,
+          "valueAddedTaxNumber": "U57876114",
+          "vATIsoTwoCharacterCountryCode": "AT"
+        },
+        "name1": "Unitec Energietechnik GmbH",
+        "street": "Lindauer Straße",
+        "houseNumber": "29",
+        "country": "AT",
+        "zipCode": "6911",
+        "city1": "Lochau"
+      },
+      "differentDeliveryPoint": {},
+      "loadingUnitItems": [
+        {
+          "itemNumber": 1,
+          "generateLoadingUnitPostings": 1,
+          "quantity": 1,
+          "loadingUnit": {
+            "number": 13,
+            "matchcode": "ISOK",
+            "designation": "Iso Klein"
+          }
+        }
+      ],
+      "consignmentItems": [
+        {
+          "itemNumber": 1,
+          "quantity": 1.0,
+          "content1": "Isolierung Klein",
+          "content2": "313466",
+          "weights": {
+            "effectiveWeightInKilogram": 26.0,
+            "freightWeightInKilogram": 240.0,
+            "carrierWeightInKilogram": 240.0
+          },
+          "size": {
+            "lengthInMeters": 0.0,
+            "widthInMeters": 0.0,
+            "heightInMeters": 0.0
+          },
+          "storagePlaces": 1.0,
+          "mark": "BK2601979",
+          "loadingUnitItem": {
+            "itemNumber": 1,
+            "generateLoadingUnitPostings": 1,
+            "quantity": 1,
+            "loadingUnit": {
+              "number": 13,
+              "matchcode": "ISOK",
+              "designation": "Iso Klein"
+            }
+          },
+          "dangerousGoods": {
+            "areDangerToEnvironment": false,
+            "limitedAmount": false
+          },
+          "hazardousMaterial": 0,
+          "packaging": "ISOKLEIN",
+          "waterHazardClass": 0,
+          "articleQuantity": 1.0,
+          "ssccCurrents": [
+            {
+              "code": "091201014196177301"
+            }
+          ],
+          "dimensions": {
+            "squareMeter": 0.0,
+            "cubicMeter": 0.0
+          }
+        }
+      ],
+      "times": {
+        "loadingDateStart": "2026-07-20T00:00:00",
+        "loadingDateEnd": "2026-07-20T00:00:00",
+        "deliveryDateStart": "2026-07-21T00:00:00",
+        "deliveryDateEnd": "2026-07-21T00:00:00"
+      },
+      "flatRateCustomer": {},
+      "flatRateReceiver": {},
+      "incoterms": 0,
+      "deliveryTerms": 0,
+      "pickup": false,
+      "consignmentRestriction": {},
+      "loadingDateType": 0,
+      "deliveryDateType": 0,
+      "paymentType": 0,
+      "paymentStatus": 0,
+      "namedLocation": {},
+      "kilometers": 181.0,
+      "quantity": 1.0,
+      "weights": {
+        "effectiveWeightInKilogram": 26.0,
+        "freightWeightInKilogram": 240.0,
+        "carrierWeightInKilogram": 240.0
+      },
+      "dimensions": {
+        "meter": 0.0,
+        "squareMeter": 0.0,
+        "cubicMeter": 0.0
+      },
+      "requiredStoragePlaces": 1.0,
+      "flatRateCarrier": {},
+      "absEmpRelation": {
+        "matchcode": "CH_BL",
+        "designation": "CH_BL"
+      },
+      "maximumSize": {},
+      "containsDangerousGoods": false,
+      "customFields": {
+        "consignmentReference2": "Sigmatic AG",
+        "consignmentReference6": "BTSWISS",
+        "customBool1": false,
+        "customBool2": false,
+        "customBool3": false,
+        "customBool4": false,
+        "customBool5": false,
+        "customBool6": false,
+        "customBool7": false,
+        "customBool8": false,
+        "customBool9": false,
+        "customBool10": true
+      },
+      "isHeavyDutyTransport": false,
+      "information": {
+        "senderInfo1": "Sigmatic AG6210 Sursee Patrick Estermann +41(41)9251122 Auftragsnummer:  213005,  ",
+        "senderInfo2": "Sigmatic AG Heizsysteme-CH-6210-Sursee",
+        "receiverInfo1": " Aviso für Lieferadresse, mind. 2 h vor Zustellung! \r\nZustelltermin fix: 21.07.2026   \r\n Lager kein Aviso notwendig",
+        "info10": "184047",
+        "info14": "https://shippingnet03.ondot.at/wog/Public.html#/PublicWeb/Tracking/Details/69d7cbd4-ec86-47f6-ac1a-5b00b9edd275"
+      },
+      "airAndSea": {
+        "isShipperSecure": false,
+        "transportWay": 0,
+        "freightType": 0,
+        "regulatedEntityCategory": 0
+      },
+      "additionalTimes": {},
+      "loadType": 0,
+      "id": 166064191,
+      "documentData": []
+    }
+  ]
+}

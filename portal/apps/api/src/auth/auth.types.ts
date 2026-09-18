@@ -10,7 +10,14 @@ export type AuthUser = {
   role: UserRole;
   organizationId: string;
   customerId?: string | null;
+  partnerId?: string | null;
   mandantIds: string[];
+  mustChangePassword?: boolean;
+  /** true, wenn ORG_ADMIN die Kundenansicht eines anderen Kunden nutzt */
+  impersonating?: boolean;
+  /** echte DB-Rolle (ORG_ADMIN), während role ggf. CUSTOMER_USER ist */
+  realRole?: UserRole;
+  impersonatingCustomerName?: string | null;
 };
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {

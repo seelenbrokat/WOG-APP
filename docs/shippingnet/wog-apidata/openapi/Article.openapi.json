@@ -1,0 +1,1144 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "shippingNET PublicApi Article Service",
+        "version": "1.0",
+        "x-logo": {
+            "url": "https://shippingnet03.ondot.at/WOG/DataService/node/assets/shippingnet-logo-openapi.png",
+            "altText": "shipping.NET logo",
+            "backgroundColor": "#3B3B41",
+            "href": "https://www.ondot.at"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://shippingnet03.ondot.at/WOG/DataService/PublicApi/v1/Article/openapi.json"
+        }
+    ],
+    "security": [
+        {
+            "clientID": [],
+            "orgUnitID": [],
+            "authToken": []
+        }
+    ],
+    "paths": {
+        "/import": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/importResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "description": "",
+                "operationId": "import",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/importRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/importList": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/importListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "description": "",
+                "operationId": "importList",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/importListRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "responses": {
+            "InternalError": {
+                "description": "Internal error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/InternalError"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "InternalError": {
+                "type": "object",
+                "properties": {
+                    "ExceptionCode": {
+                        "type": "string"
+                    },
+                    "ExceptionType": {
+                        "type": "string"
+                    },
+                    "ExceptionMessage": {
+                        "type": "string"
+                    },
+                    "Source": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ArticleImportResult": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ArticleImportResponse": {
+                "type": "object",
+                "properties": {
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResult"
+                            }
+                        ]
+                    }
+                }
+            },
+            "importResponse": {
+                "$ref": "#/components/schemas/ArticleImportResponse"
+            },
+            "IDNameNumberReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss eines der drei Felder befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "StringIDNameReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder Name befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrgUnitReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder BusinessPartnerNumber befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "BusinessPartnerNumber": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UserMatchingData": {
+                "type": "object",
+                "properties": {
+                    "UserID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "UserName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Firstname": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Lastname": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Email": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "PickingOperation": {
+                "type": "string",
+                "enum": [
+                    "FIFO-optimized",
+                    "FEFO-optimized"
+                ]
+            },
+            "PickingOptimization": {
+                "type": "string",
+                "enum": [
+                    "Free location-optimized",
+                    "Pick-optimized (Article preferred)",
+                    "Pick-optimized (Collo preferred)"
+                ]
+            },
+            "RefrigeratedCargoType": {
+                "type": "string",
+                "enum": [
+                    "TransportWarehouse",
+                    "Transport",
+                    "Warehouse"
+                ]
+            },
+            "RefrigeratedCargo": {
+                "type": "string",
+                "enum": [
+                    "FrozenGoods",
+                    "ChilledGoods",
+                    "RoomTemperature",
+                    "DryIce"
+                ]
+            },
+            "ApiArticlePart": {
+                "type": "object",
+                "properties": {
+                    "Child": {
+                        "$ref": "#/components/schemas/ApiArticle"
+                    },
+                    "Quantity": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "Child",
+                    "Quantity"
+                ]
+            },
+            "ApiArticlePackageType": {
+                "type": "object",
+                "properties": {
+                    "PackageType": {
+                        "$ref": "#/components/schemas/StringIDNameReference"
+                    },
+                    "SystemUnitQuantity": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "GrossWeight": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "NetWeight": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Length": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Width": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Height": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Volume": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Tare": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsUsedForGoodsReceipt": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForPicking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForCompleteColloPicking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsUsedForSupplyManagement": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Barcode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "AssemblyTime": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "StackingFactor": {
+                        "type": "number",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "PackageType"
+                ]
+            },
+            "IDNameReference": {
+                "type": "object",
+                "description": "Zur Verwendung muss entweder ID oder Name befüllt sein",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "PartyType": {
+                "type": "string",
+                "enum": [
+                    "Alternative",
+                    "Customer",
+                    "Manufacturer",
+                    "Supplier",
+                    "System"
+                ]
+            },
+            "ApiArticleCode": {
+                "type": "object",
+                "properties": {
+                    "Code": {
+                        "type": "string"
+                    },
+                    "NumberType": {
+                        "$ref": "#/components/schemas/IDNameReference"
+                    },
+                    "PartyTypeID": {
+                        "$ref": "#/components/schemas/PartyType"
+                    },
+                    "PartyOrgUnit": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "Code",
+                    "NumberType",
+                    "PartyTypeID"
+                ]
+            },
+            "ApiArticleCustomsInformation": {
+                "type": "object",
+                "properties": {
+                    "CountryID": {
+                        "type": "string"
+                    },
+                    "TariffNumber": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "CountryID",
+                    "TariffNumber"
+                ]
+            },
+            "ApiArticleString": {
+                "type": "object",
+                "properties": {
+                    "LanguageID": {
+                        "type": "string",
+                        "description": "Sprache, ISO-639-1-Code"
+                    },
+                    "Name": {
+                        "type": "string",
+                        "description": "Artikelname in der Sprache",
+                        "nullable": true
+                    },
+                    "Description": {
+                        "type": "string",
+                        "description": "Artikelbeschreibung in der Sprache",
+                        "nullable": true
+                    },
+                    "Operation": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "LanguageID"
+                ]
+            },
+            "ApiArticleWarehouseWorkInstructionType": {
+                "type": "object",
+                "properties": {
+                    "TriggerEvent": {
+                        "type": "string",
+                        "enum": [
+                            "GoodsIssue",
+                            "GoodsReceipt"
+                        ],
+                        "description": "Auslöser der Arbeitsanweisung"
+                    },
+                    "WorkInstruction": {
+                        "$ref": "#/components/schemas/IDNameReference"
+                    }
+                },
+                "required": [
+                    "TriggerEvent",
+                    "WorkInstruction"
+                ]
+            },
+            "DangerousGoodsReference": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ThirdPartyID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PackingGroup": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "TransportCategory": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ClassificationCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ADRRevision": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "Decimal": {
+                "type": "number"
+            },
+            "ApiArticleDangerousGoods": {
+                "type": "object",
+                "properties": {
+                    "DangerousGoodsType": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/DangerousGoodsReference"
+                            }
+                        ]
+                    },
+                    "QtyPackageType": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "PackageTypeID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "IsWarehouseDangerousGoods": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsTransportationDangerousGoods": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsDangerousGoodsLimitedQuantity": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "DangerousGoodsDescription": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "Mass": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "UnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "NetExplosiveMass": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Decimal"
+                            }
+                        ]
+                    },
+                    "FlashPoint": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "IsAccessible": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsCargoAirOnly": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsExceptedQuantity": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsEnvironmentallyHazardous": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsMarinePolluting": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "IsWaste": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "EuropeanWasteCode": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "ApiArticle": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "string"
+                    },
+                    "Name": {
+                        "type": "string"
+                    },
+                    "Description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "PackingInstructions": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ArticleGroup": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberReference"
+                            }
+                        ]
+                    },
+                    "ProductGroup": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/IDNameNumberReference"
+                            }
+                        ]
+                    },
+                    "Active": {
+                        "type": "boolean",
+                        "description": "Um Artikel zu deaktivieren, Default: True",
+                        "nullable": true
+                    },
+                    "CountryOfOriginID": {
+                        "type": "string",
+                        "description": "Herstellungsland, ISO-2-Code",
+                        "nullable": true
+                    },
+                    "HSTariffNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SystemUnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "SystemUnitNetWeight": {
+                        "type": "number",
+                        "description": "Nettogewicht pro Systemeinheit",
+                        "nullable": true
+                    },
+                    "DefaultGoodsReceiptPackageType": {
+                        "description": "Standard-Lademittel für Wareneingang",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/StringIDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "DefaultGoodsIssuePackageType": {
+                        "description": "Standard-Lademittel für Warenausgang",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/StringIDNameReference"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "Customer": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "Owner": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "Supplier": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OrgUnitReference"
+                            }
+                        ]
+                    },
+                    "ProductManager": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/UserMatchingData"
+                            }
+                        ]
+                    },
+                    "SerialNumberRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "SerialNumberRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ChargeRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "ChargeRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "BestBeforeDateRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "BestBeforeDateRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "ExpirationDateRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "ExpirationDateRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode1RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode1RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode2RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode2RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode3RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode3RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantCode4RequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantCode4RequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantQuantityRequirementMode": {
+                        "type": "string",
+                        "enum": [
+                            "optional",
+                            "required",
+                            "optionalRequiredOnPacking",
+                            "requiredOnPacking",
+                            "immutable"
+                        ],
+                        "nullable": true
+                    },
+                    "VariantQuantityRequiredOnPacking": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "VariantQuantityUnitID": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "VariantQuantityAllowedNumberOfDecimalPlaces": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "RequireScanOnArticleWarehouseTransports": {
+                        "type": "boolean",
+                        "description": "Gibt an ob der Artikel bei Artikel Fahrbefehlen gescannt werden muss",
+                        "nullable": true
+                    },
+                    "CompleteColloOnly": {
+                        "type": "boolean",
+                        "description": "Nur Ganzpaletten-Entnahme für diesen Artikel",
+                        "nullable": true
+                    },
+                    "PickingOperation": {
+                        "description": "Entnahmeverfahren",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/PickingOperation"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "PickingOptimization": {
+                        "description": "Optimierungsverfahren",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/PickingOptimization"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "ShelfLifeInDays": {
+                        "type": "number",
+                        "description": "Haltbarkeit in Tagen",
+                        "nullable": true
+                    },
+                    "LockDaysBeforeExpiration": {
+                        "type": "number",
+                        "description": "Artikel sperren X-Tage bevor die Haltbarkeit endet",
+                        "nullable": true
+                    },
+                    "SalesPricePerUnit": {
+                        "type": "number",
+                        "description": "Verkaufspreis",
+                        "nullable": true
+                    },
+                    "SalesCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des Verkaufspreises",
+                        "nullable": true
+                    },
+                    "InternalSalesPricePerUnit": {
+                        "type": "number",
+                        "description": "interner Verkaufspreis",
+                        "nullable": true
+                    },
+                    "InternalSalesCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des internen Verkaufspreises",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsPerUnit": {
+                        "type": "number",
+                        "description": "Warenwert",
+                        "nullable": true
+                    },
+                    "ValueOfGoodsCurrencyID": {
+                        "type": "string",
+                        "description": "Währung des Warenwerts",
+                        "nullable": true
+                    },
+                    "IsInventoryTracked": {
+                        "type": "boolean",
+                        "description": "Bestandsgeführt, Default: true",
+                        "nullable": true
+                    },
+                    "RefrigeratedCargoType": {
+                        "description": "Kühlgutart",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RefrigeratedCargoType"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "RefrigeratedCargoTemperatureType": {
+                        "description": "Kühlgut-Temperatur",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RefrigeratedCargo"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "IsBulkyGoods": {
+                        "type": "boolean",
+                        "description": "Sperrgut",
+                        "nullable": true
+                    },
+                    "IsNarcoticGoods": {
+                        "type": "boolean",
+                        "description": "Suchtmittel",
+                        "nullable": true
+                    },
+                    "IsDangerousGoods": {
+                        "type": "boolean",
+                        "description": "Gefahrgut",
+                        "nullable": true
+                    },
+                    "IsFragileGoods": {
+                        "type": "boolean",
+                        "description": "Zerbrechlich",
+                        "nullable": true
+                    },
+                    "IsOrganic": {
+                        "type": "boolean",
+                        "description": "BIO-Artikel",
+                        "nullable": true
+                    },
+                    "ChildList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticlePart"
+                        },
+                        "description": "Unterartikel",
+                        "nullable": true
+                    },
+                    "PackageTypeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticlePackageType"
+                        },
+                        "description": "Lademittel",
+                        "nullable": true
+                    },
+                    "CodeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleCode"
+                        },
+                        "description": "Zusätzliche Barcodes",
+                        "nullable": true
+                    },
+                    "CustomsInformationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleCustomsInformation"
+                        },
+                        "description": "Zoll-Informationen pro Land",
+                        "nullable": true
+                    },
+                    "TranslationList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleString"
+                        },
+                        "description": "Übersetzungen von Artikelname & -Beschreibung",
+                        "nullable": true
+                    },
+                    "WarehouseWorkInstructionTypeList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleWarehouseWorkInstructionType"
+                        },
+                        "description": "Lager-Arbeitsanweisungen",
+                        "nullable": true
+                    },
+                    "DangerousGoodsList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticleDangerousGoods"
+                        },
+                        "nullable": true
+                    },
+                    "ABCCategory": {
+                        "type": "string",
+                        "description": "ABC Kategorie",
+                        "nullable": true
+                    },
+                    "IsMedicine": {
+                        "type": "boolean",
+                        "description": "Medizin",
+                        "nullable": true
+                    },
+                    "IsBiocide": {
+                        "type": "boolean",
+                        "description": "Biozid",
+                        "nullable": true
+                    },
+                    "UprightTransportOnly": {
+                        "type": "boolean",
+                        "description": "Artikel muss stehend transportiert werden",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "Number",
+                    "Name"
+                ]
+            },
+            "ArticleImportResultFields": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "Number": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "CustomerBusinessPartnerNumber": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "ArticleImportResponseFields": {
+                "type": "object",
+                "properties": {
+                    "Article": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResultFields"
+                            }
+                        ]
+                    }
+                }
+            },
+            "importRequest": {
+                "type": "object",
+                "properties": {
+                    "Article": {
+                        "$ref": "#/components/schemas/ApiArticle"
+                    },
+                    "RequestedFields": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResponseFields"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "Article"
+                ]
+            },
+            "ArticleImportListResponse": {
+                "type": "object",
+                "properties": {
+                    "ArticleList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ArticleImportResult"
+                        },
+                        "nullable": true
+                    }
+                }
+            },
+            "importListResponse": {
+                "$ref": "#/components/schemas/ArticleImportListResponse"
+            },
+            "importListRequest": {
+                "type": "object",
+                "properties": {
+                    "ArticleList": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ApiArticle"
+                        }
+                    },
+                    "RequestedFields": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticleImportResponseFields"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "ArticleList"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "clientID": {
+                "name": "client-id",
+                "type": "apiKey",
+                "in": "header",
+                "description": "Client ID"
+            },
+            "orgUnitID": {
+                "name": "orgunit-id",
+                "type": "apiKey",
+                "in": "header",
+                "description": "OrgUnit ID"
+            },
+            "authToken": {
+                "name": "auth-token",
+                "type": "apiKey",
+                "in": "header",
+                "description": "Auth Token (GUID)"
+            }
+        }
+    }
+}

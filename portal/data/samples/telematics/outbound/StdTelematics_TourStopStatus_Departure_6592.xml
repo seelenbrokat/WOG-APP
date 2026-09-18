@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TourStopStatus xmlns="http://www.soloplan.de/StdTelematics">
+	<TourStopId>256669374</TourStopId>
+	<TourNumber>461344</TourNumber>
+	<VehicleId>VehicleId</VehicleId>
+	<SendDate>2015-03-13T10:25:18+01:00</SendDate>
+	<StatusDate>2015-03-13T10:24:02+01:00</StatusDate>
+	<Status>Departure</Status>
+	<StatusText>departure at the tour stop</StatusText>
+</TourStopStatus>
