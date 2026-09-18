@@ -14,6 +14,17 @@ data/sftp/*
 !data/sftp/inbound/**/README.txt
 !data/sftp/outbound/
 !data/sftp/outbound/.gitkeep
+!data/sftp/outbound/**/README.txt
+!data/sftp/partners/
+!data/sftp/partners/**/
+!data/sftp/partners/**/README.txt
+# Credentials niemals versionieren
+data/sftp/credentials/
+data/sftp/partners/**/state/
+data/sftp/partners/**/outbound/*.txt
+data/sftp/partners/**/inbound/**
+!data/sftp/partners/**/inbound/README.txt
+!data/sftp/partners/**/outbound/README.txt
 coverage/
 .turbo/
 *.tsbuildinfo
