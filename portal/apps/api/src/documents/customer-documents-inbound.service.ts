@@ -78,6 +78,7 @@ export class CustomerDocumentsInboundService {
         id: true,
         name: true,
         customerNumber: true,
+        soloplanBusinessPartnerId: true,
         documentsModuleEnabled: true,
         documentCategoryAccess: { where: { active: true }, select: { category: true } },
       },
@@ -102,6 +103,11 @@ export class CustomerDocumentsInboundService {
     copyFileSync(input.filePath, storagePath);
     const sizeBytes = statSync(storagePath).size;
 
+    const originalFileName = basename(input.filePath);
+    const attachName = /\.pdf$/i.test(originalFileName)
+      ? originalFileName
+      : `Austrittsbestätigung_${orderKey}.pdf`;
+
     const doc = await this.prisma.document.create({
       data: {
         organizationId: shipment.organizationId,
@@ -112,7 +118,7 @@ export class CustomerDocumentsInboundService {
         source: 'EZOLL',
         sourceFileName: input.sourceFileName,
         importedAt: new Date(),
-        fileName: `Austrittsbestätigung ${orderKey}.pdf`,
+        fileName: attachName,
         mimeType: 'application/pdf',
         storagePath,
         sizeBytes,
@@ -121,47 +127,26 @@ export class CustomerDocumentsInboundService {
 
     const attachment = [
       {
-        filename: doc.fileName,
+        filename: attachName,
         path: storagePath,
         contentType: 'application/pdf',
       },
     ];
 
-    // Herzog (845): Infomail nur an zoll@herzog-tl.com (nicht an alle Portal-User)
-    const isHerzog = customer.customerNumber === '845';
+    // Herzog (845): Original-Austritts-PDF nur an zoll@herzog-tl.com
+    const isHerzog =
+      customer.customerNumber === '845' ||
+      customer.soloplanBusinessPartnerId === '845';
     if (isHerzog) {
-      const toList = this.notifications.normalizeEmails(
-        this.config.get('HERZOG_AUSTRITT_MAIL_TO') || 'zoll@herzog-tl.com',
-      );
-      if (!toList.length) {
-        this.log.warn('Herzog Austritt-Mail: keine Empfänger konfiguriert');
-      } else {
-        const subject = `Austrittsbestätigung ${shipment.soloplanRef || shipment.trackingNumber}`;
-        const body = [
-          `Hallo,`,
-          '',
-          `Neue Austrittsbestätigung (CC599) für Herzog.`,
-          '',
-          `Sendung: ${shipment.trackingNumber}`,
-          shipment.soloplanRef ? `Auftrag/Sendung: ${shipment.soloplanRef}` : null,
-          `Kunde: ${customer.name} (${customer.customerNumber})`,
-          `Datei: ${doc.fileName}`,
-          '',
-          `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
-          '',
-          'WOG – World of Green Logistics',
-        ]
-          .filter(Boolean)
-          .join('\n');
-        await this.notifications.sendRaw(
-          toList.join(', '),
-          subject,
-          body,
-          NotificationEvent.DOCUMENT_RECEIVED,
-          attachment,
-        );
-        this.log.log(`Herzog Austritt-Mail → An: ${toList.join(', ')}`);
-      }
+      await this.sendHerzogAustrittMail({
+        toConfig: this.config.get('HERZOG_AUSTRITT_MAIL_TO') || 'zoll@herzog-tl.com',
+        trackingNumber: shipment.trackingNumber,
+        soloplanRef: shipment.soloplanRef,
+        customerName: customer.name,
+        customerNumber: customer.customerNumber,
+        fileName: attachName,
+        attachmentPath: storagePath,
+      });
     } else {
       await this.notifications.notifyShipmentUsers(
         shipment.id,
@@ -178,6 +163,58 @@ export class CustomerDocumentsInboundService {
       `eZoll Austritt → Kunden-Dokument Sendung ${shipment.trackingNumber} (Frachtzahler ${shipment.customerId}, ${doc.id})`,
     );
     return 'ok';
+  }
+
+  /** Original-PDF Austritt an Herzog (zoll@…) – auch für Nachversand nutzbar. */
+  async sendHerzogAustrittMail(input: {
+    toConfig: string;
+    trackingNumber: string;
+    soloplanRef?: string | null;
+    customerName: string;
+    customerNumber: string | null;
+    fileName: string;
+    attachmentPath: string;
+  }) {
+    const toList = this.notifications.normalizeEmails(input.toConfig);
+    if (!toList.length) {
+      this.log.warn('Herzog Austritt-Mail: keine Empfänger konfiguriert');
+      return;
+    }
+    if (!existsSync(input.attachmentPath)) {
+      this.log.warn(`Herzog Austritt-Mail: PDF fehlt ${input.attachmentPath}`);
+      return;
+    }
+    const subject = `Austrittsbestätigung ${input.soloplanRef || input.trackingNumber}`;
+    const body = [
+      `Hallo,`,
+      '',
+      `Neue Austrittsbestätigung (CC599) für Herzog – Original-PDF.`,
+      '',
+      `Sendung: ${input.trackingNumber}`,
+      input.soloplanRef ? `Auftrag/Sendung: ${input.soloplanRef}` : null,
+      `Kunde: ${input.customerName}${input.customerNumber ? ` (${input.customerNumber})` : ''}`,
+      `Datei: ${input.fileName}`,
+      '',
+      `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
+      '',
+      'WOG – World of Green Logistics',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    await this.notifications.sendRaw(
+      toList.join(', '),
+      subject,
+      body,
+      NotificationEvent.DOCUMENT_RECEIVED,
+      [
+        {
+          filename: input.fileName,
+          path: input.attachmentPath,
+          contentType: 'application/pdf',
+        },
+      ],
+    );
+    this.log.log(`Herzog Austritt-Mail (Original-PDF) → An: ${toList.join(', ')}`);
   }
 
   async findShipmentForSoloplanOrder(
