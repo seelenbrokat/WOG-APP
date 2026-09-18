@@ -581,6 +581,7 @@ export class EzollInboundService {
           shipment = {
             id: ensured.id,
             trackingNumber: ensured.trackingNumber,
+            soloplanRef: String(input.orderNumber),
             organizationId: input.organizationId,
             customerId: ensured.customerId,
           };
