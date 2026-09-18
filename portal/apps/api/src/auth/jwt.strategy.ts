@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from './auth.types';
 import { DriverAuthUser } from '../fahrer/fahrer.types';
@@ -10,6 +11,8 @@ type JwtPayload = {
   sub: string;
   typ?: string;
   role?: string;
+  /** Kunden-ID für ORG_ADMIN-Kundenansicht (Impersonation) */
+  impCustomerId?: string;
   organizationId?: string;
   tenant?: string;
   driverId?: string;
@@ -75,7 +78,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       include: { mandantAccess: true, partner: true },
     });
     if (!user || !user.active) return null;
-    return {
+
+    const base: AuthUser = {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -84,6 +88,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       partnerId: user.partner?.id ?? null,
       mandantIds: user.mandantAccess.map((a) => a.mandantId),
       mustChangePassword: user.mustChangePassword,
-    } as AuthUser;
+      realRole: user.role,
+    };
+
+    // ORG_ADMIN darf Kundenansicht per JWT-Claim aktivieren
+    if (payload.impCustomerId && user.role === UserRole.ORG_ADMIN) {
+      const customer = await this.prisma.customer.findFirst({
+        where: {
+          id: payload.impCustomerId,
+          organizationId: user.organizationId,
+        },
+        select: { id: true, name: true },
+      });
+      if (!customer) {
+        throw new UnauthorizedException('Impersonation: Kunde ungültig');
+      }
+      return {
+        ...base,
+        role: UserRole.CUSTOMER_USER,
+        customerId: customer.id,
+        impersonating: true,
+        realRole: user.role,
+        impersonatingCustomerName: customer.name,
+      };
+    }
+
+    return base;
   }
 }

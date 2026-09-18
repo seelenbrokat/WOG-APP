@@ -155,10 +155,24 @@ export class AuthService {
     },
     auditAction = 'auth.login',
     auditMeta: Record<string, unknown> = {},
+    opts?: { impCustomerId?: string | null; impCustomerName?: string | null },
   ) {
-    const token = await this.jwt.signAsync({ sub: user.id, role: user.role });
+    const impCustomerId = opts?.impCustomerId || undefined;
+    const impersonating = Boolean(impCustomerId);
+    const effectiveRole = impersonating ? UserRole.CUSTOMER_USER : user.role;
+    const effectiveCustomerId = impersonating ? impCustomerId! : user.customerId;
+    const effectiveCustomerName = impersonating
+      ? opts?.impCustomerName || undefined
+      : user.customer?.name;
+
+    const token = await this.jwt.signAsync({
+      sub: user.id,
+      role: user.role,
+      ...(impCustomerId ? { impCustomerId } : {}),
+    });
     await this.audit.log(user.id, auditAction, 'User', user.id, {
       email: user.email,
+      ...(impCustomerId ? { impCustomerId } : {}),
       ...auditMeta,
     });
     return {
@@ -169,16 +183,76 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: effectiveRole,
+        realRole: user.role,
         organizationId: user.organizationId,
-        customerId: user.customerId,
-        customerName: user.customer?.name,
+        customerId: effectiveCustomerId,
+        customerName: effectiveCustomerName,
         partnerId: user.partner?.id ?? null,
         partnerName: user.partner?.name,
         mandantIds: user.mandantAccess.map((a) => a.mandantId),
         mustChangePassword: user.mustChangePassword,
+        impersonating,
+        impersonatingCustomerName: impersonating ? effectiveCustomerName : null,
       },
     };
+  }
+
+  private assertCanImpersonate(actor: AuthUser) {
+    const role = actor.realRole || actor.role;
+    if (role !== UserRole.ORG_ADMIN) {
+      throw new ForbiddenException('Nur Organisations-Admins dürfen die Kundenansicht nutzen');
+    }
+  }
+
+  /** Leichte Kundenliste für den Ansichts-Umschalter (auch während Impersonation). */
+  async listImpersonationCustomers(actor: AuthUser) {
+    this.assertCanImpersonate(actor);
+    return this.prisma.customer.findMany({
+      where: { organizationId: actor.organizationId },
+      select: {
+        id: true,
+        name: true,
+        customerNumber: true,
+        matchcode: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async startImpersonation(actor: AuthUser, customerId: string) {
+    this.assertCanImpersonate(actor);
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, organizationId: actor.organizationId },
+      select: { id: true, name: true },
+    });
+    if (!customer) throw new NotFoundException('Kunde nicht gefunden');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { mandantAccess: true, customer: true, partner: true },
+    });
+    if (!user || !user.active) throw new UnauthorizedException();
+
+    return this.issuePortalSession(
+      user,
+      'auth.impersonate.start',
+      { customerId: customer.id, customerName: customer.name },
+      { impCustomerId: customer.id, impCustomerName: customer.name },
+    );
+  }
+
+  async stopImpersonation(actor: AuthUser) {
+    this.assertCanImpersonate(actor);
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { mandantAccess: true, customer: true, partner: true },
+    });
+    if (!user || !user.active) throw new UnauthorizedException();
+
+    return this.issuePortalSession(user, 'auth.impersonate.stop', {
+      wasCustomerId: actor.customerId,
+    });
   }
 
   async login(dto: LoginDto) {
@@ -445,9 +519,9 @@ export class AuthService {
     return { message: 'Passwort aktualisiert.' };
   }
 
-  async me(userId: string) {
+  async me(actor: AuthUser) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: actor.id },
       include: {
         mandantAccess: { include: { mandant: true } },
         customer: true,
@@ -456,6 +530,28 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException();
     const { passwordHash, verifyToken, resetToken, ...safe } = user;
-    return safe;
+
+    if (actor.impersonating && actor.customerId) {
+      const viewed = await this.prisma.customer.findFirst({
+        where: { id: actor.customerId, organizationId: actor.organizationId },
+        select: { id: true, name: true, customerNumber: true },
+      });
+      return {
+        ...safe,
+        role: UserRole.CUSTOMER_USER,
+        customerId: actor.customerId,
+        customer: viewed,
+        realRole: user.role,
+        impersonating: true,
+        impersonatingCustomerName: viewed?.name ?? actor.impersonatingCustomerName,
+      };
+    }
+
+    return {
+      ...safe,
+      realRole: user.role,
+      impersonating: false,
+      impersonatingCustomerName: null,
+    };
   }
 }

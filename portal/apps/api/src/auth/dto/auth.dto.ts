@@ -101,3 +101,8 @@ export class QrPortalLoginDto {
   @MinLength(16)
   token!: string;
 }
+
+export class ImpersonateCustomerDto {
+  @IsString()
+  customerId!: string;
+}
