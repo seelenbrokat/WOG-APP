@@ -22,7 +22,7 @@ CRED_FILE="${CRED_DIR}/${USERNAME}.txt"
 HOST_DEFAULT="wog.logistikberater.at"
 
 mkdir -p "$OUT_DIR" "$IN_DIR/processed" "$IN_DIR/failed" "$IN_DIR/pod" \
-  "${PARTNER_ROOT}/state/exported" "$CRED_DIR"
+  "${SFTP_ROOT}/state/${USERNAME}/exported" "$CRED_DIR"
 
 if [[ ! -f "$CRED_FILE" ]]; then
   PASSWORD="$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)"
