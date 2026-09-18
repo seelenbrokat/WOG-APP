@@ -6,6 +6,8 @@ export type SessionUser = {
   firstName: string;
   lastName: string;
   role: string;
+  /** echte Rolle (ORG_ADMIN), wenn aktuell Kundenansicht aktiv */
+  realRole?: string;
   organizationId: string;
   customerId?: string | null;
   customerName?: string;
@@ -13,6 +15,8 @@ export type SessionUser = {
   partnerName?: string;
   mandantIds: string[];
   mustChangePassword?: boolean;
+  impersonating?: boolean;
+  impersonatingCustomerName?: string | null;
 };
 
 export class ApiError extends Error {

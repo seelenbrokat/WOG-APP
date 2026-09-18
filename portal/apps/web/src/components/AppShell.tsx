@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { BrandLogo } from '@/components/BrandLogo';
-import { clearSession, getToken, getUser, SessionUser } from '@/lib/api';
+import { api, clearSession, getToken, getUser, SessionUser, setSession } from '@/lib/api';
 
 const ROLE_LABEL: Record<string, string> = {
   ORG_ADMIN: 'Administrator',
@@ -18,6 +18,13 @@ type NavItem = {
   label: string;
   roles: string[];
   children?: Array<{ href: string; label: string }>;
+};
+
+type ImpersonationCustomer = {
+  id: string;
+  name: string;
+  customerNumber: string | null;
+  matchcode: string | null;
 };
 
 const NAV: NavItem[] = [
@@ -78,6 +85,11 @@ function isActive(pathname: string, href: string) {
   return false;
 }
 
+function canUseCustomerView(user: SessionUser | null) {
+  if (!user) return false;
+  return user.realRole === 'ORG_ADMIN' || user.role === 'ORG_ADMIN' || Boolean(user.impersonating);
+}
+
 export function AppShell({
   title,
   eyebrow = 'WOG Portal',
@@ -90,6 +102,9 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [customers, setCustomers] = useState<ImpersonationCustomer[]>([]);
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -104,6 +119,72 @@ export function AppShell({
     setUser(session);
   }, [router, pathname]);
 
+  useEffect(() => {
+    if (!canUseCustomerView(user)) return;
+    api<ImpersonationCustomer[]>('/auth/impersonate/customers')
+      .then(setCustomers)
+      .catch(() => setCustomers([]));
+  }, [user?.id, user?.realRole, user?.role, user?.impersonating]);
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerFilter.trim().toLowerCase();
+    const matches = !q
+      ? customers
+      : customers.filter((c) => {
+          const hay = `${c.name} ${c.customerNumber || ''} ${c.matchcode || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+    const currentId = user?.impersonating ? user.customerId : null;
+    const withCurrent =
+      currentId && !matches.some((c) => c.id === currentId)
+        ? [
+            ...matches,
+            ...customers.filter((c) => c.id === currentId),
+          ]
+        : matches;
+    return withCurrent.slice(0, 100);
+  }, [customers, customerFilter, user?.impersonating, user?.customerId]);
+
+  async function applySession(res: { accessToken: string; user: SessionUser }) {
+    setSession(res.accessToken, res.user);
+    setUser(res.user);
+    router.replace('/dashboard');
+    router.refresh();
+  }
+
+  async function startViewAs(customerId: string) {
+    if (!customerId || busy) return;
+    setBusy(true);
+    try {
+      const res = await api<{ accessToken: string; user: SessionUser }>('/auth/impersonate', {
+        method: 'POST',
+        body: JSON.stringify({ customerId }),
+      });
+      await applySession(res);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Kundenansicht konnte nicht gestartet werden');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stopViewAs() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await api<{ accessToken: string; user: SessionUser }>('/auth/impersonate/stop', {
+        method: 'POST',
+      });
+      await applySession(res);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Kundenansicht konnte nicht beendet werden');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!user) {
     return (
       <div className="main">
@@ -115,6 +196,9 @@ export function AppShell({
   const links = NAV.filter(
     (n) => n.roles.includes('*') || n.roles.includes(user.role),
   );
+  const showCustomerSwitcher = canUseCustomerView(user);
+  const viewName =
+    user.impersonatingCustomerName || user.customerName || 'Kunde';
 
   return (
     <div className="app-shell">
@@ -150,11 +234,49 @@ export function AppShell({
             })}
           </nav>
         </div>
+        {showCustomerSwitcher && (
+          <div className="sidebar-impersonate">
+            <p className="sidebar-label">Kundenansicht</p>
+            <input
+              type="search"
+              placeholder="Kunde suchen…"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+              disabled={busy}
+              aria-label="Kunde für Ansicht suchen"
+            />
+            <select
+              value={user.impersonating ? user.customerId || '' : ''}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (!id) {
+                  stopViewAs();
+                  return;
+                }
+                startViewAs(id);
+              }}
+              disabled={busy}
+              aria-label="Als Kunde anzeigen"
+            >
+              <option value="">Admin-Ansicht</option>
+              {filteredCustomers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.customerNumber ? ` (${c.customerNumber})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="sidebar-user">
           <div className="name">
             {user.firstName} {user.lastName}
           </div>
-          <div className="role">{ROLE_LABEL[user.role] || user.role}</div>
+          <div className="role">
+            {user.impersonating
+              ? `Ansicht: ${viewName}`
+              : ROLE_LABEL[user.role] || user.role}
+          </div>
           <button
             className="btn btn-ghost"
             type="button"
@@ -168,6 +290,16 @@ export function AppShell({
         </div>
       </aside>
       <main className="main">
+        {user.impersonating && (
+          <div className="impersonation-banner" role="status">
+            <span>
+              Kundenansicht aktiv: <strong>{viewName}</strong>
+            </span>
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={stopViewAs}>
+              Beenden
+            </button>
+          </div>
+        )}
         <div className="topbar">
           <div>
             <p className="eyebrow">{eyebrow}</p>

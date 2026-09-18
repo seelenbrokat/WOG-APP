@@ -11,6 +11,7 @@ import {
   ChangePasswordDto,
   CreateLoginQrDto,
   QrPortalLoginDto,
+  ImpersonateCustomerDto,
 } from './dto/auth.dto';
 import { Public } from './public.decorator';
 import { CurrentUser, AuthUser, Roles } from './auth.types';
@@ -69,7 +70,23 @@ export class AuthController {
 
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
-    return this.auth.me(user.id);
+    return this.auth.me(user);
+  }
+
+  /** Kundenliste für Ansichts-Umschalter (ORG_ADMIN, auch während Impersonation). */
+  @Get('impersonate/customers')
+  listImpersonationCustomers(@CurrentUser() user: AuthUser) {
+    return this.auth.listImpersonationCustomers(user);
+  }
+
+  @Post('impersonate')
+  startImpersonation(@CurrentUser() user: AuthUser, @Body() dto: ImpersonateCustomerDto) {
+    return this.auth.startImpersonation(user, dto.customerId);
+  }
+
+  @Post('impersonate/stop')
+  stopImpersonation(@CurrentUser() user: AuthUser) {
+    return this.auth.stopImpersonation(user);
   }
 
   @Get('login-qr/staff')
