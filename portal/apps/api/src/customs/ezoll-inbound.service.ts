@@ -546,10 +546,11 @@ export class EzollInboundService {
   }
 
   /**
-   * Kunden-PDF: Kunde = Frachtzahler.
+   * Kunden-PDF (Original CC599CC): Kunde = Frachtzahler, sonst Verzollungsauftrag-Kunde.
    * 1) vorhandene Sendung
    * 2) sonst Frachtzahler aus Tour → Doc-Carrier-Sendung
-   * 3) sonst Soloplan WE-Request + PDF in pending-customer-exit parken
+   * 3) sonst Verzollungsauftrag (CustomsOrder.soloplanRef) → Kunde der VA
+   * 4) sonst Soloplan WE-Request + PDF in pending-customer-exit parken
    */
   private async publishExitPdfForFreightPayer(input: {
     organizationId: string;
@@ -587,6 +588,46 @@ export class EzollInboundService {
           };
           this.log.log(
             `CC599 ${label}: Frachtzahler-BP ${fp.bpNumber} → Sendung ${ensured.trackingNumber}${ensured.created ? ' (neu)' : ''}`,
+          );
+        }
+      }
+    }
+
+    // Verzollungsauftrag: Soloplan-Nummer am CustomsOrder → Kunde (z. B. Herzog) erhält Original-PDF
+    // auch wenn Frachtzahler-Sendung bereits existiert, aber ein anderer Kunde ist
+    {
+      const customs = await this.prisma.customsOrder.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          soloplanRef: String(input.orderNumber),
+        },
+        select: {
+          id: true,
+          customerId: true,
+          externalNumber: true,
+          customer: { select: { customerNumber: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (
+        customs?.customerId &&
+        (!shipment?.customerId || shipment.customerId !== customs.customerId)
+      ) {
+        const ensured = await this.freightPayer.ensureShipmentForOrder({
+          organizationId: input.organizationId,
+          orderNumber: input.orderNumber,
+          customerId: customs.customerId,
+        });
+        if (ensured) {
+          shipment = {
+            id: ensured.id,
+            trackingNumber: ensured.trackingNumber,
+            soloplanRef: String(input.orderNumber),
+            organizationId: input.organizationId,
+            customerId: ensured.customerId,
+          };
+          this.log.log(
+            `CC599 ${label}: Verzollungsauftrag ${customs.externalNumber || customs.id} Kunde ${customs.customer?.customerNumber || '?'} → Sendung ${ensured.trackingNumber}`,
           );
         }
       }
