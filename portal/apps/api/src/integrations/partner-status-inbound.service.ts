@@ -24,6 +24,7 @@ import {
 import { mapBtSwissEventToTransportOrderStatus } from './fortras/bt-swiss-status-to-telematics';
 import { detectImageExt, toPdfEmbeddableImage } from './fortras/image-to-png';
 import { writeZustellnachweisPdf } from './zustellnachweis-pdf';
+import { QuehenbergerPodMailService } from './quehenberger-pod-mail.service';
 
 function asRec(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v)
@@ -95,6 +96,7 @@ export class PartnerStatusInboundService {
     private prisma: PrismaService,
     private config: ConfigService,
     private telematicsOut: TelematicsOutboundService,
+    private quehenbergerPod: QuehenbergerPodMailService,
   ) {
     const sftpInbound =
       this.config.get('SFTP_INBOUND_DIR') || join(process.cwd(), '../../data/sftp/inbound');
@@ -420,6 +422,28 @@ export class PartnerStatusInboundService {
     this.log.log(
       `Partner-Status ${opts.username}: Ablieferbeleg ${pdfName} → Soloplan TO=${opts.orderNumber}`,
     );
+
+    try {
+      const refs = [
+        opts.orderNumber,
+        opts.ev.shipmentReference,
+        opts.ev.shipmentId,
+        opts.ev.shipmentIdBuyer,
+        opts.ev.shipmentIdConsignor,
+      ].filter(Boolean) as string[];
+      await this.quehenbergerPod.notifyForRefs({
+        refs,
+        fileName: pdfName,
+        storagePath: pdfPath,
+        mimeType: 'application/pdf',
+        source: 'BT Swiss',
+      });
+    } catch (err: unknown) {
+      const m = err instanceof Error ? err.message : String(err);
+      this.log.warn(
+        `Quehenberger POD-Mail nach BT Swiss fehlgeschlagen TO=${opts.orderNumber}: ${m}`,
+      );
+    }
   }
 
   /**

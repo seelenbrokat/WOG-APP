@@ -27,6 +27,7 @@ import {
 import { basename, dirname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { QuehenbergerPodMailService } from './quehenberger-pod-mail.service';
 
 export type PostAblieferbelegIngestInput = {
   /** Soloplan Auftrag.Sendung, z. B. 435958.1 */
@@ -78,6 +79,7 @@ export class PostAblieferbelegService {
     private prisma: PrismaService,
     private config: ConfigService,
     private notifications: NotificationsService,
+    private quehenbergerPod: QuehenbergerPodMailService,
   ) {
     this.uploadDir =
       this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
@@ -562,8 +564,7 @@ export class PostAblieferbelegService {
 
   /**
    * POD-Benachrichtigung.
-   * Quehenberger (4390): eine Mail an alle Empfänger im An-Feld (nicht einzeln),
-   * PDF-Anhang + CC (Standard: marcel.burtscher@worldofgreen.ch).
+   * Quehenberger (4390): feste Empfänger + PDF (gemeinsamer Service).
    * Andere Kunden: Portal-User wie bisher (notifyShipmentUsers).
    */
   private async notifyPodMail(
@@ -573,84 +574,31 @@ export class PostAblieferbelegService {
       soloplanRef: string | null;
       customerId: string | null;
       customer?: { customerNumber: string; name: string } | null;
+      organizationId?: string;
     },
     fileName: string,
     storagePath: string,
     mimeType: string,
   ) {
-    let customerNumber = shipment.customer?.customerNumber || null;
-    let customerName = shipment.customer?.name || null;
-    if (!customerNumber && shipment.customerId) {
-      const cust = await this.prisma.customer.findUnique({
-        where: { id: shipment.customerId },
-        select: { customerNumber: true, name: true },
-      });
-      customerNumber = cust?.customerNumber || null;
-      customerName = cust?.name || null;
-    }
+    const qResult = await this.quehenbergerPod.notifyIfQuehenberger({
+      shipment,
+      fileName,
+      storagePath,
+      mimeType,
+      source: 'Post',
+      // Dokument ist bereits mit category POD angelegt
+      ensurePortalDocument: false,
+    });
+    if (qResult !== 'skipped_not_quehenberger') return;
 
-    const isQuehenberger = customerNumber === '4390';
-    if (!isQuehenberger) {
-      await this.notifications.notifyShipmentUsers(
-        shipment.id,
-        NotificationEvent.POD_AVAILABLE,
-        {
-          fileName,
-          category: CustomerDocCategory.POD,
-          source: 'POST',
-        },
-      );
-      return;
-    }
-
-    const toList = this.notifications.normalizeEmails(
-      this.config.get('QUEHENBERGER_POD_MAIL_TO') ||
-        'christian.kerschbaumer@quehenberger.com,Michael.Ecker@quehenberger.com',
-    );
-    const cc = this.notifications.normalizeEmails(
-      this.config.get('QUEHENBERGER_POD_MAIL_CC') ||
-        'marcel.burtscher@worldofgreen.ch',
-    );
-    if (!toList.length) {
-      this.log.warn('Quehenberger POD-Mail: keine Empfänger konfiguriert');
-      return;
-    }
-
-    const subject = `POD verfügbar ${shipment.trackingNumber}`;
-    const body = [
-      `Hallo,`,
-      '',
-      `Neuer Ablieferbeleg (POD) von der Post für Quehenberger.`,
-      '',
-      `Sendung: ${shipment.trackingNumber}`,
-      shipment.soloplanRef ? `Auftrag/Sendung: ${shipment.soloplanRef}` : null,
-      customerName ? `Kunde: ${customerName} (${customerNumber})` : null,
-      `Datei: ${fileName}`,
-      '',
-      `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
-      '',
-      'WOG – World of Green Logistics',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    await this.notifications.sendRaw(
-      toList.join(', '),
-      subject,
-      body,
+    await this.notifications.notifyShipmentUsers(
+      shipment.id,
       NotificationEvent.POD_AVAILABLE,
-      [
-        {
-          filename: fileName,
-          path: storagePath,
-          contentType: mimeType,
-        },
-      ],
-      cc.length ? { cc } : undefined,
-    );
-    this.log.log(
-      `Quehenberger POD-Mail → An: ${toList.join(', ')}` +
-        (cc.length ? ` | CC: ${cc.join(', ')}` : ''),
+      {
+        fileName,
+        category: CustomerDocCategory.POD,
+        source: 'POST',
+      },
     );
   }
 

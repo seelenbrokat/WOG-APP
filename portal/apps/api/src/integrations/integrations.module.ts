@@ -23,6 +23,7 @@ import { PartnerOrdersSftpService } from './partner-orders-sftp.service';
 import { PartnerStatusInboundService } from './partner-status-inbound.service';
 import { EberleVipService } from './eberle/eberle-vip.service';
 import { PostAblieferbelegService } from './post-ablieferbeleg.service';
+import { QuehenbergerPodMailService } from './quehenberger-pod-mail.service';
 import { PostAblieferbelegController } from './post-ablieferbeleg.controller';
 import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
 
@@ -54,6 +55,7 @@ import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
     PartnerStatusInboundService,
     EberleVipService,
     PostAblieferbelegService,
+    QuehenbergerPodMailService,
     LdvAdapter,
     MercurioAdapter,
     SoloplanCustomsAdapter,
@@ -78,6 +80,7 @@ import { SoloplanOrderLinkController } from './soloplan-order-link.controller';
     PartnerStatusInboundService,
     EberleVipService,
     PostAblieferbelegService,
+    QuehenbergerPodMailService,
   ],
 })
 export class IntegrationsModule {}
