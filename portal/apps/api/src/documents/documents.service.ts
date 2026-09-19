@@ -14,7 +14,7 @@ import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import PDFDocument from 'pdfkit';
-import { DocumentType, NotificationEvent, ShipmentStatus, UserRole } from '@prisma/client';
+import { DocumentType, NotificationEvent, ShipmentStatus, UserRole, CustomerDocCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -30,6 +30,7 @@ import {
   LoadingUnitExchangeNote,
   LoadingUnitService,
 } from '../integrations/loading-unit.service';
+import { QuehenbergerPodMailService } from '../integrations/quehenberger-pod-mail.service';
 import { isSignatureDocumentName } from '../integrations/zustellnachweis-pdf';
 import {
   createDocumentDownloadToken,
@@ -48,6 +49,8 @@ export class DocumentsService {
     private audit: AuditService,
     @Inject(forwardRef(() => SoloplanService)) private soloplan: SoloplanService,
     @Inject(forwardRef(() => LoadingUnitService)) private loadingUnits: LoadingUnitService,
+    @Inject(forwardRef(() => QuehenbergerPodMailService))
+    private quehenbergerPod: QuehenbergerPodMailService,
   ) {
     this.uploadDir = this.config.get('UPLOAD_DIR') || join(process.cwd(), '../../data/uploads');
     if (!existsSync(this.uploadDir)) mkdirSync(this.uploadDir, { recursive: true });
@@ -395,6 +398,8 @@ export class DocumentsService {
             storagePath,
             sizeBytes: statSync(storagePath).size,
             uploadedById: opts.uploadedById || existing.uploadedById,
+            categoryCode: CustomerDocCategory.POD,
+            customerId: shipment.customerId || existing.customerId,
           },
         })
       : await this.prisma.document.create({
@@ -403,6 +408,7 @@ export class DocumentsService {
             shipmentId: shipment.id,
             customerId: shipment.customerId,
             type: DocumentType.ABLIEFERBELEG,
+            categoryCode: CustomerDocCategory.POD,
             fileName,
             mimeType: 'application/pdf',
             storagePath,
@@ -426,13 +432,37 @@ export class DocumentsService {
       signature: opts.signature,
     });
 
-    // Soloplan nur einmal je Sendung belasten: bei Collo-Fotos lokal PDF aktualisieren,
-    // File-API-Export erst bei echter Unterschrift (oder manuell ohne Foto-Trigger).
+    // Quehenberger: POD-Mail bei Zustellapp-Ablieferbeleg (nur bei echter Unterschrift)
     const sigName = (opts.signature?.fileName || '').trim();
     const photoOnlyRefresh =
       Boolean(opts.signature?.path) &&
       (!isSignatureDocumentName(sigName) || /^Signature_KeinTausch/i.test(sigName));
+    if (!photoOnlyRefresh && opts.signature?.path) {
+      try {
+        await this.quehenbergerPod.notifyIfQuehenberger({
+          shipment: {
+            id: shipment.id,
+            trackingNumber: shipment.trackingNumber,
+            soloplanRef: shipment.soloplanRef,
+            customerId: shipment.customerId,
+            organizationId: shipment.organizationId,
+            customer: shipment.customer,
+          },
+          fileName: doc.fileName,
+          storagePath,
+          mimeType: 'application/pdf',
+          source: 'Zustellapp',
+          ensurePortalDocument: false,
+        });
+      } catch (err: any) {
+        this.logger.warn(
+          `Quehenberger POD-Mail nach Zustellapp fehlgeschlagen: ${err?.message || err}`,
+        );
+      }
+    }
 
+    // Soloplan nur einmal je Sendung belasten: bei Collo-Fotos lokal PDF aktualisieren,
+    // File-API-Export erst bei echter Unterschrift (oder manuell ohne Foto-Trigger).
     if (
       !photoOnlyRefresh &&
       (shipment.soloplanRef || shipment.order?.soloplanRef)
