@@ -74,17 +74,52 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
       }),
       { format: 'order' },
     ) as {
-      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+      order: Array<{
+        verzollungsauftrag?: boolean;
+        consignments: Array<Record<string, unknown>>;
+      }>;
     };
 
-    const c = payload.order[0].consignments[0];
+    const order = payload.order[0];
+    const c = order.consignments[0];
+    assert.equal(order.verzollungsauftrag, true);
     assert.equal(c.telefon_Smartborder, '+436769075070');
     assert.equal(c.mailSmartborder, 'disposition@beispiel.at');
     assert.equal(c.sMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
+    // Soloplan CFBOOLEAN8 „Verzollungsauftrag“
+    assert.equal(
+      (c.customFields as { customBool8?: boolean } | undefined)?.customBool8,
+      true,
+    );
     // Title-Schreibweise darf nicht im JSON landen (CarLo additionalProperties:false)
     assert.equal(c.Telefon_Smartborder, undefined);
     assert.equal(c.MailSmartborder, undefined);
     assert.equal(c.SMSSmartBorder, undefined);
+  });
+
+  it('setzt customBool8 auch bei extras.verzollung (Sendung mit Verzollung)', () => {
+    const payload = buildSoloplanFilePayload(
+      baseShipment({ extras: { verzollung: true } }),
+      { format: 'order' },
+    ) as {
+      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+    };
+    const cf = payload.order[0].consignments[0].customFields as {
+      customBool8?: boolean;
+      customBool10?: boolean;
+    };
+    assert.equal(cf.customBool8, true);
+    assert.equal(cf.customBool10, true);
+  });
+
+  it('setzt customBool8 nicht ohne Verzollungsauftrag', () => {
+    const payload = buildSoloplanFilePayload(baseShipment(), { format: 'order' }) as {
+      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+    };
+    const cf = payload.order[0].consignments[0].customFields as {
+      customBool8?: boolean;
+    };
+    assert.equal(cf.customBool8, undefined);
   });
 });
