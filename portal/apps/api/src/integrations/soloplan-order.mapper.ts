@@ -282,10 +282,12 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
     })
     .filter(Boolean);
 
+  const names = splitSoloplanNames(bp.name);
+
   return {
     ...(number !== undefined ? { number } : {}),
     ...(bp.matchcode ? { matchcode: bp.matchcode } : {}),
-    name1: bp.name || '',
+    ...names,
     ...(bp.phone ? { phoneNumberHeadOffice: bp.phone } : {}),
     ...(contactPersons.length ? { contactPersons } : {}),
     ...(bp.vatId
@@ -302,8 +304,9 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
 
 function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
   const { street, houseNumber } = splitStreet(addr.street);
+  const names = splitSoloplanNames(addr.company);
   const party: Record<string, unknown> = {
-    name1: addr.company || '',
+    ...names,
     street: street || addr.street || '',
     ...(houseNumber ? { houseNumber } : {}),
     country: countryCode(addr.country),

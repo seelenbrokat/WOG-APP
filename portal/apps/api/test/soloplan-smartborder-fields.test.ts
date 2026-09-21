@@ -122,4 +122,29 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     };
     assert.equal(cf.customBool8, undefined);
   });
+
+  it('teilt Absender-name1 bei >40 Zeichen (CarLo-Limit)', () => {
+    const long =
+      'Dobler Werbetextilien Gesellschaft m.b.H.'; // 41 Zeichen
+    assert.ok(long.length > 40);
+    const payload = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        pickupCompany: long,
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+    };
+    const sender = payload.order[0].consignments[0].sender as {
+      name1?: string;
+      name2?: string;
+    };
+    assert.ok((sender.name1 || '').length <= 35);
+    assert.ok((sender.name2 || '').length <= 35);
+    assert.equal(
+      [sender.name1, sender.name2].filter(Boolean).join(' '),
+      long,
+    );
+  });
 });
