@@ -401,6 +401,16 @@ export class WareneingangService {
     shipmentIds: string[];
   }> {
     const orderNumber = String(parsed.orderNumber).trim();
+    // Soloplan sendet bei fehlgeschlagenem Create oft OrderNumber 0 – nie übernehmen
+    const orderNo = Number(orderNumber);
+    if (!Number.isFinite(orderNo) || orderNo < 1 || !/^[1-9]\d*$/.test(orderNumber)) {
+      this.logger.warn(
+        `Wareneingang: ungültige Soloplan OrderNumber "${orderNumber}" für ExternalNumber ${
+          parsed.externalNumber || '—'
+        } – Verknüpfung übersprungen`,
+      );
+      return { matched: 0, updated: 0, shipmentIds: [] };
+    }
     const ext = parsed.externalNumber?.trim() || undefined;
     const consExt = parsed.consignments
       .map((c) => c.externalNumber?.trim())
