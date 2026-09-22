@@ -915,7 +915,11 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    const freightPayer = shipment.order?.freightPayer || shipment.customer;
+    // Verzollung: immer Auftraggeber als Soloplan-Kunde (nicht Frachtzahler-Name auf AG-Nummer).
+    // Sonst: optional abweichender Frachtzahler als order.customer.
+    const orderCustomer = anyVerzollung
+      ? shipment.customer
+      : shipment.order?.freightPayer || shipment.customer;
     const externalNumber = orderExternalNumber(shipment);
     // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
     // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
@@ -946,7 +950,7 @@ export function buildSoloplanFilePayload(
           // FileAPI: verzollungsauftrag = true wenn Verzollung (Legacy-Flag)
           verzollungsauftrag: anyVerzollung,
           // CFBOOLEAN8 „Verzollungsauftrag“ sitzt am Consignment (customFields.customBool8)
-          customer: toMasterDataBp(customerToBp(freightPayer)),
+          customer: toMasterDataBp(customerToBp(orderCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },

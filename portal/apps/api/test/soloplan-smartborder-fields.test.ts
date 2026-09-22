@@ -147,4 +147,30 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
       long,
     );
   });
+
+  it('Verzollung: Soloplan-Kunde bleibt Auftraggeber trotz abweichendem Frachtzahler', () => {
+    const payload = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        customer: {
+          customerNumber: '845',
+          name: 'Herzog Transportmanagement e.U.',
+          matchcode: '845',
+        },
+        order: {
+          externalNumber: 'VLB220900009',
+          freightPayer: {
+            customerNumber: '845',
+            name: 'Heron CNC',
+          },
+        },
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{ customer?: { number?: string | number; name1?: string } }>;
+    };
+    const customer = payload.order[0].customer || {};
+    assert.equal(String(customer.number), '845');
+    assert.equal(customer.name1, 'Herzog Transportmanagement e.U.');
+  });
 });

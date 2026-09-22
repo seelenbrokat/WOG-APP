@@ -1288,12 +1288,11 @@ export class SoloplanService implements TransportIntegration {
       order: {
         externalNumber,
         soloplanRef: customsSoloplanNumber,
-        freightPayer: order.abweichenderFrachtzahler
-          ? {
-              customerNumber: order.customer.customerNumber,
-              name: order.frachtzahlerFirma || order.customer.name,
-            }
-          : undefined,
+        // Absichtlich kein freightPayer→Soloplan-customer:
+        // Abweichender Frachtzahler würde sonst customer.number=AG (z. B. 845)
+        // mit Frachtzahler-Name (z. B. „Heron CNC“) mappen. CarLo verknüpft
+        // den Auftrag dann nicht zuverlässig (FILE:-Ref bleibt, kein order-link).
+        // Soloplan-Kunde = Auftraggeber; Frachtzahler bleibt Formularfeld.
       },
       positions: [
         {
