@@ -915,7 +915,8 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    // Verzollung: immer Auftraggeber als Soloplan-Kunde (nicht Frachtzahler-Name auf AG-Nummer).
+    // Verzollung: Soloplan-Kunde kommt aus shipment.customer
+    // (exportCustomsOrder: Absender Heron → BP 891, sonst Auftraggeber z. B. Herzog 845).
     // Sonst: optional abweichender Frachtzahler als order.customer.
     const orderCustomer = anyVerzollung
       ? shipment.customer
