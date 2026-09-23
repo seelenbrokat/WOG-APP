@@ -241,14 +241,34 @@ export class SoloplanOrderLinkController {
       linked.push(`transport:${transport.id}`);
     }
 
-    let docs: { ok?: boolean; updateFileName?: string | null; reason?: string } | null = null;
+    let docs: {
+      ok?: boolean;
+      updateFileName?: string | null;
+      skipped?: boolean;
+      deferred?: boolean;
+      reason?: string;
+    } | null = null;
     if (customs) {
+      // Docs-Export nach Link: Create ggf. nachreichen + Docs einmalig.
+      // Wiederholte order-link Calls (Automate) dürfen denselben DOCS-UPDATE
+      // nicht erneut schreiben – exportCustomsOrder ist dafür idempotent.
       try {
         const res = await this.soloplan.exportCustomsOrder(customs.id);
+        const skipped = Boolean((res as { docsSkipped?: boolean })?.docsSkipped);
+        const deferred = Boolean((res as { docsDeferred?: boolean })?.docsDeferred);
         docs = {
           ok: Boolean(res?.ok),
           updateFileName: (res as { updateFileName?: string | null })?.updateFileName ?? null,
+          skipped,
+          deferred,
+          ...(skipped ? { reason: 'already-written' } : {}),
+          ...(deferred && !skipped ? { reason: 'deferred' } : {}),
         };
+        if (skipped) {
+          this.log.log(
+            `Soloplan order-link Docs für ${externalNumber}: übersprungen (bereits geschrieben)`,
+          );
+        }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         this.log.warn(`Soloplan order-link Docs für ${externalNumber}: ${msg}`);
