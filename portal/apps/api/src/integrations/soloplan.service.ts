@@ -1167,6 +1167,74 @@ export class SoloplanService implements TransportIntegration {
   }
 
   /**
+   * Soloplan-Kunde (Auftraggeber) für Verzollungs-Create.
+   * Absender Heron → BP 891 (Heron CNC Technik GmbH), sonst Portal-Kunde (z. B. Herzog 845).
+   * Verhindert Mischung AG-Nummer + Frachtzahler-Name.
+   */
+  private static readonly HERON_SOLOPLAN_CUSTOMER_NUMBER = '891';
+
+  private isHeronAbsender(firma?: string | null): boolean {
+    return /\bheron\b/i.test(String(firma || '').trim());
+  }
+
+  private async resolveCustomsSoloplanCustomer(order: {
+    organizationId: string;
+    absenderFirma: string;
+    customer: {
+      customerNumber: string;
+      name: string;
+      soloplanBusinessPartnerId: string | null;
+      matchcode: string | null;
+      contacts: Array<{
+        soloplanContactNumber: number | null;
+        firstName: string | null;
+        lastName: string | null;
+        name: string | null;
+        email: string | null;
+        phone: string | null;
+      }>;
+    };
+  }): Promise<PortalShipmentForSoloplan['customer']> {
+    const mapCustomer = (c: typeof order.customer) => ({
+      customerNumber: c.customerNumber,
+      name: c.name,
+      soloplanBusinessPartnerId: c.soloplanBusinessPartnerId,
+      matchcode: c.matchcode,
+      contacts: (c.contacts || []).map((ct) => ({
+        soloplanContactNumber: ct.soloplanContactNumber,
+        firstName: ct.firstName,
+        lastName: ct.lastName,
+        name: ct.name,
+        email: ct.email,
+        phone: ct.phone,
+      })),
+    });
+
+    if (!this.isHeronAbsender(order.absenderFirma)) {
+      return mapCustomer(order.customer);
+    }
+
+    const heron = await this.prisma.customer.findFirst({
+      where: {
+        organizationId: order.organizationId,
+        customerNumber: SoloplanService.HERON_SOLOPLAN_CUSTOMER_NUMBER,
+        active: true,
+      },
+      include: { contacts: true },
+    });
+    if (!heron) {
+      this.logger.warn(
+        `Heron-Absender erkannt, aber Kunde ${SoloplanService.HERON_SOLOPLAN_CUSTOMER_NUMBER} fehlt – fallback ${order.customer.customerNumber}`,
+      );
+      return mapCustomer(order.customer);
+    }
+    this.logger.log(
+      `Verzollung Soloplan-Kunde: Absender Heron → BP ${heron.customerNumber} (${heron.name})`,
+    );
+    return mapCustomer(heron);
+  }
+
+  /**
    * Verzollungsauftrag (CustomsOrder) als SoloplanOrderImportPORTAL v6 File exportieren.
    *
    * 1) Create: Auftrags-/Sendungsdaten inkl. VLBPortal-Felder – OHNE Dokumente
@@ -1271,28 +1339,10 @@ export class SoloplanService implements TransportIntegration {
       telefonSmartborder: order.driverPhone,
       mailSmartborder: order.smartborderNotifyEmail,
       smsSmartBorder: order.smartborderSendSms,
-      customer: {
-        customerNumber: order.customer.customerNumber,
-        name: order.customer.name,
-        soloplanBusinessPartnerId: order.customer.soloplanBusinessPartnerId,
-        matchcode: order.customer.matchcode,
-        contacts: (order.customer.contacts || []).map((c) => ({
-          soloplanContactNumber: c.soloplanContactNumber,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-        })),
-      },
+      customer: await this.resolveCustomsSoloplanCustomer(order),
       order: {
         externalNumber,
         soloplanRef: customsSoloplanNumber,
-        // Absichtlich kein freightPayer→Soloplan-customer:
-        // Abweichender Frachtzahler würde sonst customer.number=AG (z. B. 845)
-        // mit Frachtzahler-Name (z. B. „Heron CNC“) mappen. CarLo verknüpft
-        // den Auftrag dann nicht zuverlässig (FILE:-Ref bleibt, kein order-link).
-        // Soloplan-Kunde = Auftraggeber; Frachtzahler bleibt Formularfeld.
       },
       positions: [
         {
