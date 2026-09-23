@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  unlinkSync,
 } from 'fs';
 import { basename, join } from 'path';
 import { SoloplanService } from '../integrations/soloplan.service';
@@ -21,6 +22,7 @@ import {
   extractEz92xFieldsFromXml,
   isCc529Xml,
   isCc599Xml,
+  isEzollJunkFilename,
   matchesFilenameIgnorePrefix,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
@@ -128,13 +130,23 @@ export class EzollInboundService {
 
     const prefixes = await this.organizations.getEzollFilenameIgnorePrefixes(orgId);
     let ignored = 0;
+    ignored += this.purgeEzollJunkFiles();
     for (const filePath of this.listPendingFiles()) {
       const fileName = basename(filePath);
       if (!matchesFilenameIgnorePrefix(fileName, prefixes)) continue;
-      this.move(
-        filePath,
-        join(this.inboundRoot, 'processed', 'ignored', `${Date.now()}_${fileName}`),
-      );
+      if (isEzollJunkFilename(fileName)) {
+        try {
+          unlinkSync(filePath);
+        } catch (e: any) {
+          this.log.warn(`eZoll Junk-Löschen fehlgeschlagen ${fileName}: ${e?.message || e}`);
+          continue;
+        }
+      } else {
+        this.move(
+          filePath,
+          join(this.inboundRoot, 'processed', 'ignored', `${Date.now()}_${fileName}`),
+        );
+      }
       ignored += 1;
       this.log.log(`eZoll ignoriert (${prefixes.join(', ')}): ${fileName}`);
     }
@@ -917,6 +929,44 @@ export class EzollInboundService {
       out.push(join(this.inboundRoot, entry.name));
     }
     return out.sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * Löscht Tour-Müll `671.*` / `131.*` rekursiv (Inbox, processed, failed, …).
+   * Dateien kommen oft mit Processor-Prefix `1790…_671.…` und wurden sonst nicht getroffen.
+   */
+  private purgeEzollJunkFiles(): number {
+    if (!existsSync(this.inboundRoot)) return 0;
+    let deleted = 0;
+    const stack = [this.inboundRoot];
+    while (stack.length) {
+      const dir = stack.pop()!;
+      let entries;
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        if (!isEzollJunkFilename(entry.name)) continue;
+        try {
+          unlinkSync(full);
+          deleted += 1;
+        } catch (e: any) {
+          this.log.warn(`eZoll Junk-Purge fehlgeschlagen ${full}: ${e?.message || e}`);
+        }
+      }
+    }
+    if (deleted) {
+      this.log.log(`eZoll Junk-Purge: ${deleted} Datei(en) 671.*/131.* gelöscht`);
+    }
+    return deleted;
   }
 
   private move(from: string, to: string) {

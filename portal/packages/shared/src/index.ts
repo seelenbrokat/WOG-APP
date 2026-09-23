@@ -130,6 +130,8 @@ export {
   DEFAULT_EZOLL_FILENAME_IGNORE_PREFIXES,
   normalizeFilenameIgnorePrefixes,
   matchesFilenameIgnorePrefix,
+  stripEzollProcessorFilenamePrefix,
+  isEzollJunkFilename,
 } from './ezoll-ignore';
 
 export {
