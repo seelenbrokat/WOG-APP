@@ -36,18 +36,28 @@ export function normalizeFilenameIgnorePrefixes(
 }
 
 /**
+ * Entfernt optionales Processor-Prefix `1790…_` vor dem echten Dateinamen.
+ * Ohne das greifen Präfixe wie `671.` nicht auf `1790…_671.221….pdf`.
+ */
+export function stripEzollProcessorFilenamePrefix(fileName: string): string {
+  const base =
+    String(fileName || '')
+      .split(/[/\\]/)
+      .pop()
+      ?.trim() || '';
+  return base.replace(/^\d{12,}_/, '');
+}
+
+/**
  * true, wenn der Dateiname zum Ignore-Muster passt.
- * - Muster endet mit `.` → Präfix (startsWith)
+ * - Muster endet mit `.` → Präfix (startsWith) auf dem bereinigten Basisnamen
  * - sonst → Teilstring (case-insensitive includes)
  */
 export function matchesFilenameIgnorePrefix(
   fileName: string,
   prefixes: readonly string[],
 ): boolean {
-  const base = String(fileName || '')
-    .split(/[/\\]/)
-    .pop()
-    ?.trim() || '';
+  const base = stripEzollProcessorFilenamePrefix(fileName);
   if (!base) return false;
   const baseUpper = base.toUpperCase();
   return prefixes.some((p) => {
@@ -55,4 +65,10 @@ export function matchesFilenameIgnorePrefix(
     if (p.endsWith('.')) return base.startsWith(p);
     return baseUpper.includes(p.toUpperCase());
   });
+}
+
+/** Tour-Müll wie `671.221…` – immer löschen, nicht archivieren. */
+export function isEzollJunkFilename(fileName: string): boolean {
+  const base = stripEzollProcessorFilenamePrefix(fileName);
+  return base.startsWith('671.') || base.startsWith('131.');
 }
