@@ -313,8 +313,13 @@ export class SoloplanService implements TransportIntegration {
 
   /** true wenn bereits ein Docs-Update für diese Nummer geschrieben wurde. */
   private wasDocsUpdateWritten(externalNumber?: string | null): boolean {
+    return this.listDocsUpdatePaths(externalNumber).length > 0;
+  }
+
+  /** Pfade aller Docs-Update-JSONs (Pickup, Spiegel, Archiv) für eine VLB-Nummer. */
+  private listDocsUpdatePaths(externalNumber?: string | null): string[] {
     const base = this.orderBaseName(externalNumber);
-    if (!base) return false;
+    if (!base) return [];
     const prefix = `order-${base}-update-`;
     const dirs = [
       this.ordersOutDir,
@@ -322,15 +327,75 @@ export class SoloplanService implements TransportIntegration {
       join(this.sftpOutboundRoot, 'soloplan', 'archive'),
       join(dirname(this.integrationOrdersOutDir), 'processed'),
     ];
+    const out: string[] = [];
     for (const dir of dirs) {
       if (!existsSync(dir)) continue;
       try {
-        if (readdirSync(dir).some((f) => f.startsWith(prefix) && f.endsWith('.json'))) {
-          return true;
+        for (const f of readdirSync(dir)) {
+          if (!f.startsWith(prefix) || !f.endsWith('.json')) continue;
+          // superseded = absichtlich ersetzt, zählt nicht als „bereits gesendet“
+          if (f.includes('-superseded-')) continue;
+          out.push(join(dir, f));
         }
       } catch {
         /* ignore */
       }
+    }
+    return out;
+  }
+
+  /** Fingerprint: Kategorie + Dateiname + Content-Länge (ohne Base64 im Log/Vergleich). */
+  private fingerprintCustomsDocs(
+    docs: Array<{ fileName: string; category: string; contentBase64: string }>,
+  ): string {
+    return docs
+      .map((d) => `${d.category}\t${d.fileName}\t${d.contentBase64.length}`)
+      .sort()
+      .join('\n');
+  }
+
+  private fingerprintFromUpdateFile(path: string): string | null {
+    try {
+      const raw = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+      const orders = Array.isArray(raw.order) ? raw.order : [];
+      const entries: Array<{ name?: string; category?: string; content?: string }> = [];
+      for (const item of orders) {
+        if (!item || typeof item !== 'object') continue;
+        const order = item as Record<string, unknown>;
+        const consignments = Array.isArray(order.consignments) ? order.consignments : [];
+        for (const c of consignments) {
+          if (!c || typeof c !== 'object') continue;
+          const documentData = (c as Record<string, unknown>).documentData;
+          if (!Array.isArray(documentData)) continue;
+          for (const d of documentData) {
+            if (d && typeof d === 'object') {
+              entries.push(d as { name?: string; category?: string; content?: string });
+            }
+          }
+        }
+      }
+      if (!entries.length) return null;
+      return entries
+        .map((d) => `${d.category || ''}\t${d.name || ''}\t${String(d.content || '').length}`)
+        .sort()
+        .join('\n');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * true wenn derselbe Doc-Satz (Name/Kategorie/Größe) schon als Update liegt.
+   * Verhindert order-link-Spam; neue/geänderte Anhänge dürfen trotzdem raus.
+   */
+  private wasIdenticalDocsUpdateWritten(
+    externalNumber: string | null | undefined,
+    docs: Array<{ fileName: string; category: string; contentBase64: string }>,
+  ): boolean {
+    if (!docs.length) return false;
+    const want = this.fingerprintCustomsDocs(docs);
+    for (const path of this.listDocsUpdatePaths(externalNumber)) {
+      if (this.fingerprintFromUpdateFile(path) === want) return true;
     }
     return false;
   }
@@ -361,7 +426,7 @@ export class SoloplanService implements TransportIntegration {
           );
           continue;
         }
-        if (this.wasDocsUpdateWritten(externalNumber)) continue;
+        // Dedup steckt in exportCustomsOrder (identischer Doc-Satz → skip)
         try {
           const res = await this.exportCustomsOrder(customs.id);
           if (res.updateFileName) flushed.push(externalNumber);
@@ -417,7 +482,7 @@ export class SoloplanService implements TransportIntegration {
     for (const c of pending) {
       const ext = c.externalNumber!;
       if (!this.isCreateImportSettled(ext)) continue;
-      if (this.wasDocsUpdateWritten(ext)) continue;
+      // Dedup: exportCustomsOrder überspringt identischen Doc-Satz
       try {
         const res = await this.exportCustomsOrder(c.id);
         if (res.updateFileName) flushed.push(ext);
@@ -1420,22 +1485,32 @@ export class SoloplanService implements TransportIntegration {
     }
 
     let updateFileName: string | null = null;
+    let docsSkipped = false;
     const createSettled = this.isCreateImportSettled(externalNumber);
     // Docs erst nach Create-Abholung + Wartezeit (sonst „Update … does not exist“)
     // Bezug nur Auftragsnummer + Sendungsnummer (keine externalNumber).
+    // Idempotent: order-link / Worker dürfen denselben Doc-Satz nicht erneut schreiben
+    // (FileAPI hängt sonst an wiederholten identischen DOCS-UPDATEs).
     if (docs.length && createSettled && customsSoloplanNumber) {
-      const updatePayload = buildSoloplanUpdatePayload(
-        { ...shipmentBase, documents: docs },
-        { format },
-      );
-      updateFileName = soloplanOutboundFileName(shipmentBase, format, {
-        update: true,
-        at: new Date(),
-      });
-      this.writeOutboundOrderFile(updateFileName, JSON.stringify(updatePayload, null, 2));
-      this.logger.log(
-        `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (Auftragsnr.${customsSoloplanNumber}, ${docs.length} Datei(en))`,
-      );
+      if (this.wasIdenticalDocsUpdateWritten(externalNumber, docs)) {
+        docsSkipped = true;
+        this.logger.log(
+          `Soloplan customs DOCS-UPDATE übersprungen – ${externalNumber} (Auftragsnr.${customsSoloplanNumber}) identischer Doc-Satz bereits geschrieben`,
+        );
+      } else {
+        const updatePayload = buildSoloplanUpdatePayload(
+          { ...shipmentBase, documents: docs },
+          { format },
+        );
+        updateFileName = soloplanOutboundFileName(shipmentBase, format, {
+          update: true,
+          at: new Date(),
+        });
+        this.writeOutboundOrderFile(updateFileName, JSON.stringify(updatePayload, null, 2));
+        this.logger.log(
+          `Soloplan PORTAL-v6 customs DOCS-UPDATE ${join(this.ordersOutDir, updateFileName)} (Auftragsnr.${customsSoloplanNumber}, ${docs.length} Datei(en))`,
+        );
+      }
     } else if (docs.length && createSettled && !customsSoloplanNumber) {
       this.logger.warn(
         `Soloplan customs Docs für ${externalNumber} warten – Soloplan-Auftragsnummer noch unbekannt`,
@@ -1462,7 +1537,8 @@ export class SoloplanService implements TransportIntegration {
       externalNumber,
       documents: docs.length,
       createSkipped: createAlreadyPickedUp || createPendingInPickup,
-      docsDeferred: docs.length > 0 && !createSettled,
+      docsDeferred: docs.length > 0 && !createSettled && !docsSkipped,
+      docsSkipped,
     };
   }
 }
