@@ -101,6 +101,92 @@ describe('mercurio e-dec', () => {
     );
   });
 
+  it('korrigiert Boden ohne Punkt sowie Doppelpunkt/Leerzeichen im Dateinamen', () => {
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename(
+        'ausfuhr_wa-a_vv_1000012896_104_452007406Boden_0_1_26CH09EXKN6Q10I2N8.pdf',
+      ),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 452007,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Boden',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename(
+        '1790334079090_ausfuhr_wa-a_vv_1000012896_104_454938555Boden_0_1_26CH09EXTC22B3SJN4.pdf',
+      ),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 454938,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Boden',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename('edece-bs-104-451398..1+Diep-0-1.pdf'),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 451398,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Diep',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename('edece-el-104-454078 .1+Diep-0-1.pdf'),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 454078,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Diep',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename('edece-el-104-452505.+Diep-0-1.pdf'),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 452505,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Diep',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename(
+        'edece-bs-104-453986.1 + Feuerstein-0-1.pdf',
+      ),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 453986,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Feuerstein',
+      },
+    );
+    assert.deepEqual(
+      parseMercurioEdecMatchFromFilename(
+        'edece-el-104-454007.1 +Brüning-0-1.pdf',
+      ),
+      {
+        kind: 'orderConsignment',
+        orderNumber: 454007,
+        consignmentIndex: 1,
+        mandantCode: '104',
+        siteCode: 'Brüning',
+      },
+    );
+    // ohne Auftragsnummer weiterhin null
+    assert.equal(
+      parseMercurioEdecMatchFromFilename('edece-bs-104-Heron + Integra -0-1.pdf'),
+      null,
+    );
+  });
+
   it('liest Match aus Ref-Nr.', () => {
     assert.deepEqual(parseMercurioEdecMatchFromRef('104/443153.1/CON/0/1'), {
       kind: 'orderConsignment',

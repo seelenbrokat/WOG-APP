@@ -167,6 +167,7 @@ export type {
 
 export {
   detectMercurioEdecDocType,
+  normalizeMercurioFilenameForMatch,
   parseMercurioEdecMatchFromFilename,
   parseMercurioEdecMatchFromRef,
   parseMercurioAusfuhrGdrnFromFilename,
