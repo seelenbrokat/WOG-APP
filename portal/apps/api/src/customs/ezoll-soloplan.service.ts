@@ -175,7 +175,7 @@ export class EzollSoloplanService {
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
    * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv,
-   *   customFields.customBool7 (CH-Ausfuhr / CFBOOLEAN7)
+   *   cHAusfuhr (CH-Ausfuhr / CFBOOLEAN7, top-level wie definitiv — File-API)
    * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
@@ -228,9 +228,10 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Soloplan Custom Field „CH-Ausfuhr“ (CFBOOLEAN7) → customFields.customBool7
+    // Soloplan „CH-Ausfuhr“ (CFBOOLEAN7): File-API erwartet top-level cHAusfuhr
+    // (wie definitiv / eZ922). customFields.customBool7 wird still verworfen.
     if (fields.docType === 'AUSFUHR_VV') {
-      consignment.customFields = { customBool7: true };
+      consignment.cHAusfuhr = true;
     }
 
     const prefix =
