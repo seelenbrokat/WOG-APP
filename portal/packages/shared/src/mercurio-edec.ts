@@ -131,18 +131,47 @@ export function detectMercurioEdecDocType(fileName: string): MercurioEdecDocType
 }
 
 /**
+ * Dateiname vor dem Match bereinigen:
+ * - Doppelpunkt / Leerzeichen um Auftrag.Sendung → normalisieren
+ * - fehlende Sendungsnr. nach Punkt → .1
+ * - Leerzeichen im Standort nach + entfernen
+ */
+export function normalizeMercurioFilenameForMatch(fileName: string): string {
+  let base = fileBaseName(fileName).replace(/^\d{10,16}_/, '');
+
+  // 451398..1 / 454078 .1 / 452505. / 454007.1 +Brüning
+  base = base.replace(/(\d{5,7})\s*\.\s*\.\s*(\d{1,3})/g, '$1.$2');
+  base = base.replace(/(\d{5,7})\s*\.\s*(?=\+)/g, '$1.1');
+  base = base.replace(/(\d{5,7})\s*\.\s*$/g, '$1.1');
+  base = base.replace(/(\d{5,7})\s*\.\s*(\d{1,3})\s*\+\s*/g, '$1.$2+');
+  // Standort: Leerzeichen zwischen + und Suffix streichen
+  base = base.replace(
+    /\+([^+]+?)(\s*-\d+(?:-\d+)*)$/u,
+    (_m, site: string, rest: string) => `+${String(site).replace(/\s+/g, '')}${rest}`,
+  );
+
+  return base;
+}
+
+/**
  * Soloplan-Match aus Mercurio-Dateiname.
  * edece-bs-104-443153.1+CON-0-1 → 443153.1
  * edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1 → 444230.1
  * ausfuhr_wa-a_vv_1000012896_104_417181.1Diep_0_1_26CH06EX… → 417181.1
+ * ausfuhr …_104_452007406Boden_… (ohne Punkt) → 452007.1 (erste 6 Stellen + .1)
  */
 export function parseMercurioEdecMatchFromFilename(
   fileName: string,
 ): MercurioEdecMatch | null {
-  const base = fileBaseName(fileName).replace(/^\d{10,16}_/, '');
+  const base = normalizeMercurioFilenameForMatch(fileName);
+  // Buchstaben inkl. Umlaute im Standort (Brüning, …)
+  const site = '([A-Za-zÀ-ÿ0-9]+)';
   // Passar Ausfuhr WA/VV: …_104_417181.1Diep_0_1_26CH06EX…
   const ausfuhr = base.match(
-    /^ausfuhr_wa-a_(?:vv|wa)_\d+_(\d+)_(\d{5,7})\.(\d{1,3})([A-Za-z0-9]+)_\d+_\d+_[0-9A-Za-z]+$/i,
+    new RegExp(
+      `^ausfuhr_wa-a_(?:vv|wa)_\\d+_(\\d+)_(\\d{5,7})\\.(\\d{1,3})${site}_\\d+_\\d+_[0-9A-Za-z]+$`,
+      'i',
+    ),
   );
   if (ausfuhr) {
     return {
@@ -153,9 +182,29 @@ export function parseMercurioEdecMatchFromFilename(
       siteCode: ausfuhr[4] || null,
     };
   }
+  // Boden o.ä.: Ziffernblock ohne Punkt → erste 6 Stellen = Auftrag, Sendung = 1
+  // …_104_452007406Boden_0_1_26CH09EX…
+  const ausfuhrNoDot = base.match(
+    new RegExp(
+      `^ausfuhr_wa-a_(?:vv|wa)_\\d+_(\\d+)_(\\d{6,})${site}_\\d+_\\d+_[0-9A-Za-z]+$`,
+      'i',
+    ),
+  );
+  if (ausfuhrNoDot) {
+    return {
+      kind: 'orderConsignment',
+      orderNumber: Number(String(ausfuhrNoDot[2]).slice(0, 6)),
+      consignmentIndex: 1,
+      mandantCode: ausfuhrNoDot[1] || null,
+      siteCode: ausfuhrNoDot[3] || null,
+    };
+  }
   // eVV: edece_evvvat-edeceinfuhr-104-444230.1+CON-0-1
   const evv = base.match(
-    /^edece_evv(?:vat|dut)-edeceinfuhr-(\d+)-(\d{5,7})\.(\d{1,3})\+([A-Za-z0-9]+?)(?:-\d+(?:-\d+)*)?$/i,
+    new RegExp(
+      `^edece_evv(?:vat|dut)-edeceinfuhr-(\\d+)-(\\d{5,7})\\.(\\d{1,3})\\+${site}(?:-\\d+(?:-\\d+)*)?$`,
+      'i',
+    ),
   );
   if (evv) {
     return {
@@ -168,7 +217,10 @@ export function parseMercurioEdecMatchFromFilename(
   }
   // …+CON-0-1 / …+Diep-0-1 → Standort vor festem -0-1-Suffix
   const m = base.match(
-    /^edece-(bs|el)-(\d+)-(\d{5,7})\.(\d{1,3})\+([A-Za-z0-9]+?)(?:-\d+(?:-\d+)*)?$/i,
+    new RegExp(
+      `^edece-(bs|el)-(\\d+)-(\\d{5,7})\\.(\\d{1,3})\\+${site}(?:-\\d+(?:-\\d+)*)?$`,
+      'i',
+    ),
   );
   if (!m) return null;
   return {
