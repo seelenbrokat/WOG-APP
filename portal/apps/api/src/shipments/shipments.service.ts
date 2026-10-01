@@ -388,7 +388,22 @@ export class ShipmentsService {
       };
     }
 
-    return { ...shipment, documents, customsRefs, eta, documentsModule };
+    const extras =
+      shipment.extras && typeof shipment.extras === 'object' && !Array.isArray(shipment.extras)
+        ? (shipment.extras as Record<string, unknown>)
+        : {};
+    return {
+      ...shipment,
+      documents,
+      customsRefs,
+      eta,
+      documentsModule,
+      postBarcode: typeof extras.postBarcode === 'string' ? extras.postBarcode : null,
+      externalShipmentNumber:
+        typeof extras.externalShipmentNumber === 'string'
+          ? extras.externalShipmentNumber
+          : null,
+    };
   }
 
   /** Lager-Scan: Collo anhand SSCC finden – nur Mandant 2 (AG). */

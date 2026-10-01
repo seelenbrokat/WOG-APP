@@ -29,6 +29,10 @@ function soloplanStatusLabel(ref?: string | null) {
   return { label: `Soloplan-Ordernummer: ${ref}`, tone: 'ok' as const, orderNumber: ref };
 }
 
+function postTrackingUrl(barcode: string) {
+  return `https://www.post.ch/swisspost-tracking?formattedParcelCodes=${encodeURIComponent(barcode)}`;
+}
+
 function ShipmentDetailInner() {
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
@@ -236,6 +240,25 @@ function ShipmentDetailInner() {
               <strong>Soloplan:</strong>{' '}
               {tms.orderNumber ? <strong>{tms.orderNumber}</strong> : <span className="muted">–</span>}
             </div>
+            {(shipment.postBarcode ||
+              (typeof shipment.extras?.postBarcode === 'string'
+                ? shipment.extras.postBarcode
+                : null)) && (
+              <div>
+                <strong>Postsendungsnummer:</strong>{' '}
+                <a
+                  className="mono"
+                  href={postTrackingUrl(
+                    String(shipment.postBarcode || shipment.extras?.postBarcode),
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Sendungsverfolgung auf post.ch öffnen"
+                >
+                  {String(shipment.postBarcode || shipment.extras?.postBarcode)}
+                </a>
+              </div>
+            )}
             {(shipment.customsRefs || []).length > 0 && (
               <div style={{ marginTop: '0.5rem' }}>
                 <strong>Zoll-Referenzen (MRN / LRN)</strong>

@@ -41,6 +41,11 @@ function clip(value: string | null | undefined, max = 28) {
   return `${s.slice(0, max - 1)}…`;
 }
 
+/** Swiss-Post Sendungsverfolgung (Barcode = Postsendungsnummer). */
+function postTrackingUrl(barcode: string) {
+  return `https://www.post.ch/swisspost-tracking?formattedParcelCodes=${encodeURIComponent(barcode)}`;
+}
+
 function soloplanOrderNumber(s: {
   soloplanRef?: string | null;
   order?: { soloplanRef?: string | null } | null;
@@ -499,9 +504,15 @@ export default function ShipmentsPage() {
                           </span>
                         ) : null}
                         {s.postBarcode ? (
-                          <span className="meta mono" title={`Post-Tracking ${s.postBarcode}`}>
+                          <a
+                            className="meta mono"
+                            href={postTrackingUrl(s.postBarcode)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Postsendungsnummer ${s.postBarcode} – Sendungsverfolgung öffnen`}
+                          >
                             Post {clip(s.postBarcode, 24)}
-                          </span>
+                          </a>
                         ) : null}
                         {!isCustomer && s.mandant?.code ? (
                           <span className="meta">{s.mandant.code}</span>
