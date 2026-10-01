@@ -14,7 +14,7 @@ Schnittstelle, damit die **Schweizerische Post** (oder ein angebundener Dienst) 
 | `GET` | `/integrations/post/health` | Health / Konfigurationsstatus |
 | `POST` | `/integrations/post/ablieferbelege` | Upload per **multipart/form-data** |
 | `POST` | `/integrations/post/ablieferbelege/json` | Upload per **JSON + Base64** |
-| `POST` | `/integrations/post/tracking` | Früh: nur **Post-Barcode** setzen (bei Übergabe, ohne POD) |
+| `POST` | `/integrations/post/tracking` | Früh: nur **Postsendungsnummer** setzen (bei Übergabe, ohne POD) |
 
 ---
 
@@ -31,7 +31,7 @@ Schnittstelle, damit die **Schweizerische Post** (oder ein angebundener Dienst) 
 | `orderNumber` | * | Nur Auftragsnummer, z. B. `435958` |
 | `itemNumber` | nein | Sendungsposition, z. B. `1` (mit `orderNumber`) |
 | `trackingNumber` | * | Portal-Tracking, z. B. `WOG2608…` |
-| `postBarcode` | * | Swiss-Post-Barcode / Paketnummer |
+| `postBarcode` | * | Swiss-Post-Barcode / Postsendungsnummer |
 | `clientReference` | * | Freie Referenz |
 | `deliveredAt` | nein | Zustellzeit ISO-8601, z. B. `2026-09-04T14:30:00+02:00` |
 | `markDelivered` | nein | Default `true` – setzt Portal-Status auf zugestellt |
@@ -89,12 +89,12 @@ curl -sS -X POST 'https://wog.logistikberater.at/api/integrations/post/ablieferb
 
 ---
 
-## 3) Früh: Post-Tracking bei Übergabe
+## 3) Früh: Postsendungsnummer bei Übergabe an die Post
 
 `POST /api/integrations/post/tracking`  
 **Content-Type:** `application/json`
 
-Sobald die Sendung an die Post übergeben wurde (Label/Barcode bekannt), **ohne** auf den POD zu warten:
+**Wichtig für Quehenberger u. a.:** Sobald Label/Barcode bekannt ist (Übergabe an die Post), **sofort** diesen Endpoint aufrufen – **nicht** auf den Ablieferbeleg warten. Die Nummer erscheint dann in der Portal-Sendungsliste und auf der Sendungsdetailseite (Link zu post.ch).
 
 ```json
 {
@@ -103,7 +103,15 @@ Sobald die Sendung an die Post übergeben wurde (Label/Barcode bekannt), **ohne*
 }
 ```
 
-Der Barcode erscheint dann in der Portal-Sendungsliste (Feld „Post …“) und ist suchbar. Tracking auf **post.ch** erfolgt mit diesem **Post-Barcode**, nicht mit der WOG-Trackingnummer.
+Der Barcode ist suchbar. Tracking auf **post.ch** erfolgt mit diesem **Post-Barcode**, nicht mit der WOG-Trackingnummer.
+
+### Automate / Power Automate
+
+Bei Labeldruck bzw. Status „an Post übergeben“:
+
+1. Soloplan-Sendungsnummer (`Auftrag.Position`, z. B. `435958.1`) und Postsendungsnummer ermitteln  
+2. `POST /api/integrations/post/tracking` mit `X-API-KEY` und Body wie oben  
+3. Ablieferbeleg später separat über `/ablieferbelege` (setzt Barcode erneut, falls noch fehlend)
 
 ---
 
@@ -136,11 +144,28 @@ Ordner auf dem WOG-SFTP:
 
 `inbound/post-ablieferbelege/`
 
+### Ablieferbeleg (POD)
+
 Dateiname-Beispiele:
 
 - `435958.1__99.00.123456.12345678.pdf`
 - `435958.1__POD__beleg.pdf`
 - `WOG2608ABCDEF__POD__beleg.pdf`
+
+### Früh-Tracking (ohne POD)
+
+Endungen **`.json`**, **`.txt`** oder **`.track`** – setzen nur die Postsendungsnummer:
+
+- `435958.1__99.00.123456.12345678.json`
+- `435958.1__99.00.123456.12345678.track`
+- JSON-Inhalt optional:
+
+```json
+{
+  "shipmentNumber": "435958.1",
+  "postBarcode": "99.00.123456.12345678"
+}
+```
 
 Der Worker verarbeitet die Dateien automatisch und verschiebt sie nach `processed/` bzw. `failed/unmatched/`.
 
@@ -148,9 +173,10 @@ Der Worker verarbeitet die Dateien automatisch und verschiebt sie nach `processe
 
 ## Sichtbarkeit für den Kunden (Frachtzahler)
 
-- Dokumenttyp: **POD** / Kategorie **Abliefernachweis**
+- **Postsendungsnummer:** sobald Tracking-Endpoint oder Tracking-SFTP-Datei gelaufen ist (unabhängig vom POD)
+- Dokumenttyp POD / Kategorie **Abliefernachweis:** erst mit Ablieferbeleg
 - Quelle: `POST`
-- Voraussetzung im Portal: Kunde hat **Dokumente-Modul** aktiv und Kategorie **POD** freigeschaltet
+- Voraussetzung im Portal: Kunde hat **Dokumente-Modul** aktiv und Kategorie **POD** freigeschaltet (nur für den Beleg)
 
 ---
 

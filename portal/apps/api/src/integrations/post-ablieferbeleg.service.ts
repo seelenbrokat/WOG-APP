@@ -254,7 +254,11 @@ export class PostAblieferbelegService {
     };
   }
 
-  /** SFTP-Drop: {SFTP_INBOUND}/post-ablieferbelege/*.pdf */
+  /**
+   * SFTP-Drop: {SFTP_INBOUND}/post-ablieferbelege/
+   * - POD: *.pdf|png|jpg
+   * - Früh-Tracking (ohne POD): *.json|txt|track  → nur postBarcode setzen
+   */
   async processInboundDir(limit = 40) {
     let processed = 0;
     let unmatched = 0;
@@ -263,6 +267,20 @@ export class PostAblieferbelegService {
     for (const filePath of files) {
       const fileName = basename(filePath);
       try {
+        if (this.isTrackingOnlyFile(fileName)) {
+          const tracking = this.parseTrackingOnlyFile(filePath, fileName);
+          const result = await this.registerTracking(tracking);
+          processed += 1;
+          this.move(
+            filePath,
+            join(this.inboundRoot, 'processed', `${Date.now()}_${fileName}`),
+          );
+          this.log.log(
+            `Post-SFTP Tracking ${fileName} → ${result.trackingNumber} barcode=${result.postBarcode}`,
+          );
+          continue;
+        }
+
         const parsed = this.parseInboundFileName(fileName);
         const buf = readFileSync(filePath);
         const result = await this.ingest({
@@ -306,6 +324,96 @@ export class PostAblieferbelegService {
     return { processed, unmatched, failed, pending: this.listPending().length };
   }
 
+  /** *.json|txt|track = nur Postsendungsnummer, kein Ablieferbeleg */
+  isTrackingOnlyFile(fileName: string): boolean {
+    return /\.(json|txt|track)$/i.test(fileName);
+  }
+
+  /**
+   * Tracking-only Datei:
+   * - Dateiname wie POD: 435958.1__99.00.123456.12345678.json
+   * - JSON-Body optional: { shipmentNumber, postBarcode, trackingNumber, … }
+   * - TXT: eine Zeile = Barcode (Referenz aus Dateiname) oder key=value
+   */
+  parseTrackingOnlyFile(
+    filePath: string,
+    fileName: string,
+  ): {
+    shipmentNumber?: string | null;
+    orderNumber?: string | null;
+    itemNumber?: number | string | null;
+    trackingNumber?: string | null;
+    postBarcode: string;
+    clientReference?: string | null;
+  } {
+    const fromName = this.parseInboundFileName(fileName);
+    const raw = readFileSync(filePath, 'utf8').trim();
+    let fromBody: Partial<{
+      shipmentNumber: string;
+      orderNumber: string;
+      itemNumber: number | string;
+      trackingNumber: string;
+      postBarcode: string;
+      clientReference: string;
+    }> = {};
+
+    if (/\.json$/i.test(fileName) && raw) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        fromBody = {
+          shipmentNumber:
+            typeof parsed.shipmentNumber === 'string' ? parsed.shipmentNumber : undefined,
+          orderNumber: typeof parsed.orderNumber === 'string' ? parsed.orderNumber : undefined,
+          itemNumber:
+            typeof parsed.itemNumber === 'string' || typeof parsed.itemNumber === 'number'
+              ? parsed.itemNumber
+              : undefined,
+          trackingNumber:
+            typeof parsed.trackingNumber === 'string' ? parsed.trackingNumber : undefined,
+          postBarcode: typeof parsed.postBarcode === 'string' ? parsed.postBarcode : undefined,
+          clientReference:
+            typeof parsed.clientReference === 'string' ? parsed.clientReference : undefined,
+        };
+      } catch {
+        throw new BadRequestException(`Tracking-JSON ungültig: ${fileName}`);
+      }
+    } else if (raw && !/\.json$/i.test(fileName)) {
+      // TXT/TRACK: key=value Zeilen oder reine Barcode-Zeile
+      const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length === 1 && !lines[0].includes('=')) {
+        fromBody.postBarcode = lines[0];
+      } else {
+        for (const line of lines) {
+          const m = line.match(/^([a-zA-Z]+)\s*[:=]\s*(.+)$/);
+          if (!m) continue;
+          const key = m[1].toLowerCase();
+          const val = m[2].trim();
+          if (key === 'postbarcode' || key === 'barcode') fromBody.postBarcode = val;
+          else if (key === 'shipmentnumber') fromBody.shipmentNumber = val;
+          else if (key === 'ordernumber') fromBody.orderNumber = val;
+          else if (key === 'itemnumber') fromBody.itemNumber = val;
+          else if (key === 'trackingnumber') fromBody.trackingNumber = val;
+          else if (key === 'clientreference') fromBody.clientReference = val;
+        }
+      }
+    }
+
+    const postBarcode = String(fromBody.postBarcode || fromName.postBarcode || '').trim();
+    if (!postBarcode) {
+      throw new BadRequestException(
+        `postBarcode fehlt in Tracking-Datei ${fileName} (Dateiname oder Inhalt)`,
+      );
+    }
+    return {
+      shipmentNumber: fromBody.shipmentNumber || fromName.shipmentNumber || null,
+      orderNumber: fromBody.orderNumber || fromName.orderNumber || null,
+      itemNumber: fromBody.itemNumber ?? fromName.itemNumber ?? null,
+      trackingNumber: fromBody.trackingNumber || fromName.trackingNumber || null,
+      postBarcode,
+      clientReference: fromBody.clientReference || fromName.clientReference || null,
+    };
+  }
+
   /**
    * Dateiname:
    * - 435958.1__99.00.123456.12345678.pdf
@@ -313,7 +421,7 @@ export class PostAblieferbelegService {
    * - WOG2608ABC__POD__beleg.pdf
    */
   parseInboundFileName(fileName: string): Partial<PostAblieferbelegIngestInput> {
-    const base = fileName.replace(/\.(pdf|png|jpe?g)$/i, '');
+    const base = fileName.replace(/\.(pdf|png|jpe?g|json|txt|track)$/i, '');
     const parts = base.split('__').map((p) => p.trim()).filter(Boolean);
     const head = parts[0] || base;
     const out: Partial<PostAblieferbelegIngestInput> = {};
@@ -611,7 +719,11 @@ export class PostAblieferbelegService {
   private listPending(): string[] {
     if (!existsSync(this.inboundRoot)) return [];
     return readdirSync(this.inboundRoot, { withFileTypes: true })
-      .filter((e) => e.isFile() && /\.(pdf|png|jpe?g)$/i.test(e.name))
+      .filter(
+        (e) =>
+          e.isFile() &&
+          /\.(pdf|png|jpe?g|json|txt|track)$/i.test(e.name),
+      )
       .map((e) => join(this.inboundRoot, e.name))
       .sort();
   }
