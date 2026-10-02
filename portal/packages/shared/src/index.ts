@@ -145,6 +145,7 @@ export {
   extractCc529FieldsFromXml,
   isCc529Xml,
   extractEz92xFieldsFromXml,
+  extractEz92xFieldsFromPdfText,
   extractEur1NumberFromEz92xXml,
   isEz92xXml,
   isCc599Xml,
@@ -154,6 +155,7 @@ export {
   parseTourNumberFromLrn,
   isCc029Xml,
   extractCc029FieldsFromXml,
+  extractCc029FieldsFromPdfText,
   joinEzollMrns,
 } from './ezoll-doc-types';
 export type {

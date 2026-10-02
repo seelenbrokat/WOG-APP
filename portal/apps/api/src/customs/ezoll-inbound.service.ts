@@ -14,16 +14,19 @@ import { SoloplanService } from '../integrations/soloplan.service';
 import {
   detectEzollDocType,
   extractCc029FieldsFromXml,
+  extractCc029FieldsFromPdfText,
   extractCc529FieldsFromPdfText,
   extractCc529FieldsFromXml,
   extractCc599FieldsFromPdfText,
   extractCc599FieldsFromXml,
   extractEz92xFieldsFromXml,
+  extractEz92xFieldsFromPdfText,
   isCc529Xml,
   isCc599Xml,
   matchesFilenameIgnorePrefix,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
+  parseTourNumberFromFilename,
   soloplanMatchKey,
   type EzollCc529Fields,
   type EzollCc599Fields,
@@ -278,18 +281,33 @@ export class EzollInboundService {
   ) {
     let processed = 0;
     let unmatched = 0;
-    const files = this.listPendingFiles()
-      .filter((p) => {
-        const t = detectEzollDocType(basename(p));
-        return (t === 'EZ922' || t === 'EZ923') && /\.xml$/i.test(p);
-      })
-      .slice(0, limit);
+    const pending = this.listPendingFiles().filter((p) => {
+      const t = detectEzollDocType(basename(p));
+      return t === 'EZ922' || t === 'EZ923';
+    });
+    // XML bevorzugt; PDF nur wenn kein XML für denselben Match-Key
+    const xmlFiles = pending.filter((p) => /\.xml$/i.test(p));
+    const pdfFiles = pending.filter((p) => /\.pdf$/i.test(p));
+    const xmlKeys = new Set<string>();
+    for (const p of xmlFiles) {
+      const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+      if (key) xmlKeys.add(key);
+    }
+    const files = [
+      ...xmlFiles,
+      ...pdfFiles.filter((p) => {
+        const key = soloplanMatchKey(parseSoloplanMatchFromFilename(basename(p)));
+        return !key || !xmlKeys.has(key);
+      }),
+    ].slice(0, limit);
 
     for (const filePath of files) {
       const fileName = basename(filePath);
+      const isXml = /\.xml$/i.test(fileName);
       try {
-        const xml = readFileSync(filePath, 'utf8');
-        const fields = extractEz92xFieldsFromXml(xml);
+        const fields = isXml
+          ? extractEz92xFieldsFromXml(readFileSync(filePath, 'utf8'))
+          : extractEz92xFieldsFromPdfText(this.pdfText(filePath), fileName);
         if (!fields) {
           unmatched += 1;
           this.move(
@@ -333,7 +351,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `${fields.msgTyp} ${this.matchLabel(match)} CRN=${fields.crn || '-'} Konto=${fields.abgabenkonto || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
+          `${fields.msgTyp} ${this.matchLabel(match)} [${isXml ? 'XML' : 'PDF'}] CRN=${fields.crn || '-'} Konto=${fields.abgabenkonto || '-'} MWST=${fields.mwstAt ?? '-'} Zoll=${fields.zollabgabenAt ?? '-'} EUR1=${fields.eur1Number || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
@@ -359,15 +377,32 @@ export class EzollInboundService {
   ) {
     let processed = 0;
     let unmatched = 0;
-    const files = this.listPendingFiles()
-      .filter((p) => detectEzollDocType(basename(p)) === 'CC029CC' && /\.xml$/i.test(p))
-      .slice(0, limit);
+    const pending = this.listPendingFiles().filter(
+      (p) => detectEzollDocType(basename(p)) === 'CC029CC',
+    );
+    const xmlFiles = pending.filter((p) => /\.xml$/i.test(p));
+    const pdfFiles = pending.filter((p) => /\.pdf$/i.test(p));
+    // Pro Tour: XML vor PDF; PDF nur wenn kein XML zur Tour
+    const xmlTourKeys = new Set<string>();
+    for (const p of xmlFiles) {
+      const tour = parseTourNumberFromFilename(basename(p));
+      if (tour) xmlTourKeys.add(String(tour));
+    }
+    const files = [
+      ...xmlFiles,
+      ...pdfFiles.filter((p) => {
+        const tour = parseTourNumberFromFilename(basename(p));
+        return !tour || !xmlTourKeys.has(String(tour));
+      }),
+    ].slice(0, limit);
 
     for (const filePath of files) {
       const fileName = basename(filePath);
+      const isXml = /\.xml$/i.test(fileName);
       try {
-        const xml = readFileSync(filePath, 'utf8');
-        const fields = extractCc029FieldsFromXml(xml, fileName);
+        const fields = isXml
+          ? extractCc029FieldsFromXml(readFileSync(filePath, 'utf8'), fileName)
+          : extractCc029FieldsFromPdfText(this.pdfText(filePath), fileName);
         if (!fields) {
           unmatched += 1;
           this.move(
@@ -410,7 +445,7 @@ export class EzollInboundService {
         );
         processed += 1;
         this.log.log(
-          `CC029 Tour ${fields.tourNumber} [Tour-Update, ${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
+          `CC029 Tour ${fields.tourNumber} [${isXml ? 'XML' : 'PDF'}, Tour-Update, ${cache.isNew ? 'neu' : 'ergänzt'}] MRNs=${cache.mrns.join('; ') || '-'} ← ${fileName}`,
         );
       } catch (e: any) {
         unmatched += 1;
