@@ -11,6 +11,8 @@ import {
 function makeService(overrides?: {
   customerNumber?: string;
   alreadySent?: boolean;
+  /** Optional CC; leer = kein CC (Default) */
+  cc?: string;
   sendRaw?: ReturnType<typeof mock.fn>;
 }) {
   const tmp = mkdtempSync(join(tmpdir(), 'q-pod-'));
@@ -47,7 +49,7 @@ function makeService(overrides?: {
         return 'christian.kerschbaumer@quehenberger.com';
       }
       if (key === 'QUEHENBERGER_POD_MAIL_CC') {
-        return 'marcel.burtscher@worldofgreen.ch';
+        return overrides?.cc ?? '';
       }
       if (key === 'APP_URL') return 'https://portal.test';
       return undefined;
@@ -120,7 +122,36 @@ describe('QuehenbergerPodMailService', () => {
       assert.equal(args[1], 'POD verfügbar WOG2609TEST');
       assert.match(String(args[2]), /Zustellapp/);
       assert.equal(args[4][0].path, pdfPath);
-      assert.deepEqual(args[5]?.cc, ['marcel.burtscher@worldofgreen.ch']);
+      assert.equal(args[5], undefined);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('CC nur wenn QUEHENBERGER_POD_MAIL_CC gesetzt', async () => {
+    const { svc, sendRaw, pdfPath, tmp, customerNumber } = makeService({
+      cc: 'marcel.burtscher@worldofgreen.ch',
+    });
+    try {
+      await svc.notifyIfQuehenberger({
+        shipment: {
+          id: 'sh-cc',
+          trackingNumber: 'WOG2609CC',
+          customer: {
+            id: 'cust-1',
+            customerNumber,
+            name: 'Quehenberger Logistics',
+          },
+        },
+        fileName: 'x.pdf',
+        storagePath: pdfPath,
+        source: 'Post',
+        ensurePortalDocument: false,
+      });
+      assert.equal(sendRaw.mock.callCount(), 1);
+      assert.deepEqual(sendRaw.mock.calls[0].arguments[5]?.cc, [
+        'marcel.burtscher@worldofgreen.ch',
+      ]);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

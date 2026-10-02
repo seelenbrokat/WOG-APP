@@ -14,8 +14,9 @@ export const QUEHENBERGER_CUSTOMER_NUMBER = '4390';
 export type QuehenbergerPodSource = 'Post' | 'BT Swiss' | 'Zustellapp' | string;
 
 /**
- * Quehenberger (BP 4390): POD-PDF per Mail an feste Empfänger (eine Mail, CC Marcel).
+ * Quehenberger (BP 4390): POD-PDF per Mail an feste Empfänger (eine Mail).
  * Genutzt von Post-Ablieferbeleg, BT Swiss Status und Zustellapp-Ablieferbeleg.
+ * CC nur wenn QUEHENBERGER_POD_MAIL_CC gesetzt (kein Default an Marcel).
  */
 @Injectable()
 export class QuehenbergerPodMailService {
@@ -95,9 +96,9 @@ export class QuehenbergerPodMailService {
       this.config.get('QUEHENBERGER_POD_MAIL_TO') ||
         'christian.kerschbaumer@quehenberger.com,Michael.Ecker@quehenberger.com',
     );
+    // Kein Default-CC: Marcel will diese POD-Mails nicht (nur Quehenberger-An).
     const cc = this.notifications.normalizeEmails(
-      this.config.get('QUEHENBERGER_POD_MAIL_CC') ||
-        'marcel.burtscher@worldofgreen.ch',
+      this.config.get('QUEHENBERGER_POD_MAIL_CC') || '',
     );
     if (!toList.length) {
       this.log.warn('Quehenberger POD-Mail: keine Empfänger konfiguriert');
