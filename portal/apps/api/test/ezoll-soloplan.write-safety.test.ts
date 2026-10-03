@@ -49,6 +49,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.actionAttribute, 'update');
       assert.equal(row.eZ922, true);
+      assert.equal(row.aTEinfuhr, true);
       assert.equal(row.mRNATAPI, '26ATCRNTEST000001');
       assert.equal(row.aufschubkonto, 'AT123456');
       assert.equal(row.mWSTAT, 120.5);
@@ -76,6 +77,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.deepEqual(row.ordernumber, { number: 441929 });
       assert.equal(row.itemNumber, 1);
       assert.equal(row.cC529C, true);
+      assert.equal(row.ausfuhrverzollungATEU, true);
       assert.equal(row.eUR1_API, 'X 613179');
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -126,6 +128,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       const row = (order.consignments as Array<Record<string, unknown>>)[0];
       assert.equal(row.itemNumber, 1);
       assert.equal(row.cC529C, true);
+      assert.equal(row.ausfuhrverzollungATEU, true);
       assert.equal(row.mRNATAPI, '26AT920000XA0DHKA1');
       assert.equal(row.lRN, '443153.1/C ROBO/HELP');
       assert.equal(row.tarifnummerATAPI, 1);

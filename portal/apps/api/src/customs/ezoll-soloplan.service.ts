@@ -68,7 +68,8 @@ export class EzollSoloplanService {
   /**
    * CC529CC (ABD) →
    * - Match: ordernumber + itemNumber
-   * - cC529C, mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
+   * - cC529C + ausfuhrverzollungATEU (Listen-Checkbox „AT Ausfuhr“)
+   * - mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
    */
   writeCc529FlagUpdate(
     match: EzollSoloplanMatch,
@@ -83,6 +84,8 @@ export class EzollSoloplanService {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
       cC529C: true,
+      // Soloplan-Listenfeld „AT Ausfuhr“ (nicht identisch mit cC529C allein)
+      ausfuhrverzollungATEU: true,
     };
     this.applyMatch(consignment, match, 'CC529');
 
@@ -100,6 +103,7 @@ export class EzollSoloplanService {
    * EZ922 / EZ923 →
    * - Match: ordernumber + itemNumber (Dateiname)
    * - eZ922 / eZ923 = true
+   * - aTEinfuhr = true (Listen-Checkbox „AT Einfuhr“)
    * - CRN → mRNATAPI
    * - DefPayRef (Abgabenkonto) → aufschubkonto
    * - DutyCalc EUSt → mWSTAT
@@ -114,6 +118,8 @@ export class EzollSoloplanService {
   ): string {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
+      // Soloplan-Listenfeld „AT Einfuhr“ (zusätzlich zu eZ922/eZ923)
+      aTEinfuhr: true,
     };
     if (fields.msgTyp === 'EZ922') consignment.eZ922 = true;
     else consignment.eZ923 = true;
