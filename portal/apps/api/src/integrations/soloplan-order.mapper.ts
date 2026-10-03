@@ -779,8 +779,6 @@ function applyCustomsConsignmentFields(
   if (fields.smsSmartBorder != null) {
     consignment.sMSSmartBorder = fields.smsSmartBorder;
   }
-  // CFBOOLEAN8 ist Soloplan „AT-Einfuhr“ (Zoll-Felddefinition) – nicht Verzollungsauftrag.
-  // Verzollungsauftrag: order.verzollungsauftrag (Legacy-Flag), nicht customBool8.
   // Alte Title-Keys nie mitsenden (CarLo: NoAdditionalPropertiesAllowed)
   delete consignment.Telefon_Smartborder;
   delete consignment.MailSmartborder;
@@ -940,9 +938,12 @@ export function buildSoloplanFilePayload(
           orderDate: formatSoloplanDate(new Date()),
           // Immer: Auftrag kommt aus dem VLB-Portal
           erstelltviaVLBPortal: true,
-          // FileAPI: verzollungsauftrag = true wenn Verzollung (Legacy-Flag)
+          // FileAPI named flag + Order-CFBOOLEAN8 (ANORMALORDERCUSTOMFIELDV)
+          // Verzollungsauftrag sitzt auf Auftragsebene – nicht auf der Sendung.
           verzollungsauftrag: anyVerzollung,
-          // CFBOOLEAN8 = Soloplan „AT-Einfuhr“ (nicht Verzollungsauftrag)
+          ...(anyVerzollung
+            ? { customFields: { customBool8: true } }
+            : {}),
           customer: toMasterDataBp(customerToBp(orderCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),

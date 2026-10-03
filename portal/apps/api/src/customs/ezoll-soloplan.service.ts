@@ -69,11 +69,15 @@ export class EzollSoloplanService {
   }
 
   /**
-   * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML:
+   * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML,
+   * immer auf **Sendungs**-Ebene (Consignment):
    * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
-   * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)
-   * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste)
-   * - CH Ausfuhr: CFBOOLEAN7 → customBool7
+   * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)  [Sendung]
+   * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste) [Sendung]
+   * - CH Ausfuhr: CFBOOLEAN7 → customBool7 [Sendung]
+   *
+   * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
+   * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
    *
    * CC529CC (ABD) →
    * - Match: ordernumber + itemNumber

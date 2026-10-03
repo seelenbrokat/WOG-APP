@@ -87,10 +87,14 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.mailSmartborder, 'disposition@beispiel.at');
     assert.equal(c.sMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
-    // CFBOOLEAN8 = AT-Einfuhr (nicht Verzollungsauftrag); VA nur über order.verzollungsauftrag
+    // Verzollungsauftrag = Order-CFBOOLEAN8 (Auftragsebene), nicht Sendung
     assert.equal(
       (c.customFields as { customBool8?: boolean } | undefined)?.customBool8,
       undefined,
+    );
+    assert.deepEqual(
+      (order as { customFields?: { customBool8?: boolean } }).customFields,
+      { customBool8: true },
     );
     // Title-Schreibweise darf nicht im JSON landen (CarLo additionalProperties:false)
     assert.equal(c.Telefon_Smartborder, undefined);
@@ -98,13 +102,17 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.SMSSmartBorder, undefined);
   });
 
-  it('setzt customBool8 nicht bei extras.verzollung (CFBOOLEAN8 = AT-Einfuhr)', () => {
+  it('setzt Order-customBool8 bei extras.verzollung (Verzollungsauftrag Auftragsebene)', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({ extras: { verzollung: true } }),
       { format: 'order' },
     ) as {
-      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+      order: Array<{
+        customFields?: { customBool8?: boolean; customBool10?: boolean };
+        consignments: Array<Record<string, unknown>>;
+      }>;
     };
+    assert.deepEqual(payload.order[0].customFields, { customBool8: true });
     const cf = payload.order[0].consignments[0].customFields as {
       customBool8?: boolean;
       customBool10?: boolean;
@@ -113,14 +121,11 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(cf.customBool10, true);
   });
 
-  it('setzt customBool8 nicht ohne Verzollungsauftrag', () => {
+  it('setzt Order-customBool8 nicht ohne Verzollungsauftrag', () => {
     const payload = buildSoloplanFilePayload(baseShipment(), { format: 'order' }) as {
-      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+      order: Array<{ customFields?: { customBool8?: boolean } }>;
     };
-    const cf = payload.order[0].consignments[0].customFields as {
-      customBool8?: boolean;
-    };
-    assert.equal(cf.customBool8, undefined);
+    assert.equal(payload.order[0].customFields, undefined);
   });
 
   it('teilt Absender-name1 bei >40 Zeichen (CarLo-Limit)', () => {
