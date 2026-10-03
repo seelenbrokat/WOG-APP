@@ -51,6 +51,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.actionAttribute, 'update');
       assert.equal(row.eZ922, true);
       assert.equal(row.aTEinfuhr, true);
+      assert.deepEqual(row.customFields, { customBool8: true }); // CFBOOLEAN8 AT-Einfuhr
       assert.equal(row.mRNATAPI, '26ATCRNTEST000001');
       assert.equal(row.aufschubkonto, 'AT123456');
       assert.equal(row.mWSTAT, 120.5);
@@ -176,6 +177,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.einfuhrliste, true);
       assert.equal(row.definitiv, true);
+      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 CH-Einfuhr
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
@@ -312,7 +314,8 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.kontoMWST, '68980');
       assert.equal(row.zollabgabenCH, 0);
       assert.equal(row.mWSTCH, 10);
-      assert.equal(row.einfuhrliste, true); // CH-Einfuhr Listenflag bei eVV
+      assert.equal(row.einfuhrliste, true); // CH-Einfuhr Doc-Flag bei eVV
+      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

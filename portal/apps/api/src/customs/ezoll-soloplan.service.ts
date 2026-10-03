@@ -72,6 +72,13 @@ export class EzollSoloplanService {
   }
 
   /**
+   * Soloplan Zoll-Listenflags (Felddefinition):
+   * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN in Soloplan-Zoll-Liste)
+   * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)
+   * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste)
+   * - CH Ausfuhr: CFBOOLEAN7 → customBool7
+   */
+  /**
    * CC529CC (ABD) →
    * - Match: ordernumber + itemNumber
    * - cC529C + ausfuhrverzollungATEU (Listen-Checkbox „AT Ausfuhr“)
@@ -109,7 +116,7 @@ export class EzollSoloplanService {
    * EZ922 / EZ923 →
    * - Match: ordernumber + itemNumber (Dateiname)
    * - eZ922 / eZ923 = true
-   * - aTEinfuhr = true (Listen-Checkbox „AT Einfuhr“)
+   * - aTEinfuhr + CFBOOLEAN8 (customBool8) = Listen-Checkbox „AT Einfuhr“
    * - CRN → mRNATAPI
    * - DefPayRef (Abgabenkonto) → aufschubkonto
    * - DutyCalc EUSt → mWSTAT
@@ -124,8 +131,9 @@ export class EzollSoloplanService {
   ): string {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
-      // Soloplan-Listenfeld „AT Einfuhr“ (zusätzlich zu eZ922/eZ923)
+      // Soloplan „AT Einfuhr“: named field + CFBOOLEAN8
       aTEinfuhr: true,
+      customFields: { customBool8: true },
     };
     if (fields.msgTyp === 'EZ922') consignment.eZ922 = true;
     else consignment.eZ923 = true;
@@ -142,7 +150,9 @@ export class EzollSoloplanService {
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
-    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+    this.writeOrderImportCustomBools(match, sourceFileName, { customBool8: true }, 'atei-cf8');
+    return path;
   }
 
   /**
@@ -182,9 +192,9 @@ export class EzollSoloplanService {
   /**
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
-   * - Listen-Flags:
-   *   CH Einfuhr: bezugsschein + einfuhrliste (+ definitiv) bei BS/EL/eVV/Bordereau
-   *   CH Ausfuhr: customFields.customBool7 (CFBOOLEAN7) – OrderEzoll + OrderImport
+   * - Listen-Flags (Soloplan Zoll-Felddefinition):
+   *   CH Einfuhr: CFBOOLEAN6 (customBool6) + bezugsschein/einfuhrliste
+   *   CH Ausfuhr: CFBOOLEAN7 (customBool7)
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
@@ -202,7 +212,7 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    // Listen-Checkbox „CH Einfuhr“: Doc-Flags bezugsschein / einfuhrliste
+    // Listen-Checkbox „CH Einfuhr“ = CFBOOLEAN6 + Doc-Flags
     const chEinfuhrDocs = new Set([
       'BEZUGSSCHEIN',
       'EINFUHRLISTE',
@@ -210,13 +220,18 @@ export class EzollSoloplanService {
       'EVV_ZOLL',
       'BORDEREAU',
     ]);
+    let orderImportBools: Record<string, boolean> | null = null;
     if (chEinfuhrDocs.has(fields.docType)) {
       if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
-      // Einfuhrliste + eVV/Bordereau → einfuhrliste; BS oft „Einfuhrliste Definitiv“
       consignment.einfuhrliste = true;
       if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
         consignment.bezugsschein = true;
       }
+      consignment.customFields = {
+        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
+        customBool6: true,
+      };
+      orderImportBools = { customBool6: true };
     }
     if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
       consignment.definitiv = true;
@@ -253,13 +268,13 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7).
-    // NurLesen kennt kein top-level cHAusfuhr – OrderEzoll + OrderImport dual-write.
+    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7)
     if (fields.docType === 'AUSFUHR_VV') {
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool7: true,
       };
+      orderImportBools = { customBool7: true };
     }
 
     const prefix =
@@ -280,19 +295,23 @@ export class EzollSoloplanService {
                     : 'mercurio';
     const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
 
-    if (fields.docType === 'AUSFUHR_VV') {
-      this.writeOrderImportChAusfuhrFlag(match, sourceFileName);
+    if (orderImportBools) {
+      const kind = orderImportBools.customBool7
+        ? 'chau-cf7'
+        : 'chei-cf6';
+      this.writeOrderImportCustomBools(match, sourceFileName, orderImportBools, kind);
     }
     return path;
   }
 
   /**
-   * CH-Ausfuhr (CFBOOLEAN7) zusätzlich über OrderImportPORTAL schreiben.
-   * OrderEzoll-Automate mappt customFields oft nicht; OrderImport schon (wie CFBOOLEAN8).
+   * Zoll-CFBOOLEANs zusätzlich über OrderImportPORTAL (Automate mappt customFields dort zuverlässig).
    */
-  private writeOrderImportChAusfuhrFlag(
+  private writeOrderImportCustomBools(
     match: EzollSoloplanMatch,
     sourceFileName: string,
+    customBools: Record<string, boolean>,
+    kind: string,
   ): string | null {
     const orderNumber =
       match.kind === 'orderConsignment' || match.kind === 'order'
@@ -303,10 +322,10 @@ export class EzollSoloplanService {
       match.kind === 'orderConsignment' ? match.consignmentIndex : 1;
     return this.writeJsonFile(
       this.orderImportOutDir,
-      'chau-cf7',
+      kind,
       sourceFileName,
       {
-        header: this.header(`orderimport-chau-cf7:${sourceFileName}`),
+        header: this.header(`orderimport-${kind}:${sourceFileName}`),
         order: [
           {
             actionAttribute: 'update',
@@ -315,7 +334,7 @@ export class EzollSoloplanService {
               {
                 actionAttribute: 'update',
                 itemNumber,
-                customFields: { customBool7: true },
+                customFields: customBools,
               },
             ],
           },

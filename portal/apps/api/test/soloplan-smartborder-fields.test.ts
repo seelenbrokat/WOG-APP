@@ -87,10 +87,10 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.mailSmartborder, 'disposition@beispiel.at');
     assert.equal(c.sMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
-    // Soloplan CFBOOLEAN8 „Verzollungsauftrag“
+    // CFBOOLEAN8 = AT-Einfuhr (nicht Verzollungsauftrag); VA nur über order.verzollungsauftrag
     assert.equal(
       (c.customFields as { customBool8?: boolean } | undefined)?.customBool8,
-      true,
+      undefined,
     );
     // Title-Schreibweise darf nicht im JSON landen (CarLo additionalProperties:false)
     assert.equal(c.Telefon_Smartborder, undefined);
@@ -98,7 +98,7 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.SMSSmartBorder, undefined);
   });
 
-  it('setzt customBool8 auch bei extras.verzollung (Sendung mit Verzollung)', () => {
+  it('setzt customBool8 nicht bei extras.verzollung (CFBOOLEAN8 = AT-Einfuhr)', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({ extras: { verzollung: true } }),
       { format: 'order' },
@@ -109,7 +109,7 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
       customBool8?: boolean;
       customBool10?: boolean;
     };
-    assert.equal(cf.customBool8, true);
+    assert.equal(cf.customBool8, undefined);
     assert.equal(cf.customBool10, true);
   });
 
