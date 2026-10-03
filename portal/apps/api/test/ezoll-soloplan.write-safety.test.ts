@@ -356,7 +356,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.eUR1_API, 'T 0691198');
       assert.equal(row.tarifnummernCHAPI, 2);
       assert.equal(row.cHAusfuhr, true);
-      assert.equal(row.customFields, undefined);
+      assert.deepEqual(row.customFields, { customBool7: true });
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.zollabgabenCH, undefined);
       assert.equal(row.bezugsschein, undefined);
