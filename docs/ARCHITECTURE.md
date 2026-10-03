@@ -1,5 +1,7 @@
 # Architektur – WOG Kundenportal
 
+Fachliche Bereiche & Betrieb: [HANDBUCH.md](./HANDBUCH.md) · [PROD_BASELINE.md](./PROD_BASELINE.md)
+
 ## Überblick
 
 Das Portal unter `portal/` ist die Drehscheibe für Kunden und Partner der **WOG Logistics**.

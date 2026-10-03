@@ -1,5 +1,9 @@
 # Deployment – wog.logistikberater.at
 
+> **Produktions-Baseline & Update-Prozess:** [PROD_BASELINE.md](./PROD_BASELINE.md)  
+> **Fach-Handbuch aller Bereiche:** [HANDBUCH.md](./HANDBUCH.md)  
+> Deploy immer aus Git-Images (`portal/scripts/deploy-from-git.sh` bzw. `deploy-api-safe.sh`) – keine dauerhaften Container-Live-Patches.
+
 ## Status der Infrastruktur
 
 - DNS `wog.logistikberater.at` zeigt auf `85.215.41.99` (SSH Port 22 offen).
