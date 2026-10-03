@@ -86,8 +86,9 @@ Bereits aktiv (kein Todo, nur Kontext): eZoll-Inbound, Mercurio PDF-Inbound, Que
 | E3 | **`prisma generate` in Root-Setup/postinstall** (sonst hunderte TS-Fehler lokal) | defekt | P2 |
 | E4 | Leere `/* ignore */`-Catches in kritischen Pfaden loggen (eZoll Follow-up, Proforma, …) | teilweise | P2 |
 | E5 | Docs: BP-Import Passwort (`WillkommenWOG1!` vs. Einmal-Passwort) angleichen | defekt | P3 |
-| E6 | **115 offene Draft-PRs** konsolidieren / mergen (Agent-Kette) | defekt | P1 |
+| E6 | **115 offene Draft-PRs** konsolidieren / mergen (Agent-Kette) → Ziel: Branch `portal-prod` laut [PROD_BASELINE.md](../../docs/PROD_BASELINE.md) | defekt | P1 |
 | E7 | FEATURE_ROADMAP Datum/Status aktualisieren (dieser Datei folgen) | offen | P3 |
+| E8 | **Handbuch + Baseline-Prozess** – [HANDBUCH.md](../../docs/HANDBUCH.md), [PROD_BASELINE.md](../../docs/PROD_BASELINE.md), `backup-local.sh` / `deploy-from-git.sh` | erledigt | – |
 
 ---
 
