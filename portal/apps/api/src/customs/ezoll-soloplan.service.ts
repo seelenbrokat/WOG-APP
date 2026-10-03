@@ -20,7 +20,10 @@ export type EzollCc029WriteFields = {
 };
 
 /**
- * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
+ * Schreibt OrderEzoll-Updates für Soloplan/CarLo (File-Pickup).
+ *
+ * Zollflags gehen NUR mit den Zoll-Dokumenten/XMLs zurück (OrderEzoll),
+ * nicht über Portal-Erfassung / OrderImportPORTAL.
  *
  * Ausgabeordner für Automate:
  * - Auftrag/Sendung: …/ezoll/consignment/  (JSON-Root abhängig von SOLOPLAN_EZOLL_ROOT)
@@ -34,8 +37,6 @@ export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
-  /** OrderImportPORTAL pickup – für customFields (z. B. CFBOOLEAN7 CH-Ausfuhr). */
-  private readonly orderImportOutDir: string;
   /**
    * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
    * consignment = flach (Legacy): ordernumber={number}+itemNumber.
@@ -55,9 +56,6 @@ export class EzollSoloplanService {
       join(base, 'consignment');
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
-    this.orderImportOutDir =
-      this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
-      join(sftpOutbound, 'soloplan', 'orders');
 
     // Default: nested Order-Root (Order zuerst, dann Sendung innerhalb Auftrag).
     const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
@@ -68,17 +66,15 @@ export class EzollSoloplanService {
 
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
-    this.ensureDir(this.orderImportOutDir);
   }
 
   /**
-   * Soloplan Zoll-Listenflags (Felddefinition):
-   * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN in Soloplan-Zoll-Liste)
+   * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML:
+   * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
    * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)
    * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste)
    * - CH Ausfuhr: CFBOOLEAN7 → customBool7
-   */
-  /**
+   *
    * CC529CC (ABD) →
    * - Match: ordernumber + itemNumber
    * - cC529C + ausfuhrverzollungATEU (Listen-Checkbox „AT Ausfuhr“)
@@ -150,9 +146,7 @@ export class EzollSoloplanService {
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
     const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
-    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
-    this.writeOrderImportCustomBools(match, sourceFileName, { customBool8: true }, 'atei-cf8');
-    return path;
+    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 
   /**
@@ -212,7 +206,7 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    // Listen-Checkbox „CH Einfuhr“ = CFBOOLEAN6 + Doc-Flags
+    // Listen-Checkbox „CH Einfuhr“ = CFBOOLEAN6 + Doc-Flags (nur OrderEzoll mit Doc)
     const chEinfuhrDocs = new Set([
       'BEZUGSSCHEIN',
       'EINFUHRLISTE',
@@ -220,7 +214,6 @@ export class EzollSoloplanService {
       'EVV_ZOLL',
       'BORDEREAU',
     ]);
-    let orderImportBools: Record<string, boolean> | null = null;
     if (chEinfuhrDocs.has(fields.docType)) {
       if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
       consignment.einfuhrliste = true;
@@ -231,7 +224,6 @@ export class EzollSoloplanService {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool6: true,
       };
-      orderImportBools = { customBool6: true };
     }
     if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
       consignment.definitiv = true;
@@ -268,13 +260,12 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7)
+    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7) – nur OrderEzoll mit Doc
     if (fields.docType === 'AUSFUHR_VV') {
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool7: true,
       };
-      orderImportBools = { customBool7: true };
     }
 
     const prefix =
@@ -293,55 +284,7 @@ export class EzollSoloplanService {
                   : fields.docType === 'BORDEREAU'
                     ? 'mercurio-bordereau'
                     : 'mercurio';
-    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
-
-    if (orderImportBools) {
-      const kind = orderImportBools.customBool7
-        ? 'chau-cf7'
-        : 'chei-cf6';
-      this.writeOrderImportCustomBools(match, sourceFileName, orderImportBools, kind);
-    }
-    return path;
-  }
-
-  /**
-   * Zoll-CFBOOLEANs zusätzlich über OrderImportPORTAL (Automate mappt customFields dort zuverlässig).
-   */
-  private writeOrderImportCustomBools(
-    match: EzollSoloplanMatch,
-    sourceFileName: string,
-    customBools: Record<string, boolean>,
-    kind: string,
-  ): string | null {
-    const orderNumber =
-      match.kind === 'orderConsignment' || match.kind === 'order'
-        ? match.orderNumber
-        : null;
-    if (orderNumber == null || orderNumber <= 0) return null;
-    const itemNumber =
-      match.kind === 'orderConsignment' ? match.consignmentIndex : 1;
-    return this.writeJsonFile(
-      this.orderImportOutDir,
-      kind,
-      sourceFileName,
-      {
-        header: this.header(`orderimport-${kind}:${sourceFileName}`),
-        order: [
-          {
-            actionAttribute: 'update',
-            number: orderNumber,
-            consignments: [
-              {
-                actionAttribute: 'update',
-                itemNumber,
-                customFields: customBools,
-              },
-            ],
-          },
-        ],
-      },
-      'orderimport',
-    );
+    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
   }
 
   /**
@@ -461,18 +404,15 @@ export class EzollSoloplanService {
     kind: string,
     sourceFileName: string,
     payload: Record<string, unknown>,
-    filePrefix = 'orderezoll',
   ): string {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
-    const fileName = `${filePrefix}-${kind}-${stamp}-${safe}.json`;
+    const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
     const path = join(outDir, fileName);
     this.ensureDir(outDir);
     writeFileSync(path, JSON.stringify(payload, null, 2));
     this.applySoloplanPickupPerms(outDir, path);
-    this.log.log(
-      `${filePrefix === 'orderimport' ? 'OrderImport' : 'OrderEzoll'} ${kind.toUpperCase()} → ${path}`,
-    );
+    this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
     return path;
   }
 
