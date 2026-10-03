@@ -34,6 +34,8 @@ export class EzollSoloplanService {
   private readonly log = new Logger(EzollSoloplanService.name);
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
+  /** OrderImportPORTAL pickup – für customFields (z. B. CFBOOLEAN7 CH-Ausfuhr). */
+  private readonly orderImportOutDir: string;
   /**
    * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
    * consignment = flach (Legacy): ordernumber={number}+itemNumber.
@@ -53,6 +55,9 @@ export class EzollSoloplanService {
       join(base, 'consignment');
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
+    this.orderImportOutDir =
+      this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
+      join(sftpOutbound, 'soloplan', 'orders');
 
     // Default: nested Order-Root (Order zuerst, dann Sendung innerhalb Auftrag).
     const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
@@ -63,6 +68,7 @@ export class EzollSoloplanService {
 
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
+    this.ensureDir(this.orderImportOutDir);
   }
 
   /**
@@ -176,12 +182,13 @@ export class EzollSoloplanService {
   /**
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
-   * - Flags: bezugsschein / einfuhliste / definitiv / veranlagungsverfügung*
+   * - Listen-Flags:
+   *   CH Einfuhr: bezugsschein + einfuhrliste (+ definitiv) bei BS/EL/eVV/Bordereau
+   *   CH Ausfuhr: customFields.customBool7 (CFBOOLEAN7) – OrderEzoll + OrderImport
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
-   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv,
-   *   cHAusfuhr + customFields.customBool7 (CH-Ausfuhr / CFBOOLEAN7)
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv, CFBOOLEAN7
    * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
@@ -195,12 +202,24 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
-    if (fields.docType === 'EINFUHRLISTE') consignment.einfuhrliste = true;
-    // PDF zeigt oft „Einfuhrliste Definitiv“ auch auf dem Bezugsschein
-    if (fields.definitiv) {
+    // Listen-Checkbox „CH Einfuhr“: Doc-Flags bezugsschein / einfuhrliste
+    const chEinfuhrDocs = new Set([
+      'BEZUGSSCHEIN',
+      'EINFUHRLISTE',
+      'EVV_MWST',
+      'EVV_ZOLL',
+      'BORDEREAU',
+    ]);
+    if (chEinfuhrDocs.has(fields.docType)) {
+      if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
+      // Einfuhrliste + eVV/Bordereau → einfuhrliste; BS oft „Einfuhrliste Definitiv“
+      consignment.einfuhrliste = true;
+      if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
+        consignment.bezugsschein = true;
+      }
+    }
+    if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
       consignment.definitiv = true;
-      if (fields.docType === 'BEZUGSSCHEIN') consignment.einfuhrliste = true;
     }
 
     if (fields.chDeclarationNumber) {
@@ -234,10 +253,9 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Soloplan „CH-Ausfuhr“ (CFBOOLEAN7): top-level cHAusfuhr + customBool7.
-    // Automate übernimmt je nach Interface-Mapping eines von beiden.
+    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7).
+    // NurLesen kennt kein top-level cHAusfuhr – OrderEzoll + OrderImport dual-write.
     if (fields.docType === 'AUSFUHR_VV') {
-      consignment.cHAusfuhr = true;
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool7: true,
@@ -260,7 +278,51 @@ export class EzollSoloplanService {
                   : fields.docType === 'BORDEREAU'
                     ? 'mercurio-bordereau'
                     : 'mercurio';
-    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+
+    if (fields.docType === 'AUSFUHR_VV') {
+      this.writeOrderImportChAusfuhrFlag(match, sourceFileName);
+    }
+    return path;
+  }
+
+  /**
+   * CH-Ausfuhr (CFBOOLEAN7) zusätzlich über OrderImportPORTAL schreiben.
+   * OrderEzoll-Automate mappt customFields oft nicht; OrderImport schon (wie CFBOOLEAN8).
+   */
+  private writeOrderImportChAusfuhrFlag(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+  ): string | null {
+    const orderNumber =
+      match.kind === 'orderConsignment' || match.kind === 'order'
+        ? match.orderNumber
+        : null;
+    if (orderNumber == null || orderNumber <= 0) return null;
+    const itemNumber =
+      match.kind === 'orderConsignment' ? match.consignmentIndex : 1;
+    return this.writeJsonFile(
+      this.orderImportOutDir,
+      'chau-cf7',
+      sourceFileName,
+      {
+        header: this.header(`orderimport-chau-cf7:${sourceFileName}`),
+        order: [
+          {
+            actionAttribute: 'update',
+            number: orderNumber,
+            consignments: [
+              {
+                actionAttribute: 'update',
+                itemNumber,
+                customFields: { customBool7: true },
+              },
+            ],
+          },
+        ],
+      },
+      'orderimport',
+    );
   }
 
   /**
@@ -380,15 +442,18 @@ export class EzollSoloplanService {
     kind: string,
     sourceFileName: string,
     payload: Record<string, unknown>,
+    filePrefix = 'orderezoll',
   ): string {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
-    const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
+    const fileName = `${filePrefix}-${kind}-${stamp}-${safe}.json`;
     const path = join(outDir, fileName);
     this.ensureDir(outDir);
     writeFileSync(path, JSON.stringify(payload, null, 2));
     this.applySoloplanPickupPerms(outDir, path);
-    this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
+    this.log.log(
+      `${filePrefix === 'orderimport' ? 'OrderImport' : 'OrderEzoll'} ${kind.toUpperCase()} → ${path}`,
+    );
     return path;
   }
 

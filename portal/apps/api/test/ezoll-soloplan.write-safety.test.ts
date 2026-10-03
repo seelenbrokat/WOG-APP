@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
@@ -11,6 +11,7 @@ function makeService(root: string, rootMode = 'consignment') {
     get: (key: string) => {
       if (key === 'SOLOPLAN_EZOLL_OUT_DIR') return root;
       if (key === 'SOLOPLAN_EZOLL_ROOT') return rootMode;
+      if (key === 'SOLOPLAN_ORDERS_OUT_DIR') return join(root, 'orders');
       return undefined;
     },
   } as ConfigService;
@@ -311,12 +312,13 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.kontoMWST, '68980');
       assert.equal(row.zollabgabenCH, 0);
       assert.equal(row.mWSTCH, 10);
+      assert.equal(row.einfuhrliste, true); // CH-Einfuhr Listenflag bei eVV
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('order-Root Mercurio Ausfuhr VV: GDRN + EUR.1 + definitiv, ohne Beträge', () => {
+  it('order-Root Mercurio Ausfuhr VV: GDRN + EUR.1 + definitiv + CFBOOLEAN7, ohne Beträge', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-ausfuhr-'));
     try {
       const svc = makeService(root, 'order');
@@ -355,12 +357,25 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.definitiv, true);
       assert.equal(row.eUR1_API, 'T 0691198');
       assert.equal(row.tarifnummernCHAPI, 2);
-      assert.equal(row.cHAusfuhr, true);
+      // CH-Ausfuhr = CFBOOLEAN7 (kein top-level cHAusfuhr in Soloplan)
+      assert.equal(row.cHAusfuhr, undefined);
       assert.deepEqual(row.customFields, { customBool7: true });
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.zollabgabenCH, undefined);
       assert.equal(row.bezugsschein, undefined);
       assert.equal(row.einfuhrliste, undefined);
+
+      // Dual-write: OrderImportPORTAL mit customBool7
+      const orderFiles = readdirSync(join(root, 'orders')).filter((f) =>
+        f.includes('chau-cf7'),
+      );
+      assert.equal(orderFiles.length, 1);
+      const oi = readJson(join(root, 'orders', orderFiles[0]));
+      const oiOrder = (oi.order as Array<Record<string, unknown>>)[0];
+      assert.equal(oiOrder.number, 424111);
+      const oiRow = (oiOrder.consignments as Array<Record<string, unknown>>)[0];
+      assert.equal(oiRow.itemNumber, 2);
+      assert.deepEqual(oiRow.customFields, { customBool7: true });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
