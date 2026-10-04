@@ -104,6 +104,7 @@ model Organization {
   users         User[]
   partners      Partner[]
   customsOrders CustomsOrder[]
+  customsLoadingTours CustomsLoadingTour[]
   transportOrders TransportOrder[]
   packagingTypes    PackagingType[]
   documentCategories DocumentCategory[]
@@ -697,6 +698,7 @@ model Customer {
   contacts     Contact[]
   templates    ShipmentTemplate[]
   customsOrders CustomsOrder[]
+  customsLoadingTours CustomsLoadingTour[]
   freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
   goodsReceiptSessions GoodsReceiptSession[]
   documentCategoryAccess CustomerDocumentCategoryAccess[]
@@ -1303,6 +1305,35 @@ model IntegrationTransfer {
 }
 
 /// Verzollungsauftrag Vorarlberg–Schweiz
+/// Beladungs-Tour für Selbstfahrer (z. B. ERVO): LKW/Grenze erst nach Auswahl mehrerer Sendungen.
+model CustomsLoadingTour {
+  id                      String   @id @default(cuid())
+  organizationId          String
+  customerId              String
+  /// Kfz-Kennzeichen Zugfahrzeug (bei Freigabe gesetzt)
+  kennzeichen             String
+  zulassungsland          String   @default("AT")
+  kennzeichenAnhaenger    String?
+  zulassungslandAnhaenger String?
+  grenzuebergang          String
+  /// Geplanter Grenzzeitpunkt
+  zeit                    DateTime
+  status                  String   @default("RELEASED")
+  loadingListDocumentId   String?
+  avisoSentAt             DateTime?
+  notes                   String?
+  createdById             String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  orders       CustomsOrder[]
+
+  @@index([organizationId, createdAt])
+  @@index([customerId, createdAt])
+}
+
 model CustomsOrder {
   id             String   @id @default(cuid())
   organizationId String
@@ -1357,6 +1388,10 @@ model CustomsOrder {
   empfaengerCountry        String  @default("CH")
   status         String   @default("SUBMITTED")
   notes          String?
+  /// Selbstfahrer: LKW/Grenze erst bei Beladungs-Freigabe (kein SIPO)
+  vehicleDeferred Boolean @default(false)
+  /// Zugehörige Beladungs-Tour (nach Freigabe)
+  loadingTourId  String?
   /// Fahrer-Mobilnummer für SmartBorder (E.164, z. B. +436769075070)
   driverPhone    String?
   /// Zusätzliche E-Mail für den SmartBorder-Fahrerlink
@@ -1375,6 +1410,7 @@ model CustomsOrder {
   organization Organization @relation(fields: [organizationId], references: [id])
   customer     Customer     @relation(fields: [customerId], references: [id])
   mandant      Mandant?     @relation(fields: [mandantId], references: [id])
+  loadingTour  CustomsLoadingTour? @relation(fields: [loadingTourId], references: [id])
   documents    Document[]
 
   @@unique([organizationId, externalNumber])
@@ -1382,6 +1418,8 @@ model CustomsOrder {
   @@index([organizationId, status])
   @@index([organizationId, kennzeichen])
   @@index([externalNumber])
+  @@index([loadingTourId])
+  @@index([customerId, vehicleDeferred, loadingTourId])
 }
 
 model AuditLog {

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Res,
   UploadedFiles,
   UseGuards,
@@ -15,21 +16,22 @@ import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-expres
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { UserRole } from '@prisma/client';
-import { IsBooleanString, IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBooleanString, IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 import { CustomsService } from './customs.service';
+import { CustomsLoadingService } from './customs-loading.service';
 import { EzollInboundService } from './ezoll-inbound.service';
 import { MercurioInboundService } from './mercurio-inbound.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
 class CreateCustomsDto {
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  kennzeichen!: string;
+  kennzeichen?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  zulassungsland!: string;
+  zulassungsland?: string;
 
   @IsOptional()
   @IsString()
@@ -39,9 +41,13 @@ class CreateCustomsDto {
   @IsString()
   zulassungslandAnhaenger?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  grenzuebergang!: string;
+  grenzuebergang?: string;
+
+  /** Selbstfahrer: LKW/Grenze später (Beladung) – kein SIPO */
+  @IsOptional()
+  deferVehicle?: boolean | string;
 
   @IsOptional()
   @IsString()
@@ -184,6 +190,42 @@ class StatusDto {
   status!: string;
 }
 
+class ReleaseLoadingDto {
+  @IsArray()
+  orderIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
+  @IsString()
+  @MinLength(2)
+  kennzeichen!: string;
+
+  @IsOptional()
+  @IsString()
+  zulassungsland?: string;
+
+  @IsOptional()
+  @IsString()
+  kennzeichenAnhaenger?: string;
+
+  @IsOptional()
+  @IsString()
+  zulassungslandAnhaenger?: string;
+
+  @IsString()
+  @MinLength(2)
+  grenzuebergang!: string;
+
+  @IsDateString()
+  zeit!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 const papersUpload = FilesInterceptor('papers', 20, {
   storage: memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
@@ -205,6 +247,7 @@ const createUpload = FileFieldsInterceptor(
 export class CustomsController {
   constructor(
     private service: CustomsService,
+    private loading: CustomsLoadingService,
     private ezollInbound: EzollInboundService,
     private mercurioInbound: MercurioInboundService,
   ) {}
@@ -213,6 +256,32 @@ export class CustomsController {
   @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
   list(@CurrentUser() user: AuthUser) {
     return this.service.list(user);
+  }
+
+  /** Selbstfahrer: offene Sendungen ohne Beladung (Checkbox-Liste). */
+  @Get('loading/pending')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  loadingPending(
+    @CurrentUser() user: AuthUser,
+    @Query('customerId') customerId?: string,
+  ) {
+    return this.loading.listPending(user, {
+      customerId: customerId || undefined,
+      deferredOnly: true,
+    });
+  }
+
+  @Get('loading/tours')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  loadingTours(@CurrentUser() user: AuthUser) {
+    return this.loading.listTours(user);
+  }
+
+  /** Beladung freigeben: LKW/Grenze + Soloplan-Update + Ladeliste + Aviso an Zoll. */
+  @Post('loading/release')
+  @Roles(UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER, UserRole.CUSTOMER_USER)
+  loadingRelease(@CurrentUser() user: AuthUser, @Body() dto: ReleaseLoadingDto) {
+    return this.loading.releaseTour(user, dto);
   }
 
   /** eZoll-Drop: Ignore-Präfixe anwenden (Admin). */

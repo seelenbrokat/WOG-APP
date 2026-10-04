@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CustomsService } from './customs.service';
+import { CustomsLoadingService } from './customs-loading.service';
 import { CustomsController } from './customs.controller';
 import { EzollInboundService } from './ezoll-inbound.service';
 import { EzollSoloplanService } from './ezoll-soloplan.service';
@@ -27,6 +28,7 @@ import { DocumentsModule } from '../documents/documents.module';
   controllers: [CustomsController],
   providers: [
     CustomsService,
+    CustomsLoadingService,
     EzollInboundService,
     EzollSoloplanService,
     EzollSoloplanReadApiService,
@@ -39,6 +41,7 @@ import { DocumentsModule } from '../documents/documents.module';
   ],
   exports: [
     CustomsService,
+    CustomsLoadingService,
     EzollInboundService,
     EzollSoloplanService,
     EzollSoloplanReadApiService,
@@ -51,4 +54,3 @@ import { DocumentsModule } from '../documents/documents.module';
   ],
 })
 export class CustomsModule {}
-

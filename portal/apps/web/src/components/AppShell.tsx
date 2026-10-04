@@ -51,6 +51,7 @@ const NAV: NavItem[] = [
   { href: '/scanning/entladeberichte', label: 'Entladeberichte', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/map', label: 'Kartenmonitor', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/customs', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/customs/beladung', label: 'Beladung Zoll', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -81,7 +82,10 @@ function isActive(pathname: string, href: string) {
   if (href === '/lager/lademittelscheine' && pathname.startsWith('/lager/lademittelscheine')) return true;
   if (href === '/lager/login-qr' && pathname.startsWith('/lager/login-qr')) return true;
   if (href === '/audit' && pathname.startsWith('/audit')) return true;
-  if (href === '/customs' && pathname.startsWith('/customs')) return true;
+  if (href === '/customs/beladung' && pathname.startsWith('/customs/beladung')) return true;
+  if (href === '/customs' && pathname.startsWith('/customs') && !pathname.startsWith('/customs/beladung'))
+    return true;
+
   return false;
 }
 
