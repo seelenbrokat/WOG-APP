@@ -29,6 +29,10 @@ import {
   formatGrenzeDateTime,
   writeVerzollungsauftragPdf,
 } from './verzollungsauftrag-pdf';
+import {
+  CUSTOMS_VEHICLE_DEFERRED_BORDER,
+  CUSTOMS_VEHICLE_DEFERRED_PLATE,
+} from './customs-loading.service';
 
 function parsePositiveInt(raw: number | string | null | undefined): number | null {
   if (raw == null || raw === '') return null;
@@ -53,14 +57,19 @@ export type PartyAddress = {
 };
 
 export type CreateCustomsInput = {
-  kennzeichen: string;
-  zulassungsland: string;
+  kennzeichen?: string;
+  zulassungsland?: string;
   kennzeichenAnhaenger?: string;
   zulassungslandAnhaenger?: string;
-  grenzuebergang: string;
+  grenzuebergang?: string;
   grenzzollstelle?: string;
   zeit: string;
   importeur: string;
+  /**
+   * Selbstfahrer (z. B. ERVO): LKW/Grenze später bei Beladung setzen.
+   * Kein SIPO – nur Portal-Beladung + Soloplan-Update + Ladeliste/Aviso.
+   */
+  deferVehicle?: boolean | string;
   zazKonto?: string;
   warenort?: string;
   /** Collianzahl (Zahl oder FormData-String) */
@@ -201,10 +210,10 @@ export class CustomsService {
       if (!mandant) throw new NotFoundException('Mandant nicht gefunden');
     }
 
-    const grenzuebergang = data.grenzuebergang.trim();
-    if (!isValidGrenzuebergang(grenzuebergang)) {
-      throw new BadRequestException('Grenzübergang / Grenzzollstelle bitte angeben (Auswahl oder Freitext)');
-    }
+    const vehicleDeferred =
+      data.deferVehicle === true ||
+      data.deferVehicle === 'true' ||
+      data.deferVehicle === '1';
 
     if (!invoices.length) {
       throw new BadRequestException('Rechnung ist Pflicht – bitte die Rechnung hochladen');
@@ -215,28 +224,44 @@ export class CustomsService {
       throw new BadRequestException('Zulassungsland muss ein ISO-Ländercode (2 Buchstaben) sein');
     }
 
-    const kennzeichen = normalizeSmartBorderPlate(data.kennzeichen, zulassungsland);
-    if (!isValidSmartBorderPlate(kennzeichen, zulassungsland)) {
-      throw new BadRequestException(
-        'Kennzeichen entspricht nicht den Smart-Border-Austria-Eingaberichtlinien (keine Leerzeichen; landesspezifisches Format)',
-      );
-    }
-
+    let kennzeichen: string;
+    let grenzuebergang: string;
     let kennzeichenAnhaenger: string | null = null;
     let zulassungslandAnhaenger: string | null = null;
-    const rawTrailer = (data.kennzeichenAnhaenger || '').trim();
-    if (rawTrailer) {
-      zulassungslandAnhaenger = (data.zulassungslandAnhaenger || zulassungsland).trim().toUpperCase();
-      if (!/^[A-Z]{2}$/.test(zulassungslandAnhaenger)) {
+
+    if (vehicleDeferred) {
+      // Selbstfahrer (ERVO): LKW/Grenze erst bei Beladung – kein SIPO
+      kennzeichen = CUSTOMS_VEHICLE_DEFERRED_PLATE;
+      grenzuebergang = CUSTOMS_VEHICLE_DEFERRED_BORDER;
+    } else {
+      grenzuebergang = String(data.grenzuebergang || '').trim();
+      if (!isValidGrenzuebergang(grenzuebergang)) {
         throw new BadRequestException(
-          'Zulassungsland Anhänger muss ein ISO-Ländercode (2 Buchstaben) sein',
+          'Grenzübergang / Grenzzollstelle bitte angeben (Auswahl oder Freitext)',
         );
       }
-      kennzeichenAnhaenger = normalizeSmartBorderPlate(rawTrailer, zulassungslandAnhaenger);
-      if (!isValidSmartBorderPlate(kennzeichenAnhaenger, zulassungslandAnhaenger)) {
+      kennzeichen = normalizeSmartBorderPlate(String(data.kennzeichen || ''), zulassungsland);
+      if (!isValidSmartBorderPlate(kennzeichen, zulassungsland)) {
         throw new BadRequestException(
-          'Kennzeichen Anhänger entspricht nicht den Smart-Border-Austria-Eingaberichtlinien',
+          'Kennzeichen entspricht nicht den Smart-Border-Austria-Eingaberichtlinien (keine Leerzeichen; landesspezifisches Format)',
         );
+      }
+      const rawTrailer = (data.kennzeichenAnhaenger || '').trim();
+      if (rawTrailer) {
+        zulassungslandAnhaenger = (data.zulassungslandAnhaenger || zulassungsland)
+          .trim()
+          .toUpperCase();
+        if (!/^[A-Z]{2}$/.test(zulassungslandAnhaenger)) {
+          throw new BadRequestException(
+            'Zulassungsland Anhänger muss ein ISO-Ländercode (2 Buchstaben) sein',
+          );
+        }
+        kennzeichenAnhaenger = normalizeSmartBorderPlate(rawTrailer, zulassungslandAnhaenger);
+        if (!isValidSmartBorderPlate(kennzeichenAnhaenger, zulassungslandAnhaenger)) {
+          throw new BadRequestException(
+            'Kennzeichen Anhänger entspricht nicht den Smart-Border-Austria-Eingaberichtlinien',
+          );
+        }
       }
     }
 
@@ -301,11 +326,12 @@ export class CustomsService {
       throw new BadRequestException('Inhalt / Warenbeschreibung bitte angeben');
     }
 
-    const sendSms =
-      data.smartborderSendSms === true ||
-      data.smartborderSendSms === 'true' ||
-      data.smartborderSendSms === '1';
-    const driverPhoneRaw = (data.driverPhone || '').trim();
+    const sendSms = vehicleDeferred
+      ? false
+      : data.smartborderSendSms === true ||
+        data.smartborderSendSms === 'true' ||
+        data.smartborderSendSms === '1';
+    const driverPhoneRaw = vehicleDeferred ? '' : (data.driverPhone || '').trim();
     let driverPhone: string | null = null;
     if (driverPhoneRaw || sendSms) {
       driverPhone = normalizePhoneE164(driverPhoneRaw);
@@ -315,7 +341,9 @@ export class CustomsService {
         );
       }
     }
-    const notifyEmail = (data.smartborderNotifyEmail || '').trim().toLowerCase() || null;
+    const notifyEmail = vehicleDeferred
+      ? null
+      : (data.smartborderNotifyEmail || '').trim().toLowerCase() || null;
     if (notifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail)) {
       throw new BadRequestException('SmartBorder-Benachrichtigungs-E-Mail ist ungültig');
     }
@@ -367,6 +395,7 @@ export class CustomsService {
         driverPhone,
         smartborderNotifyEmail: notifyEmail,
         smartborderSendSms: sendSms,
+        vehicleDeferred,
         status: 'SUBMITTED',
         createdById: user.id,
       },
@@ -416,6 +445,7 @@ export class CustomsService {
       externalNumber: order.externalNumber,
       kennzeichen: order.kennzeichen,
       grenzuebergang: order.grenzuebergang,
+      vehicleDeferred,
       documents: invoices.length + papers.length,
       invoices: invoices.length,
     });
@@ -424,16 +454,20 @@ export class CustomsService {
     const when = order.zeit.toLocaleString('de-AT');
     await this.notifications.sendRaw(
       adminEmail,
-      `Verzollungsauftrag ${order.kennzeichen}`,
+      vehicleDeferred
+        ? `Verzollungsauftrag ${order.externalNumber || order.id.slice(-6)} (LKW später)`
+        : `Verzollungsauftrag ${order.kennzeichen}`,
       [
         'Neuer Verzollungsauftrag:',
         `Auftrag: ${order.externalNumber}`,
         `Kunde: ${full.customer.name}`,
-        `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
-        order.kennzeichenAnhaenger
+        vehicleDeferred
+          ? 'Selbstfahrer: Kennzeichen/Grenze folgen bei Beladungs-Freigabe (kein SIPO)'
+          : `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
+        !vehicleDeferred && order.kennzeichenAnhaenger
           ? `Kennzeichen Anhänger: ${order.kennzeichenAnhaenger} (${order.zulassungslandAnhaenger || '–'})`
           : '',
-        `Grenzübergang: ${order.grenzuebergang}`,
+        vehicleDeferred ? '' : `Grenzübergang: ${order.grenzuebergang}`,
         `Zeit: ${when}`,
         `Importeur: ${order.importeur}`,
         order.zazKonto ? `ZAZ-Konto: ${order.zazKonto}` : '',

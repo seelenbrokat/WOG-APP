@@ -174,6 +174,7 @@ export default function CustomsPage() {
   const [extraPapers, setExtraPapers] = useState<Record<string, FileList | null>>({});
   const [inquiryBusy, setInquiryBusy] = useState('');
   const [abweichend, setAbweichend] = useState(false);
+  const [deferVehicle, setDeferVehicle] = useState(false);
   const [absender, setAbsender] = useState<Party>(emptyParty('AT'));
   const [empfaenger, setEmpfaenger] = useState<Party>(emptyParty('CH'));
   const [frachtzahler, setFrachtzahler] = useState<Party>(emptyParty('AT'));
@@ -303,7 +304,7 @@ export default function CustomsPage() {
       if (needsWarenort && !form.warenort.trim()) {
         throw new Error('Warenort/Verzollungsort ist bei CH/FL → Österreich Pflicht');
       }
-      if (!grenzuebergang || grenzuebergang.length < 2) {
+      if (!deferVehicle && (!grenzuebergang || grenzuebergang.length < 2)) {
         throw new Error('Grenzübergang bitte auswählen oder als Freitext eingeben');
       }
       const packageCount = Number(String(form.packageCount).replace(',', '.'));
@@ -329,17 +330,22 @@ export default function CustomsPage() {
       }
       const fd = new FormData();
       if (isStaff) fd.append('customerId', form.customerId);
-      const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
-      fd.append('kennzeichen', kennzeichen);
-      fd.append('zulassungsland', form.zulassungsland.trim().toUpperCase());
-      if (form.kennzeichenAnhaenger.trim()) {
-        fd.append(
-          'kennzeichenAnhaenger',
-          normalizeSmartBorderPlate(form.kennzeichenAnhaenger, form.zulassungslandAnhaenger),
-        );
-        fd.append('zulassungslandAnhaenger', form.zulassungslandAnhaenger.trim().toUpperCase());
+      if (deferVehicle) {
+        fd.append('deferVehicle', 'true');
+        fd.append('zulassungsland', (form.zulassungsland || 'AT').trim().toUpperCase());
+      } else {
+        const kennzeichen = normalizeSmartBorderPlate(form.kennzeichen, form.zulassungsland);
+        fd.append('kennzeichen', kennzeichen);
+        fd.append('zulassungsland', form.zulassungsland.trim().toUpperCase());
+        if (form.kennzeichenAnhaenger.trim()) {
+          fd.append(
+            'kennzeichenAnhaenger',
+            normalizeSmartBorderPlate(form.kennzeichenAnhaenger, form.zulassungslandAnhaenger),
+          );
+          fd.append('zulassungslandAnhaenger', form.zulassungslandAnhaenger.trim().toUpperCase());
+        }
+        fd.append('grenzuebergang', grenzuebergang);
       }
-      fd.append('grenzuebergang', grenzuebergang);
       fd.append('zeit', new Date(form.zeit).toISOString());
       fd.append('importeur', form.importeur);
       if (form.zazKonto.trim()) fd.append('zazKonto', form.zazKonto.trim());
@@ -350,13 +356,15 @@ export default function CustomsPage() {
       fd.append('goodsDescription', form.goodsDescription.trim());
       if (form.mandantId) fd.append('mandantId', form.mandantId);
       if (form.notes) fd.append('notes', form.notes);
-      if (form.driverPhone.trim()) fd.append('driverPhone', form.driverPhone.trim());
-      if (form.smartborderNotifyEmail.trim()) {
-        fd.append('smartborderNotifyEmail', form.smartborderNotifyEmail.trim());
-      }
-      fd.append('smartborderSendSms', form.smartborderSendSms ? 'true' : 'false');
-      if (form.smartborderSendSms && !form.driverPhone.trim()) {
-        throw new Error('Für SMS-Link bitte eine Fahrer-Telefonnummer angeben');
+      if (!deferVehicle) {
+        if (form.driverPhone.trim()) fd.append('driverPhone', form.driverPhone.trim());
+        if (form.smartborderNotifyEmail.trim()) {
+          fd.append('smartborderNotifyEmail', form.smartborderNotifyEmail.trim());
+        }
+        fd.append('smartborderSendSms', form.smartborderSendSms ? 'true' : 'false');
+        if (form.smartborderSendSms && !form.driverPhone.trim()) {
+          throw new Error('Für SMS-Link bitte eine Fahrer-Telefonnummer angeben');
+        }
       }
       fd.append('abweichenderFrachtzahler', abweichend ? 'true' : 'false');
       fd.append('absenderFirma', absender.firma);
@@ -446,6 +454,8 @@ export default function CustomsPage() {
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger und Pflicht-Rechnung.
         Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
+        Selbstfahrer (ERVO): Option „LKW/Grenze später“ – Beladung unter{' '}
+        <a href="/customs/beladung">Beladung Zoll</a> (kein SIPO).
         {isCustomer
           ? ` Auftraggeber: ${customerName || 'angemeldeter Kunde'}.`
           : ' Admin/Disposition kann Aufträge für Kunden erfassen und bearbeiten.'}
@@ -472,6 +482,16 @@ export default function CustomsPage() {
           </div>
         ) : null}
 
+        <label className="row" style={{ gap: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={deferVehicle}
+            onChange={(e) => setDeferVehicle(e.target.checked)}
+          />
+          Selbstfahrer: LKW und Grenze später bei Beladung setzen (kein SIPO)
+        </label>
+
+        {!deferVehicle ? (
         <div className="grid-2">
           <div className="field">
             <label>Kennzeichen</label>
@@ -508,7 +528,15 @@ export default function CustomsPage() {
             </select>
           </div>
         </div>
+        ) : (
+          <p className="muted" style={{ fontSize: '0.9rem' }}>
+            Auftrag geht sofort nach Soloplan. Kennzeichen und Grenze werden unter „Beladung Zoll“
+            gesetzt, sobald klar ist, welche Sendungen mitfahren.
+          </p>
+        )}
 
+        {!deferVehicle ? (
+        <>
         <div className="grid-2">
           <div className="field">
             <label>Kennzeichen Anhänger</label>
@@ -642,6 +670,18 @@ export default function CustomsPage() {
             )}
           </div>
         </div>
+        </>
+        ) : (
+        <div className="field">
+          <label>Voraussichtliche Zeit (optional, wird bei Beladung überschrieben)</label>
+          <input
+            required
+            type="datetime-local"
+            value={form.zeit}
+            onChange={(e) => setForm({ ...form, zeit: e.target.value })}
+          />
+        </div>
+        )}
 
         <div className="grid-2">
           <div className="field">
