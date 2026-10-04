@@ -490,7 +490,11 @@ export default function ShipmentsPage() {
                         <span className="meta mono" title={s.trackingNumber}>
                           {s.trackingNumber}
                         </span>
-                        {s.reference ? (
+                        {s.reference &&
+                        s.reference !== s.order?.externalNumber &&
+                        s.reference !== s.soloplanRef &&
+                        s.reference !== `WOG-${s.soloplanRef}` &&
+                        s.reference !== `EZOLL-${s.soloplanRef}` ? (
                           <span className="meta" title={s.reference}>
                             Ref {clip(s.reference, 22)}
                           </span>
