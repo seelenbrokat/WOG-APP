@@ -479,6 +479,14 @@ function ShipmentDetailInner() {
                 // Kunde: Modul-Dokumente nur bei Freigabe; sonst normale Upload-/Etikett-Docs
                 const otherDocs = allDocs.filter((d: any) => {
                   if (d.categoryCode === 'CUSTOMS_EXIT') return false;
+                  // CH-Bordereau / Mercurio-Interna: nie beim Kunden
+                  const name = String(d.fileName || '').toLowerCase();
+                  const src = String(d.sourceFileName || d.source || '').toLowerCase();
+                  if (name.includes('bordereau') || src.includes('bordereau')) return false;
+                  if (String(d.source || '').toUpperCase() === 'MERCURIO' && !d.categoryCode) {
+                    return false;
+                  }
+                  if (d.type === 'CUSTOMS_PAPER' && !d.categoryCode) return false;
                   if (
                     isCustomerUser &&
                     d.categoryCode &&
