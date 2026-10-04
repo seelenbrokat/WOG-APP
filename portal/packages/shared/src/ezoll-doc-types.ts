@@ -377,6 +377,70 @@ export function extractEz92xFieldsFromXml(xml: string): EzollEz92xFields | null 
   };
 }
 
+/**
+ * EZ922/EZ923-PDF (Mitteilung Abgabenbetrag / Freigabe):
+ * CRN oben, Aufschubkonto, Summen A00/5EV, Positionsanzahl.
+ */
+export function extractEz92xFieldsFromPdfText(
+  text: string,
+  fileName?: string,
+): EzollEz92xFields | null {
+  const raw = String(text || '');
+  const docType = detectEzollDocType(fileName || '');
+  let msgTyp: 'EZ922' | 'EZ923' | null =
+    docType === 'EZ922' || docType === 'EZ923' ? docType : null;
+  if (!msgTyp) {
+    if (/Mitteilung des Abgabenbetrages/i.test(raw) || /EZ922/i.test(raw)) {
+      msgTyp = 'EZ922';
+    } else if (/Freigabemitteilung|EZ923/i.test(raw)) {
+      msgTyp = 'EZ923';
+    }
+  }
+  if (!msgTyp) return null;
+
+  const crn =
+    extractMrnFromPdfText(raw) ||
+    raw.match(/\b(26AT[A-Z0-9]{14,})\b/i)?.[1]?.toUpperCase() ||
+    null;
+
+  const kontoRaw =
+    raw.match(/AUFSCHUBKONTO(?:-NR\.?|NR\.?)?\s*[:\s]*([0-9][0-9.\-\s]{3,})/i)?.[1] ||
+    raw.match(/Aufschubkonto[^0-9]{0,20}([0-9][0-9.\-]{4,})/i)?.[1] ||
+    null;
+  const abgabenkonto = kontoRaw
+    ? kontoRaw.replace(/\s+/g, '').replace(/\./g, '').replace(/-$/, '')
+    : null;
+
+  const parseEur = (s: string | undefined | null): number | null => {
+    if (!s) return null;
+    const n = Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? roundMoney(n) : null;
+  };
+
+  const zollMatch =
+    raw.match(/Summe\s+A00[\s\S]{0,80}?EUR\s*([0-9.]+,\d{2})/i) ||
+    raw.match(/\bA00\b[\s\S]{0,40}?EUR\s*([0-9.]+,\d{2})/i);
+  const mwstMatch =
+    raw.match(/Summe\s+5EV[\s\S]{0,80}?EUR\s*([0-9.]+,\d{2})/i) ||
+    raw.match(/Summe\s+B00[\s\S]{0,80}?EUR\s*([0-9.]+,\d{2})/i) ||
+    raw.match(/\b5EV\b[\s\S]{0,40}?EUR\s*([0-9.]+,\d{2})/i);
+
+  const pos =
+    raw.match(/Anzahl der Positionen\s*:\s*(\d+)/i) ||
+    raw.match(/Tot(?:al)?\s*Item(?:s)?\s*:\s*(\d+)/i);
+  const totalItems = pos ? Number(pos[1]) : null;
+
+  return {
+    msgTyp,
+    crn,
+    abgabenkonto,
+    mwstAt: parseEur(mwstMatch?.[1]),
+    zollabgabenAt: parseEur(zollMatch?.[1]),
+    totalItems: Number.isFinite(totalItems) && (totalItems as number) > 0 ? totalItems : null,
+    eur1Number: extractEur1NumberFromPdfText(raw),
+  };
+}
+
 export function isEz92xXml(xml: string): boolean {
   const typ = xmlMsgTyp(xml);
   return typ === 'EZ922' || typ === 'EZ923';
@@ -464,6 +528,48 @@ export function extractCc029FieldsFromXml(
   ].map((m) => m[1]);
   const uniqueItems = new Set(itemNums);
   const totalItems = uniqueItems.size > 0 ? uniqueItems.size : null;
+
+  return { tourNumber, mrn, lrn, totalItems };
+}
+
+/**
+ * CC029CC-PDF (Transit Accompanying Document):
+ * MRN/LRN/Total items aus Layout; Tournummer primär aus Dateiname.
+ */
+export function extractCc029FieldsFromPdfText(
+  text: string,
+  fileName?: string,
+): EzollCc029Fields | null {
+  const raw = String(text || '');
+  const tourNumber =
+    parseTourNumberFromFilename(fileName || '') ||
+    (() => {
+      const lrnGuess =
+        extractLrnFromPdfText(raw) ||
+        raw.match(/\b(\d{5,7}\/\d{1,3})\b/)?.[1] ||
+        null;
+      return lrnGuess ? parseTourNumberFromLrn(lrnGuess.replace('/', ' ')) : null;
+    })();
+  if (!tourNumber) return null;
+
+  const mrn =
+    extractMrnFromPdfText(raw) ||
+    raw.match(/\b(26AT[A-Z0-9]{14,})\b/i)?.[1]?.toUpperCase() ||
+    null;
+
+  const lrn =
+    extractLrnFromPdfText(raw) ||
+    raw.match(/\bLRN\b[\s\S]{0,40}?(\d{5,7}\/\d{1,3}(?:\s+\d{1,3})?)/i)?.[1]?.trim() ||
+    raw.match(/\b(\d{5,7}\/\d{1,3})\b/)?.[1] ||
+    null;
+
+  const totalItems =
+    extractTotalItemsFromPdfText(raw) ||
+    (() => {
+      const m = raw.match(/Total items[\s\S]{0,40}?(\d{1,3})/i);
+      const n = m ? Number(m[1]) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })();
 
   return { tourNumber, mrn, lrn, totalItems };
 }

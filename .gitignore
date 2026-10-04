@@ -32,6 +32,11 @@ app/build/
 *.log
 .DS_Store
 
+# Lokale / Agent-Sicherungen (nie committen)
+_backup/
+portal/_backup/
+**/_backup/
+
 portal/data/integrations/**/*
 !portal/data/integrations/**/.gitkeep
 

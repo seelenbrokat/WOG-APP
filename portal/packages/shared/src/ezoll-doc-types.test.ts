@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   extractEur1NumberFromEz92xXml,
   extractEz92xFieldsFromXml,
+  extractEz92xFieldsFromPdfText,
+  extractCc029FieldsFromPdfText,
   parseSoloplanMatchFromFilename,
   parseSoloplanMatchFromLrn,
 } from './ezoll-doc-types';
@@ -64,5 +66,41 @@ describe('ezoll EZ92x EUR.1 (N954)', () => {
     const fields = extractEz92xFieldsFromXml(xml);
     assert.ok(fields);
     assert.equal(fields!.eur1Number, null);
+  });
+});
+
+describe('ezoll EZ92x/CC029 PDF', () => {
+  it('liest EZ922-PDF Felder', () => {
+    const text = `
+26AT920000IVRPCBD8
+Anzahl der Positionen: 1
+Mitteilung des Abgabenbetrages nach Artikel 102 Zollkodex
+AUFSCHUBKONTO-NR. 550-1423
+Summe         A00                                                          EUR                        0,00
+Summe         5EV                                                          EUR                    1.169,60
+`;
+    const fields = extractEz92xFieldsFromPdfText(text, '451887.1_D VITERMA_EZ922.pdf');
+    assert.ok(fields);
+    assert.equal(fields!.msgTyp, 'EZ922');
+    assert.equal(fields!.crn, '26AT920000IVRPCBD8');
+    assert.equal(fields!.abgabenkonto, '550-1423');
+    assert.equal(fields!.mwstAt, 1169.6);
+    assert.equal(fields!.zollabgabenAt, 0);
+    assert.equal(fields!.totalItems, 1);
+  });
+
+  it('liest CC029-PDF Tour/MRN', () => {
+    const text = `
+DECLARATION TYPE MRN
+Total items Total packages
+2 2 28,100000
+LRN [12 09]
+1230419/2 002
+26AT9200004AUMMBJ9
+`;
+    const fields = extractCc029FieldsFromPdfText(text, '1230419_2_002_CC029CC.pdf');
+    assert.ok(fields);
+    assert.equal(fields!.tourNumber, 1230419);
+    assert.equal(fields!.mrn, '26AT9200004AUMMBJ9');
   });
 });
