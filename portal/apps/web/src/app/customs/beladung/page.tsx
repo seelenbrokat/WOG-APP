@@ -149,7 +149,7 @@ export default function CustomsBeladungPage() {
       <p className="muted" style={{ marginBottom: '1rem' }}>
         Selbstfahrer (z. B. ERVO): Sendungen zuerst erfassen und nach Soloplan schicken.
         Hier per Checkbox auswählen, welche definitiv geladen werden – erst dann Kennzeichen,
-        Grenze und Ladeliste. Kein SIPO. Aviso geht an zoll@worldofgreen.at.
+        Grenze und Ladeliste. Keine Dispo durch WOG. Aviso geht an zoll@worldofgreen.at.
         {' '}
         <Link href="/customs">Zurück zur Erfassung</Link>
       </p>

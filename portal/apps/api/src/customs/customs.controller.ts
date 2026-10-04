@@ -45,7 +45,7 @@ class CreateCustomsDto {
   @IsString()
   grenzuebergang?: string;
 
-  /** Selbstfahrer: LKW/Grenze später (Beladung) – kein SIPO */
+  /** Selbstfahrer: LKW/Grenze später (Beladung) – keine Dispo durch WOG */
   @IsOptional()
   deferVehicle?: boolean | string;
 

@@ -94,7 +94,7 @@ Portal-Formular für Verzollung. Schreibt Auftrag nach Soloplan mit:
 - `verzollungsauftrag: true`
 - Order-`customFields.customBool8` (Auftragsebene = Soloplan CFBOOLEAN8 „Verzollungsauftrag“)
 
-**Selbstfahrer (z. B. ERVO, kein SIPO):** Checkbox „LKW/Grenze später“. Erfassung geht sofort nach Soloplan; Kennzeichen/Grenze erst unter **`/customs/beladung`** per Auswahl → Soloplan-Update + Ladeliste + Ankunftsaviso an `zoll@worldofgreen.at`.
+**Selbstfahrer (z. B. ERVO, keine Dispo durch WOG):** Checkbox „LKW/Grenze später“. Erfassung geht sofort nach Soloplan; Kennzeichen/Grenze erst unter **`/customs/beladung`** per Auswahl → Soloplan-Update + Ladeliste + Ankunftsaviso an `zoll@worldofgreen.at`.
 
 **Keine** AT/CH Ausfuhr-/Einfuhr-Listenflags hier – die kommen nur mit Docs/XMLs über OrderEzoll (siehe §3).
 

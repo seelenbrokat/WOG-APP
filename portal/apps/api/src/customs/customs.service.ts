@@ -67,7 +67,7 @@ export type CreateCustomsInput = {
   importeur: string;
   /**
    * Selbstfahrer (z. B. ERVO): LKW/Grenze später bei Beladung setzen.
-   * Kein SIPO – nur Portal-Beladung + Soloplan-Update + Ladeliste/Aviso.
+   * Keine Dispo durch WOG – nur Portal-Beladung + Soloplan-Update + Ladeliste/Aviso.
    */
   deferVehicle?: boolean | string;
   zazKonto?: string;
@@ -230,7 +230,7 @@ export class CustomsService {
     let zulassungslandAnhaenger: string | null = null;
 
     if (vehicleDeferred) {
-      // Selbstfahrer (ERVO): LKW/Grenze erst bei Beladung – kein SIPO
+      // Selbstfahrer (ERVO): LKW/Grenze erst bei Beladung – keine Dispo durch WOG
       kennzeichen = CUSTOMS_VEHICLE_DEFERRED_PLATE;
       grenzuebergang = CUSTOMS_VEHICLE_DEFERRED_BORDER;
     } else {
@@ -462,7 +462,7 @@ export class CustomsService {
         `Auftrag: ${order.externalNumber}`,
         `Kunde: ${full.customer.name}`,
         vehicleDeferred
-          ? 'Selbstfahrer: Kennzeichen/Grenze folgen bei Beladungs-Freigabe (kein SIPO)'
+          ? 'Selbstfahrer: Kennzeichen/Grenze folgen bei Beladungs-Freigabe (keine Dispo durch WOG)'
           : `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
         !vehicleDeferred && order.kennzeichenAnhaenger
           ? `Kennzeichen Anhänger: ${order.kennzeichenAnhaenger} (${order.zulassungslandAnhaenger || '–'})`

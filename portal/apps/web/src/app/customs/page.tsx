@@ -460,7 +460,7 @@ export default function CustomsPage() {
         Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger und Pflicht-Rechnung.
         Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
         Selbstfahrer (ERVO): Option „LKW/Grenze später“ – Beladung unter{' '}
-        <a href="/customs/beladung">Beladung Zoll</a> (kein SIPO).
+        <a href="/customs/beladung">Beladung Zoll</a> (keine Dispo durch WOG).
         {isCustomer
           ? ` Auftraggeber: ${customerName || 'angemeldeter Kunde'}.`
           : ' Admin/Disposition kann Aufträge für Kunden erfassen und bearbeiten.'}
@@ -493,7 +493,7 @@ export default function CustomsPage() {
             checked={deferVehicle}
             onChange={(e) => setDeferVehicle(e.target.checked)}
           />
-          Selbstfahrer: LKW und Grenze später bei Beladung setzen (kein SIPO)
+          Selbstfahrer: LKW und Grenze später bei Beladung setzen (keine Dispo durch WOG)
         </label>
 
         {!deferVehicle ? (
