@@ -519,14 +519,16 @@ export default function ShipmentsPage() {
                         ) : null}
                       </td>
                       <td className="col-route">
+                        <span className="meta-label">Absender</span>
                         <span className="cell-clip" title={pickupTitle}>
-                          {clip(s.pickupCompany, 26)}
+                          <strong>{clip(s.pickupCompany, 28) || '–'}</strong>
                         </span>
                         <span className="meta cell-clip" title={pickupTitle}>
                           {[s.pickupZip, s.pickupCity].filter(Boolean).join(' ') || '–'}
                         </span>
-                        <span className="meta cell-clip" title={deliveryTitle}>
-                          → {clip(s.deliveryCompany, 26)}
+                        <span className="meta-label">Empfänger</span>
+                        <span className="cell-clip" title={deliveryTitle}>
+                          <strong>{clip(s.deliveryCompany, 28) || '–'}</strong>
                         </span>
                         <span className="meta cell-clip" title={deliveryTitle}>
                           {[s.deliveryZip, s.deliveryCity].filter(Boolean).join(' ') || '–'}

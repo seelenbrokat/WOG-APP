@@ -119,6 +119,8 @@ export class EzollFreightPayerService {
     customerId: string;
   }): Promise<{ id: string; trackingNumber: string; customerId: string; created: boolean } | null> {
     const orderKey = String(input.orderNumber).trim();
+    const route = await this.resolveRouteFromTour(input.organizationId, orderKey);
+
     const existing = await this.prisma.shipment.findFirst({
       where: {
         organizationId: input.organizationId,
@@ -129,10 +131,45 @@ export class EzollFreightPayerService {
           { order: { soloplanRef: { equals: orderKey, mode: 'insensitive' } } },
         ],
       },
-      select: { id: true, trackingNumber: true, customerId: true },
+      select: {
+        id: true,
+        trackingNumber: true,
+        customerId: true,
+        pickupCompany: true,
+        deliveryCompany: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
     if (existing?.customerId) {
+      // Route nachziehen, falls Doc-Carrier ohne Absender/Empfänger angelegt wurde
+      if (
+        route &&
+        (!existing.pickupCompany?.trim() || !existing.deliveryCompany?.trim())
+      ) {
+        await this.prisma.shipment.update({
+          where: { id: existing.id },
+          data: {
+            ...(!existing.pickupCompany?.trim()
+              ? {
+                  pickupCompany: route.pickupCompany,
+                  pickupStreet: route.pickupStreet,
+                  pickupZip: route.pickupZip,
+                  pickupCity: route.pickupCity,
+                  pickupCountry: route.pickupCountry,
+                }
+              : {}),
+            ...(!existing.deliveryCompany?.trim()
+              ? {
+                  deliveryCompany: route.deliveryCompany,
+                  deliveryStreet: route.deliveryStreet,
+                  deliveryZip: route.deliveryZip,
+                  deliveryCity: route.deliveryCity,
+                  deliveryCountry: route.deliveryCountry,
+                }
+              : {}),
+          },
+        });
+      }
       return {
         id: existing.id,
         trackingNumber: existing.trackingNumber,
@@ -190,18 +227,82 @@ export class EzollFreightPayerService {
         packageCount: 1,
         extras: { ezollDocCarrier: true, soloplanOrderNumber: orderKey },
         createdById: admin?.id,
+        ...(route || {}),
       },
       select: { id: true, trackingNumber: true, customerId: true },
     });
 
     this.log.log(
-      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId})`,
+      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId})` +
+        (route?.pickupCompany ? ` Route ${route.pickupCompany} → ${route.deliveryCompany}` : ''),
     );
     return {
       id: shipment.id,
       trackingNumber: shipment.trackingNumber,
       customerId: shipment.customerId,
       created: true,
+    };
+  }
+
+  /** Absender/Empfänger aus Tour-Consignment (Soloplan-Tourenimport). */
+  private async resolveRouteFromTour(
+    organizationId: string,
+    orderKey: string,
+  ): Promise<{
+    pickupCompany: string;
+    pickupStreet?: string;
+    pickupZip?: string;
+    pickupCity?: string;
+    pickupCountry?: string;
+    deliveryCompany: string;
+    deliveryStreet?: string;
+    deliveryZip?: string;
+    deliveryCity?: string;
+    deliveryCountry?: string;
+  } | null> {
+    const key = String(orderKey).trim();
+    if (!key) return null;
+
+    const cons = await this.prisma.tourConsignment.findFirst({
+      where: {
+        tour: { organizationId },
+        OR: [
+          { orderNumber: key },
+          { soloplanOrderNumber: key },
+        ],
+      },
+      select: {
+        senderName: true,
+        receiverName: true,
+        details: true,
+      },
+      orderBy: { id: 'desc' },
+    });
+    if (!cons) return null;
+
+    const details =
+      cons.details && typeof cons.details === 'object' && !Array.isArray(cons.details)
+        ? (cons.details as Record<string, any>)
+        : {};
+    const sender = details.sender || {};
+    const receiver = details.receiver || {};
+    const sAddr = sender.address || {};
+    const rAddr = receiver.address || {};
+    const pickupCompany = String(cons.senderName || sender.name || '').trim();
+    const deliveryCompany = String(cons.receiverName || receiver.name || '').trim();
+    if (!pickupCompany && !deliveryCompany) return null;
+
+    return {
+      pickupCompany: pickupCompany || '–',
+      pickupStreet: sAddr.street ? String(sAddr.street) : undefined,
+      pickupZip: sAddr.zip ? String(sAddr.zip) : undefined,
+      pickupCity: sAddr.city ? String(sAddr.city) : undefined,
+      pickupCountry: sAddr.country ? String(sAddr.country) : undefined,
+      deliveryCompany: deliveryCompany || '–',
+      deliveryStreet: rAddr.street ? String(rAddr.street) : undefined,
+      deliveryZip: rAddr.zip ? String(rAddr.zip) : undefined,
+      deliveryCity: rAddr.city ? String(rAddr.city) : undefined,
+      deliveryCountry: rAddr.country ? String(rAddr.country) : undefined,
     };
   }
 }
