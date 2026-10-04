@@ -20,7 +20,10 @@ export type EzollCc029WriteFields = {
 };
 
 /**
- * Schreibt OrderEzoll-v4 Updates für Soloplan/CarLo (File-Pickup).
+ * Schreibt OrderEzoll-Updates für Soloplan/CarLo (File-Pickup).
+ *
+ * Zollflags gehen NUR mit den Zoll-Dokumenten/XMLs zurück (OrderEzoll),
+ * nicht über Portal-Erfassung / OrderImportPORTAL.
  *
  * Ausgabeordner für Automate:
  * - Auftrag/Sendung: …/ezoll/consignment/  (JSON-Root abhängig von SOLOPLAN_EZOLL_ROOT)
@@ -66,9 +69,20 @@ export class EzollSoloplanService {
   }
 
   /**
+   * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML,
+   * immer auf **Sendungs**-Ebene (Consignment):
+   * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
+   * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)  [Sendung]
+   * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste) [Sendung]
+   * - CH Ausfuhr: CFBOOLEAN7 → customBool7 [Sendung]
+   *
+   * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
+   * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
+   *
    * CC529CC (ABD) →
    * - Match: ordernumber + itemNumber
-   * - cC529C, mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
+   * - cC529C + ausfuhrverzollungATEU (Listen-Checkbox „AT Ausfuhr“)
+   * - mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
    */
   writeCc529FlagUpdate(
     match: EzollSoloplanMatch,
@@ -83,6 +97,8 @@ export class EzollSoloplanService {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
       cC529C: true,
+      // Soloplan-Listenfeld „AT Ausfuhr“ (nicht identisch mit cC529C allein)
+      ausfuhrverzollungATEU: true,
     };
     this.applyMatch(consignment, match, 'CC529');
 
@@ -100,6 +116,7 @@ export class EzollSoloplanService {
    * EZ922 / EZ923 →
    * - Match: ordernumber + itemNumber (Dateiname)
    * - eZ922 / eZ923 = true
+   * - aTEinfuhr + CFBOOLEAN8 (customBool8) = Listen-Checkbox „AT Einfuhr“
    * - CRN → mRNATAPI
    * - DefPayRef (Abgabenkonto) → aufschubkonto
    * - DutyCalc EUSt → mWSTAT
@@ -114,6 +131,9 @@ export class EzollSoloplanService {
   ): string {
     const consignment: Record<string, unknown> = {
       actionAttribute: 'update',
+      // Soloplan „AT Einfuhr“: named field + CFBOOLEAN8
+      aTEinfuhr: true,
+      customFields: { customBool8: true },
     };
     if (fields.msgTyp === 'EZ922') consignment.eZ922 = true;
     else consignment.eZ923 = true;
@@ -170,12 +190,13 @@ export class EzollSoloplanService {
   /**
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
-   * - Flags: bezugsschein / einfuhliste / definitiv / veranlagungsverfügung*
+   * - Listen-Flags (Soloplan Zoll-Felddefinition):
+   *   CH Einfuhr: CFBOOLEAN6 (customBool6) + bezugsschein/einfuhrliste
+   *   CH Ausfuhr: CFBOOLEAN7 (customBool7)
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
-   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv,
-   *   cHAusfuhr (CH-Ausfuhr / CFBOOLEAN7, top-level wie definitiv — File-API)
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv, CFBOOLEAN7
    * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
@@ -189,12 +210,27 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
-    if (fields.docType === 'EINFUHRLISTE') consignment.einfuhrliste = true;
-    // PDF zeigt oft „Einfuhrliste Definitiv“ auch auf dem Bezugsschein
-    if (fields.definitiv) {
+    // Listen-Checkbox „CH Einfuhr“ = CFBOOLEAN6 + Doc-Flags (nur OrderEzoll mit Doc)
+    const chEinfuhrDocs = new Set([
+      'BEZUGSSCHEIN',
+      'EINFUHRLISTE',
+      'EVV_MWST',
+      'EVV_ZOLL',
+      'BORDEREAU',
+    ]);
+    if (chEinfuhrDocs.has(fields.docType)) {
+      if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
+      consignment.einfuhrliste = true;
+      if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
+        consignment.bezugsschein = true;
+      }
+      consignment.customFields = {
+        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
+        customBool6: true,
+      };
+    }
+    if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
       consignment.definitiv = true;
-      if (fields.docType === 'BEZUGSSCHEIN') consignment.einfuhrliste = true;
     }
 
     if (fields.chDeclarationNumber) {
@@ -228,10 +264,12 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Soloplan „CH-Ausfuhr“ (CFBOOLEAN7): File-API erwartet top-level cHAusfuhr
-    // (wie definitiv / eZ922). customFields.customBool7 wird still verworfen.
+    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7) – nur OrderEzoll mit Doc
     if (fields.docType === 'AUSFUHR_VV') {
-      consignment.cHAusfuhr = true;
+      consignment.customFields = {
+        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
+        customBool7: true,
+      };
     }
 
     const prefix =

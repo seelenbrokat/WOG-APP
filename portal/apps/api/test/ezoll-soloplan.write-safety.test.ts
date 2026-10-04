@@ -49,6 +49,8 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.actionAttribute, 'update');
       assert.equal(row.eZ922, true);
+      assert.equal(row.aTEinfuhr, true);
+      assert.deepEqual(row.customFields, { customBool8: true }); // CFBOOLEAN8 AT-Einfuhr
       assert.equal(row.mRNATAPI, '26ATCRNTEST000001');
       assert.equal(row.aufschubkonto, 'AT123456');
       assert.equal(row.mWSTAT, 120.5);
@@ -76,6 +78,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.deepEqual(row.ordernumber, { number: 441929 });
       assert.equal(row.itemNumber, 1);
       assert.equal(row.cC529C, true);
+      assert.equal(row.ausfuhrverzollungATEU, true);
       assert.equal(row.eUR1_API, 'X 613179');
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -126,6 +129,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       const row = (order.consignments as Array<Record<string, unknown>>)[0];
       assert.equal(row.itemNumber, 1);
       assert.equal(row.cC529C, true);
+      assert.equal(row.ausfuhrverzollungATEU, true);
       assert.equal(row.mRNATAPI, '26AT920000XA0DHKA1');
       assert.equal(row.lRN, '443153.1/C ROBO/HELP');
       assert.equal(row.tarifnummerATAPI, 1);
@@ -172,6 +176,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.einfuhrliste, true);
       assert.equal(row.definitiv, true);
+      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 CH-Einfuhr
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
@@ -308,12 +313,14 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.kontoMWST, '68980');
       assert.equal(row.zollabgabenCH, 0);
       assert.equal(row.mWSTCH, 10);
+      assert.equal(row.einfuhrliste, true); // CH-Einfuhr Doc-Flag bei eVV
+      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('order-Root Mercurio Ausfuhr VV: GDRN + EUR.1 + definitiv, ohne Beträge', () => {
+  it('order-Root Mercurio Ausfuhr VV: GDRN + EUR.1 + definitiv + CFBOOLEAN7, ohne Beträge', () => {
     const root = mkdtempSync(join(tmpdir(), 'ezoll-order-ausfuhr-'));
     try {
       const svc = makeService(root, 'order');
@@ -352,8 +359,9 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.definitiv, true);
       assert.equal(row.eUR1_API, 'T 0691198');
       assert.equal(row.tarifnummernCHAPI, 2);
-      assert.equal(row.cHAusfuhr, true);
-      assert.equal(row.customFields, undefined);
+      // CH-Ausfuhr = CFBOOLEAN7 im OrderEzoll-Update mit dem Doc (kein OrderImport)
+      assert.equal(row.cHAusfuhr, undefined);
+      assert.deepEqual(row.customFields, { customBool7: true });
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.zollabgabenCH, undefined);
       assert.equal(row.bezugsschein, undefined);

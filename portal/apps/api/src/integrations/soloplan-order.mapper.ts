@@ -779,16 +779,6 @@ function applyCustomsConsignmentFields(
   if (fields.smsSmartBorder != null) {
     consignment.sMSSmartBorder = fields.smsSmartBorder;
   }
-  // Soloplan CFBOOLEAN8 „Verzollungsauftrag“ → customFields.customBool8
-  if (isVerzollungsauftrag(shipment)) {
-    const prev =
-      consignment.customFields &&
-      typeof consignment.customFields === 'object' &&
-      !Array.isArray(consignment.customFields)
-        ? { ...(consignment.customFields as Record<string, unknown>) }
-        : {};
-    consignment.customFields = { ...prev, customBool8: true };
-  }
   // Alte Title-Keys nie mitsenden (CarLo: NoAdditionalPropertiesAllowed)
   delete consignment.Telefon_Smartborder;
   delete consignment.MailSmartborder;
@@ -948,9 +938,12 @@ export function buildSoloplanFilePayload(
           orderDate: formatSoloplanDate(new Date()),
           // Immer: Auftrag kommt aus dem VLB-Portal
           erstelltviaVLBPortal: true,
-          // FileAPI: verzollungsauftrag = true wenn Verzollung (Legacy-Flag)
+          // FileAPI named flag + Order-CFBOOLEAN8 (ANORMALORDERCUSTOMFIELDV)
+          // Verzollungsauftrag sitzt auf Auftragsebene – nicht auf der Sendung.
           verzollungsauftrag: anyVerzollung,
-          // CFBOOLEAN8 „Verzollungsauftrag“ sitzt am Consignment (customFields.customBool8)
+          ...(anyVerzollung
+            ? { customFields: { customBool8: true } }
+            : {}),
           customer: toMasterDataBp(customerToBp(orderCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
