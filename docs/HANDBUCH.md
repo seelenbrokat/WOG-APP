@@ -91,8 +91,7 @@ Worker: Wareneingang-XML, Proforma-WE, Schmidts-Ladeliste wo konfiguriert.
 
 Portal-Formular für Verzollung. Schreibt Auftrag nach Soloplan mit:
 
-- `verzollungsauftrag: true`
-- Order-`customFields.customBool8` (Auftragsebene = Soloplan CFBOOLEAN8 „Verzollungsauftrag“)
+- `verzollungsauftrag: true` (FileAPI named Flag → Soloplan CFBOOLEAN8; **kein** `order.customFields` – OrderImportPORTAL-Schema verbietet das)
 
 **Selbstfahrer (z. B. ERVO, keine Dispo durch WOG):** Checkbox „LKW/Grenze später“. Erfassung geht sofort nach Soloplan; Kennzeichen/Grenze erst unter **`/customs/beladung`** per Auswahl → Soloplan-Update + Ladeliste + Ankunftsaviso an `zoll@worldofgreen.at`.
 
@@ -124,7 +123,7 @@ Interne Drehscheibe Soloplan ↔ LDV ↔ Mercurio.
 
 | Kanal | Datei-API / Pfad | Was wird gesetzt |
 |-------|------------------|------------------|
-| **OrderImportPORTAL** | `outbound/soloplan/orders/` | Neuer Auftrag inkl. optional `verzollungsauftrag` + Order-CFBOOLEAN8 |
+| **OrderImportPORTAL** | `outbound/soloplan/orders/` | Neuer Auftrag inkl. optional `verzollungsauftrag` (→ CFBOOLEAN8; ohne `order.customFields`) |
 | **OrderEzoll** | `outbound/soloplan/ezoll/consignment/` (bzw. tour/) | Updates mit Docs/XMLs + **Listenflags** AT/CH |
 
 Regel: **Zoll-Listenflags nur mit Dokumenten/XMLs über OrderEzoll**, nie über Portal-Erfassung / OrderImport.
@@ -137,9 +136,9 @@ Regel: **Zoll-Listenflags nur mit Dokumenten/XMLs über OrderEzoll**, nie über 
 | AT Einfuhr | `aTEinfuhr` + `customBool8` | Sendung | EZ922 / EZ923 |
 | CH Einfuhr | `bezugsschein` / `einfuhrliste` + `customBool6` | Sendung | Mercurio BS/EL / Einfuhr-PDF |
 | CH Ausfuhr | `customBool7` | Sendung | Mercurio AUSFUHR_VV / Ausfuhr |
-| Verzollungsauftrag | `verzollungsauftrag` + Order-`customBool8` | **Auftrag** | Portal Customs / OrderImport |
+| Verzollungsauftrag | `verzollungsauftrag` (named Flag) | **Auftrag** | Portal Customs / OrderImport |
 
-Hinweis: Sendungs-`customBool8` (AT Einfuhr) ≠ Order-`customBool8` (Verzollungsauftrag). Unterschiedliche Soloplan-Spalten.
+Hinweis: Sendungs-`customBool8` (AT Einfuhr via OrderEzoll) ≠ Auftrags-Flag `verzollungsauftrag` (OrderImport). `order.customFields` ist im OrderImportPORTAL-Schema nicht erlaubt.
 
 Code:
 
@@ -190,7 +189,7 @@ Ausführlich: [PROD_BASELINE.md](./PROD_BASELINE.md).
 |---|--------|-----|
 | 1 | Web erreichbar, Login Admin/Dispo/Kunde | |
 | 2 | Neuer Auftrag → JSON in `soloplan/orders/` | |
-| 3 | Customs-Formular → `verzollungsauftrag` + Order-CFBOOLEAN8 | |
+| 3 | Customs-Formular → `verzollungsauftrag` (OrderImport named Flag) | |
 | 4 | eZoll/Mercurio Inbound → PDF + OrderEzoll mit korrektem Flag | |
 | 5 | Fahrer-QR / Ablieferbeleg | |
 | 6 | Touren/Map ohne 500 | |

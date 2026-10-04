@@ -87,14 +87,14 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.mailSmartborder, 'disposition@beispiel.at');
     assert.equal(c.sMSSmartBorder, true);
     assert.equal(c.kennzeichen, 'W-12345T');
-    // Verzollungsauftrag = Order-CFBOOLEAN8 (Auftragsebene), nicht Sendung
+    // Verzollungsauftrag nur als named Flag (kein order.customFields – Schema verbietet es)
     assert.equal(
       (c.customFields as { customBool8?: boolean } | undefined)?.customBool8,
       undefined,
     );
-    assert.deepEqual(
+    assert.equal(
       (order as { customFields?: { customBool8?: boolean } }).customFields,
-      { customBool8: true },
+      undefined,
     );
     // Title-Schreibweise darf nicht im JSON landen (CarLo additionalProperties:false)
     assert.equal(c.Telefon_Smartborder, undefined);
@@ -102,17 +102,19 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(c.SMSSmartBorder, undefined);
   });
 
-  it('setzt Order-customBool8 bei extras.verzollung (Verzollungsauftrag Auftragsebene)', () => {
+  it('setzt verzollungsauftrag bei extras.verzollung (ohne order.customFields)', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({ extras: { verzollung: true } }),
       { format: 'order' },
     ) as {
       order: Array<{
+        verzollungsauftrag?: boolean;
         customFields?: { customBool8?: boolean; customBool10?: boolean };
         consignments: Array<Record<string, unknown>>;
       }>;
     };
-    assert.deepEqual(payload.order[0].customFields, { customBool8: true });
+    assert.equal(payload.order[0].verzollungsauftrag, true);
+    assert.equal(payload.order[0].customFields, undefined);
     const cf = payload.order[0].consignments[0].customFields as {
       customBool8?: boolean;
       customBool10?: boolean;
@@ -121,7 +123,7 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     assert.equal(cf.customBool10, true);
   });
 
-  it('setzt Order-customBool8 nicht ohne Verzollungsauftrag', () => {
+  it('setzt order.customFields nie (OrderImport Schema)', () => {
     const payload = buildSoloplanFilePayload(baseShipment(), { format: 'order' }) as {
       order: Array<{ customFields?: { customBool8?: boolean } }>;
     };

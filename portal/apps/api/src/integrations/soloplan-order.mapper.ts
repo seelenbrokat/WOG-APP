@@ -938,12 +938,10 @@ export function buildSoloplanFilePayload(
           orderDate: formatSoloplanDate(new Date()),
           // Immer: Auftrag kommt aus dem VLB-Portal
           erstelltviaVLBPortal: true,
-          // FileAPI named flag + Order-CFBOOLEAN8 (ANORMALORDERCUSTOMFIELDV)
-          // Verzollungsauftrag sitzt auf Auftragsebene – nicht auf der Sendung.
+          // FileAPI named flag → Soloplan CFBOOLEAN8 „Verzollungsauftrag“ (Auftragsebene).
+          // Kein order.customFields: OrderImportPORTAL-v6 erlaubt das nicht
+          // (CarLo: NoAdditionalPropertiesAllowed #/order[0].customFields).
           verzollungsauftrag: anyVerzollung,
-          ...(anyVerzollung
-            ? { customFields: { customBool8: true } }
-            : {}),
           customer: toMasterDataBp(customerToBp(orderCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
