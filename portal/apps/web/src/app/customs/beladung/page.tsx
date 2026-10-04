@@ -145,11 +145,11 @@ export default function CustomsBeladungPage() {
   }
 
   return (
-    <AppShell title="Beladung Verzollung">
+    <AppShell title="Beladung Sammelfahrzeug">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Selbstfahrer (z. B. ERVO): Sendungen zuerst erfassen und nach Soloplan schicken.
-        Hier per Checkbox auswählen, welche definitiv geladen werden – erst dann Kennzeichen,
-        Grenze und Ladeliste. Keine Dispo durch WOG. Aviso geht an zoll@worldofgreen.at.
+        Verzollungsaufträge mit Sammelfahrzeug: Sendungen zuerst erfassen und nach Soloplan
+        schicken. Hier per Checkbox auswählen, welche definitiv geladen werden – erst dann
+        Kennzeichen, Grenze und Ladeliste. Aviso geht an zoll@worldofgreen.at.
         {' '}
         <Link href="/customs">Zurück zur Erfassung</Link>
       </p>
@@ -173,7 +173,7 @@ export default function CustomsBeladungPage() {
           </div>
         </div>
         {!pending.length ? (
-          <p className="muted">Keine Sendungen mit „LKW später“ in der Warteschlange.</p>
+          <p className="muted">Keine Sendungen für Sammelfahrzeug in der Warteschlange.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table>
