@@ -973,9 +973,13 @@ export default function CustomsPage() {
                       </td>
                     ) : null}
                     <td className="col-vehicle">
-                      <strong className="mono">{o.kennzeichen}</strong>
+                      <strong className="mono">
+                        {o.vehicleDeferred || o.kennzeichen === 'OFFEN'
+                          ? 'LKW später'
+                          : o.kennzeichen}
+                      </strong>
                       <span className="meta">{o.zulassungsland || '–'}</span>
-                      {o.kennzeichenAnhaenger ? (
+                      {o.kennzeichenAnhaenger && !(o.vehicleDeferred || o.kennzeichen === 'OFFEN') ? (
                         <span
                           className="meta mono"
                           title={`Anhänger ${o.kennzeichenAnhaenger}${
