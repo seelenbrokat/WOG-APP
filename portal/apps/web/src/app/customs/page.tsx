@@ -390,7 +390,12 @@ export default function CustomsPage() {
       }
 
       await api('/customs', { method: 'POST', body: fd });
-      setMessage('Verzollungsauftrag übermittelt.');
+      setMessage(
+        deferVehicle
+          ? 'Verzollungsauftrag übermittelt (LKW später unter Beladung Zoll).'
+          : 'Verzollungsauftrag übermittelt.',
+      );
+      setDeferVehicle(false);
       setPapers(null);
       setInvoice(null);
       setBorderCustom('');
