@@ -591,11 +591,52 @@ export class WareneingangService {
     });
     if (existing) {
       await this.ensureColliFromParsed(existing.id, parsed);
+      const consignment = parsed.consignments[0];
+      const current = await this.prisma.shipment.findUnique({
+        where: { id: existing.id },
+        select: {
+          pickupCompany: true,
+          deliveryCompany: true,
+        },
+      });
+      const fillRoute = Boolean(
+        consignment &&
+          (!current?.pickupCompany?.trim() || !current?.deliveryCompany?.trim()),
+      );
       await this.prisma.shipment.update({
         where: { id: existing.id },
         data: {
           soloplanRef: parsed.orderNumber,
           ...(consLak ? { reference: consLak } : {}),
+          ...(fillRoute && consignment
+            ? {
+                ...(!current?.pickupCompany?.trim()
+                  ? {
+                      pickupCompany: consignment.absName || parsed.name1 || undefined,
+                      pickupStreet: consignment.absStreet || parsed.street || undefined,
+                      pickupZip: consignment.absZip || parsed.zipCode || undefined,
+                      pickupCity: consignment.absCity || parsed.location1 || undefined,
+                      pickupCountry:
+                        consignment.absCountry || parsed.country || undefined,
+                      ...(consignment.ladeStart
+                        ? { pickupDate: new Date(consignment.ladeStart) }
+                        : {}),
+                    }
+                  : {}),
+                ...(!current?.deliveryCompany?.trim()
+                  ? {
+                      deliveryCompany: consignment.empfName || undefined,
+                      deliveryStreet: consignment.empfStreet || undefined,
+                      deliveryZip: consignment.empfZip || undefined,
+                      deliveryCity: consignment.empfCity || undefined,
+                      deliveryCountry: consignment.empfCountry || undefined,
+                      ...(consignment.lieferStart
+                        ? { deliveryDate: new Date(consignment.lieferStart) }
+                        : {}),
+                    }
+                  : {}),
+              }
+            : {}),
         },
       });
       return { id: existing.id, linked: false, updated: true };
