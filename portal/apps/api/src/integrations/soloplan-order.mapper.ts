@@ -259,6 +259,51 @@ function countryCode(country?: string | null): string {
   return c.slice(0, 2) || 'AT';
 }
 
+/** UI-Platzhalter (Select „Bitte wählen Sie:“) – nie als Soloplan-Ort senden. */
+export function isPlaceholderCity(city?: string | null): boolean {
+  const raw = String(city || '').trim();
+  if (!raw) return true;
+  if (/^bitte\s*wählen/i.test(raw)) return true;
+  if (/^please\s*select/i.test(raw)) return true;
+  if (/^-+\s*select/i.test(raw)) return true;
+  return false;
+}
+
+/**
+ * Häufige PLZ→Ort (WOG-Raum). Soloplan verlangt city1, wenn keine Geo-Koordinaten gesetzt sind.
+ * Leerer String nach Platzhalter-Sanitisierung → Import-Abbruch.
+ */
+const CITY_BY_ZIP: Record<string, string> = {
+  '6700': 'Bludenz',
+  '6800': 'Feldkirch',
+  '6820': 'Frastanz',
+  '6830': 'Rankweil',
+  '6845': 'Hohenems',
+  '6850': 'Dornbirn',
+  '6900': 'Bregenz',
+  '6911': 'Lochau',
+  '6971': 'Hard',
+  '9435': 'Heerbrugg',
+  '9444': 'Diepoldsau',
+  '9450': 'Altstätten',
+  '9470': 'Buchs',
+};
+
+/**
+ * Soloplan city1: Platzhalter verwerfen, sonst PLZ-Lookup, nie leerer String.
+ */
+export function resolveSoloplanCity(
+  city?: string | null,
+  zip?: string | null,
+): string {
+  if (!isPlaceholderCity(city)) return String(city).trim();
+  const z = String(zip || '').trim();
+  if (z && CITY_BY_ZIP[z]) return CITY_BY_ZIP[z];
+  // Letzter Ausweg: Soloplan lehnt "" ab – PLZ als Ort-Hinweis besser als Import-Fail
+  if (z) return z;
+  return 'Unbekannt';
+}
+
 function toMasterDataBp(bp: BusinessPartnerLike) {
   const numberRaw = bp.number;
   const number =
@@ -311,7 +356,8 @@ function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
     ...(houseNumber ? { houseNumber } : {}),
     country: countryCode(addr.country),
     zipCode: addr.zip || '',
-    city1: addr.city || '',
+    // CarLo: „Ortsname … darf nicht leer sein wenn keine Geo Koordinaten gesetzt sind“
+    city1: resolveSoloplanCity(addr.city, addr.zip),
   };
   if (bp && (bp.number || bp.matchcode || bp.name)) {
     party.masterDataBusinessPartner = toMasterDataBp({
@@ -905,12 +951,16 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    // Verzollung: Soloplan-Kunde kommt aus shipment.customer
-    // (exportCustomsOrder: Absender Heron → BP 891, sonst Auftraggeber z. B. Herzog 845).
-    // Sonst: optional abweichender Frachtzahler als order.customer.
+    // Verzollung: Soloplan-Kunde (order.customer) = Auftraggeber
+    // (exportCustomsOrder: Absender Heron → BP 891, sonst AG z. B. Herzog 845 / ERVO 5600).
+    // Transport: historisch Frachtzahler in order.customer.
+    // CarLo OrderImport mappt Frachtzahler auf order.freightPayer – ohne dieses Feld:
+    // „Frachtzahler: nicht in der Importdatei“ / ArrayItemNotValid #/order[0].
     const orderCustomer = anyVerzollung
       ? shipment.customer
       : shipment.order?.freightPayer || shipment.customer;
+    const freightPayerCustomer =
+      shipment.order?.freightPayer || orderCustomer;
     const externalNumber = orderExternalNumber(shipment);
     // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
     // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
@@ -943,6 +993,7 @@ export function buildSoloplanFilePayload(
           // (CarLo: NoAdditionalPropertiesAllowed #/order[0].customFields).
           verzollungsauftrag: anyVerzollung,
           customer: toMasterDataBp(customerToBp(orderCustomer)),
+          freightPayer: toMasterDataBp(customerToBp(freightPayerCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },

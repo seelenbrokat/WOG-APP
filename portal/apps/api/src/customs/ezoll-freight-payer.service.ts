@@ -119,20 +119,86 @@ export class EzollFreightPayerService {
     customerId: string;
   }): Promise<{ id: string; trackingNumber: string; customerId: string; created: boolean } | null> {
     const orderKey = String(input.orderNumber).trim();
+    const route = await this.resolveRouteFromTour(input.organizationId, orderKey);
+    // Referenz = Soloplan-Auftragsnummer mit WOG-Präfix (nicht „EZOLL-…“)
+    const portalRef = `WOG-${orderKey}`;
+
     const existing = await this.prisma.shipment.findFirst({
       where: {
         organizationId: input.organizationId,
         OR: [
           { soloplanRef: { equals: orderKey, mode: 'insensitive' } },
           { reference: { equals: `WE-${orderKey}`, mode: 'insensitive' } },
-          { reference: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } },
+          { reference: { equals: portalRef, mode: 'insensitive' } },
+          { reference: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } }, // legacy
           { order: { soloplanRef: { equals: orderKey, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: portalRef, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } } },
         ],
       },
-      select: { id: true, trackingNumber: true, customerId: true },
+      select: {
+        id: true,
+        trackingNumber: true,
+        customerId: true,
+        pickupCompany: true,
+        deliveryCompany: true,
+        reference: true,
+        orderId: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
     if (existing?.customerId) {
+      // Alte EZOLL-Referenz → WOG-{Order}
+      if (
+        existing.reference?.toUpperCase().startsWith('EZOLL-') ||
+        (existing.reference && existing.reference !== portalRef && !existing.reference.startsWith('WE-') && !/^LAK/i.test(existing.reference))
+      ) {
+        const legacyEzoll = existing.reference?.toUpperCase().startsWith('EZOLL-');
+        if (legacyEzoll) {
+          await this.prisma.shipment.update({
+            where: { id: existing.id },
+            data: { reference: portalRef },
+          });
+          if (existing.orderId) {
+            await this.prisma.transportOrder.updateMany({
+              where: {
+                id: existing.orderId,
+                externalNumber: { startsWith: 'EZOLL-' },
+              },
+              data: { externalNumber: portalRef },
+            });
+          }
+        }
+      }
+      // Route nachziehen, falls Doc-Carrier ohne Absender/Empfänger angelegt wurde
+      if (
+        route &&
+        (!existing.pickupCompany?.trim() || !existing.deliveryCompany?.trim())
+      ) {
+        await this.prisma.shipment.update({
+          where: { id: existing.id },
+          data: {
+            ...(!existing.pickupCompany?.trim()
+              ? {
+                  pickupCompany: route.pickupCompany,
+                  pickupStreet: route.pickupStreet,
+                  pickupZip: route.pickupZip,
+                  pickupCity: route.pickupCity,
+                  pickupCountry: route.pickupCountry,
+                }
+              : {}),
+            ...(!existing.deliveryCompany?.trim()
+              ? {
+                  deliveryCompany: route.deliveryCompany,
+                  deliveryStreet: route.deliveryStreet,
+                  deliveryZip: route.deliveryZip,
+                  deliveryCity: route.deliveryCity,
+                  deliveryCountry: route.deliveryCountry,
+                }
+              : {}),
+          },
+        });
+      }
       return {
         id: existing.id,
         trackingNumber: existing.trackingNumber,
@@ -153,10 +219,17 @@ export class EzollFreightPayerService {
       select: { id: true },
     });
 
-    const externalNumber = `EZOLL-${orderKey}`;
+    const externalNumber = portalRef;
     let order = await this.prisma.transportOrder.findFirst({
-      where: { organizationId: input.organizationId, externalNumber },
-      select: { id: true },
+      where: {
+        organizationId: input.organizationId,
+        OR: [
+          { externalNumber: portalRef },
+          { externalNumber: `EZOLL-${orderKey}` },
+          { soloplanRef: orderKey },
+        ],
+      },
+      select: { id: true, externalNumber: true },
     });
     if (!order) {
       order = await this.prisma.transportOrder.create({
@@ -168,7 +241,12 @@ export class EzollFreightPayerService {
           soloplanRef: orderKey,
           createdById: admin?.id,
         },
-        select: { id: true },
+        select: { id: true, externalNumber: true },
+      });
+    } else if (order.externalNumber?.toUpperCase().startsWith('EZOLL-')) {
+      await this.prisma.transportOrder.update({
+        where: { id: order.id },
+        data: { externalNumber: portalRef },
       });
     }
 
@@ -183,25 +261,89 @@ export class EzollFreightPayerService {
         orderId: order.id,
         trackingNumber: track,
         trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
-        reference: `EZOLL-${orderKey}`,
+        reference: portalRef,
         soloplanRef: orderKey,
         status: ShipmentStatus.SUBMITTED,
         goodsDescription: 'Austrittsbestätigung (eZoll) – Frachtzahler',
         packageCount: 1,
         extras: { ezollDocCarrier: true, soloplanOrderNumber: orderKey },
         createdById: admin?.id,
+        ...(route || {}),
       },
       select: { id: true, trackingNumber: true, customerId: true },
     });
 
     this.log.log(
-      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId})`,
+      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId}, Ref ${portalRef})` +
+        (route?.pickupCompany ? ` Route ${route.pickupCompany} → ${route.deliveryCompany}` : ''),
     );
     return {
       id: shipment.id,
       trackingNumber: shipment.trackingNumber,
       customerId: shipment.customerId,
       created: true,
+    };
+  }
+
+  /** Absender/Empfänger aus Tour-Consignment (Soloplan-Tourenimport). */
+  private async resolveRouteFromTour(
+    organizationId: string,
+    orderKey: string,
+  ): Promise<{
+    pickupCompany: string;
+    pickupStreet?: string;
+    pickupZip?: string;
+    pickupCity?: string;
+    pickupCountry?: string;
+    deliveryCompany: string;
+    deliveryStreet?: string;
+    deliveryZip?: string;
+    deliveryCity?: string;
+    deliveryCountry?: string;
+  } | null> {
+    const key = String(orderKey).trim();
+    if (!key) return null;
+
+    const cons = await this.prisma.tourConsignment.findFirst({
+      where: {
+        tour: { organizationId },
+        OR: [
+          { orderNumber: key },
+          { soloplanOrderNumber: key },
+        ],
+      },
+      select: {
+        senderName: true,
+        receiverName: true,
+        details: true,
+      },
+      orderBy: { id: 'desc' },
+    });
+    if (!cons) return null;
+
+    const details =
+      cons.details && typeof cons.details === 'object' && !Array.isArray(cons.details)
+        ? (cons.details as Record<string, any>)
+        : {};
+    const sender = details.sender || {};
+    const receiver = details.receiver || {};
+    const sAddr = sender.address || {};
+    const rAddr = receiver.address || {};
+    const pickupCompany = String(cons.senderName || sender.name || '').trim();
+    const deliveryCompany = String(cons.receiverName || receiver.name || '').trim();
+    if (!pickupCompany && !deliveryCompany) return null;
+
+    return {
+      pickupCompany: pickupCompany || '–',
+      pickupStreet: sAddr.street ? String(sAddr.street) : undefined,
+      pickupZip: sAddr.zip ? String(sAddr.zip) : undefined,
+      pickupCity: sAddr.city ? String(sAddr.city) : undefined,
+      pickupCountry: sAddr.country ? String(sAddr.country) : undefined,
+      deliveryCompany: deliveryCompany || '–',
+      deliveryStreet: rAddr.street ? String(rAddr.street) : undefined,
+      deliveryZip: rAddr.zip ? String(rAddr.zip) : undefined,
+      deliveryCity: rAddr.city ? String(rAddr.city) : undefined,
+      deliveryCountry: rAddr.country ? String(rAddr.country) : undefined,
     };
   }
 }

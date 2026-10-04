@@ -490,7 +490,11 @@ export default function ShipmentsPage() {
                         <span className="meta mono" title={s.trackingNumber}>
                           {s.trackingNumber}
                         </span>
-                        {s.reference ? (
+                        {s.reference &&
+                        s.reference !== s.order?.externalNumber &&
+                        s.reference !== s.soloplanRef &&
+                        s.reference !== `WOG-${s.soloplanRef}` &&
+                        s.reference !== `EZOLL-${s.soloplanRef}` ? (
                           <span className="meta" title={s.reference}>
                             Ref {clip(s.reference, 22)}
                           </span>
@@ -519,14 +523,16 @@ export default function ShipmentsPage() {
                         ) : null}
                       </td>
                       <td className="col-route">
+                        <span className="meta-label">Absender</span>
                         <span className="cell-clip" title={pickupTitle}>
-                          {clip(s.pickupCompany, 26)}
+                          <strong>{clip(s.pickupCompany, 28) || '–'}</strong>
                         </span>
                         <span className="meta cell-clip" title={pickupTitle}>
                           {[s.pickupZip, s.pickupCity].filter(Boolean).join(' ') || '–'}
                         </span>
-                        <span className="meta cell-clip" title={deliveryTitle}>
-                          → {clip(s.deliveryCompany, 26)}
+                        <span className="meta-label">Empfänger</span>
+                        <span className="cell-clip" title={deliveryTitle}>
+                          <strong>{clip(s.deliveryCompany, 28) || '–'}</strong>
                         </span>
                         <span className="meta cell-clip" title={deliveryTitle}>
                           {[s.deliveryZip, s.deliveryCity].filter(Boolean).join(' ') || '–'}

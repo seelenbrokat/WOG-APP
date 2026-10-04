@@ -819,6 +819,16 @@ export class CustomsService {
     if (!party.firma?.trim() || !party.street?.trim() || !party.zip?.trim() || !party.city?.trim()) {
       throw new BadRequestException(`${label}: Firma, Straße, PLZ und Ort sind erforderlich`);
     }
+    const city = party.city.trim();
+    if (
+      /^bitte\s*wählen/i.test(city) ||
+      /^please\s*select/i.test(city) ||
+      /^-+\s*select/i.test(city)
+    ) {
+      throw new BadRequestException(
+        `${label}: Bitte einen gültigen Ort wählen (nicht „Bitte wählen Sie:“)`,
+      );
+    }
   }
 
   /**

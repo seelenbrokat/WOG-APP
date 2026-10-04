@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   buildSoloplanFilePayload,
   resolveCustomsFileApiFields,
+  resolveSoloplanCity,
+  isPlaceholderCity,
   type PortalShipmentForSoloplan,
 } from '../src/integrations/soloplan-order.mapper';
 
@@ -153,6 +155,70 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
       [sender.name1, sender.name2].filter(Boolean).join(' '),
       long,
     );
+  });
+
+  it('setzt order.freightPayer (CarLo Frachtzahler) aus Auftraggeber bzw. abweichendem Frachtzahler', () => {
+    const withDefault = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        customer: { customerNumber: '5600', name: 'ERVO GmbH', matchcode: '5600' },
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{
+        customer?: { number?: number | string; name1?: string };
+        freightPayer?: { number?: number | string; name1?: string };
+      }>;
+    };
+    assert.equal(withDefault.order[0].customer?.number, 5600);
+    assert.equal(withDefault.order[0].freightPayer?.number, 5600);
+    assert.equal(withDefault.order[0].freightPayer?.name1, 'ERVO GmbH');
+
+    const withOther = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        customer: { customerNumber: '5600', name: 'ERVO GmbH', matchcode: '5600' },
+        order: {
+          externalNumber: 'VLB041000001',
+          freightPayer: { customerNumber: '845', name: 'Herzog Transportmanagement e.U.' },
+        },
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{
+        customer?: { number?: number | string; name1?: string };
+        freightPayer?: { number?: number | string; name1?: string };
+      }>;
+    };
+    assert.equal(withOther.order[0].customer?.number, 5600);
+    assert.equal(withOther.order[0].freightPayer?.number, 845);
+    assert.equal(withOther.order[0].freightPayer?.name1, 'Herzog Transportmanagement e.U.');
+  });
+
+  it('resolveSoloplanCity: Platzhalter nie als leerer city1 (PLZ-Fallback)', () => {
+    assert.equal(isPlaceholderCity('Bitte wählen Sie:'), true);
+    assert.equal(isPlaceholderCity('Dornbirn'), false);
+    assert.equal(resolveSoloplanCity('Bitte wählen Sie:', '6850'), 'Dornbirn');
+    assert.equal(resolveSoloplanCity('', '6800'), 'Feldkirch');
+    assert.equal(resolveSoloplanCity('Nüziders', '6512'), 'Nüziders');
+    assert.ok(resolveSoloplanCity('Bitte wählen Sie:', '99999').length > 0);
+    assert.ok(resolveSoloplanCity('', '').length > 0);
+
+    const payload = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        deliveryCity: 'Bitte wählen Sie:',
+        deliveryZip: '6850',
+        deliveryCompany: 'VLB e.U.',
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{
+        consignments: Array<{ receiver?: { city1?: string; zipCode?: string } }>;
+      }>;
+    };
+    assert.equal(payload.order[0].consignments[0].receiver?.city1, 'Dornbirn');
+    assert.equal(payload.order[0].consignments[0].receiver?.zipCode, '6850');
   });
 
   it('Verzollung: Soloplan-Kunde bleibt Auftraggeber trotz abweichendem Frachtzahler', () => {
