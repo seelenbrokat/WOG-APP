@@ -155,6 +155,44 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     );
   });
 
+  it('setzt order.freightPayer (CarLo Frachtzahler) aus Auftraggeber bzw. abweichendem Frachtzahler', () => {
+    const withDefault = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        customer: { customerNumber: '5600', name: 'ERVO GmbH', matchcode: '5600' },
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{
+        customer?: { number?: number | string; name1?: string };
+        freightPayer?: { number?: number | string; name1?: string };
+      }>;
+    };
+    assert.equal(withDefault.order[0].customer?.number, 5600);
+    assert.equal(withDefault.order[0].freightPayer?.number, 5600);
+    assert.equal(withDefault.order[0].freightPayer?.name1, 'ERVO GmbH');
+
+    const withOther = buildSoloplanFilePayload(
+      baseShipment({
+        verzollungsauftrag: true,
+        customer: { customerNumber: '5600', name: 'ERVO GmbH', matchcode: '5600' },
+        order: {
+          externalNumber: 'VLB041000001',
+          freightPayer: { customerNumber: '845', name: 'Herzog Transportmanagement e.U.' },
+        },
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{
+        customer?: { number?: number | string; name1?: string };
+        freightPayer?: { number?: number | string; name1?: string };
+      }>;
+    };
+    assert.equal(withOther.order[0].customer?.number, 5600);
+    assert.equal(withOther.order[0].freightPayer?.number, 845);
+    assert.equal(withOther.order[0].freightPayer?.name1, 'Herzog Transportmanagement e.U.');
+  });
+
   it('Verzollung: Soloplan-Kunde bleibt Auftraggeber trotz abweichendem Frachtzahler', () => {
     const payload = buildSoloplanFilePayload(
       baseShipment({
