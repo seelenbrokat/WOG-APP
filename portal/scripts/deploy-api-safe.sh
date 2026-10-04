@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Schonender API/Worker-Deploy ohne Next.js-Build und ohne Parallel-Build.
 # Laufende Container bleiben bis zum Image-Wechsel erreichbar (Fahrer-API bleibt online).
+#
+# Bevorzugt für Produktion mit Backup: scripts/deploy-from-git.sh
+# (ruft denselben Build auf und macht vorher Sicherung).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,3 +23,4 @@ docker compose -p wogportal up -d --no-deps api worker
 echo "==> Status"
 docker compose -p wogportal ps
 echo "OK: API/Worker ausgerollt, Web unverändert."
+echo "Hinweis: Änderungen müssen im Git-Tree liegen – Live-Patches im Container halten nicht."
