@@ -281,13 +281,14 @@ export class CustomsLoadingService {
       'Sendungsliste:',
       ...refreshed.map((o, i) => {
         const solo = this.displaySoloplanRef(o.soloplanRef);
-        return (
-          `${i + 1}. ${o.externalNumber || o.id.slice(-6)}` +
-          (solo ? ` · Soloplan ${solo}` : '') +
-          ` · ${o.absenderFirma} → ${o.empfaengerFirma}` +
-          (o.packageCount != null ? ` · ${o.packageCount} Colli` : '') +
-          (o.weightKg != null ? ` · ${o.weightKg} kg` : '')
-        );
+        const abs = `${o.absenderFirma}, ${o.absenderStreet}, ${o.absenderZip} ${o.absenderCity} (${o.absenderCountry})`;
+        const emp = `${o.empfaengerFirma}, ${o.empfaengerStreet}, ${o.empfaengerZip} ${o.empfaengerCity} (${o.empfaengerCountry})`;
+        return [
+          `${i + 1}. ${o.externalNumber || o.id.slice(-6)}` + (solo ? ` · Soloplan ${solo}` : ''),
+          `   Absender: ${abs}`,
+          `   Empfänger: ${emp}`,
+          `   Colli: ${o.packageCount ?? '–'}  ·  Gewicht: ${o.weightKg != null ? `${o.weightKg} kg` : '–'}`,
+        ].join('\n');
       }),
       '',
       `Portal: ${this.config.get('APP_URL') || 'https://wog.logistikberater.at'}`,
