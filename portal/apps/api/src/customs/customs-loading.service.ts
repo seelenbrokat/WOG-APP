@@ -22,7 +22,7 @@ import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SoloplanService } from '../integrations/soloplan.service';
-import { drawA4BrandHeader, drawA4Footer, formatPdfDateTime } from '../common/pdf-brand';
+import { drawA4BrandHeader, drawA4Footer, formatPdfDateTime, WOG_PDF } from '../common/pdf-brand';
 
 /** Platzhalter bis Selbstfahrer LKW/Grenze bei Beladung setzt (keine Dispo durch WOG). */
 export const CUSTOMS_VEHICLE_DEFERRED_PLATE = 'OFFEN';
@@ -364,9 +364,18 @@ export class CustomsLoadingService {
         externalNumber: string | null;
         soloplanRef: string | null;
         absenderFirma: string;
+        absenderStreet: string;
+        absenderZip: string;
+        absenderCity: string;
+        absenderCountry: string;
         empfaengerFirma: string;
+        empfaengerStreet: string;
+        empfaengerZip: string;
+        empfaengerCity: string;
+        empfaengerCountry: string;
         packageCount: number | null;
         weightKg: number | null;
+        netWeightKg?: number | null;
         goodsDescription: string | null;
       }>;
     },
@@ -379,38 +388,45 @@ export class CustomsLoadingService {
     const storagePath = join(this.uploadDir, fileName);
 
     const margin = 48;
+    const left = margin;
+    const right = 547;
+    const contentW = right - left;
+    const col2 = left + contentW / 2 + 6;
+    const addrW = contentW / 2 - 14;
+
+    const totalColli = data.orders.reduce((s, o) => s + (o.packageCount || 0), 0);
+    const totalWeight = data.orders.reduce((s, o) => s + (Number(o.weightKg) || 0), 0);
+
+    const fmtAddr = (parts: {
+      firma: string;
+      street: string;
+      zip: string;
+      city: string;
+      country: string;
+    }) => ({
+      firma: (parts.firma || '–').trim() || '–',
+      street: (parts.street || '').trim(),
+      place: `${parts.zip || ''} ${parts.city || ''}`.trim(),
+      country: (parts.country || '').trim(),
+    });
+
     await new Promise<void>((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin });
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin,
+        bufferPages: true,
+        info: {
+          Title: `Ladeliste Verzollung ${data.kennzeichen}`,
+          Author: 'WOG Logistics',
+          Subject: 'Beladung Zoll / Selbstfahrer',
+        },
+      });
       const stream = createWriteStream(storagePath);
       doc.pipe(stream);
       let pageNo = 1;
-      drawA4BrandHeader(doc, {
-        title: 'Ladeliste Verzollung',
-        subtitle: `${data.kennzeichen} · ${data.customerName}`,
-      });
-      let y = doc.y + 8;
-      doc.fontSize(10).fillColor('#222');
-      const meta = [
-        `Kunde: ${data.customerName}${data.customerNumber ? ` (${data.customerNumber})` : ''}`,
-        `Kennzeichen: ${data.kennzeichen} (${data.zulassungsland})`,
-        data.kennzeichenAnhaenger ? `Anhänger: ${data.kennzeichenAnhaenger}` : null,
-        `Grenzübergang: ${data.grenzuebergang}`,
-        `Grenze: ${formatPdfDateTime(data.zeit)}`,
-        `Sendungen: ${data.orders.length}`,
-        `Erstellt: ${formatPdfDateTime(new Date())}`,
-      ].filter(Boolean);
-      for (const line of meta) {
-        doc.text(String(line), margin, y);
-        y += 14;
-      }
-      y += 8;
-      doc.font('Helvetica-Bold').text('Mitzunehmende Sendungen', margin, y);
-      y += 18;
-      doc.font('Helvetica').fontSize(9);
 
-      for (let i = 0; i < data.orders.length; i++) {
-        const o = data.orders[i];
-        if (y > 760) {
+      const ensureSpace = (need: number) => {
+        if (doc.y + need > doc.page.height - 56) {
           drawA4Footer(doc, pageNo);
           doc.addPage();
           pageNo += 1;
@@ -418,37 +434,176 @@ export class CustomsLoadingService {
             title: 'Ladeliste Verzollung',
             subtitle: `${data.kennzeichen} · Fortsetzung`,
           });
-          y = doc.y + 8;
-          doc.font('Helvetica').fontSize(9);
+          doc.y += 6;
         }
-        const solo = this.displaySoloplanRef(o.soloplanRef);
-        const head =
-          `${i + 1}. ${o.externalNumber || '–'}` +
-          (solo ? `  ·  Soloplan ${solo}` : '');
-        doc.font('Helvetica-Bold').text(head, margin, y);
-        y += 12;
-        doc.font('Helvetica').fillColor('#333');
-        doc.text(
-          `${o.absenderFirma}  →  ${o.empfaengerFirma}`,
-          margin,
-          y,
-          { width: 500 },
-        );
-        y += 12;
-        doc.text(
-          [
-            o.packageCount != null ? `${o.packageCount} Colli` : null,
-            o.weightKg != null ? `${o.weightKg} kg` : null,
-            o.goodsDescription ? o.goodsDescription.slice(0, 80) : null,
-          ]
-            .filter(Boolean)
-            .join(' · ') || '–',
-          margin,
-          y,
-        );
-        y += 16;
-        doc.fillColor('#222');
+      };
+
+      drawA4BrandHeader(doc, {
+        title: 'Ladeliste Verzollung',
+        subtitle: `${data.kennzeichen} · ${data.customerName}`,
+      });
+
+      const metaTop = doc.y + 6;
+      const metaH = data.kennzeichenAnhaenger ? 88 : 74;
+      doc.rect(left, metaTop, contentW, metaH).fill(WOG_PDF.soft);
+      doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(11);
+      doc.text(
+        `Beladung · ${data.orders.length} Sendung${data.orders.length === 1 ? '' : 'en'}`,
+        left + 12,
+        metaTop + 10,
+        { width: contentW / 2 - 16 },
+      );
+      doc.font('Helvetica').fontSize(9).fillColor(WOG_PDF.muted);
+      doc.text(`erstellt ${formatPdfDateTime()}`, left + contentW / 2, metaTop + 12, {
+        width: contentW / 2 - 12,
+        align: 'right',
+      });
+
+      const metaLine = (x: number, y: number, label: string, value: string, labelW = 92) => {
+        doc.font('Helvetica-Bold').fillColor(WOG_PDF.muted).text(label, x, y, {
+          width: labelW,
+          lineBreak: false,
+        });
+        doc.font('Helvetica').fillColor(WOG_PDF.ink).text(value, x + labelW, y, {
+          width: contentW / 2 - labelW - 20,
+          lineBreak: false,
+        });
+      };
+      let my = metaTop + 30;
+      metaLine(
+        left + 12,
+        my,
+        'Kunde',
+        `${data.customerName}${data.customerNumber ? ` (${data.customerNumber})` : ''}`,
+      );
+      metaLine(col2, my, 'Colli / kg', `${totalColli || '–'}  ·  ${totalWeight || '–'} kg`, 58);
+      my += 14;
+      metaLine(left + 12, my, 'Kennzeichen', `${data.kennzeichen} (${data.zulassungsland})`);
+      metaLine(col2, my, 'Grenze', data.grenzuebergang, 58);
+      my += 14;
+      metaLine(left + 12, my, 'Zeitpunkt', formatPdfDateTime(data.zeit));
+      if (data.kennzeichenAnhaenger) {
+        metaLine(col2, my, 'Anhänger', data.kennzeichenAnhaenger, 58);
       }
+
+      doc.x = left;
+      doc.y = metaTop + metaH + 14;
+
+      for (let i = 0; i < data.orders.length; i++) {
+        const o = data.orders[i];
+        ensureSpace(150);
+
+        const solo = this.displaySoloplanRef(o.soloplanRef);
+        const headY = doc.y;
+        doc.rect(left, headY, contentW, 22).fill(WOG_PDF.greenDeep);
+        doc
+          .fillColor(WOG_PDF.white)
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(
+            `Sendung ${i + 1}/${data.orders.length}  ·  ${o.externalNumber || '–'}` +
+              (solo ? `  ·  Soloplan ${solo}` : ''),
+            left + 10,
+            headY + 6,
+            { width: contentW - 20 },
+          );
+
+        const bodyTop = headY + 22;
+        let bodyY = bodyTop + 10;
+        const abs = fmtAddr({
+          firma: o.absenderFirma,
+          street: o.absenderStreet,
+          zip: o.absenderZip,
+          city: o.absenderCity,
+          country: o.absenderCountry,
+        });
+        const emp = fmtAddr({
+          firma: o.empfaengerFirma,
+          street: o.empfaengerStreet,
+          zip: o.empfaengerZip,
+          city: o.empfaengerCity,
+          country: o.empfaengerCountry,
+        });
+
+        const addrStart = bodyY;
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(WOG_PDF.greenDeep);
+        doc.text('ABSENDER', left + 10, addrStart);
+        doc.text('EMPFÄNGER', col2, addrStart);
+
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(WOG_PDF.ink);
+        doc.text(abs.firma, left + 10, addrStart + 12, { width: addrW });
+        doc.font('Helvetica').fillColor(WOG_PDF.ink);
+        if (abs.street) doc.text(abs.street, left + 10, doc.y, { width: addrW });
+        if (abs.place) doc.text(abs.place, left + 10, doc.y, { width: addrW });
+        if (abs.country) {
+          doc.fillColor(WOG_PDF.muted).text(abs.country, left + 10, doc.y, { width: addrW });
+        }
+        const absBottom = doc.y;
+
+        doc.y = addrStart + 12;
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(WOG_PDF.ink);
+        doc.text(emp.firma, col2, doc.y, { width: addrW });
+        doc.font('Helvetica').fillColor(WOG_PDF.ink);
+        if (emp.street) doc.text(emp.street, col2, doc.y, { width: addrW });
+        if (emp.place) doc.text(emp.place, col2, doc.y, { width: addrW });
+        if (emp.country) {
+          doc.fillColor(WOG_PDF.muted).text(emp.country, col2, doc.y, { width: addrW });
+        }
+        const empBottom = doc.y;
+
+        bodyY = Math.max(absBottom, empBottom) + 10;
+
+        doc
+          .moveTo(left + 10, bodyY)
+          .lineTo(right - 10, bodyY)
+          .lineWidth(0.8)
+          .strokeColor(WOG_PDF.line)
+          .stroke();
+        bodyY += 8;
+
+        const statsH = 28;
+        const half = (contentW - 30) / 2;
+        doc.rect(left + 10, bodyY, half, statsH).fill('#f3f7f4');
+        doc.rect(col2, bodyY, half, statsH).fill('#f3f7f4');
+        doc.font('Helvetica').fontSize(8).fillColor(WOG_PDF.muted);
+        doc.text('COLLI', left + 18, bodyY + 5);
+        doc.text('GEWICHT', col2 + 8, bodyY + 5);
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(WOG_PDF.ink);
+        doc.text(o.packageCount != null ? String(o.packageCount) : '–', left + 18, bodyY + 14);
+        doc.text(o.weightKg != null ? `${o.weightKg} kg` : '–', col2 + 8, bodyY + 14);
+        bodyY += statsH + 8;
+
+        if (o.goodsDescription?.trim()) {
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(WOG_PDF.muted);
+          doc.text('WARE', left + 10, bodyY);
+          bodyY += 11;
+          doc.font('Helvetica').fontSize(9).fillColor(WOG_PDF.ink);
+          doc.text(o.goodsDescription.trim(), left + 10, bodyY, { width: contentW - 20 });
+          bodyY = doc.y + 6;
+        }
+
+        const bodyBottom = bodyY + 4;
+        doc
+          .rect(left, bodyTop, contentW, bodyBottom - bodyTop)
+          .lineWidth(1)
+          .strokeColor(WOG_PDF.line)
+          .stroke();
+
+        doc.y = bodyBottom + 12;
+        doc.x = left;
+      }
+
+      ensureSpace(36);
+      const sumY = doc.y;
+      doc.rect(left, sumY, contentW, 28).fill(WOG_PDF.green);
+      doc.fillColor(WOG_PDF.white).font('Helvetica-Bold').fontSize(10);
+      doc.text(
+        `Gesamt  ·  ${data.orders.length} Sendung${data.orders.length === 1 ? '' : 'en'}  ·  ${totalColli || '–'} Colli  ·  ${totalWeight || '–'} kg`,
+        left + 10,
+        sumY + 8,
+        { width: contentW - 20 },
+      );
+      doc.y = sumY + 36;
 
       drawA4Footer(doc, pageNo);
       doc.end();
