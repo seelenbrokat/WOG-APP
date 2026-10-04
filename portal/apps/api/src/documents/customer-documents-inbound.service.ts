@@ -232,12 +232,15 @@ export class CustomerDocumentsInboundService {
         OR: [
           { soloplanRef: { equals: orderNumber, mode: 'insensitive' } },
           { reference: { equals: `WE-${orderNumber}`, mode: 'insensitive' } },
-          { reference: { equals: `EZOLL-${orderNumber}`, mode: 'insensitive' } },
+          { reference: { equals: `WOG-${orderNumber}`, mode: 'insensitive' } },
+          { reference: { equals: `EZOLL-${orderNumber}`, mode: 'insensitive' } }, // legacy
           ...(dotted
             ? [{ soloplanRef: { equals: dotted, mode: 'insensitive' as const } }]
             : []),
           { order: { soloplanRef: { equals: orderNumber, mode: 'insensitive' } } },
           { order: { externalNumber: { equals: orderNumber, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: `WOG-${orderNumber}`, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: `EZOLL-${orderNumber}`, mode: 'insensitive' } } },
         ],
       },
       select: {

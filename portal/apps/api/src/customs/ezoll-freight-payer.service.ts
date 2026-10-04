@@ -120,6 +120,8 @@ export class EzollFreightPayerService {
   }): Promise<{ id: string; trackingNumber: string; customerId: string; created: boolean } | null> {
     const orderKey = String(input.orderNumber).trim();
     const route = await this.resolveRouteFromTour(input.organizationId, orderKey);
+    // Referenz = Soloplan-Auftragsnummer mit WOG-Präfix (nicht „EZOLL-…“)
+    const portalRef = `WOG-${orderKey}`;
 
     const existing = await this.prisma.shipment.findFirst({
       where: {
@@ -127,8 +129,11 @@ export class EzollFreightPayerService {
         OR: [
           { soloplanRef: { equals: orderKey, mode: 'insensitive' } },
           { reference: { equals: `WE-${orderKey}`, mode: 'insensitive' } },
-          { reference: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } },
+          { reference: { equals: portalRef, mode: 'insensitive' } },
+          { reference: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } }, // legacy
           { order: { soloplanRef: { equals: orderKey, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: portalRef, mode: 'insensitive' } } },
+          { order: { externalNumber: { equals: `EZOLL-${orderKey}`, mode: 'insensitive' } } },
         ],
       },
       select: {
@@ -137,10 +142,34 @@ export class EzollFreightPayerService {
         customerId: true,
         pickupCompany: true,
         deliveryCompany: true,
+        reference: true,
+        orderId: true,
       },
       orderBy: { createdAt: 'desc' },
     });
     if (existing?.customerId) {
+      // Alte EZOLL-Referenz → WOG-{Order}
+      if (
+        existing.reference?.toUpperCase().startsWith('EZOLL-') ||
+        (existing.reference && existing.reference !== portalRef && !existing.reference.startsWith('WE-') && !/^LAK/i.test(existing.reference))
+      ) {
+        const legacyEzoll = existing.reference?.toUpperCase().startsWith('EZOLL-');
+        if (legacyEzoll) {
+          await this.prisma.shipment.update({
+            where: { id: existing.id },
+            data: { reference: portalRef },
+          });
+          if (existing.orderId) {
+            await this.prisma.transportOrder.updateMany({
+              where: {
+                id: existing.orderId,
+                externalNumber: { startsWith: 'EZOLL-' },
+              },
+              data: { externalNumber: portalRef },
+            });
+          }
+        }
+      }
       // Route nachziehen, falls Doc-Carrier ohne Absender/Empfänger angelegt wurde
       if (
         route &&
@@ -190,10 +219,17 @@ export class EzollFreightPayerService {
       select: { id: true },
     });
 
-    const externalNumber = `EZOLL-${orderKey}`;
+    const externalNumber = portalRef;
     let order = await this.prisma.transportOrder.findFirst({
-      where: { organizationId: input.organizationId, externalNumber },
-      select: { id: true },
+      where: {
+        organizationId: input.organizationId,
+        OR: [
+          { externalNumber: portalRef },
+          { externalNumber: `EZOLL-${orderKey}` },
+          { soloplanRef: orderKey },
+        ],
+      },
+      select: { id: true, externalNumber: true },
     });
     if (!order) {
       order = await this.prisma.transportOrder.create({
@@ -205,7 +241,12 @@ export class EzollFreightPayerService {
           soloplanRef: orderKey,
           createdById: admin?.id,
         },
-        select: { id: true },
+        select: { id: true, externalNumber: true },
+      });
+    } else if (order.externalNumber?.toUpperCase().startsWith('EZOLL-')) {
+      await this.prisma.transportOrder.update({
+        where: { id: order.id },
+        data: { externalNumber: portalRef },
       });
     }
 
@@ -220,7 +261,7 @@ export class EzollFreightPayerService {
         orderId: order.id,
         trackingNumber: track,
         trackingPin: String(Math.floor(1000 + Math.random() * 9000)),
-        reference: `EZOLL-${orderKey}`,
+        reference: portalRef,
         soloplanRef: orderKey,
         status: ShipmentStatus.SUBMITTED,
         goodsDescription: 'Austrittsbestätigung (eZoll) – Frachtzahler',
@@ -233,7 +274,7 @@ export class EzollFreightPayerService {
     });
 
     this.log.log(
-      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId})` +
+      `Doc-Carrier-Sendung ${shipment.trackingNumber} für Order ${orderKey} (Frachtzahler ${input.customerId}, Ref ${portalRef})` +
         (route?.pickupCompany ? ` Route ${route.pickupCompany} → ${route.deliveryCompany}` : ''),
     );
     return {
