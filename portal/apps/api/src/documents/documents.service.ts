@@ -36,6 +36,7 @@ import {
   createDocumentDownloadToken,
   verifyDocumentDownloadToken,
 } from './document-download-token';
+import { isForbiddenForCustomerDocument } from './customer-forbidden-docs';
 
 @Injectable()
 export class DocumentsService {
@@ -168,6 +169,10 @@ export class DocumentsService {
       if (!doc.customerId || doc.customerId !== user.customerId) {
         throw new ForbiddenException();
       }
+      // CH-Bordereau / Mercurio-Interna: niemals für Kunden
+      if (isForbiddenForCustomerDocument(doc)) {
+        throw new ForbiddenException();
+      }
     }
     if (doc.shipmentId && (user.role === UserRole.MANDANT_DISPATCHER || user.role === UserRole.PARTNER)) {
       const shipment = await this.prisma.shipment.findUnique({ where: { id: doc.shipmentId } });
@@ -225,6 +230,10 @@ export class DocumentsService {
     }
     const doc = await this.prisma.document.findUnique({ where: { id: docId } });
     if (!doc) throw new NotFoundException('Datei nicht gefunden');
+    // Auch Shared-Links: Bordereau/Mercurio-Interna nie ausliefern
+    if (isForbiddenForCustomerDocument(doc)) {
+      throw new ForbiddenException();
+    }
     return this.openExistingFile(doc);
   }
 
@@ -794,15 +803,21 @@ export class DocumentsService {
   }
 
   listForShipment(user: AuthUser, shipmentId: string) {
-    return this.prisma.document.findMany({
-      where: {
-        shipmentId,
-        organizationId: user.organizationId,
-        ...(user.role === UserRole.CUSTOMER_USER && user.customerId
-          ? { customerId: user.customerId }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.prisma.document
+      .findMany({
+        where: {
+          shipmentId,
+          organizationId: user.organizationId,
+          ...(user.role === UserRole.CUSTOMER_USER && user.customerId
+            ? { customerId: user.customerId }
+            : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      .then((docs) =>
+        user.role === UserRole.CUSTOMER_USER
+          ? docs.filter((d) => !isForbiddenForCustomerDocument(d))
+          : docs,
+      );
   }
 }
