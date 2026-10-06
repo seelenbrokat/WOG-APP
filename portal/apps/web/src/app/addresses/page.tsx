@@ -83,6 +83,21 @@ function serializePickupTimes(times: Record<string, string>): string | null {
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
+function parsePickupTimes(raw?: string | null): Record<string, string> {
+  const base = { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '' };
+  if (!raw) return base;
+  try {
+    const map = JSON.parse(raw) as Record<string, string>;
+    for (const k of Object.keys(base)) {
+      const t = String(map[k] || '').trim();
+      if (/^\d{1,2}:\d{2}$/.test(t)) base[k as keyof typeof base] = t.padStart(5, '0');
+    }
+  } catch {
+    /* ignore */
+  }
+  return base;
+}
+
 function fmtWhen(value?: string | null) {
   if (!value) return '—';
   return new Date(value).toLocaleString('de-CH', {
@@ -102,6 +117,7 @@ export default function AddressBookPage() {
   const [mandanten, setMandanten] = useState<Mandant[]>([]);
   const [customerId, setCustomerId] = useState(user?.customerId || '');
   const [form, setForm] = useState(emptyAddress);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [templateMandantId, setTemplateMandantId] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -164,6 +180,31 @@ export default function AddressBookPage() {
     load().catch((err) => setError(err.message));
   }, [query, customerId]);
 
+  function startEditAddress(a: Address) {
+    setEditingAddressId(a.id);
+    setForm({
+      label: a.label || '',
+      company: a.company || '',
+      street: a.street,
+      zip: a.zip,
+      city: a.city,
+      country: a.country || 'AT',
+      usage: a.usage || 'BOTH',
+      isDefault: Boolean(a.isDefault),
+      customerRef: a.customerRef || '',
+      pickupTimes: parsePickupTimes(a.pickupTimesByWeekday),
+    });
+    setForceSaveAddress(false);
+    setError('');
+    setMessage('');
+  }
+
+  function cancelEditAddress() {
+    setEditingAddressId(null);
+    setForm(emptyAddress);
+    setForceSaveAddress(false);
+  }
+
   async function onCreateAddress(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -193,28 +234,40 @@ export default function AddressBookPage() {
             ' – oder unten „Trotzdem speichern“ wählen (z. B. Baustelle).',
         );
       }
-      await api(`/customers/me/addresses${query}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          label: form.label,
-          company: form.company,
-          street: form.street,
-          zip: form.zip,
-          city: form.city,
-          country: form.country,
-          usage: form.usage,
-          isDefault: form.isDefault,
-          customerRef: form.customerRef || null,
-          pickupTimesByWeekday: serializePickupTimes(form.pickupTimes),
-        }),
-      });
+      const payload = {
+        label: form.label,
+        company: form.company,
+        street: form.street,
+        zip: form.zip,
+        city: form.city,
+        country: form.country,
+        usage: form.usage,
+        isDefault: form.isDefault,
+        customerRef: form.customerRef || null,
+        pickupTimesByWeekday: serializePickupTimes(form.pickupTimes),
+      };
+      if (editingAddressId) {
+        await api(`/customers/addresses/${editingAddressId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+        setEditingAddressId(null);
+        setMessage('Adresse aktualisiert');
+      } else {
+        await api(`/customers/me/addresses${query}`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setMessage(
+          check.status === 'AMBIGUOUS' ||
+            check.status === 'INVALID' ||
+            check.status === 'FORMAT_ERROR'
+            ? 'Adresse gespeichert (Prüfung ungenau/nicht gefunden – bitte Eintrag kontrollieren).'
+            : 'Adresse gespeichert und geprüft',
+        );
+      }
       setForm(emptyAddress);
       setForceSaveAddress(false);
-      setMessage(
-        check.status === 'AMBIGUOUS' || check.status === 'INVALID' || check.status === 'FORMAT_ERROR'
-          ? 'Adresse gespeichert (Prüfung ungenau/nicht gefunden – bitte Eintrag kontrollieren).'
-          : 'Adresse gespeichert und geprüft',
-      );
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -356,7 +409,7 @@ export default function AddressBookPage() {
       <div className="grid-2">
         <div className="stack">
           <form className="panel stack" onSubmit={onCreateAddress}>
-            <strong>Neue Adresse</strong>
+            <strong>{editingAddressId ? 'Adresse bearbeiten' : 'Neue Adresse'}</strong>
             <input
               placeholder="Bezeichnung (z.B. Lager Wien)"
               value={form.label}
@@ -461,9 +514,16 @@ export default function AddressBookPage() {
                 Trotzdem speichern, falls Adresse in der Karte nicht gefunden wird (z.&nbsp;B. Baustelle)
               </span>
             </label>
-            <button className="btn btn-primary" type="submit">
-              Adresse speichern
-            </button>
+            <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" type="submit">
+                {editingAddressId ? 'Änderungen speichern' : 'Adresse speichern'}
+              </button>
+              {editingAddressId ? (
+                <button className="btn btn-ghost" type="button" onClick={cancelEditAddress}>
+                  Abbrechen
+                </button>
+              ) : null}
+            </div>
           </form>
 
           <div className="panel">
@@ -505,16 +565,26 @@ export default function AddressBookPage() {
                       <span className="badge">{a.usage}</span>
                     </td>
                     <td>
-                      <button
-                        className="btn btn-ghost"
-                        type="button"
-                        onClick={async () => {
-                          await api(`/customers/addresses/${a.id}`, { method: 'DELETE' });
-                          await load();
-                        }}
-                      >
-                        Löschen
-                      </button>
+                      <div className="row" style={{ gap: '0.25rem', flexWrap: 'wrap' }}>
+                        <button
+                          className="btn btn-ghost"
+                          type="button"
+                          onClick={() => startEditAddress(a)}
+                        >
+                          Bearbeiten
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          type="button"
+                          onClick={async () => {
+                            await api(`/customers/addresses/${a.id}`, { method: 'DELETE' });
+                            if (editingAddressId === a.id) cancelEditAddress();
+                            await load();
+                          }}
+                        >
+                          Löschen
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

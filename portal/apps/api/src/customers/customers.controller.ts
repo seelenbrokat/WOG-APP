@@ -84,6 +84,16 @@ class AddressDto {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  /** Empfänger-Kundennummer lt. Kundensystem (kein Soloplan) */
+  @IsOptional()
+  @IsString()
+  customerRef?: string | null;
+
+  /** JSON Abholzeiten Mo–So, z. B. {"1":"08:00","5":"14:00"} */
+  @IsOptional()
+  @IsString()
+  pickupTimesByWeekday?: string | null;
 }
 
 class ContactDto {
