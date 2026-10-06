@@ -58,7 +58,28 @@ type Address = {
   country: string;
   usage: string;
   isDefault?: boolean;
+  customerRef?: string | null;
+  pickupTimesByWeekday?: string | null;
 };
+
+/** Abholzeit aus Adressbuch für ein Datum (Werktag 1=Mo … 7=So). */
+function pickupTimeFromAddress(
+  addr: { pickupTimesByWeekday?: string | null },
+  dateStr: string,
+): string | null {
+  if (!addr.pickupTimesByWeekday || !dateStr) return null;
+  try {
+    const map = JSON.parse(addr.pickupTimesByWeekday) as Record<string, string>;
+    const d = new Date(`${dateStr}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    const jsDay = d.getDay(); // 0=So
+    const key = jsDay === 0 ? '7' : String(jsDay);
+    const t = map[key]?.trim();
+    return t && /^\d{1,2}:\d{2}$/.test(t) ? t.padStart(5, '0') : null;
+  } catch {
+    return null;
+  }
+}
 
 type Template = {
   id: string;
@@ -180,6 +201,7 @@ function NewShipmentInner() {
       weightKg: 0,
       pickupAddressId: '',
       deliveryAddressId: '',
+      deliveryCustomerRef: '',
       pickupCompany: '',
       pickupStreet: '',
       pickupZip: '',
@@ -393,21 +415,25 @@ function NewShipmentInner() {
         setForm((f) => ({ ...f, pickupAddressId: '' }));
         setPickupOverride(false);
       } else {
-        setForm((f) => ({ ...f, deliveryAddressId: '' }));
+        setForm((f) => ({ ...f, deliveryAddressId: '', deliveryCustomerRef: '' }));
         setDeliveryOverride(false);
       }
       return;
     }
     if (kind === 'pickup') {
-      setForm((f) => ({
-        ...f,
-        pickupAddressId: addr.id,
-        pickupCompany: addr.company || '',
-        pickupStreet: addr.street,
-        pickupZip: addr.zip,
-        pickupCity: addr.city,
-        pickupCountry: addr.country || 'AT',
-      }));
+      setForm((f) => {
+        const fromBook = pickupTimeFromAddress(addr, f.pickupDate);
+        return {
+          ...f,
+          pickupAddressId: addr.id,
+          pickupCompany: addr.company || '',
+          pickupStreet: addr.street,
+          pickupZip: addr.zip,
+          pickupCity: addr.city,
+          pickupCountry: addr.country || 'AT',
+          ...(fromBook ? { pickupTime: fromBook } : {}),
+        };
+      });
       setPickupCheck(idleCheck);
       setPickupOverride(false);
     } else {
@@ -419,6 +445,7 @@ function NewShipmentInner() {
         deliveryZip: addr.zip,
         deliveryCity: addr.city,
         deliveryCountry: addr.country || 'AT',
+        deliveryCustomerRef: addr.customerRef || '',
       }));
       setDeliveryCheck(idleCheck);
       setDeliveryOverride(false);
@@ -871,8 +898,12 @@ function NewShipmentInner() {
             </div>
           )}
           <div className="field">
-            <label>Referenz</label>
-            <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
+            <label>Externe Referenz</label>
+            <input
+              value={form.reference}
+              onChange={(e) => setForm({ ...form, reference: e.target.value })}
+              placeholder="Ihre Auftrags-/Referenznummer (auf Etikett)"
+            />
           </div>
         </div>
 
@@ -956,9 +987,12 @@ function NewShipmentInner() {
                     const window = pickupDate
                       ? defaultDeliveryWindow(pickupDate)
                       : null;
+                    const addr = addresses.find((a) => a.id === form.pickupAddressId);
+                    const fromBook = addr ? pickupTimeFromAddress(addr, pickupDate) : null;
                     setForm({
                       ...form,
                       pickupDate,
+                      ...(fromBook ? { pickupTime: fromBook } : {}),
                       ...(window
                         ? {
                             deliveryDate: window.start.date,
@@ -1088,10 +1122,15 @@ function NewShipmentInner() {
               placeholder="Firma"
               value={form.deliveryCompany}
               onChange={(e) => {
-                setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '' });
+                setForm({ ...form, deliveryCompany: e.target.value, deliveryAddressId: '', deliveryCustomerRef: '' });
                 setDeliveryCheck(idleCheck);
                 setDeliveryOverride(false);
               }}
+            />
+            <input
+              placeholder="Kundennummer Empfänger (Ihr System)"
+              value={form.deliveryCustomerRef}
+              onChange={(e) => setForm({ ...form, deliveryCustomerRef: e.target.value })}
             />
             <input
               required

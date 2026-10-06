@@ -667,7 +667,10 @@ export class DocumentsService {
         .fontSize(9)
         .fillColor('#111')
         .text(`Sendungsnummer: ${shipment.trackingNumber}`)
-        .text(`Referenz: ${shipment.reference || '-'}`);
+        .text(`Externe Referenz: ${shipment.reference || '-'}`);
+      if (shipment.deliveryCustomerRef) {
+        doc.text(`Kd-Nr. Empfänger: ${shipment.deliveryCustomerRef}`);
+      }
       if (!neutral && auftraggeber) {
         doc.text(`Auftraggeber: ${auftraggeber}`);
       }

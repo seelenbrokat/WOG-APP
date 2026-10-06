@@ -603,6 +603,7 @@ export class ShipmentsService {
       volumeM3?: number;
       pickupAddressId?: string;
       deliveryAddressId?: string;
+      deliveryCustomerRef?: string;
       pickupCompany?: string;
       pickupStreet?: string;
       pickupZip?: string;
@@ -647,6 +648,7 @@ export class ShipmentsService {
     let deliveryZip = data.deliveryZip;
     let deliveryCity = data.deliveryCity;
     let deliveryCountry = data.deliveryCountry || 'AT';
+    let deliveryCustomerRef = data.deliveryCustomerRef?.trim() || null;
 
     if (data.pickupAddressId) {
       const addr = await this.prisma.address.findFirst({
@@ -669,6 +671,9 @@ export class ShipmentsService {
       deliveryZip = addr.zip;
       deliveryCity = addr.city;
       deliveryCountry = addr.country;
+      if (!deliveryCustomerRef && addr.customerRef) {
+        deliveryCustomerRef = addr.customerRef.trim();
+      }
     }
 
     // Grenzverkehr ↔ CH/LI: Verzollungsbelege + Mandant 2 (GmbH).
@@ -752,6 +757,7 @@ export class ShipmentsService {
         trackingPin: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
         // Sendungsreferenz optional; Auftragsnummer nur am TransportOrder (VLB…)
         reference: data.reference,
+        deliveryCustomerRef: deliveryCustomerRef || undefined,
         status,
         transportMode: data.transportMode,
         goodsDescription: data.goodsDescription,
@@ -834,6 +840,7 @@ export class ShipmentsService {
         city: deliveryCity,
         country: deliveryCountry,
         usage: 'DELIVERY',
+        customerRef: deliveryCustomerRef,
       });
     }
     if (data.saveAsTemplateName) {
@@ -1102,6 +1109,7 @@ export class ShipmentsService {
       city: string;
       country?: string | null;
       usage: 'PICKUP' | 'DELIVERY' | 'BOTH';
+      customerRef?: string | null;
     },
   ) {
     const street = data.street.trim();
@@ -1129,10 +1137,14 @@ export class ShipmentsService {
         usage?: string;
         company?: string;
         label?: string;
+        customerRef?: string | null;
       } = {};
       if (nextUsage !== existing.usage) patch.usage = nextUsage;
       if (data.company && !existing.company) patch.company = data.company;
       if (data.label && !existing.label) patch.label = data.label;
+      if (data.customerRef && !existing.customerRef) {
+        patch.customerRef = data.customerRef.trim();
+      }
       if (Object.keys(patch).length) {
         return this.prisma.address.update({ where: { id: existing.id }, data: patch });
       }
@@ -1149,6 +1161,7 @@ export class ShipmentsService {
         city,
         country,
         usage: data.usage,
+        customerRef: data.customerRef?.trim() || null,
       },
     });
   }

@@ -15,6 +15,10 @@ type Address = {
   country: string;
   usage: string;
   isDefault: boolean;
+  /** Empfänger-Kundennummer lt. Kundensystem */
+  customerRef?: string | null;
+  /** JSON Abholzeiten Mo–So */
+  pickupTimesByWeekday?: string | null;
 };
 
 type Template = {
@@ -63,7 +67,21 @@ const emptyAddress = {
   country: 'AT',
   usage: 'BOTH',
   isDefault: false,
+  customerRef: '',
+  pickupTimes: { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '' } as Record<
+    string,
+    string
+  >,
 };
+
+function serializePickupTimes(times: Record<string, string>): string | null {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(times)) {
+    const t = String(v || '').trim();
+    if (/^\d{1,2}:\d{2}$/.test(t)) out[k] = t.padStart(5, '0');
+  }
+  return Object.keys(out).length ? JSON.stringify(out) : null;
+}
 
 function fmtWhen(value?: string | null) {
   if (!value) return '—';
@@ -99,7 +117,7 @@ export default function AddressBookPage() {
     const q = addressFilter.trim().toLowerCase();
     if (!q) return addresses;
     return addresses.filter((a) =>
-      [a.company, a.label, a.street, a.zip, a.city, a.country]
+      [a.company, a.label, a.street, a.zip, a.city, a.country, a.customerRef]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -177,7 +195,18 @@ export default function AddressBookPage() {
       }
       await api(`/customers/me/addresses${query}`, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          label: form.label,
+          company: form.company,
+          street: form.street,
+          zip: form.zip,
+          city: form.city,
+          country: form.country,
+          usage: form.usage,
+          isDefault: form.isDefault,
+          customerRef: form.customerRef || null,
+          pickupTimesByWeekday: serializePickupTimes(form.pickupTimes),
+        }),
       });
       setForm(emptyAddress);
       setForceSaveAddress(false);
@@ -339,6 +368,11 @@ export default function AddressBookPage() {
               onChange={(e) => setForm({ ...form, company: e.target.value })}
             />
             <input
+              placeholder="Kundennummer Empfänger (Ihr System)"
+              value={form.customerRef}
+              onChange={(e) => setForm({ ...form, customerRef: e.target.value })}
+            />
+            <input
               required
               placeholder="Straße"
               value={form.street}
@@ -385,6 +419,38 @@ export default function AddressBookPage() {
               />
               Als Standardadresse
             </label>
+            {(form.usage === 'PICKUP' || form.usage === 'BOTH') && (
+              <div className="stack" style={{ gap: '0.35rem' }}>
+                <strong style={{ fontSize: '0.9rem' }}>Abholzeiten (Werktag)</strong>
+                <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                  Werden in der Auftragserfassung je nach Abholdatum vorbelegt.
+                </p>
+                <div
+                  className="row"
+                  style={{ flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}
+                >
+                  {WEEKDAYS.map((d) => (
+                    <label
+                      key={d.v}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.75rem' }}
+                    >
+                      <span className="muted">{d.l}</span>
+                      <input
+                        type="time"
+                        value={form.pickupTimes[d.v] || ''}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            pickupTimes: { ...form.pickupTimes, [d.v]: e.target.value },
+                          })
+                        }
+                        style={{ width: 110 }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
               <input
                 type="checkbox"
@@ -414,6 +480,7 @@ export default function AddressBookPage() {
                 <tr>
                   <th>Label</th>
                   <th>Adresse</th>
+                  <th>Kd-Nr.</th>
                   <th>Nutzung</th>
                   <th></th>
                 </tr>
@@ -427,7 +494,13 @@ export default function AddressBookPage() {
                     </td>
                     <td>
                       {a.street}, {a.zip} {a.city} ({a.country})
+                      {a.pickupTimesByWeekday ? (
+                        <div className="muted" style={{ fontSize: '0.75rem' }}>
+                          Abholzeiten hinterlegt
+                        </div>
+                      ) : null}
                     </td>
+                    <td>{a.customerRef || '–'}</td>
                     <td>
                       <span className="badge">{a.usage}</span>
                     </td>
@@ -447,7 +520,7 @@ export default function AddressBookPage() {
                 ))}
                 {!addresses.length && (
                   <tr>
-                    <td colSpan={4} className="muted">
+                    <td colSpan={5} className="muted">
                       Noch keine Adressen gespeichert.
                     </td>
                   </tr>

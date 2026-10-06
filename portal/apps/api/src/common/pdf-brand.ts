@@ -88,43 +88,63 @@ export function drawA4BrandHeader(
 }
 
 /** Kompakte Logozeile für Transportetiketten (100×150 mm). */
-export function drawLabelBrandHeader(doc: PdfDoc, mandantName?: string | null): void {
+export function drawLabelBrandHeader(
+  doc: PdfDoc,
+  mandantName?: string | null,
+  opts?: { neutral?: boolean },
+): void {
   const logoPath = resolveWogLogoPath();
   const left = 18;
   const top = 14;
   const pageW = doc.page.width;
   const right = pageW - 18;
+  const neutral = Boolean(opts?.neutral);
 
-  if (logoPath) {
-    doc.image(logoPath, left, top, { fit: [56, 28] });
-  } else {
+  if (neutral) {
     doc
-      .fillColor(WOG_PDF.greenDeep)
+      .fillColor(WOG_PDF.ink)
       .fontSize(10)
       .font('Helvetica-Bold')
-      .text('WOG', left, top + 6);
-  }
+      .text('Transportetikett', left, top + 6, { width: right - left });
+    doc
+      .fillColor(WOG_PDF.muted)
+      .fontSize(7)
+      .font('Helvetica')
+      .text('Neutral – Absender / Empfänger', left, top + 18, {
+        width: right - left,
+      });
+  } else {
+    if (logoPath) {
+      doc.image(logoPath, left, top, { fit: [56, 28] });
+    } else {
+      doc
+        .fillColor(WOG_PDF.greenDeep)
+        .fontSize(10)
+        .font('Helvetica-Bold')
+        .text('WOG', left, top + 6);
+    }
 
-  doc
-    .fillColor(WOG_PDF.greenDeep)
-    .fontSize(9)
-    .font('Helvetica-Bold')
-    .text('WOG Logistics', left + 62, top + 2, { width: right - left - 62, align: 'right' });
-  doc
-    .fillColor(WOG_PDF.muted)
-    .fontSize(7)
-    .font('Helvetica')
-    .text(mandantName || 'Transportetikett', left + 62, top + 14, {
-      width: right - left - 62,
-      align: 'right',
-    });
+    doc
+      .fillColor(WOG_PDF.greenDeep)
+      .fontSize(9)
+      .font('Helvetica-Bold')
+      .text('WOG Logistics', left + 62, top + 2, { width: right - left - 62, align: 'right' });
+    doc
+      .fillColor(WOG_PDF.muted)
+      .fontSize(7)
+      .font('Helvetica')
+      .text(mandantName || 'Transportetikett', left + 62, top + 14, {
+        width: right - left - 62,
+        align: 'right',
+      });
+  }
 
   const ruleY = top + 32;
   doc
     .moveTo(left, ruleY)
     .lineTo(right, ruleY)
     .lineWidth(1.5)
-    .strokeColor(WOG_PDF.green)
+    .strokeColor(neutral ? WOG_PDF.line : WOG_PDF.green)
     .stroke();
 
   doc.y = ruleY + 8;
