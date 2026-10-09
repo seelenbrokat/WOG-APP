@@ -77,8 +77,10 @@ export class LabelsService {
       deliveryZip: shipment.deliveryZip,
       deliveryCity: shipment.deliveryCity,
       deliveryCountry: shipment.deliveryCountry,
+      deliveryCustomerRef: shipment.deliveryCustomerRef,
       customerName: shipment.customer?.name,
       mandantName: shipment.mandant?.name,
+      neutral: Boolean(shipment.customer?.neutralDeliveryReceipt),
     };
 
     const labelColli = colli.map((collo) => ({

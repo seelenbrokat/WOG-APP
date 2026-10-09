@@ -5,6 +5,26 @@ import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { computeNextRun, parseWeekdays } from '../common/schedule';
 
+/** Abholzeiten-JSON bereinigen; ungültig → null. */
+function normalizePickupTimesJson(raw?: string | null): string | null {
+  if (raw == null || String(raw).trim() === '') return null;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!/^[1-7]$/.test(k)) continue;
+      const t = String(v || '').trim();
+      if (!/^\d{1,2}:\d{2}$/.test(t)) continue;
+      const [hh, mm] = t.split(':').map(Number);
+      if (hh < 0 || hh > 23 || mm < 0 || mm > 59) continue;
+      out[k] = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+    return Object.keys(out).length ? JSON.stringify(out) : null;
+  } catch {
+    return null;
+  }
+}
 export type AddressInput = {
   label?: string;
   company?: string;
@@ -14,6 +34,12 @@ export type AddressInput = {
   country?: string;
   usage?: string;
   isDefault?: boolean;
+  /** Kundennummer des Empfängers im System des Portal-Kunden */
+  customerRef?: string | null;
+  /** JSON Abholzeiten Mo–So, z. B. {"1":"08:00","5":"14:00"} */
+  pickupTimesByWeekday?: string | null;
+  /** Name des externen Portals für Zeitfensterbuchung */
+  timeSlotPortalName?: string | null;
 };
 
 export type TemplateInput = {
@@ -172,6 +198,9 @@ export class CustomersService {
         country: data.country || 'AT',
         usage: data.usage || 'BOTH',
         isDefault: data.isDefault || false,
+        customerRef: data.customerRef?.trim() || null,
+        pickupTimesByWeekday: normalizePickupTimesJson(data.pickupTimesByWeekday),
+        timeSlotPortalName: data.timeSlotPortalName?.trim() || null,
       },
     });
     await this.audit.log(user.id, 'address.create', 'Address', address.id, { customerId: id });
@@ -199,6 +228,15 @@ export class CustomersService {
         country: data.country,
         usage: data.usage,
         isDefault: data.isDefault,
+        ...(data.customerRef !== undefined
+          ? { customerRef: data.customerRef?.trim() || null }
+          : {}),
+        ...(data.pickupTimesByWeekday !== undefined
+          ? { pickupTimesByWeekday: normalizePickupTimesJson(data.pickupTimesByWeekday) }
+          : {}),
+        ...(data.timeSlotPortalName !== undefined
+          ? { timeSlotPortalName: data.timeSlotPortalName?.trim() || null }
+          : {}),
       },
     });
   }

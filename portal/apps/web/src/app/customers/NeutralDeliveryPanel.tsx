@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 
-/** Kunden-Einstellung: Ablieferbelege immer ohne Auftraggeber (nur Absender + Empfänger). */
+/** Kunden-Einstellung: neutrale Lieferung (Ablieferbeleg, Etiketten, Auftrags-PDFs). */
 export function NeutralDeliveryPanel({
   customerId,
   initialEnabled,
@@ -29,7 +29,7 @@ export function NeutralDeliveryPanel({
       });
       setEnabled(next);
       onChanged?.(next);
-      setMsg(next ? 'Neutrale Ablieferbelege aktiv' : 'Neutrale Ablieferbelege aus');
+      setMsg(next ? 'Neutrale Lieferung aktiv' : 'Neutrale Lieferung aus');
     } catch (e: any) {
       setErr(e?.message || 'Speichern fehlgeschlagen');
     } finally {
@@ -47,9 +47,10 @@ export function NeutralDeliveryPanel({
           onChange={(e) => toggle(e.target.checked)}
         />
         <span>
-          <strong>Ablieferbeleg immer neutral</strong>
+          <strong>Neutrale Lieferung</strong>
           <span className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
-            Nur Absender + Empfänger andrucken, keinen Auftraggeber (z. B. Europapier).
+            Ablieferbeleg, Etiketten und Auftragsbestätigung ohne Auftraggeber / WOG-Branding
+            (nur Absender + Empfänger, z. B. Europapier).
           </span>
         </span>
       </label>

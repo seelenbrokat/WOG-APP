@@ -86,11 +86,12 @@ export class OrdersService {
       where: { id, ...this.orderScope(user) },
       include: {
         mandant: true,
-        freightPayer: true,
+        freightPayer: { select: { id: true, name: true, customerNumber: true, neutralDeliveryReceipt: true } },
         shipments: {
           include: {
             positions: true,
             colli: { orderBy: { itemNumber: 'asc' } },
+            customer: { select: { id: true, name: true, neutralDeliveryReceipt: true } },
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -303,7 +304,16 @@ export class OrdersService {
     const appUrl = this.config.get('APP_URL') || 'https://wog.logistikberater.at';
     const numbers = orders.map((o) => o.externalNumber).join(', ');
     const freightPayers = [
-      ...new Set(orders.map((o) => o.freightPayer?.name).filter(Boolean)),
+      ...new Set(
+        orders
+          .filter(
+            (o) =>
+              !o.freightPayer?.neutralDeliveryReceipt &&
+              !(o.shipments || []).some((s: any) => s.customer?.neutralDeliveryReceipt),
+          )
+          .map((o) => o.freightPayer?.name)
+          .filter(Boolean),
+      ),
     ].join(', ');
     const shipmentCount = orders.reduce((n, o) => n + (o.shipments?.length || 0), 0);
     const subject =
@@ -410,6 +420,11 @@ export class OrdersService {
       });
 
       const allShipments = orders.flatMap((o) => o.shipments || []);
+      const isNeutral = orders.some(
+        (o) =>
+          Boolean(o.freightPayer?.neutralDeliveryReceipt) ||
+          (o.shipments || []).some((s: any) => s.customer?.neutralDeliveryReceipt),
+      );
       const totalColli = allShipments.reduce(
         (sum: number, s: any) => sum + (s.packageCount || s.colli?.length || 0),
         0,
@@ -420,7 +435,7 @@ export class OrdersService {
       );
 
       const metaTop = doc.y;
-      const metaH = multi ? 92 : 78;
+      const metaH = multi ? 92 : isNeutral ? 64 : 78;
       doc.rect(left, metaTop, contentW, metaH).fill(WOG_PDF.soft);
       doc.fillColor(WOG_PDF.ink).font('Helvetica-Bold').fontSize(11);
       doc.text(
@@ -469,8 +484,10 @@ export class OrdersService {
         metaLine(col1, my, 'Mandant', order.mandant?.name || '–');
         metaLine(col2, my, 'Status', order.status, 55);
         my += 14;
-        metaLine(col1, my, 'Frachtzahler', order.freightPayer?.name || '–');
-        my += 14;
+        if (!isNeutral) {
+          metaLine(col1, my, 'Frachtzahler', order.freightPayer?.name || '–');
+          my += 14;
+        }
         metaLine(col1, my, 'Sendung', String(allShipments.length));
         metaLine(col2, my, 'Colli / kg', `${totalColli}  ·  ${totalWeight || '–'} kg`, 55);
       }
@@ -499,10 +516,15 @@ export class OrdersService {
 
         if (multi) {
           doc.fillColor(WOG_PDF.muted).font('Helvetica').fontSize(8);
+          const orderNeutral =
+            Boolean(order.freightPayer?.neutralDeliveryReceipt) ||
+            (order.shipments || []).some((s: any) => s.customer?.neutralDeliveryReceipt);
           doc.text(
             [
               order.mandant?.name ? `Mandant: ${order.mandant.name}` : null,
-              order.freightPayer?.name ? `Frachtzahler: ${order.freightPayer.name}` : null,
+              !orderNeutral && order.freightPayer?.name
+                ? `Frachtzahler: ${order.freightPayer.name}`
+                : null,
               order.status ? `Status: ${order.status}` : null,
             ]
               .filter(Boolean)
@@ -522,7 +544,11 @@ export class OrdersService {
             .fontSize(10)
             .text(
               `Sendung${order.shipments.length > 1 ? ` ${idx + 1}` : ''}  ·  ${shipment.trackingNumber}${
-                shipment.reference ? `  ·  Ref. ${shipment.reference}` : ''
+                shipment.reference ? `  ·  Ext. Ref. ${shipment.reference}` : ''
+              }${
+                shipment.deliveryCustomerRef
+                  ? `  ·  Kd-Nr. ${shipment.deliveryCustomerRef}`
+                  : ''
               }`,
               left + 8,
               headY + 4,

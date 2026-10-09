@@ -679,7 +679,7 @@ model Customer {
   matchcode                String?
   /// Modul „Dokumente“ für diesen Kunden freigeschaltet
   documentsModuleEnabled   Boolean  @default(false)
-  /// Ablieferbelege immer neutral (nur Absender + Empfänger, kein Auftraggeber)
+  /// Neutrale Lieferung: Ablieferbeleg, Etiketten und Auftrags-PDFs ohne Auftraggeber/WOG-Branding
   neutralDeliveryReceipt   Boolean  @default(false)
   /// SFTP-Inbound für Auftragsdateien (z. B. FORTRAS BORD512) – nur Admin-Freischaltung
   sftpInboundEnabled       Boolean  @default(false)
@@ -760,6 +760,12 @@ model Address {
   zip        String
   city       String
   country    String  @default("AT")
+  /// Kundennummer des Empfängers im System des Portal-Kunden (nicht Soloplan)
+  customerRef String?
+  /// Abholzeiten je Werktag als JSON, Keys 1=Mo … 7=So, Werte "HH:mm"
+  pickupTimesByWeekday String?
+  /// Name des externen Portals für Zeitfensterbuchung (z. B. Empfänger-Portal)
+  timeSlotPortalName String?
   /// PICKUP | DELIVERY | BOTH
   usage      String  @default("BOTH")
   isDefault  Boolean @default(false)
@@ -911,7 +917,10 @@ model Shipment {
   orderId          String?
   trackingNumber   String         @unique
   trackingPin      String?
+  /// Externe Referenz (Kundenauftrag) – auch auf Etikett
   reference        String?
+  /// Empfänger-Kundennummer lt. Kundensystem (aus Adressbuch)
+  deliveryCustomerRef String?
   status           ShipmentStatus @default(DRAFT)
   transportMode    String?
   goodsDescription String?
