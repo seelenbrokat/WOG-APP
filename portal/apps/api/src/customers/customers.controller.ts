@@ -94,6 +94,11 @@ class AddressDto {
   @IsOptional()
   @IsString()
   pickupTimesByWeekday?: string | null;
+
+  /** Name des externen Portals für Zeitfensterbuchung */
+  @IsOptional()
+  @IsString()
+  timeSlotPortalName?: string | null;
 }
 
 class ContactDto {

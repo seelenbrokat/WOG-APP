@@ -19,6 +19,8 @@ type Address = {
   customerRef?: string | null;
   /** JSON Abholzeiten Mo–So */
   pickupTimesByWeekday?: string | null;
+  /** Externes Zeitfenster-Buchungsportal */
+  timeSlotPortalName?: string | null;
 };
 
 type Template = {
@@ -68,6 +70,7 @@ const emptyAddress = {
   usage: 'BOTH',
   isDefault: false,
   customerRef: '',
+  timeSlotPortalName: '',
   pickupTimes: { '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '' } as Record<
     string,
     string
@@ -192,6 +195,7 @@ export default function AddressBookPage() {
       usage: a.usage || 'BOTH',
       isDefault: Boolean(a.isDefault),
       customerRef: a.customerRef || '',
+      timeSlotPortalName: a.timeSlotPortalName || '',
       pickupTimes: parsePickupTimes(a.pickupTimesByWeekday),
     });
     setForceSaveAddress(false);
@@ -245,6 +249,7 @@ export default function AddressBookPage() {
         isDefault: form.isDefault,
         customerRef: form.customerRef || null,
         pickupTimesByWeekday: serializePickupTimes(form.pickupTimes),
+        timeSlotPortalName: form.timeSlotPortalName || null,
       };
       if (editingAddressId) {
         await api(`/customers/addresses/${editingAddressId}`, {
@@ -472,6 +477,20 @@ export default function AddressBookPage() {
               />
               Als Standardadresse
             </label>
+            {(form.usage === 'DELIVERY' || form.usage === 'BOTH') && (
+              <div className="field">
+                <label>Zeitfenster-Portal</label>
+                <input
+                  placeholder="Name des externen Buchungsportals"
+                  value={form.timeSlotPortalName}
+                  onChange={(e) => setForm({ ...form, timeSlotPortalName: e.target.value })}
+                />
+                <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.75rem' }}>
+                  Falls der Empfänger Zeitfenster über ein externes Portal bucht – Name hier
+                  hinterlegen.
+                </p>
+              </div>
+            )}
             {(form.usage === 'PICKUP' || form.usage === 'BOTH') && (
               <div className="stack" style={{ gap: '0.35rem' }}>
                 <strong style={{ fontSize: '0.9rem' }}>Abholzeiten (Werktag)</strong>
@@ -541,6 +560,7 @@ export default function AddressBookPage() {
                   <th>Label</th>
                   <th>Adresse</th>
                   <th>Kd-Nr.</th>
+                  <th>Zeitfenster-Portal</th>
                   <th>Nutzung</th>
                   <th></th>
                 </tr>
@@ -561,6 +581,7 @@ export default function AddressBookPage() {
                       ) : null}
                     </td>
                     <td>{a.customerRef || '–'}</td>
+                    <td>{a.timeSlotPortalName || '–'}</td>
                     <td>
                       <span className="badge">{a.usage}</span>
                     </td>

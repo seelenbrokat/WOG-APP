@@ -12,10 +12,14 @@ export type BookAddress = {
   country: string;
   usage: string;
   customerRef?: string | null;
+  timeSlotPortalName?: string | null;
 };
 
 function nameHaystack(a: BookAddress) {
-  return [a.company, a.label, a.customerRef].filter(Boolean).join(' ').toLowerCase();
+  return [a.company, a.label, a.customerRef, a.timeSlotPortalName]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 }
 
 function addressTitle(a: BookAddress) {
@@ -23,8 +27,10 @@ function addressTitle(a: BookAddress) {
 }
 
 function addressMeta(a: BookAddress) {
-  const base = `${a.street}, ${a.zip} ${a.city} (${a.country})`;
-  return a.customerRef ? `${base} · Kd-Nr. ${a.customerRef}` : base;
+  const parts = [`${a.street}, ${a.zip} ${a.city} (${a.country})`];
+  if (a.customerRef) parts.push(`Kd-Nr. ${a.customerRef}`);
+  if (a.timeSlotPortalName) parts.push(`Zeitfenster: ${a.timeSlotPortalName}`);
+  return parts.join(' · ');
 }
 
 type Props = {

@@ -60,6 +60,7 @@ type Address = {
   isDefault?: boolean;
   customerRef?: string | null;
   pickupTimesByWeekday?: string | null;
+  timeSlotPortalName?: string | null;
 };
 
 /** Abholzeit aus Adressbuch für ein Datum (Werktag 1=Mo … 7=So). */
@@ -1118,6 +1119,16 @@ function NewShipmentInner() {
               onSelect={(id) => applyAddress('delivery', id)}
               emptyHint="Noch keine Zustelladressen gespeichert – nach dem ersten Auftrag erscheinen sie hier."
             />
+            {(() => {
+              const sel = addresses.find((a) => a.id === form.deliveryAddressId);
+              const portal = sel?.timeSlotPortalName?.trim();
+              if (!portal) return null;
+              return (
+                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                  Zeitfensterbuchung über externes Portal: <strong>{portal}</strong>
+                </p>
+              );
+            })()}
             <input
               placeholder="Firma"
               value={form.deliveryCompany}

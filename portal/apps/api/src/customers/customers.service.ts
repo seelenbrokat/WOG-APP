@@ -38,6 +38,8 @@ export type AddressInput = {
   customerRef?: string | null;
   /** JSON Abholzeiten Mo–So, z. B. {"1":"08:00","5":"14:00"} */
   pickupTimesByWeekday?: string | null;
+  /** Name des externen Portals für Zeitfensterbuchung */
+  timeSlotPortalName?: string | null;
 };
 
 export type TemplateInput = {
@@ -198,6 +200,7 @@ export class CustomersService {
         isDefault: data.isDefault || false,
         customerRef: data.customerRef?.trim() || null,
         pickupTimesByWeekday: normalizePickupTimesJson(data.pickupTimesByWeekday),
+        timeSlotPortalName: data.timeSlotPortalName?.trim() || null,
       },
     });
     await this.audit.log(user.id, 'address.create', 'Address', address.id, { customerId: id });
@@ -230,6 +233,9 @@ export class CustomersService {
           : {}),
         ...(data.pickupTimesByWeekday !== undefined
           ? { pickupTimesByWeekday: normalizePickupTimesJson(data.pickupTimesByWeekday) }
+          : {}),
+        ...(data.timeSlotPortalName !== undefined
+          ? { timeSlotPortalName: data.timeSlotPortalName?.trim() || null }
           : {}),
       },
     });

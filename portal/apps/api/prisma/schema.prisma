@@ -764,6 +764,8 @@ model Address {
   customerRef String?
   /// Abholzeiten je Werktag als JSON, Keys 1=Mo … 7=So, Werte "HH:mm"
   pickupTimesByWeekday String?
+  /// Name des externen Portals für Zeitfensterbuchung (z. B. Empfänger-Portal)
+  timeSlotPortalName String?
   /// PICKUP | DELIVERY | BOTH
   usage      String  @default("BOTH")
   isDefault  Boolean @default(false)
