@@ -19,12 +19,14 @@ const DEFAULT_SLOT_UNITS: Record<WarehousePalletType, number> = {
   EURO: 1,
   HALF: 0.5,
   OVERSIZE: 2,
+  CUSTOM: 1,
 };
 
 const PALLET_LABEL: Record<WarehousePalletType, string> = {
   EURO: 'Europalette',
   HALF: 'Halbpalette',
   OVERSIZE: 'Übergroße Palette',
+  CUSTOM: 'Individuell / EWP',
 };
 
 export type EnsureRackLayoutOpts = {
@@ -468,13 +470,139 @@ export class WarehouseStorageService {
     });
   }
 
+  async listArticles(user: AuthUser, customerId?: string, includeInactive = false) {
+    this.assertOrg(user);
+    if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) throw new ForbiddenException();
+      customerId = user.customerId;
+    } else {
+      this.assertStaff(user);
+    }
+    return this.prisma.warehouseArticle.findMany({
+      where: {
+        organizationId: user.organizationId,
+        ...(customerId ? { customerId } : {}),
+        ...(includeInactive ? {} : { active: true }),
+      },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+      },
+      orderBy: [{ customer: { name: 'asc' } }, { name: 'asc' }],
+    });
+  }
+
+  async createArticle(
+    user: AuthUser,
+    data: {
+      customerId: string;
+      name: string;
+      articleNumber?: string;
+      palletType?: WarehousePalletType;
+      slotUnits?: number;
+      notes?: string;
+    },
+  ) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: data.customerId, organizationId: user.organizationId },
+    });
+    if (!customer) throw new BadRequestException('Kunde nicht gefunden');
+    if (!customer.warehouseCustomer) {
+      throw new BadRequestException('Kunde ist kein Lagerkunde');
+    }
+    const name = String(data.name || '').trim();
+    if (!name) throw new BadRequestException('Artikelname fehlt');
+    const palletType = data.palletType || WarehousePalletType.EURO;
+    const slotUnits = this.slotUnitsFor(palletType, data.slotUnits);
+    const articleNumber = data.articleNumber?.trim() || null;
+    try {
+      const article = await this.prisma.warehouseArticle.create({
+        data: {
+          organizationId: user.organizationId,
+          customerId: customer.id,
+          name,
+          articleNumber,
+          palletType,
+          slotUnits,
+          notes: data.notes?.trim() || null,
+        },
+        include: {
+          customer: { select: { id: true, name: true, customerNumber: true } },
+        },
+      });
+      await this.audit.log(user.id, 'warehouse.article.create', 'WarehouseArticle', article.id, {
+        customerId: customer.id,
+        name,
+        palletType,
+        slotUnits,
+      });
+      return article;
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        throw new BadRequestException('Artikelnummer bereits vergeben für diesen Kunden');
+      }
+      throw e;
+    }
+  }
+
+  async updateArticle(
+    user: AuthUser,
+    id: string,
+    data: Partial<{
+      name: string;
+      articleNumber: string | null;
+      palletType: WarehousePalletType;
+      slotUnits: number;
+      notes: string | null;
+      active: boolean;
+    }>,
+  ) {
+    this.assertStaff(user);
+    const existing = await this.prisma.warehouseArticle.findFirst({
+      where: { id, organizationId: user.organizationId },
+    });
+    if (!existing) throw new NotFoundException('Artikel nicht gefunden');
+    const palletType = data.palletType ?? existing.palletType;
+    const slotUnits =
+      data.slotUnits !== undefined
+        ? this.slotUnitsFor(palletType, data.slotUnits)
+        : existing.slotUnits;
+    try {
+      const article = await this.prisma.warehouseArticle.update({
+        where: { id },
+        data: {
+          ...(data.name !== undefined ? { name: String(data.name).trim() } : {}),
+          ...(data.articleNumber !== undefined
+            ? { articleNumber: data.articleNumber?.trim() || null }
+            : {}),
+          ...(data.palletType !== undefined ? { palletType: data.palletType } : {}),
+          ...(data.slotUnits !== undefined || data.palletType !== undefined ? { slotUnits } : {}),
+          ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+          ...(data.active !== undefined ? { active: data.active } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, customerNumber: true } },
+        },
+      });
+      await this.audit.log(user.id, 'warehouse.article.update', 'WarehouseArticle', id, data);
+      return article;
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        throw new BadRequestException('Artikelnummer bereits vergeben für diesen Kunden');
+      }
+      throw e;
+    }
+  }
+
   async inbound(
     user: AuthUser,
     data: {
       customerId: string;
       locationId: string;
-      palletType: WarehousePalletType;
+      palletType?: WarehousePalletType;
       slotUnits?: number;
+      articleId?: string;
       articleName?: string;
       serialNumber?: string;
       sscc?: string;
@@ -496,14 +624,42 @@ export class WarehouseStorageService {
       );
     }
 
+    let article: {
+      id: string;
+      name: string;
+      articleNumber: string | null;
+      palletType: WarehousePalletType;
+      slotUnits: number;
+    } | null = null;
+    if (data.articleId) {
+      article = await this.prisma.warehouseArticle.findFirst({
+        where: {
+          id: data.articleId,
+          organizationId: user.organizationId,
+          customerId: customer.id,
+          active: true,
+        },
+      });
+      if (!article) throw new BadRequestException('Artikel nicht gefunden / nicht aktiv');
+    }
+
     const location = await this.prisma.warehouseLocation.findFirst({
       where: { id: data.locationId, organizationId: user.organizationId, active: true },
       include: { units: { where: { status: WarehouseUnitStatus.STORED } } },
     });
     if (!location) throw new BadRequestException('Lagerplatz nicht gefunden');
 
-    const palletType = data.palletType || WarehousePalletType.EURO;
-    const slotUnits = this.slotUnitsFor(palletType, data.slotUnits);
+    const palletType =
+      data.palletType || article?.palletType || WarehousePalletType.EURO;
+    const slotUnits = this.slotUnitsFor(
+      palletType,
+      data.slotUnits ?? article?.slotUnits ?? undefined,
+    );
+    const articleName =
+      data.articleName?.trim() ||
+      (article
+        ? [article.articleNumber, article.name].filter(Boolean).join(' · ')
+        : null);
     const used = location.units.reduce((s, u) => s + u.slotUnits, 0);
     if (used + slotUnits > location.capacitySlots + 0.001) {
       throw new BadRequestException(
@@ -519,10 +675,11 @@ export class WarehouseStorageService {
         organizationId: user.organizationId,
         customerId: data.customerId,
         locationId: location.id,
+        articleId: article?.id || null,
         shipmentId: data.shipmentId || null,
         palletType,
         slotUnits,
-        articleName: data.articleName?.trim() || null,
+        articleName,
         serialNumber: data.serialNumber?.trim() || null,
         sscc: data.sscc?.trim() || null,
         externalRef: data.externalRef?.trim() || null,

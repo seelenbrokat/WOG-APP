@@ -15,6 +15,13 @@ type Location = {
   usedSlots: number;
   label?: string | null;
 };
+type Article = {
+  id: string;
+  name: string;
+  articleNumber?: string | null;
+  palletType: string;
+  slotUnits: number;
+};
 type Meta = {
   palletTypes: Array<{ code: string; label: string; defaultSlotUnits: number }>;
 };
@@ -23,10 +30,13 @@ export default function EinlagernPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [customerId, setCustomerId] = useState('');
+  const [articleId, setArticleId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [palletType, setPalletType] = useState('EURO');
+  const [slotUnits, setSlotUnits] = useState('1');
   const [articleName, setArticleName] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [sscc, setSscc] = useState('');
@@ -47,10 +57,27 @@ export default function EinlagernPage() {
         setLocations(l);
         setMeta(m);
         if (c[0]) setCustomerId(c[0].id);
-        if (m.palletTypes[0]) setPalletType(m.palletTypes[0].code);
+        if (m.palletTypes[0]) {
+          setPalletType(m.palletTypes[0].code);
+          setSlotUnits(String(m.palletTypes[0].defaultSlotUnits));
+        }
       })
       .catch((e) => setError(e.message));
   }, []);
+
+  useEffect(() => {
+    if (!customerId) {
+      setArticles([]);
+      setArticleId('');
+      return;
+    }
+    api<Article[]>(`/warehouse/articles?customerId=${encodeURIComponent(customerId)}`)
+      .then((list) => {
+        setArticles(list);
+        setArticleId('');
+      })
+      .catch((e) => setError(e.message));
+  }, [customerId]);
 
   const filteredLocs = useMemo(() => {
     const q = locFilter.trim().toLowerCase();
@@ -58,8 +85,24 @@ export default function EinlagernPage() {
     return locations.filter((l) => `${l.code} ${l.label || ''}`.toLowerCase().includes(q)).slice(0, 80);
   }, [locations, locFilter]);
 
-  const needSlots =
-    meta?.palletTypes.find((p) => p.code === palletType)?.defaultSlotUnits ?? 1;
+  const needSlots = Number(slotUnits) || 1;
+
+  function applyArticle(id: string) {
+    setArticleId(id);
+    if (!id) return;
+    const a = articles.find((x) => x.id === id);
+    if (!a) return;
+    setPalletType(a.palletType);
+    setSlotUnits(String(a.slotUnits));
+    setArticleName([a.articleNumber, a.name].filter(Boolean).join(' · '));
+  }
+
+  function onPalletChange(code: string) {
+    setPalletType(code);
+    if (articleId) return; // Artikel bestimmt Stellplätze
+    const def = meta?.palletTypes.find((p) => p.code === code)?.defaultSlotUnits ?? 1;
+    if (code !== 'CUSTOM') setSlotUnits(String(def));
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -71,7 +114,9 @@ export default function EinlagernPage() {
         body: JSON.stringify({
           customerId,
           locationId,
+          articleId: articleId || undefined,
           palletType,
+          slotUnits: Number(slotUnits) || undefined,
           articleName: articleName || undefined,
           serialNumber: serialNumber || undefined,
           sscc: sscc || undefined,
@@ -90,14 +135,13 @@ export default function EinlagernPage() {
   return (
     <AppShell title="Einlagern" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
-        Palette aufnehmen: Kunde, Platz, Typ, optional Artikel &amp; Seriennummer.
-        Nur Kunden mit Checkbox <strong>Lagerkunde</strong>.
+        Palette aufnehmen: Kunde, Artikel (vordefiniert), Platz. Artikel unter{' '}
+        <a href="/lager/artikel">Lagerartikel</a> anlegen.
       </p>
       {error ? <p className="error">{error}</p> : null}
       {!customers.length && !error ? (
         <p className="muted">
-          Keine Lagerkunden – unter{' '}
-          <a href="/customers">Kunden</a> die Checkbox „Lagerkunde“ setzen.
+          Keine Lagerkunden – unter <a href="/customers">Kunden</a> die Checkbox „Lagerkunde“ setzen.
         </p>
       ) : null}
 
@@ -114,14 +158,46 @@ export default function EinlagernPage() {
         </div>
 
         <div className="field">
-          <label>Palettentyp</label>
-          <select value={palletType} onChange={(e) => setPalletType(e.target.value)}>
-            {(meta?.palletTypes || []).map((p) => (
-              <option key={p.code} value={p.code}>
-                {p.label} ({p.defaultSlotUnits} Stellplatz)
+          <label>Artikel (Stamm)</label>
+          <select value={articleId} onChange={(e) => applyArticle(e.target.value)}>
+            <option value="">– manuell / ohne Stamm –</option>
+            {articles.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.articleNumber ? `${a.articleNumber} · ` : ''}
+                {a.name} ({a.palletType}, {a.slotUnits} SP)
               </option>
             ))}
           </select>
+          {!articles.length && customerId ? (
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+              Noch keine Artikel für diesen Kunden – unter{' '}
+              <a href="/lager/artikel">Lagerartikel</a> anlegen.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 2, minWidth: 160 }}>
+            <label>Palettentyp</label>
+            <select value={palletType} onChange={(e) => onPalletChange(e.target.value)}>
+              {(meta?.palletTypes || []).map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 120 }}>
+            <label>Stellplätze</label>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              required
+              value={slotUnits}
+              onChange={(e) => setSlotUnits(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="field">
@@ -140,10 +216,10 @@ export default function EinlagernPage() {
               onClick={async () => {
                 try {
                   const res = await api<{ location: Location | null }>(
-                    `/warehouse/locations/suggest?palletType=${encodeURIComponent(palletType)}`,
+                    `/warehouse/locations/suggest?palletType=${encodeURIComponent(palletType)}&slots=${encodeURIComponent(slotUnits)}`,
                   );
                   if (!res.location) {
-                    setError('Kein freier Platz für diesen Palettentyp');
+                    setError('Kein freier Platz für diese Stellplätze');
                     return;
                   }
                   setError('');

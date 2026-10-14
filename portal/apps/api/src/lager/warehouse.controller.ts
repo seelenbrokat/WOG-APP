@@ -21,13 +21,18 @@ class InboundDto {
   @IsString()
   locationId!: string;
 
+  @IsOptional()
   @IsEnum(WarehousePalletType)
-  palletType!: WarehousePalletType;
+  palletType?: WarehousePalletType;
 
   @IsOptional()
   @IsNumber()
   @Min(0.1)
   slotUnits?: number;
+
+  @IsOptional()
+  @IsString()
+  articleId?: string;
 
   @IsOptional()
   @IsString()
@@ -128,6 +133,58 @@ class RateDto {
 
   @IsNumber()
   storageFeePerSlot!: number;
+}
+
+class ArticleDto {
+  @IsString()
+  customerId!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  articleNumber?: string;
+
+  @IsOptional()
+  @IsEnum(WarehousePalletType)
+  palletType?: WarehousePalletType;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  slotUnits?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+class PatchArticleDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  articleNumber?: string;
+
+  @IsOptional()
+  @IsEnum(WarehousePalletType)
+  palletType?: WarehousePalletType;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  slotUnits?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 class LayoutDto {
@@ -301,5 +358,35 @@ export class WarehouseController {
   @Roles(...STAFF)
   warehouseCustomers(@CurrentUser() user: AuthUser) {
     return this.warehouse.listWarehouseCustomers(user);
+  }
+
+  @Get('articles')
+  @Roles(...STAFF, UserRole.CUSTOMER_USER)
+  articles(
+    @CurrentUser() user: AuthUser,
+    @Query('customerId') customerId?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.warehouse.listArticles(
+      user,
+      customerId,
+      all === '1' || all === 'true',
+    );
+  }
+
+  @Post('articles')
+  @Roles(...STAFF)
+  createArticle(@CurrentUser() user: AuthUser, @Body() dto: ArticleDto) {
+    return this.warehouse.createArticle(user, dto);
+  }
+
+  @Patch('articles/:id')
+  @Roles(...STAFF)
+  patchArticle(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: PatchArticleDto,
+  ) {
+    return this.warehouse.updateArticle(user, id, dto);
   }
 }

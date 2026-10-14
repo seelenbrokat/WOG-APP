@@ -1,0 +1,299 @@
+'use client';
+
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { AppShell } from '@/components/AppShell';
+import { api } from '@/lib/api';
+
+type Customer = { id: string; name: string; customerNumber: string };
+type Meta = {
+  palletTypes: Array<{ code: string; label: string; defaultSlotUnits: number }>;
+};
+type Article = {
+  id: string;
+  name: string;
+  articleNumber?: string | null;
+  palletType: string;
+  slotUnits: number;
+  notes?: string | null;
+  active: boolean;
+  customer: Customer;
+};
+
+const empty = {
+  customerId: '',
+  name: '',
+  articleNumber: '',
+  palletType: 'EURO',
+  slotUnits: '1',
+  notes: '',
+};
+
+export default function LagerArtikelPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [filterCustomerId, setFilterCustomerId] = useState('');
+  const [form, setForm] = useState(empty);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+
+  async function load() {
+    const qs = new URLSearchParams();
+    if (filterCustomerId) qs.set('customerId', filterCustomerId);
+    if (showInactive) qs.set('all', '1');
+    const [c, a, m] = await Promise.all([
+      api<Customer[]>('/warehouse/customers'),
+      api<Article[]>(`/warehouse/articles?${qs}`),
+      api<Meta>('/warehouse/meta'),
+    ]);
+    setCustomers(c);
+    setArticles(a);
+    setMeta(m);
+    setForm((f) => ({
+      ...f,
+      customerId: f.customerId || filterCustomerId || c[0]?.id || '',
+      palletType: f.palletType || m.palletTypes[0]?.code || 'EURO',
+      slotUnits:
+        f.slotUnits ||
+        String(m.palletTypes.find((p) => p.code === (f.palletType || 'EURO'))?.defaultSlotUnits ?? 1),
+    }));
+  }
+
+  useEffect(() => {
+    load().catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCustomerId, showInactive]);
+
+  const palletLabel = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of meta?.palletTypes || []) map[p.code] = p.label;
+    return map;
+  }, [meta]);
+
+  function onPalletChange(code: string) {
+    const def = meta?.palletTypes.find((p) => p.code === code)?.defaultSlotUnits ?? 1;
+    setForm((f) => ({
+      ...f,
+      palletType: code,
+      // Individuell/EWP: Stellplätze manuell lassen; sonst Default übernehmen
+      slotUnits: code === 'CUSTOM' ? f.slotUnits : String(def),
+    }));
+  }
+
+  async function onCreate(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await api('/warehouse/articles', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: form.customerId,
+          name: form.name,
+          articleNumber: form.articleNumber || undefined,
+          palletType: form.palletType,
+          slotUnits: Number(form.slotUnits) || 1,
+          notes: form.notes || undefined,
+        }),
+      });
+      setMessage('Artikel angelegt');
+      setForm((f) => ({ ...empty, customerId: f.customerId, palletType: f.palletType, slotUnits: f.slotUnits }));
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(a: Article) {
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/warehouse/articles/${a.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active: !a.active }),
+      });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AppShell title="Lagerartikel" eyebrow="Lagerverwaltung">
+      <p className="muted" style={{ marginTop: 0 }}>
+        Artikel je Lagerkunde mit vordefinierter Palettengröße. Für EWP/Sondermaß Typ{' '}
+        <strong>Individuell / EWP</strong> und eigene Stellplätze setzen.
+      </p>
+
+      <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <Link className="btn btn-ghost" href="/lager/uebersicht">
+          Übersicht
+        </Link>
+        <Link className="btn btn-primary" href="/lager/einlagern">
+          Einlagern
+        </Link>
+        <Link className="btn btn-ghost" href="/customers">
+          Kunden
+        </Link>
+      </div>
+
+      {error ? <p className="error">{error}</p> : null}
+      {message ? <p className="ok">{message}</p> : null}
+
+      <form className="panel stack" onSubmit={onCreate} style={{ marginBottom: '1rem', maxWidth: 720 }}>
+        <strong>Artikel anlegen</strong>
+        <div className="field">
+          <label>Lagerkunde</label>
+          <select
+            required
+            value={form.customerId}
+            onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
+          >
+            <option value="">– wählen –</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.customerNumber})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 1, minWidth: 160 }}>
+            <label>Artikel-Nr. (optional)</label>
+            <input
+              value={form.articleNumber}
+              onChange={(e) => setForm((f) => ({ ...f, articleNumber: e.target.value }))}
+              placeholder="z. B. ART-1001"
+            />
+          </div>
+          <div className="field" style={{ flex: 2, minWidth: 200 }}>
+            <label>Bezeichnung</label>
+            <input
+              required
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Artikelname"
+            />
+          </div>
+        </div>
+        <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 2, minWidth: 180 }}>
+            <label>Palettentyp</label>
+            <select value={form.palletType} onChange={(e) => onPalletChange(e.target.value)}>
+              {(meta?.palletTypes || []).map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.label} (Default {p.defaultSlotUnits})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 120 }}>
+            <label>Stellplätze</label>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              required
+              value={form.slotUnits}
+              onChange={(e) => setForm((f) => ({ ...f, slotUnits: e.target.value }))}
+              title="Individuelle Stellplatz-Einheiten"
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label>Notiz (optional)</label>
+          <input
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+        </div>
+        <button className="btn btn-primary" type="submit" disabled={busy || !form.customerId}>
+          {busy ? 'Speichern…' : 'Artikel speichern'}
+        </button>
+      </form>
+
+      <div className="row" style={{ gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <select
+          value={filterCustomerId}
+          onChange={(e) => setFilterCustomerId(e.target.value)}
+          style={{ minWidth: 220 }}
+        >
+          <option value="">Alle Lagerkunden</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <label className="row" style={{ gap: 6, alignItems: 'center', margin: 0 }}>
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+          />
+          Inaktive anzeigen
+        </label>
+      </div>
+
+      <div className="panel" style={{ overflowX: 'auto' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Kunde</th>
+              <th>Nr.</th>
+              <th>Artikel</th>
+              <th>Palette</th>
+              <th>Stellplätze</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {articles.map((a) => (
+              <tr key={a.id} style={{ opacity: a.active ? 1 : 0.55 }}>
+                <td>{a.customer.name}</td>
+                <td className="muted">{a.articleNumber || '–'}</td>
+                <td>
+                  <strong>{a.name}</strong>
+                  {a.notes ? (
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      {a.notes}
+                    </div>
+                  ) : null}
+                </td>
+                <td>{palletLabel[a.palletType] || a.palletType}</td>
+                <td>{a.slotUnits}</td>
+                <td>{a.active ? 'aktiv' : 'inaktiv'}</td>
+                <td>
+                  <button
+                    className="btn btn-ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => toggleActive(a)}
+                  >
+                    {a.active ? 'Deaktivieren' : 'Aktivieren'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!articles.length ? (
+              <tr>
+                <td colSpan={7} className="muted">
+                  Noch keine Artikel – oben anlegen.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
+  );
+}
