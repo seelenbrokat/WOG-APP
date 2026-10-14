@@ -130,6 +130,33 @@ class RateDto {
   storageFeePerSlot!: number;
 }
 
+class LayoutDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  aisles?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  levels?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  bays?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  slotsPerBay?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  blockZones?: number;
+}
+
 const STAFF = [UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER] as const;
 
 @Controller('warehouse')
@@ -145,8 +172,21 @@ export class WarehouseController {
 
   @Post('layout/ensure-default')
   @Roles(...STAFF)
-  ensureLayout(@CurrentUser() user: AuthUser) {
-    return this.warehouse.ensureDefaultLayout(user);
+  ensureLayout(@CurrentUser() user: AuthUser, @Body() dto: LayoutDto) {
+    return this.warehouse.ensureDefaultLayout(user, dto || {});
+  }
+
+  /** Fehlende Plätze nachziehen (z. B. mehr Reihen), bestehende bleiben. */
+  @Post('layout/extend')
+  @Roles(...STAFF)
+  extendLayout(@CurrentUser() user: AuthUser, @Body() dto: LayoutDto) {
+    return this.warehouse.extendLayout(user, dto || {});
+  }
+
+  @Get('layout/map')
+  @Roles(...STAFF)
+  occupancyMap(@CurrentUser() user: AuthUser) {
+    return this.warehouse.occupancyMap(user);
   }
 
   @Get('locations')
@@ -162,6 +202,20 @@ export class WarehouseController {
       freeOnly: freeOnly === '1' || freeOnly === 'true',
       q,
     });
+  }
+
+  @Get('locations/suggest')
+  @Roles(...STAFF)
+  suggest(
+    @CurrentUser() user: AuthUser,
+    @Query('palletType') palletType?: string,
+    @Query('slots') slots?: string,
+  ) {
+    return this.warehouse.suggestFreeLocation(
+      user,
+      (palletType as WarehousePalletType) || WarehousePalletType.EURO,
+      slots ? Number(slots) : undefined,
+    );
   }
 
   @Post('locations')

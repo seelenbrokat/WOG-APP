@@ -119,17 +119,43 @@ export default function EinlagernPage() {
 
         <div className="field">
           <label>Lagerplatz (frei ≥ {needSlots})</label>
-          <input
-            placeholder="Platz suchen (z. B. R01-E2…)"
-            value={locFilter}
-            onChange={(e) => setLocFilter(e.target.value)}
-          />
+          <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', marginBottom: 6 }}>
+            <input
+              placeholder="Platz suchen (z. B. R01-E2…)"
+              value={locFilter}
+              onChange={(e) => setLocFilter(e.target.value)}
+              style={{ flex: 1, minWidth: 180 }}
+            />
+            <button
+              className="btn btn-ghost"
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                try {
+                  const res = await api<{ location: Location | null }>(
+                    `/warehouse/locations/suggest?palletType=${encodeURIComponent(palletType)}`,
+                  );
+                  if (!res.location) {
+                    setError('Kein freier Platz für diesen Palettentyp');
+                    return;
+                  }
+                  setError('');
+                  setLocationId(res.location.id);
+                  setLocFilter(res.location.code);
+                } catch (e: any) {
+                  setError(e.message);
+                }
+              }}
+            >
+              Nächsten freien vorschlagen
+            </button>
+          </div>
           <select
             required
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
             size={8}
-            style={{ width: '100%', marginTop: 6 }}
+            style={{ width: '100%' }}
           >
             <option value="">– Platz wählen –</option>
             {filteredLocs

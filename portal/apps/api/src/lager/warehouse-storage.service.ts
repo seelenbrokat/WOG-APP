@@ -57,28 +57,11 @@ export class WarehouseStorageService {
     return DEFAULT_SLOT_UNITS[type] ?? 1;
   }
 
-  /** Standard-Hochregal: 10 Reihen × 3 Ebenen × 4 Fächer × 3 Stellplätze (+ Blocklager) */
-  async ensureDefaultLayout(user: AuthUser, opts: EnsureRackLayoutOpts = {}) {
-    this.assertStaff(user);
-    this.assertOrg(user);
-    const aisles = opts.aisles ?? 10;
-    const levels = opts.levels ?? 3;
-    const bays = opts.bays ?? 4;
-    const slotsPerBay = opts.slotsPerBay ?? 3;
-    const blockZones = opts.blockZones ?? 4;
-
-    const existing = await this.prisma.warehouseLocation.count({
-      where: { organizationId: user.organizationId, kind: WarehouseLocationKind.RACK },
-    });
-    if (existing > 0) {
-      return {
-        created: 0,
-        skipped: true,
-        rackCount: existing,
-        message: 'Regalplätze existieren bereits – nichts angelegt.',
-      };
-    }
-
+  private buildLayoutRows(
+    organizationId: string,
+    opts: Required<EnsureRackLayoutOpts>,
+  ) {
+    const { aisles, levels, bays, slotsPerBay, blockZones } = opts;
     const rows: Array<{
       organizationId: string;
       code: string;
@@ -99,7 +82,7 @@ export class WarehouseStorageService {
           for (let p = 1; p <= slotsPerBay; p++) {
             const code = `R${String(a).padStart(2, '0')}-E${e}-F${String(f).padStart(2, '0')}-P${p}`;
             rows.push({
-              organizationId: user.organizationId,
+              organizationId,
               code,
               kind: WarehouseLocationKind.RACK,
               aisle: a,
@@ -117,7 +100,7 @@ export class WarehouseStorageService {
     for (let b = 1; b <= blockZones; b++) {
       const code = `BLOCK-${String(b).padStart(2, '0')}`;
       rows.push({
-        organizationId: user.organizationId,
+        organizationId,
         code,
         kind: WarehouseLocationKind.BLOCK,
         aisle: null,
@@ -129,17 +112,165 @@ export class WarehouseStorageService {
         capacitySlots: 50,
       });
     }
+    return rows;
+  }
 
+  private normalizeLayoutOpts(opts: EnsureRackLayoutOpts = {}): Required<EnsureRackLayoutOpts> {
+    return {
+      aisles: Math.max(1, Math.min(50, Math.floor(opts.aisles ?? 10))),
+      levels: Math.max(1, Math.min(10, Math.floor(opts.levels ?? 3))),
+      bays: Math.max(1, Math.min(20, Math.floor(opts.bays ?? 4))),
+      slotsPerBay: Math.max(1, Math.min(10, Math.floor(opts.slotsPerBay ?? 3))),
+      blockZones: Math.max(0, Math.min(50, Math.floor(opts.blockZones ?? 4))),
+    };
+  }
+
+  /** Standard-Hochregal: 10 Reihen × 3 Ebenen × 4 Fächer × 3 Stellplätze (+ Blocklager) */
+  async ensureDefaultLayout(user: AuthUser, opts: EnsureRackLayoutOpts = {}) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    const layout = this.normalizeLayoutOpts(opts);
+
+    const existing = await this.prisma.warehouseLocation.count({
+      where: { organizationId: user.organizationId, kind: WarehouseLocationKind.RACK },
+    });
+    if (existing > 0) {
+      return {
+        created: 0,
+        skipped: true,
+        rackCount: existing,
+        message: 'Regalplätze existieren bereits – zum Erweitern „Layout erweitern“ nutzen.',
+      };
+    }
+
+    const rows = this.buildLayoutRows(user.organizationId, layout);
     await this.prisma.warehouseLocation.createMany({ data: rows });
     await this.audit.log(user.id, 'warehouse.layout.seed', 'WarehouseLocation', undefined, {
-      aisles,
-      levels,
-      bays,
-      slotsPerBay,
-      blockZones,
+      ...layout,
       count: rows.length,
     });
-    return { created: rows.length, skipped: false, rackCount: rows.length };
+    return { created: rows.length, skipped: false, rackCount: rows.length, layout };
+  }
+
+  /** Fehlende Codes nachziehen (bestehende Plätze bleiben unverändert). */
+  async extendLayout(user: AuthUser, opts: EnsureRackLayoutOpts = {}) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    const layout = this.normalizeLayoutOpts(opts);
+    const desired = this.buildLayoutRows(user.organizationId, layout);
+    const existing = await this.prisma.warehouseLocation.findMany({
+      where: { organizationId: user.organizationId },
+      select: { code: true },
+    });
+    const have = new Set(existing.map((e) => e.code));
+    const missing = desired.filter((r) => !have.has(r.code));
+    if (!missing.length) {
+      return { created: 0, skipped: true, message: 'Alle gewünschten Plätze existieren bereits.', layout };
+    }
+    await this.prisma.warehouseLocation.createMany({ data: missing });
+    await this.audit.log(user.id, 'warehouse.layout.extend', 'WarehouseLocation', undefined, {
+      ...layout,
+      created: missing.length,
+    });
+    return { created: missing.length, skipped: false, layout };
+  }
+
+  /** Belegungskarte für Visualisierung (Reihen → Ebenen → Fächer → Plätze). */
+  async occupancyMap(user: AuthUser) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    const locs = await this.listLocations(user, { kind: 'RACK' });
+    const blocks = await this.listLocations(user, { kind: 'BLOCK' });
+
+    const aisles = new Map<
+      number,
+      {
+        aisle: number;
+        levels: Map<
+          number,
+          {
+            level: number;
+            bays: Map<
+              number,
+              {
+                bay: number;
+                slots: Array<{
+                  id: string;
+                  code: string;
+                  slot: number;
+                  usedSlots: number;
+                  capacitySlots: number;
+                  freeSlots: number;
+                  occupied: boolean;
+                  unitCount: number;
+                }>;
+              }
+            >;
+          }
+        >;
+      }
+    >();
+
+    for (const l of locs) {
+      if (l.aisle == null || l.level == null || l.bay == null || l.slot == null) continue;
+      if (!aisles.has(l.aisle)) aisles.set(l.aisle, { aisle: l.aisle, levels: new Map() });
+      const a = aisles.get(l.aisle)!;
+      if (!a.levels.has(l.level)) a.levels.set(l.level, { level: l.level, bays: new Map() });
+      const e = a.levels.get(l.level)!;
+      if (!e.bays.has(l.bay)) e.bays.set(l.bay, { bay: l.bay, slots: [] });
+      e.bays.get(l.bay)!.slots.push({
+        id: l.id,
+        code: l.code,
+        slot: l.slot,
+        usedSlots: l.usedSlots,
+        capacitySlots: l.capacitySlots,
+        freeSlots: l.freeSlots,
+        occupied: l.occupied,
+        unitCount: l.unitCount,
+      });
+    }
+
+    const rackTree = [...aisles.values()]
+      .sort((x, y) => x.aisle - y.aisle)
+      .map((a) => ({
+        aisle: a.aisle,
+        levels: [...a.levels.values()]
+          .sort((x, y) => y.level - x.level)
+          .map((lv) => ({
+            level: lv.level,
+            bays: [...lv.bays.values()]
+              .sort((x, y) => x.bay - y.bay)
+              .map((b) => ({
+                bay: b.bay,
+                slots: b.slots.sort((x, y) => x.slot - y.slot),
+              })),
+          })),
+      }));
+
+    const used = [...locs, ...blocks].reduce((s, l) => s + l.usedSlots, 0);
+    const cap = [...locs, ...blocks].reduce((s, l) => s + l.capacitySlots, 0);
+
+    return {
+      summary: {
+        rackSlots: locs.length,
+        blockZones: blocks.length,
+        usedSlots: used,
+        capacitySlots: cap,
+        freeSlots: Math.max(0, cap - used),
+        occupiedSlots: locs.filter((l) => l.occupied).length + blocks.filter((l) => l.occupied).length,
+      },
+      aisles: rackTree,
+      blocks: blocks.map((b) => ({
+        id: b.id,
+        code: b.code,
+        label: b.label,
+        usedSlots: b.usedSlots,
+        capacitySlots: b.capacitySlots,
+        freeSlots: b.freeSlots,
+        occupied: b.occupied,
+        unitCount: b.unitCount,
+      })),
+    };
   }
 
   async listLocations(
@@ -195,6 +326,31 @@ export class WarehouseStorageService {
       };
     });
     return opts.freeOnly ? mapped.filter((m) => m.freeSlots >= 0.5) : mapped;
+  }
+
+  /** Nächsten freien Platz vorschlagen (Regal vor Block, dann niedrigste Reihe/Ebene). */
+  async suggestFreeLocation(
+    user: AuthUser,
+    palletType: WarehousePalletType = WarehousePalletType.EURO,
+    slots?: number,
+  ) {
+    this.assertStaff(user);
+    const need = this.slotUnitsFor(palletType, slots);
+    const locs = await this.listLocations(user, { freeOnly: true });
+    const rack = locs
+      .filter((l) => l.kind === WarehouseLocationKind.RACK && l.freeSlots + 0.001 >= need)
+      .sort(
+        (a, b) =>
+          (a.aisle || 0) - (b.aisle || 0) ||
+          (a.level || 0) - (b.level || 0) ||
+          (a.bay || 0) - (b.bay || 0) ||
+          (a.slot || 0) - (b.slot || 0),
+      );
+    const block = locs
+      .filter((l) => l.kind === WarehouseLocationKind.BLOCK && l.freeSlots + 0.001 >= need)
+      .sort((a, b) => a.code.localeCompare(b.code));
+    const pick = rack[0] || block[0] || null;
+    return { needSlots: need, location: pick, alternatives: [...rack, ...block].slice(0, 8) };
   }
 
   async createLocation(
