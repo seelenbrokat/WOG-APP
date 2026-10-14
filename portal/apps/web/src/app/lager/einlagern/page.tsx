@@ -42,6 +42,11 @@ export default function EinlagernPage() {
   const [sscc, setSscc] = useState('');
   const [externalRef, setExternalRef] = useState('');
   const [notes, setNotes] = useState('');
+  const [storedAt, setStoredAt] = useState(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [locFilter, setLocFilter] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -122,6 +127,7 @@ export default function EinlagernPage() {
           sscc: sscc || undefined,
           externalRef: externalRef || undefined,
           notes: notes || undefined,
+          storedAt: storedAt || undefined,
         }),
       });
       router.push('/lager/bestand');
@@ -250,6 +256,16 @@ export default function EinlagernPage() {
                 </option>
               ))}
           </select>
+        </div>
+
+        <div className="field">
+          <label>Einlagerungsdatum / -zeit</label>
+          <input
+            type="datetime-local"
+            required
+            value={storedAt}
+            onChange={(e) => setStoredAt(e.target.value)}
+          />
         </div>
 
         <div className="field">
