@@ -128,6 +128,7 @@ model Organization {
   warehouseStorageUnits    WarehouseStorageUnit[]
   warehouseMovements       WarehouseMovement[]
   warehousePriceRates      WarehousePriceRate[]
+  warehouseArticles        WarehouseArticle[]
 }
 
 /// Dauerhafte MRN/LRN je Sendung (AT eZoll, SmartBorder, CH). Retention 60 Tage.
@@ -713,6 +714,7 @@ model Customer {
   warehouseStorageUnits  WarehouseStorageUnit[]
   warehouseMovements     WarehouseMovement[]
   warehousePriceRates    WarehousePriceRate[]
+  warehouseArticles      WarehouseArticle[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -1459,6 +1461,8 @@ enum WarehousePalletType {
   EURO
   HALF
   OVERSIZE
+  /// Einweg / Sondermaß – Stellplätze am Artikel individuell hinterlegen
+  CUSTOM
 }
 
 enum WarehouseLocationKind {
@@ -1508,15 +1512,41 @@ model WarehouseLocation {
   @@index([organizationId, aisle, level, bay, slot])
 }
 
+/// Artikelstamm je Lagerkunde (vordefinierte Palettengröße / Stellplätze)
+model WarehouseArticle {
+  id             String              @id @default(cuid())
+  organizationId String
+  customerId     String
+  /// Interne/Artikel-Nr. beim Kunden
+  articleNumber  String?
+  name           String
+  palletType     WarehousePalletType @default(EURO)
+  /// Stellplätze je Palette (individuell, z. B. EWP/Sondermaß)
+  slotUnits      Float               @default(1)
+  notes          String?
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  units        WarehouseStorageUnit[]
+
+  @@index([organizationId, customerId, active])
+  @@index([customerId, name])
+  @@unique([customerId, articleNumber])
+}
+
 /// Eingelagerte Palette / Position
 model WarehouseStorageUnit {
   id             String              @id @default(cuid())
   organizationId String
   customerId     String
   locationId     String
+  articleId      String?
   shipmentId     String?
   palletType     WarehousePalletType @default(EURO)
-  /// Belegte Stellplätze: EURO=1, HALF=0.5, OVERSIZE=2 (anpassbar)
+  /// Belegte Stellplätze: EURO=1, HALF=0.5, OVERSIZE=2, CUSTOM=individuell
   slotUnits      Float               @default(1)
   articleName    String?
   serialNumber   String?
@@ -1534,10 +1564,12 @@ model WarehouseStorageUnit {
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
   location     WarehouseLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  article      WarehouseArticle?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
   movements    WarehouseMovement[]
 
   @@index([organizationId, status, customerId])
   @@index([organizationId, locationId, status])
+  @@index([articleId])
   @@index([serialNumber])
   @@index([sscc])
   @@index([shipmentId])
