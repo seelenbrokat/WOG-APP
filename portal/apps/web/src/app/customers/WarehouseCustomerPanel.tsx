@@ -50,6 +50,7 @@ export function WarehouseCustomerPanel({
           <strong>Lagerkunde</strong>
           <span className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
             Erscheint in der Lager-Übersicht; Einlagerung, Bestand und Abrechnung für diesen Kunden.
+            Artikel mit Palettengröße unter Lager → Artikel anlegen.
           </span>
         </span>
       </label>

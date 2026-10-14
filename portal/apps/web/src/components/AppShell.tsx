@@ -45,6 +45,7 @@ const NAV: NavItem[] = [
     roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'],
     children: [
       { href: '/lager/uebersicht', label: 'Übersicht' },
+      { href: '/lager/artikel', label: 'Artikel' },
       { href: '/lager/einlagern', label: 'Einlagern' },
       { href: '/lager/bestand', label: 'Bestand' },
       { href: '/lager/plaetze', label: 'Plätze' },
@@ -99,6 +100,7 @@ function isActive(pathname: string, href: string) {
   if (href === '/partner/lademittelscheine' && pathname.startsWith('/partner/lademittelscheine')) return true;
   if (href === '/lager' && pathname.startsWith('/lager')) return true;
   if (href === '/lager/uebersicht' && pathname.startsWith('/lager/uebersicht')) return true;
+  if (href === '/lager/artikel' && pathname.startsWith('/lager/artikel')) return true;
   if (href === '/lager/einlagern' && pathname.startsWith('/lager/einlagern')) return true;
   if (href === '/lager/bestand' && pathname.startsWith('/lager/bestand')) return true;
   if (href === '/lager/plaetze' && pathname.startsWith('/lager/plaetze')) return true;

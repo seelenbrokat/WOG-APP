@@ -48,6 +48,12 @@ export default function LagerHomePage() {
             Lagerkunden und Belegung auf einen Blick.
           </p>
         </Link>
+        <Link href="/lager/artikel" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <strong>Artikel</strong>
+          <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
+            Stamm je Kunde mit Palettengröße und Stellplätzen.
+          </p>
+        </Link>
         <Link href="/lager/einlagern" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>
           <strong>Einlagern</strong>
           <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
