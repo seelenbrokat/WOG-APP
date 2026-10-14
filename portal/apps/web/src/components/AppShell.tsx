@@ -18,6 +18,8 @@ type NavItem = {
   label: string;
   roles: string[];
   children?: Array<{ href: string; label: string }>;
+  /** Kundenportal: nur bei Lagerkunde anzeigen */
+  requireWarehouseCustomer?: boolean;
 };
 
 type ImpersonationCustomer = {
@@ -42,6 +44,7 @@ const NAV: NavItem[] = [
     label: 'Lager',
     roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'],
     children: [
+      { href: '/lager/uebersicht', label: 'Übersicht' },
       { href: '/lager/einlagern', label: 'Einlagern' },
       { href: '/lager/bestand', label: 'Bestand' },
       { href: '/lager/plaetze', label: 'Plätze' },
@@ -55,6 +58,8 @@ const NAV: NavItem[] = [
     href: '/lager',
     label: 'Mein Lager',
     roles: ['CUSTOMER_USER'],
+    /** Nur wenn SessionUser.warehouseCustomer – siehe Nav-Filter unten */
+    requireWarehouseCustomer: true,
     children: [
       { href: '/lager/bestand', label: 'Bestand' },
       { href: '/lager/abrechnung', label: 'Abrechnung' },
@@ -93,6 +98,7 @@ function isActive(pathname: string, href: string) {
   if (href === '/partner/tours' && pathname === '/partner/tours') return true;
   if (href === '/partner/lademittelscheine' && pathname.startsWith('/partner/lademittelscheine')) return true;
   if (href === '/lager' && pathname.startsWith('/lager')) return true;
+  if (href === '/lager/uebersicht' && pathname.startsWith('/lager/uebersicht')) return true;
   if (href === '/lager/einlagern' && pathname.startsWith('/lager/einlagern')) return true;
   if (href === '/lager/bestand' && pathname.startsWith('/lager/bestand')) return true;
   if (href === '/lager/plaetze' && pathname.startsWith('/lager/plaetze')) return true;
@@ -216,9 +222,11 @@ export function AppShell({
     );
   }
 
-  const links = NAV.filter(
-    (n) => n.roles.includes('*') || n.roles.includes(user.role),
-  );
+  const links = NAV.filter((n) => {
+    if (!(n.roles.includes('*') || n.roles.includes(user.role))) return false;
+    if (n.requireWarehouseCustomer && !user.warehouseCustomer) return false;
+    return true;
+  });
   const showCustomerSwitcher = canUseCustomerView(user);
   const viewName =
     user.impersonatingCustomerName || user.customerName || 'Kunde';

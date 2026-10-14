@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { api, getUser } from '@/lib/api';
 
@@ -25,9 +26,11 @@ const PALLET: Record<string, string> = {
   OVERSIZE: 'Übergroß',
 };
 
-export default function LagerBestandPage() {
+function LagerBestandInner() {
   const user = getUser();
   const isCustomer = user?.role === 'CUSTOMER_USER';
+  const searchParams = useSearchParams();
+  const customerIdFilter = searchParams.get('customerId') || '';
   const [units, setUnits] = useState<Unit[]>([]);
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
@@ -37,6 +40,7 @@ export default function LagerBestandPage() {
   async function load(search = q) {
     const qs = new URLSearchParams();
     if (search.trim()) qs.set('q', search.trim());
+    if (customerIdFilter && !isCustomer) qs.set('customerId', customerIdFilter);
     qs.set('status', 'STORED');
     const list = await api<Unit[]>(`/warehouse/stock?${qs}`);
     setUnits(list);
@@ -45,7 +49,7 @@ export default function LagerBestandPage() {
   useEffect(() => {
     load().catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [customerIdFilter]);
 
   async function outbound(id: string) {
     if (!confirm('Palette wirklich auslagern?')) return;
@@ -157,5 +161,13 @@ export default function LagerBestandPage() {
         </table>
       </div>
     </AppShell>
+  );
+}
+
+export default function LagerBestandPage() {
+  return (
+    <Suspense fallback={<AppShell title="Lagerbestand">Laden…</AppShell>}>
+      <LagerBestandInner />
+    </Suspense>
   );
 }

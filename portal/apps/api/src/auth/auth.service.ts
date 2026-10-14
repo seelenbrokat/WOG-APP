@@ -149,13 +149,17 @@ export class AuthService {
       organizationId: string;
       customerId: string | null;
       mustChangePassword: boolean;
-      customer?: { name: string } | null;
+      customer?: { name: string; warehouseCustomer?: boolean } | null;
       partner?: { id: string; name: string } | null;
       mandantAccess: Array<{ mandantId: string }>;
     },
     auditAction = 'auth.login',
     auditMeta: Record<string, unknown> = {},
-    opts?: { impCustomerId?: string | null; impCustomerName?: string | null },
+    opts?: {
+      impCustomerId?: string | null;
+      impCustomerName?: string | null;
+      impWarehouseCustomer?: boolean;
+    },
   ) {
     const impCustomerId = opts?.impCustomerId || undefined;
     const impersonating = Boolean(impCustomerId);
@@ -164,6 +168,9 @@ export class AuthService {
     const effectiveCustomerName = impersonating
       ? opts?.impCustomerName || undefined
       : user.customer?.name;
+    const warehouseCustomer = impersonating
+      ? Boolean(opts?.impWarehouseCustomer)
+      : Boolean(user.customer?.warehouseCustomer);
 
     const token = await this.jwt.signAsync({
       sub: user.id,
@@ -188,6 +195,7 @@ export class AuthService {
         organizationId: user.organizationId,
         customerId: effectiveCustomerId,
         customerName: effectiveCustomerName,
+        warehouseCustomer,
         partnerId: user.partner?.id ?? null,
         partnerName: user.partner?.name,
         mandantIds: user.mandantAccess.map((a) => a.mandantId),
@@ -224,7 +232,7 @@ export class AuthService {
     this.assertCanImpersonate(actor);
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, organizationId: actor.organizationId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, warehouseCustomer: true },
     });
     if (!customer) throw new NotFoundException('Kunde nicht gefunden');
 
@@ -238,7 +246,11 @@ export class AuthService {
       user,
       'auth.impersonate.start',
       { customerId: customer.id, customerName: customer.name },
-      { impCustomerId: customer.id, impCustomerName: customer.name },
+      {
+        impCustomerId: customer.id,
+        impCustomerName: customer.name,
+        impWarehouseCustomer: customer.warehouseCustomer,
+      },
     );
   }
 

@@ -290,4 +290,16 @@ export class WarehouseController {
       customerId,
     );
   }
+
+  @Get('overview')
+  @Roles(...STAFF)
+  overview(@CurrentUser() user: AuthUser) {
+    return this.warehouse.overview(user);
+  }
+
+  @Get('customers')
+  @Roles(...STAFF)
+  warehouseCustomers(@CurrentUser() user: AuthUser) {
+    return this.warehouse.listWarehouseCustomers(user);
+  }
 }

@@ -6,6 +6,7 @@ import { ApiError, api, getUser } from '@/lib/api';
 import { DocumentsModulePanel } from './DocumentsModulePanel';
 import { NeutralDeliveryPanel } from './NeutralDeliveryPanel';
 import { SftpInboundPanel } from './SftpInboundPanel';
+import { WarehouseCustomerPanel } from './WarehouseCustomerPanel';
 
 type ContactFeedback = { type: 'ok' | 'err'; text: string };
 
@@ -174,6 +175,9 @@ export default function CustomersPage() {
                 {c.neutralDeliveryReceipt ? (
                   <span className="badge ok">Neutral</span>
                 ) : null}
+                {c.warehouseCustomer ? (
+                  <span className="badge ok">Lager</span>
+                ) : null}
                 {c.sftpInboundEnabled ? (
                   <span className="badge ok">SFTP</span>
                 ) : null}
@@ -189,6 +193,10 @@ export default function CustomersPage() {
                 <NeutralDeliveryPanel
                   customerId={c.id}
                   initialEnabled={Boolean(c.neutralDeliveryReceipt)}
+                />
+                <WarehouseCustomerPanel
+                  customerId={c.id}
+                  initialEnabled={Boolean(c.warehouseCustomer)}
                 />
               </>
             )}

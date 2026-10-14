@@ -38,12 +38,12 @@ export default function EinlagernPage() {
 
   useEffect(() => {
     Promise.all([
-      api<Customer[]>('/customers'),
+      api<Customer[]>('/warehouse/customers'),
       api<Location[]>('/warehouse/locations?freeOnly=1'),
       api<Meta>('/warehouse/meta'),
     ])
       .then(([c, l, m]) => {
-        setCustomers(c.filter((x) => (x as any).active !== false));
+        setCustomers(c);
         setLocations(l);
         setMeta(m);
         if (c[0]) setCustomerId(c[0].id);
@@ -91,8 +91,15 @@ export default function EinlagernPage() {
     <AppShell title="Einlagern" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
         Palette aufnehmen: Kunde, Platz, Typ, optional Artikel &amp; Seriennummer.
+        Nur Kunden mit Checkbox <strong>Lagerkunde</strong>.
       </p>
       {error ? <p className="error">{error}</p> : null}
+      {!customers.length && !error ? (
+        <p className="muted">
+          Keine Lagerkunden – unter{' '}
+          <a href="/customers">Kunden</a> die Checkbox „Lagerkunde“ setzen.
+        </p>
+      ) : null}
 
       <form className="panel stack" onSubmit={onSubmit} style={{ maxWidth: 640 }}>
         <div className="field">

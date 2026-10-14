@@ -53,6 +53,10 @@ class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   neutralDeliveryReceipt?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  warehouseCustomer?: boolean;
 }
 
 class AddressDto {
