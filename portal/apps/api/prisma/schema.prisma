@@ -124,6 +124,10 @@ model Organization {
   ezollTourCaches          EzollTourCache[]
   ezollConsignmentCaches   EzollConsignmentCache[]
   shipmentCustomsRefs      ShipmentCustomsRef[]
+  warehouseLocations       WarehouseLocation[]
+  warehouseStorageUnits    WarehouseStorageUnit[]
+  warehouseMovements       WarehouseMovement[]
+  warehousePriceRates      WarehousePriceRate[]
 }
 
 /// Dauerhafte MRN/LRN je Sendung (AT eZoll, SmartBorder, CH). Retention 60 Tage.
@@ -704,6 +708,9 @@ model Customer {
   documentCategoryAccess CustomerDocumentCategoryAccess[]
   documents              Document[]
   documentDownloads      DocumentDownload[]
+  warehouseStorageUnits  WarehouseStorageUnit[]
+  warehouseMovements     WarehouseMovement[]
+  warehousePriceRates    WarehousePriceRate[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -1434,4 +1441,146 @@ model AuditLog {
   actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
+}
+
+/// Palettentyp für Einlagerung (Stellplatz-Faktor)
+enum WarehousePalletType {
+  EURO
+  HALF
+  OVERSIZE
+}
+
+enum WarehouseLocationKind {
+  RACK
+  BLOCK
+}
+
+enum WarehouseUnitStatus {
+  STORED
+  RELEASED
+}
+
+enum WarehouseMovementType {
+  IN
+  OUT
+}
+
+/// Fester Lagerplatz (Hochregal) oder Blocklager-Zone – frei erweiterbar
+model WarehouseLocation {
+  id             String                @id @default(cuid())
+  organizationId String
+  /// Anzeige-/Scan-Code, z. B. R01-E2-F03-P1 oder BLOCK-01
+  code           String
+  kind           WarehouseLocationKind @default(RACK)
+  /// Reihe / Gang (Hochregal)
+  aisle          Int?
+  /// Ebene von unten (1…)
+  level          Int?
+  /// Fach quer in der Reihe (1…)
+  bay            Int?
+  /// Stellplatz im Fach (1…)
+  slot           Int?
+  label          String?
+  /// Kapazität in Stellplatz-Einheiten (Standard 1)
+  capacitySlots  Float                 @default(1)
+  active         Boolean               @default(true)
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  units        WarehouseStorageUnit[]
+  movements    WarehouseMovement[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, kind, active])
+  @@index([organizationId, aisle, level, bay, slot])
+}
+
+/// Eingelagerte Palette / Position
+model WarehouseStorageUnit {
+  id             String              @id @default(cuid())
+  organizationId String
+  customerId     String
+  locationId     String
+  shipmentId     String?
+  palletType     WarehousePalletType @default(EURO)
+  /// Belegte Stellplätze: EURO=1, HALF=0.5, OVERSIZE=2 (anpassbar)
+  slotUnits      Float               @default(1)
+  articleName    String?
+  serialNumber   String?
+  sscc           String?
+  externalRef    String?
+  notes          String?
+  status         WarehouseUnitStatus @default(STORED)
+  storedAt       DateTime            @default(now())
+  releasedAt     DateTime?
+  storedById     String?
+  releasedById   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  location     WarehouseLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements    WarehouseMovement[]
+
+  @@index([organizationId, status, customerId])
+  @@index([organizationId, locationId, status])
+  @@index([serialNumber])
+  @@index([sscc])
+  @@index([shipmentId])
+}
+
+/// Ein-/Auslagerung (für Abrechnung)
+model WarehouseMovement {
+  id             String                @id @default(cuid())
+  organizationId String
+  customerId     String
+  storageUnitId  String
+  locationId     String
+  type           WarehouseMovementType
+  palletType     WarehousePalletType
+  slotUnits      Float
+  /// Snapshot Preis zum Buchungszeitpunkt
+  unitPrice      Float                 @default(0)
+  amount         Float                 @default(0)
+  articleName    String?
+  serialNumber   String?
+  shipmentId     String?
+  note           String?
+  performedById  String?
+  occurredAt     DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  storageUnit  WarehouseStorageUnit @relation(fields: [storageUnitId], references: [id], onDelete: Cascade)
+  location     WarehouseLocation    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, customerId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+  @@index([storageUnitId])
+}
+
+/// Preise je Kunde + Palettentyp
+model WarehousePriceRate {
+  id                    String              @id @default(cuid())
+  organizationId        String
+  customerId            String
+  palletType            WarehousePalletType
+  inboundFee            Float               @default(0)
+  outboundFee           Float               @default(0)
+  /// € je Stellplatz-Einheit am Monatshöchststand
+  storageFeePerSlot     Float               @default(0)
+  currency              String              @default("EUR")
+  active                Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, palletType])
+  @@index([organizationId, customerId])
 }
