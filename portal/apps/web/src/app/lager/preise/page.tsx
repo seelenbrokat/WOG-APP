@@ -33,7 +33,7 @@ export default function LagerPreisePage() {
 
   async function load() {
     const [c, r, m] = await Promise.all([
-      api<Customer[]>('/customers'),
+      api<Customer[]>('/warehouse/customers'),
       api<Rate[]>('/warehouse/rates'),
       api<Meta>('/warehouse/meta'),
     ]);

@@ -42,6 +42,12 @@ export default function LagerHomePage() {
         Interne Lagerprozesse – Einlagerung, Bestand, Auslagerung und Abrechnung.
       </p>
       <div className="grid-2" style={{ marginTop: '1rem' }}>
+        <Link href="/lager/uebersicht" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <strong>Übersicht</strong>
+          <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
+            Lagerkunden und Belegung auf einen Blick.
+          </p>
+        </Link>
         <Link href="/lager/einlagern" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>
           <strong>Einlagern</strong>
           <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.9rem' }}>

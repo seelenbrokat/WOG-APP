@@ -11,6 +11,8 @@ export type SessionUser = {
   organizationId: string;
   customerId?: string | null;
   customerName?: string;
+  /** Kundenportal: Lager-Modul freigeschaltet */
+  warehouseCustomer?: boolean;
   partnerId?: string | null;
   partnerName?: string;
   mandantIds: string[];

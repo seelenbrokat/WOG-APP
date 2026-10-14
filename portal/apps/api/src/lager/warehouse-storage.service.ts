@@ -490,6 +490,11 @@ export class WarehouseStorageService {
       where: { id: data.customerId, organizationId: user.organizationId },
     });
     if (!customer) throw new BadRequestException('Kunde nicht gefunden');
+    if (!customer.warehouseCustomer) {
+      throw new BadRequestException(
+        'Kunde ist kein Lagerkunde – unter Kunden die Checkbox „Lagerkunde“ setzen',
+      );
+    }
 
     const location = await this.prisma.warehouseLocation.findFirst({
       where: { id: data.locationId, organizationId: user.organizationId, active: true },
@@ -838,5 +843,129 @@ export class WarehouseStorageService {
       locationKinds: Object.values(WarehouseLocationKind),
       defaultLayout: { aisles: 10, levels: 3, bays: 4, slotsPerBay: 3, blockZones: 4 },
     };
+  }
+
+  /** Lagerkunden mit aktuellem Bestand (für Übersicht). */
+  async overview(user: AuthUser) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        warehouseCustomer: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        customerNumber: true,
+        matchcode: true,
+        email: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const units = await this.prisma.warehouseStorageUnit.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: WarehouseUnitStatus.STORED,
+        customerId: { in: customers.map((c) => c.id) },
+      },
+      select: {
+        customerId: true,
+        palletType: true,
+        slotUnits: true,
+        location: { select: { code: true, kind: true } },
+      },
+    });
+
+    const map = new Map(customers.map((c) => [c.id, {
+      customer: c,
+      unitCount: 0,
+      slotUnits: 0,
+      byPalletType: {} as Record<string, { count: number; slotUnits: number }>,
+      locations: new Set<string>(),
+    }]));
+
+    for (const u of units) {
+      const row = map.get(u.customerId);
+      if (!row) continue;
+      row.unitCount += 1;
+      row.slotUnits += u.slotUnits;
+      if (!row.byPalletType[u.palletType]) {
+        row.byPalletType[u.palletType] = { count: 0, slotUnits: 0 };
+      }
+      row.byPalletType[u.palletType].count += 1;
+      row.byPalletType[u.palletType].slotUnits += u.slotUnits;
+      if (u.location?.code) row.locations.add(u.location.code);
+    }
+
+    const rows = [...map.values()].map((r) => ({
+      customer: r.customer,
+      unitCount: r.unitCount,
+      slotUnits: Math.round(r.slotUnits * 100) / 100,
+      byPalletType: Object.fromEntries(
+        Object.entries(r.byPalletType).map(([k, v]) => [
+          k,
+          { count: v.count, slotUnits: Math.round(v.slotUnits * 100) / 100 },
+        ]),
+      ),
+      locationCount: r.locations.size,
+      locationSample: [...r.locations].slice(0, 5),
+    }));
+
+    const locStats = await this.prisma.warehouseLocation.findMany({
+      where: { organizationId: user.organizationId, active: true },
+      include: {
+        units: {
+          where: { status: WarehouseUnitStatus.STORED },
+          select: { slotUnits: true },
+        },
+      },
+    });
+    let usedSlots = 0;
+    let capacitySlots = 0;
+    let occupiedLocations = 0;
+    for (const l of locStats) {
+      capacitySlots += l.capacitySlots;
+      const used = l.units.reduce((s, u) => s + u.slotUnits, 0);
+      usedSlots += used;
+      if (used > 0) occupiedLocations += 1;
+    }
+
+    return {
+      summary: {
+        warehouseCustomers: customers.length,
+        storedUnits: units.length,
+        usedSlots: Math.round(usedSlots * 100) / 100,
+        capacitySlots: Math.round(capacitySlots * 100) / 100,
+        freeSlots: Math.round(Math.max(0, capacitySlots - usedSlots) * 100) / 100,
+        occupiedLocations,
+        locationCount: locStats.length,
+      },
+      customers: rows,
+      palletLabels: PALLET_LABEL,
+    };
+  }
+
+  /** Aktive Lagerkunden (für Dropdowns Einlagern/Preise). */
+  async listWarehouseCustomers(user: AuthUser) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    return this.prisma.customer.findMany({
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        warehouseCustomer: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        customerNumber: true,
+        matchcode: true,
+      },
+      orderBy: { name: 'asc' },
+    });
   }
 }

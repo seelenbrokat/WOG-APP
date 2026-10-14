@@ -164,6 +164,7 @@ export class CustomersService {
       active: boolean;
       documentsModuleEnabled: boolean;
       neutralDeliveryReceipt: boolean;
+      warehouseCustomer: boolean;
     }>,
   ) {
     await this.get(user, id);

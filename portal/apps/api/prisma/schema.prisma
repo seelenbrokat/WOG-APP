@@ -685,6 +685,8 @@ model Customer {
   documentsModuleEnabled   Boolean  @default(false)
   /// Neutrale Lieferung: Ablieferbeleg, Etiketten und Auftrags-PDFs ohne Auftraggeber/WOG-Branding
   neutralDeliveryReceipt   Boolean  @default(false)
+  /// Kunde nutzt WOG-Lagerverwaltung (Einlagerung / Bestand / Abrechnung)
+  warehouseCustomer        Boolean  @default(false)
   /// SFTP-Inbound für Auftragsdateien (z. B. FORTRAS BORD512) – nur Admin-Freischaltung
   sftpInboundEnabled       Boolean  @default(false)
   /// Linux/SFTPGo-User, z. B. quehenberger
