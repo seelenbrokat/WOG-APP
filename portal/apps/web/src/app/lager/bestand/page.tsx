@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -26,7 +26,7 @@ const PALLET: Record<string, string> = {
   OVERSIZE: 'Übergroß',
 };
 
-export default function LagerBestandPage() {
+function LagerBestandInner() {
   const user = getUser();
   const isCustomer = user?.role === 'CUSTOMER_USER';
   const searchParams = useSearchParams();
@@ -161,5 +161,13 @@ export default function LagerBestandPage() {
         </table>
       </div>
     </AppShell>
+  );
+}
+
+export default function LagerBestandPage() {
+  return (
+    <Suspense fallback={<AppShell title="Lagerbestand">Laden…</AppShell>}>
+      <LagerBestandInner />
+    </Suspense>
   );
 }
