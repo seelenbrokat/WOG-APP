@@ -54,6 +54,9 @@ export default function LagerUebersichtPage() {
         <Link className="btn btn-primary" href="/lager/einlagern">
           Einlagern
         </Link>
+        <Link className="btn btn-ghost" href="/lager/artikel">
+          Artikel
+        </Link>
         <Link className="btn btn-ghost" href="/lager/bestand">
           Bestand
         </Link>
