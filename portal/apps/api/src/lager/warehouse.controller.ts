@@ -57,12 +57,22 @@ class InboundDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Einlagerungsdatum/-zeit (ISO oder YYYY-MM-DD / datetime-local) */
+  @IsOptional()
+  @IsString()
+  storedAt?: string;
 }
 
 class OutboundDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  /** Auslagerungsdatum/-zeit (ISO oder YYYY-MM-DD / datetime-local) */
+  @IsOptional()
+  @IsString()
+  releasedAt?: string;
 }
 
 class LocationDto {
@@ -316,7 +326,7 @@ export class WarehouseController {
     @Param('id') id: string,
     @Body() dto: OutboundDto,
   ) {
-    return this.warehouse.outbound(user, id, dto.note);
+    return this.warehouse.outbound(user, id, dto.note, dto.releasedAt);
   }
 
   @Get('rates')

@@ -59,6 +59,17 @@ export class WarehouseStorageService {
     return DEFAULT_SLOT_UNITS[type] ?? 1;
   }
 
+  /** Parst Datum/Zeit aus ISO, YYYY-MM-DD oder datetime-local. */
+  private parseDateTime(raw?: string | null, label = 'Datum'): Date | null {
+    if (raw == null || !String(raw).trim()) return null;
+    const s = String(raw).trim();
+    const d = new Date(s.includes('T') || s.includes(' ') ? s : `${s}T12:00:00`);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException(`${label} ungültig`);
+    }
+    return d;
+  }
+
   private buildLayoutRows(
     organizationId: string,
     opts: Required<EnsureRackLayoutOpts>,
@@ -609,6 +620,7 @@ export class WarehouseStorageService {
       externalRef?: string;
       shipmentId?: string;
       notes?: string;
+      storedAt?: string;
     },
   ) {
     this.assertStaff(user);
@@ -623,6 +635,7 @@ export class WarehouseStorageService {
         'Kunde ist kein Lagerkunde – unter Kunden die Checkbox „Lagerkunde“ setzen',
       );
     }
+    const storedAt = this.parseDateTime(data.storedAt, 'Einlagerungsdatum') || new Date();
 
     let article: {
       id: string;
@@ -685,6 +698,7 @@ export class WarehouseStorageService {
         externalRef: data.externalRef?.trim() || null,
         notes: data.notes?.trim() || null,
         status: WarehouseUnitStatus.STORED,
+        storedAt,
         storedById: user.id,
       },
       include: {
@@ -708,6 +722,7 @@ export class WarehouseStorageService {
         serialNumber: unit.serialNumber,
         shipmentId: unit.shipmentId,
         performedById: user.id,
+        occurredAt: storedAt,
       },
     });
 
@@ -715,12 +730,13 @@ export class WarehouseStorageService {
       location: location.code,
       customerId: data.customerId,
       palletType,
+      storedAt: storedAt.toISOString(),
     });
 
     return unit;
   }
 
-  async outbound(user: AuthUser, unitId: string, note?: string) {
+  async outbound(user: AuthUser, unitId: string, note?: string, releasedAtRaw?: string) {
     this.assertStaff(user);
     this.assertOrg(user);
 
@@ -733,6 +749,11 @@ export class WarehouseStorageService {
       throw new BadRequestException('Bereits ausgelagert');
     }
 
+    const releasedAt = this.parseDateTime(releasedAtRaw, 'Auslagerungsdatum') || new Date();
+    if (releasedAt < unit.storedAt) {
+      throw new BadRequestException('Auslagerungsdatum liegt vor dem Einlagerungsdatum');
+    }
+
     const rate = await this.getRate(user.organizationId, unit.customerId, unit.palletType);
     const unitPrice = rate?.outboundFee ?? 0;
 
@@ -740,7 +761,7 @@ export class WarehouseStorageService {
       where: { id: unit.id },
       data: {
         status: WarehouseUnitStatus.RELEASED,
-        releasedAt: new Date(),
+        releasedAt,
         releasedById: user.id,
         notes: note?.trim()
           ? [unit.notes, `Auslagerung: ${note.trim()}`].filter(Boolean).join('\n')
@@ -768,6 +789,7 @@ export class WarehouseStorageService {
         shipmentId: unit.shipmentId,
         note: note?.trim() || null,
         performedById: user.id,
+        occurredAt: releasedAt,
       },
     });
 
