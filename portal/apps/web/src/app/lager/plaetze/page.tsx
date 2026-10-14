@@ -59,10 +59,57 @@ type OccupancyMap = {
   }>;
 };
 
-function slotColor(s: MapSlot) {
+type Customer = { id: string; name: string; customerNumber: string };
+type Article = {
+  id: string;
+  name: string;
+  articleNumber?: string | null;
+  palletType: string;
+  slotUnits: number;
+};
+type Meta = {
+  palletTypes: Array<{ code: string; label: string; defaultSlotUnits: number }>;
+};
+type Unit = {
+  id: string;
+  palletType: string;
+  slotUnits: number;
+  articleName?: string | null;
+  serialNumber?: string | null;
+  storedAt: string;
+  status: string;
+  customer: { id: string; name: string; customerNumber: string };
+};
+
+const PALLET: Record<string, string> = {
+  EURO: 'Euro',
+  HALF: 'Halb',
+  OVERSIZE: 'Übergroß',
+  CUSTOM: 'Individuell/EWP',
+};
+
+function slotColor(s: { freeSlots: number; occupied: boolean }) {
   if (s.freeSlots <= 0.001) return '#b42318';
   if (s.occupied) return '#b54708';
   return '#027a48';
+}
+
+function toLocalInputValue(d = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtDateTime(iso?: string | null) {
+  if (!iso) return '–';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '–';
+  return d.toLocaleString('de-AT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function LagerPlaetzePage() {
@@ -84,18 +131,43 @@ export default function LagerPlaetzePage() {
   const [selectedAisle, setSelectedAisle] = useState<number | null>(null);
   const [showMap, setShowMap] = useState(true);
 
+  const [activeLoc, setActiveLoc] = useState<Location | null>(null);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [panelTab, setPanelTab] = useState<'stock' | 'in'>('stock');
+  const [customerId, setCustomerId] = useState('');
+  const [articleId, setArticleId] = useState('');
+  const [palletType, setPalletType] = useState('EURO');
+  const [slotUnits, setSlotUnits] = useState('1');
+  const [articleName, setArticleName] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [storedAt, setStoredAt] = useState(toLocalInputValue);
+  const [outboundId, setOutboundId] = useState<string | null>(null);
+  const [outboundAt, setOutboundAt] = useState(toLocalInputValue);
+
   async function load() {
     const qs = new URLSearchParams();
     if (kind) qs.set('kind', kind);
     if (q.trim()) qs.set('q', q.trim());
-    const [locs, occupancy] = await Promise.all([
+    const [locs, occupancy, cust, m] = await Promise.all([
       api<Location[]>(`/warehouse/locations?${qs}`),
       api<OccupancyMap>('/warehouse/layout/map'),
+      api<Customer[]>('/warehouse/customers'),
+      api<Meta>('/warehouse/meta'),
     ]);
     setLocations(locs);
     setMap(occupancy);
+    setCustomers(cust);
+    setMeta(m);
     if (selectedAisle == null && occupancy.aisles[0]) {
       setSelectedAisle(occupancy.aisles[0].aisle);
+    }
+    if (!customerId && cust[0]) setCustomerId(cust[0].id);
+    if (m.palletTypes[0] && palletType === 'EURO') {
+      setPalletType(m.palletTypes[0].code);
+      setSlotUnits(String(m.palletTypes[0].defaultSlotUnits));
     }
   }
 
@@ -103,6 +175,16 @@ export default function LagerPlaetzePage() {
     load().catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!customerId) {
+      setArticles([]);
+      return;
+    }
+    api<Article[]>(`/warehouse/articles?customerId=${encodeURIComponent(customerId)}`)
+      .then(setArticles)
+      .catch(() => setArticles([]));
+  }, [customerId]);
 
   const layoutBody = useMemo(
     () => ({
@@ -143,6 +225,62 @@ export default function LagerPlaetzePage() {
     [map, selectedAisle],
   );
 
+  async function openLocation(loc: {
+    id: string;
+    code: string;
+    freeSlots?: number;
+    usedSlots?: number;
+    capacitySlots?: number;
+    unitCount?: number;
+    kind?: string;
+    label?: string | null;
+  }) {
+    setError('');
+    setMessage('');
+    setOutboundId(null);
+    const full =
+      locations.find((l) => l.id === loc.id) ||
+      ({
+        id: loc.id,
+        code: loc.code,
+        kind: loc.kind || 'RACK',
+        capacitySlots: loc.capacitySlots ?? 1,
+        usedSlots: loc.usedSlots ?? 0,
+        freeSlots: loc.freeSlots ?? 0,
+        unitCount: loc.unitCount ?? 0,
+        label: loc.label,
+      } as Location);
+    setActiveLoc(full);
+    setPanelTab(full.unitCount > 0 ? 'stock' : 'in');
+    setStoredAt(toLocalInputValue());
+    try {
+      const list = await api<Unit[]>(
+        `/warehouse/stock?locationId=${encodeURIComponent(loc.id)}&status=STORED`,
+      );
+      setUnits(list);
+      // refresh free/used from map after open
+      const refreshed = await api<Location[]>(`/warehouse/locations?q=${encodeURIComponent(loc.code)}`);
+      const match = refreshed.find((l) => l.id === loc.id);
+      if (match) setActiveLoc(match);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function refreshActive() {
+    if (!activeLoc) return;
+    await load();
+    const list = await api<Unit[]>(
+      `/warehouse/stock?locationId=${encodeURIComponent(activeLoc.id)}&status=STORED`,
+    );
+    setUnits(list);
+    const refreshed = await api<Location[]>(
+      `/warehouse/locations?q=${encodeURIComponent(activeLoc.code)}`,
+    );
+    const match = refreshed.find((l) => l.id === activeLoc.id);
+    if (match) setActiveLoc(match);
+  }
+
   async function seedDefault() {
     setBusy(true);
     setError('');
@@ -175,9 +313,7 @@ export default function LagerPlaetzePage() {
         { method: 'POST', body: JSON.stringify(layoutBody) },
       );
       setMessage(
-        res.skipped
-          ? res.message || 'Nichts hinzugefügt'
-          : `${res.created} neue Plätze ergänzt`,
+        res.skipped ? res.message || 'Nichts hinzugefügt' : `${res.created} neue Plätze ergänzt`,
       );
       await load();
     } catch (e: any) {
@@ -211,11 +347,81 @@ export default function LagerPlaetzePage() {
     }
   }
 
+  function applyArticle(id: string) {
+    setArticleId(id);
+    if (!id) return;
+    const a = articles.find((x) => x.id === id);
+    if (!a) return;
+    setPalletType(a.palletType);
+    setSlotUnits(String(a.slotUnits));
+    setArticleName([a.articleNumber, a.name].filter(Boolean).join(' · '));
+  }
+
+  function onPalletChange(code: string) {
+    setPalletType(code);
+    if (articleId) return;
+    const def = meta?.palletTypes.find((p) => p.code === code)?.defaultSlotUnits ?? 1;
+    if (code !== 'CUSTOM') setSlotUnits(String(def));
+  }
+
+  async function inboundHere(e: FormEvent) {
+    e.preventDefault();
+    if (!activeLoc) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await api('/warehouse/inbound', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId,
+          locationId: activeLoc.id,
+          articleId: articleId || undefined,
+          palletType,
+          slotUnits: Number(slotUnits) || undefined,
+          articleName: articleName || undefined,
+          serialNumber: serialNumber || undefined,
+          storedAt: storedAt || undefined,
+        }),
+      });
+      setMessage(`Eingelagert auf ${activeLoc.code}`);
+      setSerialNumber('');
+      setArticleId('');
+      await refreshActive();
+      setPanelTab('stock');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmOutbound() {
+    if (!outboundId) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/warehouse/units/${outboundId}/outbound`, {
+        method: 'POST',
+        body: JSON.stringify({ releasedAt: outboundAt || undefined }),
+      });
+      setMessage('Ausgelagert');
+      setOutboundId(null);
+      await refreshActive();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const needSlots = Number(slotUnits) || 1;
+  const canInbound = activeLoc && activeLoc.freeSlots + 0.001 >= needSlots;
+
   return (
     <AppShell title="Lagerplätze" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
-        Hochregal &amp; Blocklager – Layout jederzeit erweiterbar. Standard: 10 Reihen × 3 Ebenen × 4
-        Fächer × 3 Stellplätze.
+        Belegungskarte: Platz antippen → Artikel einlagern oder auslagern.
       </p>
 
       <div className="panel stack" style={{ marginBottom: '1rem', maxWidth: 720 }}>
@@ -292,6 +498,217 @@ export default function LagerPlaetzePage() {
       {error ? <p className="error">{error}</p> : null}
       {message ? <p className="ok">{message}</p> : null}
 
+      {activeLoc ? (
+        <div
+          className="panel stack"
+          style={{ marginBottom: '1rem', border: '2px solid var(--wog-green, #1b7a4a)' }}
+        >
+          <div
+            className="row"
+            style={{ justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}
+          >
+            <div>
+              <strong style={{ fontSize: '1.1rem' }}>{activeLoc.code}</strong>
+              <div className="muted" style={{ fontSize: '0.85rem' }}>
+                {activeLoc.label || (activeLoc.kind === 'BLOCK' ? 'Blocklager' : 'Regalplatz')} ·
+                belegt {activeLoc.usedSlots.toFixed(1)}/{activeLoc.capacitySlots} · frei{' '}
+                {activeLoc.freeSlots.toFixed(1)}
+              </div>
+            </div>
+            <button className="btn btn-ghost" type="button" onClick={() => setActiveLoc(null)}>
+              Schließen
+            </button>
+          </div>
+
+          <div className="row" style={{ gap: '0.5rem' }}>
+            <button
+              type="button"
+              className={panelTab === 'stock' ? 'btn btn-primary' : 'btn btn-ghost'}
+              onClick={() => setPanelTab('stock')}
+            >
+              Bestand ({units.length})
+            </button>
+            <button
+              type="button"
+              className={panelTab === 'in' ? 'btn btn-primary' : 'btn btn-ghost'}
+              onClick={() => setPanelTab('in')}
+              disabled={activeLoc.freeSlots < 0.1}
+              title={activeLoc.freeSlots < 0.1 ? 'Platz voll' : undefined}
+            >
+              Einlagern
+            </button>
+          </div>
+
+          {panelTab === 'stock' ? (
+            <>
+              {outboundId ? (
+                <div className="stack" style={{ gap: '0.5rem', maxWidth: 360 }}>
+                  <strong>Auslagern</strong>
+                  <label className="stack" style={{ gap: 2, fontSize: '0.85rem' }}>
+                    Auslagerungsdatum
+                    <input
+                      type="datetime-local"
+                      value={outboundAt}
+                      onChange={(e) => setOutboundAt(e.target.value)}
+                    />
+                  </label>
+                  <div className="row" style={{ gap: '0.5rem' }}>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      disabled={busy}
+                      onClick={confirmOutbound}
+                    >
+                      Bestätigen
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      type="button"
+                      onClick={() => setOutboundId(null)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Kunde</th>
+                      <th>Artikel</th>
+                      <th>Typ</th>
+                      <th>Einlagerung</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {units.map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.customer.name}</td>
+                        <td>
+                          {u.articleName || '–'}
+                          {u.serialNumber ? (
+                            <div className="muted" style={{ fontSize: '0.8rem' }}>
+                              SN {u.serialNumber}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td>
+                          {PALLET[u.palletType] || u.palletType} ({u.slotUnits})
+                        </td>
+                        <td>{fmtDateTime(u.storedAt)}</td>
+                        <td>
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              setOutboundId(u.id);
+                              setOutboundAt(toLocalInputValue());
+                            }}
+                          >
+                            Auslagern
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!units.length ? (
+                      <tr>
+                        <td colSpan={5} className="muted">
+                          Kein Bestand auf diesem Platz.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <form className="stack" onSubmit={inboundHere} style={{ maxWidth: 520 }}>
+              <div className="field">
+                <label>Kunde</label>
+                <select
+                  required
+                  value={customerId}
+                  onChange={(e) => {
+                    setCustomerId(e.target.value);
+                    setArticleId('');
+                  }}
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.customerNumber})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Artikel (Stamm)</label>
+                <select value={articleId} onChange={(e) => applyArticle(e.target.value)}>
+                  <option value="">– manuell –</option>
+                  {articles.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.articleNumber ? `${a.articleNumber} · ` : ''}
+                      {a.name} ({a.slotUnits} SP)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div className="field" style={{ flex: 2, minWidth: 140 }}>
+                  <label>Palettentyp</label>
+                  <select value={palletType} onChange={(e) => onPalletChange(e.target.value)}>
+                    {(meta?.palletTypes || []).map((p) => (
+                      <option key={p.code} value={p.code}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ flex: 1, minWidth: 100 }}>
+                  <label>Stellplätze</label>
+                  <input
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    required
+                    value={slotUnits}
+                    onChange={(e) => setSlotUnits(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <label>Einlagerungsdatum</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={storedAt}
+                  onChange={(e) => setStoredAt(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Artikelbezeichnung</label>
+                <input value={articleName} onChange={(e) => setArticleName(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Seriennummer</label>
+                <input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
+              </div>
+              {!canInbound ? (
+                <p className="error">
+                  Platz zu voll für {needSlots} Stellplatz(e) (frei {activeLoc.freeSlots.toFixed(1)}
+                  ).
+                </p>
+              ) : null}
+              <button className="btn btn-primary" type="submit" disabled={busy || !canInbound}>
+                {busy ? 'Speichern…' : `Auf ${activeLoc.code} einlagern`}
+              </button>
+            </form>
+          )}
+        </div>
+      ) : null}
+
       {map && map.aisles.length > 0 ? (
         <div className="panel" style={{ marginBottom: '1rem' }}>
           <div
@@ -309,7 +726,7 @@ export default function LagerPlaetzePage() {
               <span className="muted" style={{ fontSize: '0.8rem' }}>
                 <span style={{ color: '#027a48' }}>●</span> frei{' '}
                 <span style={{ color: '#b54708' }}>●</span> teilweise{' '}
-                <span style={{ color: '#b42318' }}>●</span> voll
+                <span style={{ color: '#b42318' }}>●</span> voll · Klick = öffnen
               </span>
               <button className="btn btn-ghost" type="button" onClick={() => setShowMap((v) => !v)}>
                 {showMap ? 'Karte ausblenden' : 'Karte zeigen'}
@@ -358,29 +775,33 @@ export default function LagerPlaetzePage() {
                               Fach {bay.bay}
                             </div>
                             <div className="row" style={{ gap: 4 }}>
-                              {bay.slots.map((s) => (
-                                <div
-                                  key={s.id}
-                                  title={`${s.code}: ${s.usedSlots}/${s.capacitySlots}${
-                                    s.unitCount ? ` · ${s.unitCount} Pos.` : ''
-                                  }`}
-                                  style={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: 4,
-                                    background: slotColor(s),
-                                    color: '#fff',
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'default',
-                                  }}
-                                >
-                                  {s.slot}
-                                </div>
-                              ))}
+                              {bay.slots.map((s) => {
+                                const selected = activeLoc?.id === s.id;
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    title={`${s.code}: ${s.usedSlots}/${s.capacitySlots}${
+                                      s.unitCount ? ` · ${s.unitCount} Pos.` : ''
+                                    } – klicken`}
+                                    onClick={() => openLocation(s)}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 4,
+                                      border: selected ? '2px solid #111' : 'none',
+                                      background: slotColor(s),
+                                      color: '#fff',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                    }}
+                                  >
+                                    {s.slot}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}
@@ -400,23 +821,29 @@ export default function LagerPlaetzePage() {
                       const ratio = b.capacitySlots > 0 ? b.usedSlots / b.capacitySlots : 0;
                       const color =
                         ratio >= 0.99 ? '#b42318' : ratio > 0 ? '#b54708' : '#027a48';
+                      const selected = activeLoc?.id === b.id;
                       return (
-                        <div
+                        <button
                           key={b.id}
-                          title={`${b.code}: ${b.usedSlots}/${b.capacitySlots}`}
+                          type="button"
+                          title={`${b.code}: ${b.usedSlots}/${b.capacitySlots} – klicken`}
+                          onClick={() => openLocation({ ...b, kind: 'BLOCK' })}
                           style={{
                             minWidth: 110,
-                            border: `2px solid ${color}`,
+                            border: selected ? `3px solid #111` : `2px solid ${color}`,
                             borderRadius: 6,
                             padding: '0.4rem 0.55rem',
                             fontSize: '0.85rem',
+                            background: 'var(--bg-panel, #fff)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
                           }}
                         >
                           <strong>{b.code}</strong>
                           <div className="muted" style={{ fontSize: '0.75rem' }}>
                             {b.usedSlots.toFixed(1)} / {b.capacitySlots}
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -488,11 +915,17 @@ export default function LagerPlaetzePage() {
               <th>Belegung</th>
               <th>Positionen</th>
               <th>Label</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {locations.slice(0, 200).map((l) => (
-              <tr key={l.id}>
+              <tr
+                key={l.id}
+                style={{
+                  background: activeLoc?.id === l.id ? 'var(--wog-green-soft, #e8f5ee)' : undefined,
+                }}
+              >
                 <td>
                   <strong>{l.code}</strong>
                 </td>
@@ -502,6 +935,11 @@ export default function LagerPlaetzePage() {
                 </td>
                 <td>{l.unitCount}</td>
                 <td className="muted">{l.label || '–'}</td>
+                <td>
+                  <button className="btn btn-ghost" type="button" onClick={() => openLocation(l)}>
+                    Öffnen
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
