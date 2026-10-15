@@ -25,7 +25,6 @@ import {
 } from 'fs';
 import { basename, dirname, join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { QuehenbergerPodMailService } from './quehenberger-pod-mail.service';
 
 export type PostAblieferbelegIngestInput = {
@@ -77,7 +76,6 @@ export class PostAblieferbelegService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
-    private notifications: NotificationsService,
     private quehenbergerPod: QuehenbergerPodMailService,
   ) {
     this.uploadDir =
