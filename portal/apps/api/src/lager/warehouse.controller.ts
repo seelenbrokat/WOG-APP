@@ -224,6 +224,17 @@ class LayoutDto {
   blockZones?: number;
 }
 
+class DiepoldsauLayoutDto {
+  @IsOptional()
+  @IsBoolean()
+  replace?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  blockZones?: number;
+}
+
 const STAFF = [UserRole.ORG_ADMIN, UserRole.MANDANT_DISPATCHER] as const;
 
 @Controller('warehouse')
@@ -248,6 +259,13 @@ export class WarehouseController {
   @Roles(...STAFF)
   extendLayout(@CurrentUser() user: AuthUser, @Body() dto: LayoutDto) {
     return this.warehouse.extendLayout(user, dto || {});
+  }
+
+  /** Diepoldsau Hochregal (Soloplan Matchcode Reihe-Ebene-Säule) übernehmen. */
+  @Post('layout/diepoldsau')
+  @Roles(...STAFF)
+  importDiepoldsau(@CurrentUser() user: AuthUser, @Body() dto: DiepoldsauLayoutDto) {
+    return this.warehouse.importDiepoldsauLayout(user, dto || {});
   }
 
   @Get('layout/map')

@@ -69,7 +69,7 @@ export default function LagerHomePage() {
         <Link href="/lager/plaetze" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>
           <strong>Lagerplätze</strong>
           <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
-            Hochregal &amp; Blocklager – anpassbares Layout.
+            Diepoldsau Hochregal (Matchcode) &amp; Blocklager.
           </p>
         </Link>
         <Link href="/lager/preise" className="panel" style={{ textDecoration: 'none', color: 'inherit' }}>

@@ -1484,16 +1484,16 @@ enum WarehouseMovementType {
 model WarehouseLocation {
   id             String                @id @default(cuid())
   organizationId String
-  /// Anzeige-/Scan-Code, z. B. R01-E2-F03-P1 oder BLOCK-01
+  /// Anzeige-/Scan-Code, z. B. 001-000-001 (Reihe-Ebene-Säule) oder BLOCK-01
   code           String
   kind           WarehouseLocationKind @default(RACK)
-  /// Reihe / Gang (Hochregal)
+  /// Reihe / Gang (Hochregal), z. B. 1…10
   aisle          Int?
-  /// Ebene von unten (1…)
+  /// Ebene (Diepoldsau: 0…3)
   level          Int?
-  /// Fach quer in der Reihe (1…)
+  /// Fach quer in der Reihe (Diepoldsau: immer 1)
   bay            Int?
-  /// Stellplatz im Fach (1…)
+  /// Stellplatz / Säule (Diepoldsau: Säule 1…16)
   slot           Int?
   label          String?
   /// Kapazität in Stellplatz-Einheiten (Standard 1)

@@ -14,6 +14,7 @@ import {
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DIEPOLDSAU_HOCHREGAL } from './diepoldsau-layout';
 
 const DEFAULT_SLOT_UNITS: Record<WarehousePalletType, number> = {
   EURO: 1,
@@ -138,11 +139,64 @@ export class WarehouseStorageService {
     };
   }
 
-  /** Standard-Hochregal: 10 Reihen × 3 Ebenen × 4 Fächer × 3 Stellplätze (+ Blocklager) */
+  /** Zeilen für Diepoldsau Hochregal (Matchcode Reihe-Ebene-Säule). */
+  private buildDiepoldsauRows(organizationId: string, blockZones = 4) {
+    const rows: Array<{
+      organizationId: string;
+      code: string;
+      kind: WarehouseLocationKind;
+      aisle: number | null;
+      level: number | null;
+      bay: number | null;
+      slot: number | null;
+      label: string;
+      sortOrder: number;
+      capacitySlots: number;
+      active: boolean;
+    }> = [];
+
+    for (const p of DIEPOLDSAU_HOCHREGAL) {
+      rows.push({
+        organizationId,
+        code: p.code,
+        kind: WarehouseLocationKind.RACK,
+        aisle: p.aisle,
+        level: p.level,
+        bay: 1,
+        slot: p.slot,
+        label: `Reihe ${String(p.aisle).padStart(3, '0')} · Ebene ${String(p.level).padStart(3, '0')} · Säule ${String(p.slot).padStart(3, '0')}`,
+        sortOrder: p.aisle * 100000 + p.level * 1000 + p.slot,
+        capacitySlots: 1,
+        active: true,
+      });
+    }
+    for (let b = 1; b <= blockZones; b++) {
+      const code = `BLOCK-${String(b).padStart(2, '0')}`;
+      rows.push({
+        organizationId,
+        code,
+        kind: WarehouseLocationKind.BLOCK,
+        aisle: null,
+        level: null,
+        bay: null,
+        slot: null,
+        label: `Blocklager ${b}`,
+        sortOrder: 1000000 + b,
+        capacitySlots: 50,
+        active: true,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Standard: Diepoldsau Hochregal (284 Matchcodes RRR-EEE-SSS) + Blocklager.
+   * Wenn bereits Regalplätze existieren → skipped (dann „Diepoldsau übernehmen“).
+   */
   async ensureDefaultLayout(user: AuthUser, opts: EnsureRackLayoutOpts = {}) {
     this.assertStaff(user);
     this.assertOrg(user);
-    const layout = this.normalizeLayoutOpts(opts);
+    const blockZones = Math.max(0, Math.min(50, Math.floor(opts.blockZones ?? 4)));
 
     const existing = await this.prisma.warehouseLocation.count({
       where: { organizationId: user.organizationId, kind: WarehouseLocationKind.RACK },
@@ -152,25 +206,156 @@ export class WarehouseStorageService {
         created: 0,
         skipped: true,
         rackCount: existing,
-        message: 'Regalplätze existieren bereits – zum Erweitern „Layout erweitern“ nutzen.',
+        message:
+          'Regalplätze existieren bereits – „Diepoldsau übernehmen“ ersetzt das Layout (nur ohne Bestand).',
       };
     }
 
-    const rows = this.buildLayoutRows(user.organizationId, layout);
+    const rows = this.buildDiepoldsauRows(user.organizationId, blockZones);
     await this.prisma.warehouseLocation.createMany({ data: rows });
     await this.audit.log(user.id, 'warehouse.layout.seed', 'WarehouseLocation', undefined, {
-      ...layout,
+      layout: 'diepoldsau',
+      rackCount: DIEPOLDSAU_HOCHREGAL.length,
+      blockZones,
       count: rows.length,
     });
-    return { created: rows.length, skipped: false, rackCount: rows.length, layout };
+    return {
+      created: rows.length,
+      skipped: false,
+      rackCount: DIEPOLDSAU_HOCHREGAL.length,
+      layout: { name: 'diepoldsau', rackCount: DIEPOLDSAU_HOCHREGAL.length, blockZones },
+    };
   }
 
-  /** Fehlende Codes nachziehen (bestehende Plätze bleiben unverändert). */
+  /**
+   * Diepoldsau-Layout übernehmen: legt Matchcodes an und deaktiviert alte Regalcodes
+   * (R01-E…), sofern kein Bestand. Blocklager bleibt erhalten/wird ergänzt.
+   */
+  async importDiepoldsauLayout(
+    user: AuthUser,
+    opts: { replace?: boolean; blockZones?: number } = {},
+  ) {
+    this.assertStaff(user);
+    this.assertOrg(user);
+    const replace = opts.replace !== false;
+    const blockZones = Math.max(0, Math.min(50, Math.floor(opts.blockZones ?? 4)));
+    const orgId = user.organizationId!;
+    const desired = this.buildDiepoldsauRows(orgId, blockZones);
+    const desiredCodes = new Set(desired.map((r) => r.code));
+
+    if (replace) {
+      const stocked = await this.prisma.warehouseStorageUnit.count({
+        where: {
+          organizationId: orgId,
+          status: WarehouseUnitStatus.STORED,
+          location: { kind: WarehouseLocationKind.RACK, code: { notIn: [...desiredCodes] } },
+        },
+      });
+      if (stocked > 0) {
+        throw new BadRequestException(
+          `Noch ${stocked} eingelagerte Position(en) auf alten Plätzen – bitte zuerst auslagern.`,
+        );
+      }
+    }
+
+    const existing = await this.prisma.warehouseLocation.findMany({
+      where: { organizationId: orgId },
+      select: {
+        id: true,
+        code: true,
+        kind: true,
+        active: true,
+        aisle: true,
+        level: true,
+        bay: true,
+        slot: true,
+        label: true,
+        sortOrder: true,
+      },
+    });
+    const byCode = new Map(existing.map((e) => [e.code, e]));
+
+    let created = 0;
+    let reactivated = 0;
+    let updated = 0;
+    const toCreate = desired.filter((r) => !byCode.has(r.code));
+    if (toCreate.length) {
+      await this.prisma.warehouseLocation.createMany({ data: toCreate });
+      created = toCreate.length;
+    }
+
+    for (const r of desired) {
+      const cur = byCode.get(r.code);
+      if (!cur) continue;
+      const needsReactivate = !cur.active;
+      const needsSync =
+        cur.aisle !== r.aisle ||
+        cur.level !== r.level ||
+        cur.bay !== r.bay ||
+        cur.slot !== r.slot ||
+        cur.label !== r.label ||
+        cur.sortOrder !== r.sortOrder;
+      if (!needsReactivate && !needsSync) continue;
+      await this.prisma.warehouseLocation.update({
+        where: { id: cur.id },
+        data: {
+          active: true,
+          aisle: r.aisle,
+          level: r.level,
+          bay: r.bay,
+          slot: r.slot,
+          label: r.label,
+          sortOrder: r.sortOrder,
+          capacitySlots: r.capacitySlots,
+          kind: r.kind,
+        },
+      });
+      if (needsReactivate) reactivated++;
+      else updated++;
+    }
+
+    let deactivated = 0;
+    if (replace) {
+      const obsolete = existing.filter(
+        (e) =>
+          e.kind === WarehouseLocationKind.RACK &&
+          e.active &&
+          !desiredCodes.has(e.code),
+      );
+      if (obsolete.length) {
+        await this.prisma.warehouseLocation.updateMany({
+          where: { id: { in: obsolete.map((o) => o.id) } },
+          data: { active: false },
+        });
+        deactivated = obsolete.length;
+      }
+    }
+
+    await this.audit.log(user.id, 'warehouse.layout.diepoldsau', 'WarehouseLocation', undefined, {
+      created,
+      reactivated,
+      deactivated,
+      rackCount: DIEPOLDSAU_HOCHREGAL.length,
+      blockZones,
+    });
+
+    return {
+      created,
+      reactivated,
+      updated,
+      deactivated,
+      rackCount: DIEPOLDSAU_HOCHREGAL.length,
+      skipped: created === 0 && reactivated === 0 && updated === 0 && deactivated === 0,
+      message: `Diepoldsau: ${DIEPOLDSAU_HOCHREGAL.length} Regalplätze (Matchcode Reihe-Ebene-Säule)`,
+    };
+  }
+
+  /** Fehlende Codes nachziehen (generisches Raster; für Diepoldsau „übernehmen“ nutzen). */
   async extendLayout(user: AuthUser, opts: EnsureRackLayoutOpts = {}) {
     this.assertStaff(user);
     this.assertOrg(user);
     const layout = this.normalizeLayoutOpts(opts);
-    const desired = this.buildLayoutRows(user.organizationId, layout);
+    const desired = this.buildLayoutRows(user.organizationId!, layout);
     const existing = await this.prisma.warehouseLocation.findMany({
       where: { organizationId: user.organizationId },
       select: { code: true },
@@ -1020,7 +1205,12 @@ export class WarehouseStorageService {
         defaultSlotUnits: DEFAULT_SLOT_UNITS[t],
       })),
       locationKinds: Object.values(WarehouseLocationKind),
-      defaultLayout: { aisles: 10, levels: 3, bays: 4, slotsPerBay: 3, blockZones: 4 },
+      defaultLayout: {
+        name: 'diepoldsau',
+        rackCount: DIEPOLDSAU_HOCHREGAL.length,
+        blockZones: 4,
+        codeFormat: 'RRR-EEE-SSS',
+      },
     };
   }
 

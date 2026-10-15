@@ -123,10 +123,6 @@ export default function LagerPlaetzePage() {
   const [newCode, setNewCode] = useState('');
   const [newKind, setNewKind] = useState<'RACK' | 'BLOCK'>('BLOCK');
   const [newCap, setNewCap] = useState('10');
-  const [aisles, setAisles] = useState('10');
-  const [levels, setLevels] = useState('3');
-  const [bays, setBays] = useState('4');
-  const [slotsPerBay, setSlotsPerBay] = useState('3');
   const [blockZones, setBlockZones] = useState('4');
   const [selectedAisle, setSelectedAisle] = useState<number | null>(null);
   const [showMap, setShowMap] = useState(true);
@@ -188,14 +184,19 @@ export default function LagerPlaetzePage() {
 
   const layoutBody = useMemo(
     () => ({
-      aisles: Number(aisles) || 10,
-      levels: Number(levels) || 3,
-      bays: Number(bays) || 4,
-      slotsPerBay: Number(slotsPerBay) || 3,
       blockZones: Number(blockZones) || 0,
+      replace: true,
     }),
-    [aisles, levels, bays, slotsPerBay, blockZones],
+    [blockZones],
   );
+
+  /** Diepoldsau: eine Säule = ein Platz (bay=1, slot=Säule). */
+  const isDiepoldsauMap = useMemo(() => {
+    if (!map?.aisles?.length) return false;
+    return map.aisles.every((a) =>
+      a.levels.every((lv) => lv.bays.length === 1 || lv.bays.every((b) => b.slots.length <= 1)),
+    );
+  }, [map]);
 
   const stats = useMemo(() => {
     if (map) {
@@ -288,12 +289,12 @@ export default function LagerPlaetzePage() {
     try {
       const res = await api<{ created: number; skipped: boolean; message?: string }>(
         '/warehouse/layout/ensure-default',
-        { method: 'POST', body: JSON.stringify(layoutBody) },
+        { method: 'POST', body: JSON.stringify({ blockZones: layoutBody.blockZones }) },
       );
       setMessage(
         res.skipped
           ? res.message || 'Bereits vorhanden'
-          : `${res.created} Plätze angelegt (${layoutBody.aisles}×${layoutBody.levels}×${layoutBody.bays}×${layoutBody.slotsPerBay} + Blocklager)`,
+          : `${res.created} Diepoldsau-Plätze angelegt (Matchcode Reihe-Ebene-Säule)`,
       );
       await load();
     } catch (e: any) {
@@ -303,17 +304,27 @@ export default function LagerPlaetzePage() {
     }
   }
 
-  async function extendLayout() {
+  async function importDiepoldsau() {
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      const res = await api<{ created: number; skipped: boolean; message?: string }>(
-        '/warehouse/layout/extend',
-        { method: 'POST', body: JSON.stringify(layoutBody) },
-      );
+      const res = await api<{
+        created: number;
+        deactivated?: number;
+        reactivated?: number;
+        skipped: boolean;
+        message?: string;
+        rackCount?: number;
+      }>('/warehouse/layout/diepoldsau', {
+        method: 'POST',
+        body: JSON.stringify(layoutBody),
+      });
       setMessage(
-        res.skipped ? res.message || 'Nichts hinzugefügt' : `${res.created} neue Plätze ergänzt`,
+        res.skipped
+          ? res.message || 'Layout bereits aktuell'
+          : `${res.message || 'Diepoldsau übernommen'}: +${res.created} neu` +
+              (res.deactivated ? `, ${res.deactivated} alte deaktiviert` : ''),
       );
       await load();
     } catch (e: any) {
@@ -425,52 +436,12 @@ export default function LagerPlaetzePage() {
       </p>
 
       <div className="panel stack" style={{ marginBottom: '1rem', maxWidth: 720 }}>
-        <strong>Regal-Layout</strong>
+        <strong>Regal-Layout · Diepoldsau Hochregal</strong>
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Matchcode <code>Reihe-Ebene-Säule</code> (z.&nbsp;B. 001-000-001), 284 Plätze laut
+          Soloplan-Export.
+        </p>
         <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
-          <label className="stack" style={{ gap: 2, fontSize: '0.8rem' }}>
-            Reihen
-            <input
-              type="number"
-              min={1}
-              max={50}
-              style={{ width: 72 }}
-              value={aisles}
-              onChange={(e) => setAisles(e.target.value)}
-            />
-          </label>
-          <label className="stack" style={{ gap: 2, fontSize: '0.8rem' }}>
-            Ebenen
-            <input
-              type="number"
-              min={1}
-              max={10}
-              style={{ width: 72 }}
-              value={levels}
-              onChange={(e) => setLevels(e.target.value)}
-            />
-          </label>
-          <label className="stack" style={{ gap: 2, fontSize: '0.8rem' }}>
-            Fächer
-            <input
-              type="number"
-              min={1}
-              max={20}
-              style={{ width: 72 }}
-              value={bays}
-              onChange={(e) => setBays(e.target.value)}
-            />
-          </label>
-          <label className="stack" style={{ gap: 2, fontSize: '0.8rem' }}>
-            Plätze/Fach
-            <input
-              type="number"
-              min={1}
-              max={10}
-              style={{ width: 72 }}
-              value={slotsPerBay}
-              onChange={(e) => setSlotsPerBay(e.target.value)}
-            />
-          </label>
           <label className="stack" style={{ gap: 2, fontSize: '0.8rem' }}>
             Blockzonen
             <input
@@ -482,11 +453,11 @@ export default function LagerPlaetzePage() {
               onChange={(e) => setBlockZones(e.target.value)}
             />
           </label>
-          <button className="btn btn-primary" type="button" disabled={busy} onClick={seedDefault}>
-            Standard anlegen
+          <button className="btn btn-primary" type="button" disabled={busy} onClick={importDiepoldsau}>
+            Diepoldsau übernehmen
           </button>
-          <button className="btn btn-ghost" type="button" disabled={busy} onClick={extendLayout}>
-            Erweitern
+          <button className="btn btn-ghost" type="button" disabled={busy} onClick={seedDefault}>
+            Neu anlegen (leer)
           </button>
         </div>
         <span className="muted" style={{ fontSize: '0.85rem' }}>
@@ -745,69 +716,116 @@ export default function LagerPlaetzePage() {
                     style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
                     onClick={() => setSelectedAisle(a.aisle)}
                   >
-                    Reihe {a.aisle}
+                    Reihe {String(a.aisle).padStart(3, '0')}
                   </button>
                 ))}
               </div>
 
               {activeAisle ? (
                 <div style={{ overflowX: 'auto' }}>
-                  {activeAisle.levels.map((lv) => (
-                    <div key={lv.level} style={{ marginBottom: '0.65rem' }}>
-                      <div className="muted" style={{ fontSize: '0.8rem', marginBottom: 4 }}>
-                        Ebene {lv.level}
-                      </div>
-                      <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {lv.bays.map((bay) => (
-                          <div
-                            key={bay.bay}
-                            style={{
-                              border: '1px solid var(--border, #d5dbe3)',
-                              borderRadius: 6,
-                              padding: '0.35rem 0.4rem',
-                              background: 'var(--bg-panel, #fff)',
-                            }}
-                          >
-                            <div
-                              className="muted"
-                              style={{ fontSize: '0.7rem', marginBottom: 4, textAlign: 'center' }}
-                            >
-                              Fach {bay.bay}
-                            </div>
-                            <div className="row" style={{ gap: 4 }}>
-                              {bay.slots.map((s) => {
-                                const selected = activeLoc?.id === s.id;
-                                return (
-                                  <button
-                                    key={s.id}
-                                    type="button"
-                                    title={`${s.code}: ${s.usedSlots}/${s.capacitySlots}${
-                                      s.unitCount ? ` · ${s.unitCount} Pos.` : ''
-                                    } – klicken`}
-                                    onClick={() => openLocation(s)}
-                                    style={{
-                                      width: 32,
-                                      height: 32,
-                                      borderRadius: 4,
-                                      border: selected ? '2px solid #111' : 'none',
-                                      background: slotColor(s),
-                                      color: '#fff',
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      cursor: 'pointer',
-                                      padding: 0,
-                                    }}
-                                  >
-                                    {s.slot}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                  {activeAisle.levels.map((lv) => {
+                    const flatSlots = isDiepoldsauMap
+                      ? lv.bays.flatMap((bay) =>
+                          bay.slots.map((s) => ({
+                            ...s,
+                            display: s.slot,
+                          })),
+                        )
+                      : null;
+                    return (
+                      <div key={lv.level} style={{ marginBottom: '0.65rem' }}>
+                        <div className="muted" style={{ fontSize: '0.8rem', marginBottom: 4 }}>
+                          Ebene {String(lv.level).padStart(3, '0')}
+                          {isDiepoldsauMap ? ' · Säulen' : ''}
+                        </div>
+                        {flatSlots ? (
+                          <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                            {flatSlots.map((s) => {
+                              const selected = activeLoc?.id === s.id;
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  title={`${s.code}: ${s.usedSlots}/${s.capacitySlots}${
+                                    s.unitCount ? ` · ${s.unitCount} Pos.` : ''
+                                  } – klicken`}
+                                  onClick={() => openLocation(s)}
+                                  style={{
+                                    minWidth: 36,
+                                    height: 32,
+                                    borderRadius: 4,
+                                    border: selected ? '2px solid #111' : 'none',
+                                    background: slotColor(s),
+                                    color: '#fff',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    padding: '0 4px',
+                                  }}
+                                >
+                                  {String(s.display).padStart(2, '0')}
+                                </button>
+                              );
+                            })}
                           </div>
-                        ))}
+                        ) : (
+                          <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {lv.bays.map((bay) => (
+                              <div
+                                key={bay.bay}
+                                style={{
+                                  border: '1px solid var(--border, #d5dbe3)',
+                                  borderRadius: 6,
+                                  padding: '0.35rem 0.4rem',
+                                  background: 'var(--bg-panel, #fff)',
+                                }}
+                              >
+                                <div
+                                  className="muted"
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    marginBottom: 4,
+                                    textAlign: 'center',
+                                  }}
+                                >
+                                  Fach {bay.bay}
+                                </div>
+                                <div className="row" style={{ gap: 4 }}>
+                                  {bay.slots.map((s) => {
+                                    const selected = activeLoc?.id === s.id;
+                                    return (
+                                      <button
+                                        key={s.id}
+                                        type="button"
+                                        title={`${s.code}: ${s.usedSlots}/${s.capacitySlots}${
+                                          s.unitCount ? ` · ${s.unitCount} Pos.` : ''
+                                        } – klicken`}
+                                        onClick={() => openLocation(s)}
+                                        style={{
+                                          width: 32,
+                                          height: 32,
+                                          borderRadius: 4,
+                                          border: selected ? '2px solid #111' : 'none',
+                                          background: slotColor(s),
+                                          color: '#fff',
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                        }}
+                                      >
+                                        {s.slot}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
 

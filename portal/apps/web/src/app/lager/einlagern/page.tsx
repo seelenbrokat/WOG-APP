@@ -210,7 +210,7 @@ export default function EinlagernPage() {
           <label>Lagerplatz (frei ≥ {needSlots})</label>
           <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap', marginBottom: 6 }}>
             <input
-              placeholder="Platz suchen (z. B. R01-E2…)"
+              placeholder="Platz suchen (z. B. 001-000-001)"
               value={locFilter}
               onChange={(e) => setLocFilter(e.target.value)}
               style={{ flex: 1, minWidth: 180 }}
