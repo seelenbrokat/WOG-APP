@@ -964,11 +964,8 @@ export class ShipmentsService {
       message,
     });
 
-    if (status === ShipmentStatus.DELIVERED) {
-      await this.notifications.notifyShipmentUsers(id, NotificationEvent.POD_AVAILABLE, {
-        trackingNumber: updated.trackingNumber,
-      });
-    }
+    // Keine generische „POD verfügbar“-Mail bei Status DELIVERED –
+    // Ablieferbeleg erscheint im Portal; Quehenberger hat eigenen POD-Versand.
 
     await this.audit.log(user.id, 'shipment.status', 'Shipment', id, { status, message });
     return updated;

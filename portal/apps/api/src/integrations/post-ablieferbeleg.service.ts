@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import {
   CustomerDocCategory,
   DocumentType,
-  NotificationEvent,
   ShipmentStatus,
 } from '@prisma/client';
 import {
@@ -688,7 +687,9 @@ export class PostAblieferbelegService {
     storagePath: string,
     mimeType: string,
   ) {
-    const qResult = await this.quehenbergerPod.notifyIfQuehenberger({
+    // Nur Quehenberger bekommt eine POD-Mail (mit PDF). Keine generische
+    // „POD verfügbar“-Benachrichtigung an Portal-User – Ablieferbeleg liegt im Portal.
+    await this.quehenbergerPod.notifyIfQuehenberger({
       shipment,
       fileName,
       storagePath,
@@ -697,17 +698,6 @@ export class PostAblieferbelegService {
       // Dokument ist bereits mit category POD angelegt
       ensurePortalDocument: false,
     });
-    if (qResult !== 'skipped_not_quehenberger') return;
-
-    await this.notifications.notifyShipmentUsers(
-      shipment.id,
-      NotificationEvent.POD_AVAILABLE,
-      {
-        fileName,
-        category: CustomerDocCategory.POD,
-        source: 'POST',
-      },
-    );
   }
 
   private parseDate(raw: string | null | undefined): Date | null {
