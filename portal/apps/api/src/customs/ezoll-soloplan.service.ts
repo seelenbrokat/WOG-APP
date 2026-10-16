@@ -82,13 +82,14 @@ export class EzollSoloplanService {
    * immer auf **Sendungs**-Ebene (Consignment):
    * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
    * - AT Einfuhr: aTEinfuhr (+ customBool8)  [Sendung]
-   * - CH Einfuhr: cHEinfuhr (+ bezugsschein/einfuhrliste + customBool6) [Sendung]
-   * - CH Ausfuhr: cHAusfuhr (+ customBool7) [Sendung]
+   * - CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   * - CH Ausfuhr: cHAusfuhr (+ customBool7 / OrderImport CFBOOLEAN7) [Sendung]
    *
-   * Wichtig: OrderEzoll File-API verwirft customFields still (CFBOOLEAN landet
-   * nicht). Deshalb dual:
-   * 1) top-level Named Fields cHEinfuhr / cHAusfuhr (analog aTEinfuhr)
-   * 2) CFBOOLEAN6/7 zusätzlich via OrderImportPORTAL (nur mit Mercurio-Doc)
+   * Wichtig:
+   * - OrderEzoll verwirft customFields oft still → CH-CFBOOLEAN dual via OrderImport
+   * - `cHAusfuhr` ist in Automate gemappt (Prod-OK, z. B. 463379)
+   * - `cHEinfuhr` ist NICHT gemappt und lässt Automate das gesamte OrderEzoll
+   *   ablehnen (Prod-Regression 463461: Mercurio-Felder blieben leer) → nicht senden
    *
    * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
    * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
@@ -205,9 +206,9 @@ export class EzollSoloplanService {
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
    * - Listen-Flags (Soloplan Zoll-Felddefinition):
-   *   CH Einfuhr: cHEinfuhr (top-level, wie aTEinfuhr) + bezugsschein/einfuhrliste
-   *               + customBool6 (CFBOOLEAN6, Backup – File-API verwirft oft customFields)
-   *   CH Ausfuhr: cHAusfuhr (top-level) + customBool7 (CFBOOLEAN7, Backup)
+   *   CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   *               – kein cHEinfuhr (Automate lehnt unbekanntes Feld ab → Update tot)
+   *   CH Ausfuhr: cHAusfuhr (top-level, Automate-gemappt) + CFBOOLEAN7 via OrderImport
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
@@ -225,7 +226,8 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    // Listen-Checkbox „CH Einfuhr“: Named Field + Doc-Flags; CFBOOLEAN6 via OrderImport
+    // CH Einfuhr: Doc-Flags in OrderEzoll (Automate-gemappt) + CFBOOLEAN6 via OrderImport.
+    // Kein cHEinfuhr – unbekanntes Named Field → Automate verwirft das ganze Update.
     const chEinfuhrDocs = new Set([
       'BEZUGSSCHEIN',
       'EINFUHRLISTE',
@@ -240,8 +242,7 @@ export class EzollSoloplanService {
       if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
         consignment.bezugsschein = true;
       }
-      // Top-level wie aTEinfuhr – customFields in OrderEzoll wird oft still verworfen
-      consignment.cHEinfuhr = true;
+      // customFields in OrderEzoll oft wirkungslos – CFBOOLEAN6 kommt über OrderImport
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool6: true,

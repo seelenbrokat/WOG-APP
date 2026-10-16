@@ -186,7 +186,8 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.einfuhrliste, true);
       assert.equal(row.definitiv, true);
-      assert.equal(row.cHEinfuhr, true); // Listen-Checkbox CH Einfuhr (Named Field)
+      // kein cHEinfuhr – Automate lehnt unbekannte Named Fields ab (Prod 463461)
+      assert.equal(row.cHEinfuhr, undefined);
       assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 Backup
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
@@ -333,7 +334,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.zollabgabenCH, 0);
       assert.equal(row.mWSTCH, 10);
       assert.equal(row.einfuhrliste, true); // CH-Einfuhr Doc-Flag bei eVV
-      assert.equal(row.cHEinfuhr, true); // Listen-Checkbox CH Einfuhr
+      assert.equal(row.cHEinfuhr, undefined);
       assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 Backup
     } finally {
       rmSync(root, { recursive: true, force: true });
