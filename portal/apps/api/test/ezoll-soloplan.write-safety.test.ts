@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
@@ -11,28 +11,10 @@ function makeService(root: string, rootMode = 'consignment') {
     get: (key: string) => {
       if (key === 'SOLOPLAN_EZOLL_OUT_DIR') return root;
       if (key === 'SOLOPLAN_EZOLL_ROOT') return rootMode;
-      // CH CFBOOLEAN dual-write → gleicher Temp-Root unter orders/
-      if (key === 'SOLOPLAN_ORDERS_OUT_DIR') return join(root, 'orders');
       return undefined;
     },
   } as ConfigService;
   return new EzollSoloplanService(config);
-}
-
-function listOrderImportFiles(root: string): string[] {
-  const dir = join(root, 'orders');
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.startsWith('orderimport-') && f.endsWith('.json'))
-    .map((f) => join(dir, f));
-}
-
-function listEzollFiles(root: string, kindPrefix: string): string[] {
-  const dir = join(root, 'consignment');
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.startsWith(`orderezoll-${kindPrefix}-`) && f.endsWith('.json'))
-    .map((f) => join(dir, f));
 }
 
 function readJson(path: string) {
@@ -194,9 +176,9 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.einfuhrliste, true);
       assert.equal(row.definitiv, true);
-      // CFBOOLEAN6 nicht im Mercurio-Payload – separates OrderEzoll cHEinfuhr
+      // CH-Einfuhr = CFBOOLEAN6 nur via OrderEzoll update customFields (kein cHEinfuhr, kein OrderImport)
       assert.equal(row.cHEinfuhr, undefined);
-      assert.equal(row.customFields, undefined);
+      assert.deepEqual(row.customFields, { customBool6: true });
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
@@ -205,26 +187,6 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.kontoMWST, '140379');
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.tarifnummernCHAPI, 1);
-      // Separates OrderEzoll nur cHEinfuhr (= CFBOOLEAN6 CH-Einfuhr)
-      const flagFiles = listEzollFiles(root, 'chei-cf6');
-      assert.equal(flagFiles.length, 1);
-      const flagRow = (
-        (readJson(flagFiles[0]).order as Array<Record<string, unknown>>)[0]
-          .consignments as Array<Record<string, unknown>>
-      )[0];
-      assert.equal(flagRow.cHEinfuhr, true);
-      assert.equal(flagRow.einfuhrliste, undefined);
-      // CFBOOLEAN6 dual via OrderImportPORTAL
-      const oi = listOrderImportFiles(root);
-      assert.equal(oi.length, 1);
-      assert.match(oi[0], /orderimport-chei-cf6-/);
-      const oiOrder = (readJson(oi[0]).order as Array<Record<string, unknown>>)[0];
-      assert.equal(oiOrder.number, 443153);
-      const oiRow = (oiOrder.consignments as Array<Record<string, unknown>>)[0];
-      assert.deepEqual(oiRow.customFields, {
-        actionAttribute: 'update',
-        customBool6: true,
-      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -355,16 +317,7 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.mWSTCH, 10);
       assert.equal(row.einfuhrliste, true); // CH-Einfuhr Doc-Flag bei eVV
       assert.equal(row.cHEinfuhr, undefined);
-      assert.equal(row.customFields, undefined);
-      const flagFiles = listEzollFiles(root, 'chei-cf6');
-      assert.equal(flagFiles.length, 1);
-      assert.equal(
-        (
-          (readJson(flagFiles[0]).order as Array<Record<string, unknown>>)[0]
-            .consignments as Array<Record<string, unknown>>
-        )[0].cHEinfuhr,
-        true,
-      );
+      assert.deepEqual(row.customFields, { customBool6: true });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -409,24 +362,13 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.definitiv, true);
       assert.equal(row.eUR1_API, 'T 0691198');
       assert.equal(row.tarifnummernCHAPI, 2);
-      // CH-Ausfuhr: Named Field + CFBOOLEAN7 dual via OrderImport
+      // CH-Ausfuhr: Named Field + CFBOOLEAN7 nur im OrderEzoll update (kein OrderImport)
       assert.equal(row.cHAusfuhr, true);
       assert.deepEqual(row.customFields, { customBool7: true });
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.zollabgabenCH, undefined);
       assert.equal(row.bezugsschein, undefined);
       assert.equal(row.einfuhrliste, undefined);
-      const oi = listOrderImportFiles(root);
-      assert.equal(oi.length, 1);
-      assert.match(oi[0], /orderimport-chau-cf7-/);
-      const oiOrder = (readJson(oi[0]).order as Array<Record<string, unknown>>)[0];
-      assert.equal(oiOrder.number, 424111);
-      const oiRow = (oiOrder.consignments as Array<Record<string, unknown>>)[0];
-      assert.equal(oiRow.itemNumber, 2);
-      assert.deepEqual(oiRow.customFields, {
-        actionAttribute: 'update',
-        customBool7: true,
-      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

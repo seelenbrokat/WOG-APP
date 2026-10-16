@@ -134,11 +134,11 @@ Regel: **Zoll-Listenflags nur zusammen mit Dokumenten/XMLs** (nie aus Portal-Erf
 |------------------|---------------|-------|---------|
 | AT Ausfuhr | `ausfuhrverzollungATEU` (+ `cC529C`) | Sendung | OrderEzoll CC529 / ABD |
 | AT Einfuhr | `aTEinfuhr` (+ `customBool8`) | Sendung | OrderEzoll EZ922 / EZ923 |
-| CH Einfuhr | CFBOOLEAN6 via `cHEinfuhr` (eigenes OrderEzoll) + OrderImport `customBool6`; Doc-Flags `bezugsschein`/`einfuhrliste` | Sendung | Mercurio BS/EL / Einfuhr-PDF |
-| CH Ausfuhr | `cHAusfuhr`; CFBOOLEAN7 via OrderImport | Sendung | Mercurio AUSFUHR_VV / Ausfuhr |
+| CH Einfuhr | `customFields.customBool6` (= CFBOOLEAN6) + Doc-Flags `bezugsschein`/`einfuhrliste` | Sendung | Mercurio BS/EL / Einfuhr-PDF (nur OrderEzoll update) |
+| CH Ausfuhr | `cHAusfuhr` + `customFields.customBool7` | Sendung | Mercurio AUSFUHR_VV / Ausfuhr (nur OrderEzoll update) |
 | Verzollungsauftrag | `verzollungsauftrag` (named Flag) | **Auftrag** | Portal Customs / OrderImport |
 
-Hinweis: Soloplan Felddefinition „CH-Einfuhr“ = `CFBOOLEAN6` (ACONSIGNMENTCUSTOMFIELDV). OrderEzoll verwirft `customFields` oft – deshalb dual: Named Field `cHEinfuhr` (separates JSON, analog `cHAusfuhr`) + OrderImport `customBool6`. Sendungs-`customBool8` (AT Einfuhr) ≠ Auftrags-Flag `verzollungsauftrag`.
+Hinweis: Soloplan Felddefinition „CH-Einfuhr“ = `CFBOOLEAN6` (ACONSIGNMENTCUSTOMFIELDV). Nur OrderEzoll `update` – **kein** OrderImport (überschreibt). Named Field `cHEinfuhr` existiert in Automate nicht (`NoAdditionalPropertiesAllowed`); analog AT: `customFields.customBool6`. Sendungs-`customBool8` (AT Einfuhr) ≠ Auftrags-Flag `verzollungsauftrag`.
 
 Code:
 
