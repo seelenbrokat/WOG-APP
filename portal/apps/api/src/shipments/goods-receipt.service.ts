@@ -263,29 +263,36 @@ export class GoodsReceiptService {
     }
 
     // Offene Proforma-/Kontroll-Sessions oben in der Übersicht.
-    // Proforma kommt am Vortag → Session-Datum = nächster Werktag;
-    // deshalb am gewählten Tag auch kommende Proforma-Sessions (bis +5 Tage) zeigen.
+    // Proforma/Schmidts: Session kann Vortag oder Folgetag sein → ± Fenster um den gewählten Tag.
     const dayFilter = opts.date ? dayBounds(opts.date) : null;
     const upcomingEnd = dayFilter
       ? new Date(dayFilter.start.getTime() + 6 * 24 * 60 * 60 * 1000)
       : null;
+    const recentStart = dayFilter
+      ? new Date(dayFilter.start.getTime() - 2 * 24 * 60 * 60 * 1000)
+      : null;
+    const namedSessionOr = [
+      { externalRef: { contains: 'PRO', mode: 'insensitive' as const } },
+      { externalRef: { contains: 'Schmidts', mode: 'insensitive' as const } },
+      { externalRef: { startsWith: 'WE ', mode: 'insensitive' as const } },
+    ];
     const openSessions = await this.prisma.goodsReceiptSession.findMany({
       where: {
         organizationId: user.organizationId,
         status: 'OPEN',
         ...(opts.customerId ? { customerId: opts.customerId } : {}),
         ...(mandantId ? { mandantId } : {}),
-        ...(dayFilter && upcomingEnd
+        ...(dayFilter && upcomingEnd && recentStart
           ? {
               OR: [
                 { sessionDate: { gte: dayFilter.start, lt: dayFilter.end } },
                 {
                   sessionDate: { gte: dayFilter.end, lt: upcomingEnd },
-                  OR: [
-                    { externalRef: { contains: 'PRO', mode: 'insensitive' as const } },
-                    { externalRef: { contains: 'Schmidts', mode: 'insensitive' as const } },
-                    { externalRef: { startsWith: 'WE ', mode: 'insensitive' as const } },
-                  ],
+                  OR: namedSessionOr,
+                },
+                {
+                  sessionDate: { gte: recentStart, lt: dayFilter.start },
+                  OR: namedSessionOr,
                 },
               ],
             }

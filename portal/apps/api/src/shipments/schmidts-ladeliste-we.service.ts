@@ -23,7 +23,7 @@ import {
   ParsedSchmidtsLadeliste,
   SchmidtsLadelisteLine,
 } from './schmidts-ladeliste.parser';
-import { proformaGoodsReceiptDate } from '../common/working-days';
+import { zurichDateStr } from '../common/working-days';
 
 const execFileAsync = promisify(execFile);
 
@@ -277,8 +277,11 @@ export class SchmidtsLadelisteWeService {
       await this.mailMissing(parsed, missing, fileName);
     }
 
-    // Session: Listen-Datum (WE-Tag) oder nächster Werktag
-    const sessionDate = parsed.listDate || proformaGoodsReceiptDate();
+    // Session-Tag für TC57: Listen-Datum, aber nie in der Vergangenheit
+    // (Ladeliste oft Vortag → sonst fehlt „WE Schmidts“ unter „heute“).
+    const today = zurichDateStr();
+    const sessionDate =
+      parsed.listDate && parsed.listDate >= today ? parsed.listDate : today;
     const listKey =
       parsed.transportNumber?.replace(/\//g, '-') ||
       parsed.listDate ||

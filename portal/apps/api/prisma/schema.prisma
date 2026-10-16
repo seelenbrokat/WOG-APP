@@ -104,6 +104,7 @@ model Organization {
   users         User[]
   partners      Partner[]
   customsOrders CustomsOrder[]
+  customsLoadingTours CustomsLoadingTour[]
   transportOrders TransportOrder[]
   packagingTypes    PackagingType[]
   documentCategories DocumentCategory[]
@@ -123,6 +124,11 @@ model Organization {
   ezollTourCaches          EzollTourCache[]
   ezollConsignmentCaches   EzollConsignmentCache[]
   shipmentCustomsRefs      ShipmentCustomsRef[]
+  warehouseLocations       WarehouseLocation[]
+  warehouseStorageUnits    WarehouseStorageUnit[]
+  warehouseMovements       WarehouseMovement[]
+  warehousePriceRates      WarehousePriceRate[]
+  warehouseArticles        WarehouseArticle[]
 }
 
 /// Dauerhafte MRN/LRN je Sendung (AT eZoll, SmartBorder, CH). Retention 60 Tage.
@@ -678,8 +684,10 @@ model Customer {
   matchcode                String?
   /// Modul „Dokumente“ für diesen Kunden freigeschaltet
   documentsModuleEnabled   Boolean  @default(false)
-  /// Ablieferbelege immer neutral (nur Absender + Empfänger, kein Auftraggeber)
+  /// Neutrale Lieferung: Ablieferbeleg, Etiketten und Auftrags-PDFs ohne Auftraggeber/WOG-Branding
   neutralDeliveryReceipt   Boolean  @default(false)
+  /// Kunde nutzt WOG-Lagerverwaltung (Einlagerung / Bestand / Abrechnung)
+  warehouseCustomer        Boolean  @default(false)
   /// SFTP-Inbound für Auftragsdateien (z. B. FORTRAS BORD512) – nur Admin-Freischaltung
   sftpInboundEnabled       Boolean  @default(false)
   /// Linux/SFTPGo-User, z. B. quehenberger
@@ -697,11 +705,16 @@ model Customer {
   contacts     Contact[]
   templates    ShipmentTemplate[]
   customsOrders CustomsOrder[]
+  customsLoadingTours CustomsLoadingTour[]
   freightPayerOrders TransportOrder[] @relation("FreightPayerCustomer")
   goodsReceiptSessions GoodsReceiptSession[]
   documentCategoryAccess CustomerDocumentCategoryAccess[]
   documents              Document[]
   documentDownloads      DocumentDownload[]
+  warehouseStorageUnits  WarehouseStorageUnit[]
+  warehouseMovements     WarehouseMovement[]
+  warehousePriceRates    WarehousePriceRate[]
+  warehouseArticles      WarehouseArticle[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, soloplanBusinessPartnerId])
@@ -758,6 +771,12 @@ model Address {
   zip        String
   city       String
   country    String  @default("AT")
+  /// Kundennummer des Empfängers im System des Portal-Kunden (nicht Soloplan)
+  customerRef String?
+  /// Abholzeiten je Werktag als JSON, Keys 1=Mo … 7=So, Werte "HH:mm"
+  pickupTimesByWeekday String?
+  /// Name des externen Portals für Zeitfensterbuchung (z. B. Empfänger-Portal)
+  timeSlotPortalName String?
   /// PICKUP | DELIVERY | BOTH
   usage      String  @default("BOTH")
   isDefault  Boolean @default(false)
@@ -909,7 +928,10 @@ model Shipment {
   orderId          String?
   trackingNumber   String         @unique
   trackingPin      String?
+  /// Externe Referenz (Kundenauftrag) – auch auf Etikett
   reference        String?
+  /// Empfänger-Kundennummer lt. Kundensystem (aus Adressbuch)
+  deliveryCustomerRef String?
   status           ShipmentStatus @default(DRAFT)
   transportMode    String?
   goodsDescription String?
@@ -1303,6 +1325,35 @@ model IntegrationTransfer {
 }
 
 /// Verzollungsauftrag Vorarlberg–Schweiz
+/// Beladungs-Tour für Selbstfahrer (z. B. ERVO): LKW/Grenze erst nach Auswahl mehrerer Sendungen.
+model CustomsLoadingTour {
+  id                      String   @id @default(cuid())
+  organizationId          String
+  customerId              String
+  /// Kfz-Kennzeichen Zugfahrzeug (bei Freigabe gesetzt)
+  kennzeichen             String
+  zulassungsland          String   @default("AT")
+  kennzeichenAnhaenger    String?
+  zulassungslandAnhaenger String?
+  grenzuebergang          String
+  /// Geplanter Grenzzeitpunkt
+  zeit                    DateTime
+  status                  String   @default("RELEASED")
+  loadingListDocumentId   String?
+  avisoSentAt             DateTime?
+  notes                   String?
+  createdById             String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  orders       CustomsOrder[]
+
+  @@index([organizationId, createdAt])
+  @@index([customerId, createdAt])
+}
+
 model CustomsOrder {
   id             String   @id @default(cuid())
   organizationId String
@@ -1357,6 +1408,10 @@ model CustomsOrder {
   empfaengerCountry        String  @default("CH")
   status         String   @default("SUBMITTED")
   notes          String?
+  /// Selbstfahrer: LKW/Grenze erst bei Beladungs-Freigabe (kein SIPO)
+  vehicleDeferred Boolean @default(false)
+  /// Zugehörige Beladungs-Tour (nach Freigabe)
+  loadingTourId  String?
   /// Fahrer-Mobilnummer für SmartBorder (E.164, z. B. +436769075070)
   driverPhone    String?
   /// Zusätzliche E-Mail für den SmartBorder-Fahrerlink
@@ -1375,6 +1430,7 @@ model CustomsOrder {
   organization Organization @relation(fields: [organizationId], references: [id])
   customer     Customer     @relation(fields: [customerId], references: [id])
   mandant      Mandant?     @relation(fields: [mandantId], references: [id])
+  loadingTour  CustomsLoadingTour? @relation(fields: [loadingTourId], references: [id])
   documents    Document[]
 
   @@unique([organizationId, externalNumber])
@@ -1382,6 +1438,8 @@ model CustomsOrder {
   @@index([organizationId, status])
   @@index([organizationId, kennzeichen])
   @@index([externalNumber])
+  @@index([loadingTourId])
+  @@index([customerId, vehicleDeferred, loadingTourId])
 }
 
 model AuditLog {
@@ -1396,4 +1454,176 @@ model AuditLog {
   actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
+}
+
+/// Palettentyp für Einlagerung (Stellplatz-Faktor)
+enum WarehousePalletType {
+  EURO
+  HALF
+  OVERSIZE
+  /// Einweg / Sondermaß – Stellplätze am Artikel individuell hinterlegen
+  CUSTOM
+}
+
+enum WarehouseLocationKind {
+  RACK
+  BLOCK
+}
+
+enum WarehouseUnitStatus {
+  STORED
+  RELEASED
+}
+
+enum WarehouseMovementType {
+  IN
+  OUT
+}
+
+/// Fester Lagerplatz (Hochregal) oder Blocklager-Zone – frei erweiterbar
+model WarehouseLocation {
+  id             String                @id @default(cuid())
+  organizationId String
+  /// Anzeige-/Scan-Code, z. B. 001-000-001 (Reihe-Ebene-Säule) oder BLOCK-01
+  code           String
+  kind           WarehouseLocationKind @default(RACK)
+  /// Reihe / Gang (Hochregal), z. B. 1…10
+  aisle          Int?
+  /// Ebene (Diepoldsau: 0…3)
+  level          Int?
+  /// Fach quer in der Reihe (Diepoldsau: immer 1)
+  bay            Int?
+  /// Stellplatz / Säule (Diepoldsau: Säule 1…16)
+  slot           Int?
+  label          String?
+  /// Kapazität in Stellplatz-Einheiten (Standard 1)
+  capacitySlots  Float                 @default(1)
+  active         Boolean               @default(true)
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  units        WarehouseStorageUnit[]
+  movements    WarehouseMovement[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, kind, active])
+  @@index([organizationId, aisle, level, bay, slot])
+}
+
+/// Artikelstamm je Lagerkunde (vordefinierte Palettengröße / Stellplätze)
+model WarehouseArticle {
+  id             String              @id @default(cuid())
+  organizationId String
+  customerId     String
+  /// Interne/Artikel-Nr. beim Kunden
+  articleNumber  String?
+  name           String
+  palletType     WarehousePalletType @default(EURO)
+  /// Stellplätze je Palette (individuell, z. B. EWP/Sondermaß)
+  slotUnits      Float               @default(1)
+  notes          String?
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  units        WarehouseStorageUnit[]
+
+  @@index([organizationId, customerId, active])
+  @@index([customerId, name])
+  @@unique([customerId, articleNumber])
+}
+
+/// Eingelagerte Palette / Position
+model WarehouseStorageUnit {
+  id             String              @id @default(cuid())
+  organizationId String
+  customerId     String
+  locationId     String
+  articleId      String?
+  shipmentId     String?
+  palletType     WarehousePalletType @default(EURO)
+  /// Belegte Stellplätze: EURO=1, HALF=0.5, OVERSIZE=2, CUSTOM=individuell
+  slotUnits      Float               @default(1)
+  articleName    String?
+  serialNumber   String?
+  sscc           String?
+  externalRef    String?
+  notes          String?
+  status         WarehouseUnitStatus @default(STORED)
+  storedAt       DateTime            @default(now())
+  releasedAt     DateTime?
+  storedById     String?
+  releasedById   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  location     WarehouseLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  article      WarehouseArticle?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  movements    WarehouseMovement[]
+
+  @@index([organizationId, status, customerId])
+  @@index([organizationId, locationId, status])
+  @@index([articleId])
+  @@index([serialNumber])
+  @@index([sscc])
+  @@index([shipmentId])
+}
+
+/// Ein-/Auslagerung (für Abrechnung)
+model WarehouseMovement {
+  id             String                @id @default(cuid())
+  organizationId String
+  customerId     String
+  storageUnitId  String
+  locationId     String
+  type           WarehouseMovementType
+  palletType     WarehousePalletType
+  slotUnits      Float
+  /// Snapshot Preis zum Buchungszeitpunkt
+  unitPrice      Float                 @default(0)
+  amount         Float                 @default(0)
+  articleName    String?
+  serialNumber   String?
+  shipmentId     String?
+  note           String?
+  performedById  String?
+  occurredAt     DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  storageUnit  WarehouseStorageUnit @relation(fields: [storageUnitId], references: [id], onDelete: Cascade)
+  location     WarehouseLocation    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, customerId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+  @@index([storageUnitId])
+}
+
+/// Preise je Kunde + Palettentyp
+model WarehousePriceRate {
+  id                    String              @id @default(cuid())
+  organizationId        String
+  customerId            String
+  palletType            WarehousePalletType
+  inboundFee            Float               @default(0)
+  outboundFee           Float               @default(0)
+  /// € je Stellplatz-Einheit am Monatshöchststand
+  storageFeePerSlot     Float               @default(0)
+  currency              String              @default("EUR")
+  active                Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, palletType])
+  @@index([organizationId, customerId])
 }

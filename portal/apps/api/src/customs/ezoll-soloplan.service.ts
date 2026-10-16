@@ -38,6 +38,11 @@ export class EzollSoloplanService {
   private readonly consignmentOutDir: string;
   private readonly tourOutDir: string;
   /**
+   * OrderImportPORTAL pickup – CH CFBOOLEAN6/7 (customBool6/7), weil OrderEzoll
+   * customFields still verwirft. Nur zusammen mit Mercurio-Docs, nie aus Erfassung.
+   */
+  private readonly orderImportOutDir: string;
+  /**
    * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
    * consignment = flach (Legacy): ordernumber={number}+itemNumber.
    */
@@ -56,6 +61,9 @@ export class EzollSoloplanService {
       join(base, 'consignment');
     this.tourOutDir =
       this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
+    this.orderImportOutDir =
+      this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
+      join(sftpOutbound, 'soloplan', 'orders');
 
     // Default: nested Order-Root (Order zuerst, dann Sendung innerhalb Auftrag).
     const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
@@ -66,15 +74,22 @@ export class EzollSoloplanService {
 
     this.ensureDir(this.consignmentOutDir);
     this.ensureDir(this.tourOutDir);
+    this.ensureDir(this.orderImportOutDir);
   }
 
   /**
    * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML,
    * immer auf **Sendungs**-Ebene (Consignment):
    * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
-   * - AT Einfuhr: CFBOOLEAN8 → customBool8 (+ aTEinfuhr)  [Sendung]
-   * - CH Einfuhr: CFBOOLEAN6 → customBool6 (+ bezugsschein/einfuhrliste) [Sendung]
-   * - CH Ausfuhr: CFBOOLEAN7 → customBool7 [Sendung]
+   * - AT Einfuhr: aTEinfuhr (+ customBool8)  [Sendung]
+   * - CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   * - CH Ausfuhr: cHAusfuhr (+ customBool7 / OrderImport CFBOOLEAN7) [Sendung]
+   *
+   * Wichtig:
+   * - OrderEzoll verwirft customFields oft still → CH-CFBOOLEAN dual via OrderImport
+   * - `cHAusfuhr` ist in Automate gemappt (Prod-OK, z. B. 463379)
+   * - `cHEinfuhr` ist NICHT gemappt und lässt Automate das gesamte OrderEzoll
+   *   ablehnen (Prod-Regression 463461: Mercurio-Felder blieben leer) → nicht senden
    *
    * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
    * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
@@ -191,12 +206,13 @@ export class EzollSoloplanService {
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
    * - Listen-Flags (Soloplan Zoll-Felddefinition):
-   *   CH Einfuhr: CFBOOLEAN6 (customBool6) + bezugsschein/einfuhrliste
-   *   CH Ausfuhr: CFBOOLEAN7 (customBool7)
+   *   CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   *               – kein cHEinfuhr (Automate lehnt unbekanntes Feld ab → Update tot)
+   *   CH Ausfuhr: cHAusfuhr (top-level, Automate-gemappt) + CFBOOLEAN7 via OrderImport
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
-   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv, CFBOOLEAN7
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv, cHAusfuhr
    * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
    * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
    */
@@ -210,7 +226,8 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    // Listen-Checkbox „CH Einfuhr“ = CFBOOLEAN6 + Doc-Flags (nur OrderEzoll mit Doc)
+    // CH Einfuhr: Doc-Flags in OrderEzoll (Automate-gemappt) + CFBOOLEAN6 via OrderImport.
+    // Kein cHEinfuhr – unbekanntes Named Field → Automate verwirft das ganze Update.
     const chEinfuhrDocs = new Set([
       'BEZUGSSCHEIN',
       'EINFUHRLISTE',
@@ -218,16 +235,19 @@ export class EzollSoloplanService {
       'EVV_ZOLL',
       'BORDEREAU',
     ]);
+    let orderImportBools: Record<string, boolean> | null = null;
     if (chEinfuhrDocs.has(fields.docType)) {
       if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
       consignment.einfuhrliste = true;
       if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
         consignment.bezugsschein = true;
       }
+      // customFields in OrderEzoll oft wirkungslos – CFBOOLEAN6 kommt über OrderImport
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool6: true,
       };
+      orderImportBools = { customBool6: true };
     }
     if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
       consignment.definitiv = true;
@@ -264,12 +284,14 @@ export class EzollSoloplanService {
     }
     if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
 
-    // Listen-Checkbox „CH-Ausfuhr“ = CFBOOLEAN7 (customBool7) – nur OrderEzoll mit Doc
+    // Listen-Checkbox „CH-Ausfuhr“: Named Field; CFBOOLEAN7 via OrderImport
     if (fields.docType === 'AUSFUHR_VV') {
+      consignment.cHAusfuhr = true;
       consignment.customFields = {
         ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
         customBool7: true,
       };
+      orderImportBools = { customBool7: true };
     }
 
     const prefix =
@@ -288,7 +310,56 @@ export class EzollSoloplanService {
                   : fields.docType === 'BORDEREAU'
                     ? 'mercurio-bordereau'
                     : 'mercurio';
-    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+
+    // CFBOOLEAN6/7 zuverlässig über OrderImportPORTAL (nur mit Mercurio-Doc)
+    if (orderImportBools) {
+      const kind = orderImportBools.customBool7 ? 'chau-cf7' : 'chei-cf6';
+      this.writeOrderImportCustomBools(match, sourceFileName, orderImportBools, kind);
+    }
+    return path;
+  }
+
+  /**
+   * CH-CFBOOLEANs zusätzlich über OrderImportPORTAL.
+   * OrderEzoll verwirft customFields oft; OrderImport mappt sie (wie CFBOOLEAN am Auftrag).
+   * Nur aus Mercurio-Doc-Updates aufrufen – nie aus Portal-Erfassung.
+   */
+  private writeOrderImportCustomBools(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    customBools: Record<string, boolean>,
+    kind: string,
+  ): string | null {
+    const orderNumber =
+      match.kind === 'orderConsignment' || match.kind === 'order'
+        ? match.orderNumber
+        : null;
+    if (orderNumber == null || orderNumber <= 0) return null;
+    const itemNumber =
+      match.kind === 'orderConsignment' ? match.consignmentIndex : 1;
+    return this.writeJsonFile(
+      this.orderImportOutDir,
+      kind,
+      sourceFileName,
+      {
+        header: this.header(`orderimport-${kind}:${sourceFileName}`),
+        order: [
+          {
+            actionAttribute: 'update',
+            number: orderNumber,
+            consignments: [
+              {
+                actionAttribute: 'update',
+                itemNumber,
+                customFields: customBools,
+              },
+            ],
+          },
+        ],
+      },
+      'orderimport',
+    );
   }
 
   /**
@@ -408,15 +479,18 @@ export class EzollSoloplanService {
     kind: string,
     sourceFileName: string,
     payload: Record<string, unknown>,
+    filePrefix = 'orderezoll',
   ): string {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
-    const fileName = `orderezoll-${kind}-${stamp}-${safe}.json`;
+    const fileName = `${filePrefix}-${kind}-${stamp}-${safe}.json`;
     const path = join(outDir, fileName);
     this.ensureDir(outDir);
     writeFileSync(path, JSON.stringify(payload, null, 2));
     this.applySoloplanPickupPerms(outDir, path);
-    this.log.log(`OrderEzoll ${kind.toUpperCase()} → ${path}`);
+    this.log.log(
+      `${filePrefix === 'orderimport' ? 'OrderImport' : 'OrderEzoll'} ${kind.toUpperCase()} → ${path}`,
+    );
     return path;
   }
 

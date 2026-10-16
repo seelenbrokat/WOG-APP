@@ -35,8 +35,11 @@ export type LabelShipment = {
   deliveryZip?: string | null;
   deliveryCity?: string | null;
   deliveryCountry?: string | null;
+  deliveryCustomerRef?: string | null;
   customerName?: string | null;
   mandantName?: string | null;
+  /** Kein WOG-/Auftraggeber-Branding auf dem Etikett */
+  neutral?: boolean;
 };
 
 export type LabelCollo = {
@@ -89,7 +92,7 @@ async function drawLabelPage(
   const right = 265;
   const width = right - left;
 
-  drawLabelBrandHeader(doc, shipment.mandantName);
+  drawLabelBrandHeader(doc, shipment.mandantName, { neutral: shipment.neutral });
 
   // Sendungs-Meta
   doc
@@ -98,8 +101,13 @@ async function drawLabelPage(
     .fontSize(10)
     .text(shipment.trackingNumber, left, doc.y, { width });
   doc.font('Helvetica').fontSize(8).fillColor(WOG_PDF.ink);
-  if (shipment.orderExternalNumber) doc.text(`Auftrag ${shipment.orderExternalNumber}`, { width });
-  if (shipment.reference) doc.text(`Ref. ${shipment.reference}`, { width });
+  if (!shipment.neutral && shipment.orderExternalNumber) {
+    doc.text(`Auftrag ${shipment.orderExternalNumber}`, { width });
+  }
+  if (shipment.reference) doc.text(`Ext. Ref. ${shipment.reference}`, { width });
+  if (shipment.deliveryCustomerRef) {
+    doc.text(`Kd-Nr. Empf. ${shipment.deliveryCustomerRef}`, { width });
+  }
 
   const metaY = doc.y + 4;
   doc.rect(left, metaY, width, 36).fill(WOG_PDF.soft);

@@ -5,6 +5,7 @@ import { UserRole } from '@prisma/client';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { ProformaWeService } from './proforma-we.service';
 import { SchmidtsLadelisteWeService } from './schmidts-ladeliste-we.service';
+import { PortalMailWeService } from './portal-mail-we.service';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 
@@ -111,6 +112,7 @@ export class GoodsReceiptController {
     private service: GoodsReceiptService,
     private proformaWe: ProformaWeService,
     private schmidtsLadeliste: SchmidtsLadelisteWeService,
+    private portalMailWe: PortalMailWeService,
   ) {}
 
   @Get('entladeberichte')
@@ -149,6 +151,18 @@ export class GoodsReceiptController {
   @Post('ladeliste/process-inbound')
   processLadelisteInbound(@CurrentUser() user: AuthUser) {
     return this.schmidtsLadeliste.processInboundDir(user.organizationId);
+  }
+
+  /** Status portal@ Graph-Mail → WE (Unitec/Schmidts) */
+  @Get('portal-mail/status')
+  portalMailStatus() {
+    return this.portalMailWe.status();
+  }
+
+  /** Manuell: ungelesene Mails an portal@ mit PDF → WE-Session */
+  @Post('portal-mail/process-inbox')
+  processPortalMailInbox() {
+    return this.portalMailWe.processInbox();
   }
 
   @Get('groups')

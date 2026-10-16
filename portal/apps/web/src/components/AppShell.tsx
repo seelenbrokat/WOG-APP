@@ -18,6 +18,8 @@ type NavItem = {
   label: string;
   roles: string[];
   children?: Array<{ href: string; label: string }>;
+  /** Kundenportal: nur bei Lagerkunde anzeigen */
+  requireWarehouseCustomer?: boolean;
 };
 
 type ImpersonationCustomer = {
@@ -42,8 +44,26 @@ const NAV: NavItem[] = [
     label: 'Lager',
     roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'],
     children: [
+      { href: '/lager/uebersicht', label: 'Übersicht' },
+      { href: '/lager/artikel', label: 'Artikel' },
+      { href: '/lager/einlagern', label: 'Einlagern' },
+      { href: '/lager/bestand', label: 'Bestand' },
+      { href: '/lager/plaetze', label: 'Plätze' },
+      { href: '/lager/preise', label: 'Preise' },
+      { href: '/lager/abrechnung', label: 'Abrechnung' },
       { href: '/lager/lademittelscheine', label: 'Lademittelscheine' },
       { href: '/lager/login-qr', label: 'Login-QR' },
+    ],
+  },
+  {
+    href: '/lager',
+    label: 'Mein Lager',
+    roles: ['CUSTOMER_USER'],
+    /** Nur wenn SessionUser.warehouseCustomer – siehe Nav-Filter unten */
+    requireWarehouseCustomer: true,
+    children: [
+      { href: '/lager/bestand', label: 'Bestand' },
+      { href: '/lager/abrechnung', label: 'Abrechnung' },
     ],
   },
   { href: '/scanning', label: 'Scanning', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -51,6 +71,7 @@ const NAV: NavItem[] = [
   { href: '/scanning/entladeberichte', label: 'Entladeberichte', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/map', label: 'Kartenmonitor', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/customs', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
+  { href: '/customs/beladung', label: 'Beladung Zoll', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/integrations', label: 'EZOLL-Hub', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/addresses', label: 'Adressbuch', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
   { href: '/customers', label: 'Kunden', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
@@ -78,10 +99,20 @@ function isActive(pathname: string, href: string) {
   if (href === '/partner/tours' && pathname === '/partner/tours') return true;
   if (href === '/partner/lademittelscheine' && pathname.startsWith('/partner/lademittelscheine')) return true;
   if (href === '/lager' && pathname.startsWith('/lager')) return true;
+  if (href === '/lager/uebersicht' && pathname.startsWith('/lager/uebersicht')) return true;
+  if (href === '/lager/artikel' && pathname.startsWith('/lager/artikel')) return true;
+  if (href === '/lager/einlagern' && pathname.startsWith('/lager/einlagern')) return true;
+  if (href === '/lager/bestand' && pathname.startsWith('/lager/bestand')) return true;
+  if (href === '/lager/plaetze' && pathname.startsWith('/lager/plaetze')) return true;
+  if (href === '/lager/preise' && pathname.startsWith('/lager/preise')) return true;
+  if (href === '/lager/abrechnung' && pathname.startsWith('/lager/abrechnung')) return true;
   if (href === '/lager/lademittelscheine' && pathname.startsWith('/lager/lademittelscheine')) return true;
   if (href === '/lager/login-qr' && pathname.startsWith('/lager/login-qr')) return true;
   if (href === '/audit' && pathname.startsWith('/audit')) return true;
-  if (href === '/customs' && pathname.startsWith('/customs')) return true;
+  if (href === '/customs/beladung' && pathname.startsWith('/customs/beladung')) return true;
+  if (href === '/customs' && pathname.startsWith('/customs') && !pathname.startsWith('/customs/beladung'))
+    return true;
+
   return false;
 }
 
@@ -193,9 +224,11 @@ export function AppShell({
     );
   }
 
-  const links = NAV.filter(
-    (n) => n.roles.includes('*') || n.roles.includes(user.role),
-  );
+  const links = NAV.filter((n) => {
+    if (!(n.roles.includes('*') || n.roles.includes(user.role))) return false;
+    if (n.requireWarehouseCustomer && !user.warehouseCustomer) return false;
+    return true;
+  });
   const showCustomerSwitcher = canUseCustomerView(user);
   const viewName =
     user.impersonatingCustomerName || user.customerName || 'Kunde';

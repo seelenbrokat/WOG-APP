@@ -11,6 +11,7 @@ import { WareneingangService } from './integrations/wareneingang.service';
 import { GoodsReceiptService } from './shipments/goods-receipt.service';
 import { ProformaWeService } from './shipments/proforma-we.service';
 import { SchmidtsLadelisteWeService } from './shipments/schmidts-ladeliste-we.service';
+import { PortalMailWeService } from './shipments/portal-mail-we.service';
 import { FahrerTelematicsService } from './driver/fahrer-telematics.service';
 import { RecurringTemplatesService } from './shipments/recurring-templates.service';
 import { LademittelscheinService } from './lager/lademittelschein.service';
@@ -36,6 +37,7 @@ async function bootstrap() {
   const goodsReceipt = app.get(GoodsReceiptService);
   const proformaWe = app.get(ProformaWeService);
   const schmidtsLadeliste = app.get(SchmidtsLadelisteWeService);
+  const portalMailWe = app.get(PortalMailWeService);
   const fahrerTelematics = app.get(FahrerTelematicsService);
   const recurringTemplates = app.get(RecurringTemplatesService);
   const lademittelscheine = app.get(LademittelscheinService);
@@ -48,7 +50,7 @@ async function bootstrap() {
   const postAblieferbelege = app.get(PostAblieferbelegService);
 
   console.log(
-    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + Partner-Status/STAT512 + eberle VIP + eZoll + Mercurio e-dec + Post-Ablieferbelege + EZOLL Hub + ETB-Retention)',
+    'WOG Integration Worker started (Partner + Soloplan BP/Master/Tours/Telematics/Wareneingang/Intouch + Kunden-Dokumente + Partner-Orders/BORD512 + Partner-Status/STAT512 + eberle VIP + eZoll + Mercurio e-dec + Post-Ablieferbelege + portal@ WE-Mail + EZOLL Hub + ETB-Retention)',
   );
 
   let lastEtbPurgeAt = 0;
@@ -86,6 +88,15 @@ async function bootstrap() {
       if (ladeliste.processed || ladeliste.failed) {
         console.log(
           `Schmidts-Ladeliste: ${ladeliste.processed} verarbeitet, ${ladeliste.failed} fehlgeschlagen`,
+        );
+      }
+      const portalMail = await portalMailWe.processInbox();
+      if (!portalMail.skipped && (portalMail.processed || portalMail.failed || portalMail.scanned)) {
+        console.log(
+          `portal@ WE-Mail: ${portalMail.processed} verarbeitet` +
+            (portalMail.failed ? `, ${portalMail.failed} fehlgeschlagen` : '') +
+            (portalMail.ignored ? `, ${portalMail.ignored} ignoriert` : '') +
+            `, ${portalMail.scanned || 0} gescannt`,
         );
       }
       const lms = await lademittelscheine.processInboundDir();

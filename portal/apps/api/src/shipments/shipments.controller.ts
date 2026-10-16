@@ -75,6 +75,11 @@ class CreateShipmentDto {
   @IsString()
   reference?: string;
 
+  /** Empfänger-Kundennummer lt. Kundensystem (Adressbuch) */
+  @IsOptional()
+  @IsString()
+  deliveryCustomerRef?: string;
+
   @IsOptional()
   @IsString()
   transportMode?: string;

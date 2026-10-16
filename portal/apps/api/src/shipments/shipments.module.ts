@@ -5,6 +5,7 @@ import { GoodsReceiptService } from './goods-receipt.service';
 import { GoodsReceiptController } from './goods-receipt.controller';
 import { ProformaWeService } from './proforma-we.service';
 import { SchmidtsLadelisteWeService } from './schmidts-ladeliste-we.service';
+import { PortalMailWeService } from './portal-mail-we.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -26,6 +27,7 @@ import { RecurringTemplatesService } from './recurring-templates.service';
     GoodsReceiptService,
     ProformaWeService,
     SchmidtsLadelisteWeService,
+    PortalMailWeService,
     RecurringTemplatesService,
   ],
   exports: [
@@ -34,6 +36,7 @@ import { RecurringTemplatesService } from './recurring-templates.service';
     GoodsReceiptService,
     ProformaWeService,
     SchmidtsLadelisteWeService,
+    PortalMailWeService,
     RecurringTemplatesService,
   ],
 })
