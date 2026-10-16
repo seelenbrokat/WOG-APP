@@ -82,14 +82,16 @@ export class EzollSoloplanService {
    * immer auf **Sendungs**-Ebene (Consignment):
    * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
    * - AT Einfuhr: aTEinfuhr (+ customBool8)  [Sendung]
-   * - CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
-   * - CH Ausfuhr: cHAusfuhr (+ customBool7 / OrderImport CFBOOLEAN7) [Sendung]
+   * - CH Einfuhr: CFBOOLEAN6 = Soloplan „CH-Einfuhr“ (ACONSIGNMENTCUSTOMFIELDV)
+   *   → separates OrderEzoll mit `cHEinfuhr` (analog cHAusfuhr) + OrderImport customBool6
+   *   Doc-Flags bezugsschein/einfuhrliste/definitiv im Mercurio-Update
+   * - CH Ausfuhr: cHAusfuhr (+ OrderImport customBool7) [Sendung]
    *
    * Wichtig:
-   * - OrderEzoll verwirft customFields oft still → CH-CFBOOLEAN dual via OrderImport
-   * - `cHAusfuhr` ist in Automate gemappt (Prod-OK, z. B. 463379)
-   * - `cHEinfuhr` ist NICHT gemappt und lässt Automate das gesamte OrderEzoll
-   *   ablehnen (Prod-Regression 463461: Mercurio-Felder blieben leer) → nicht senden
+   * - OrderEzoll verwirft customFields oft still → CFBOOLEAN dual via OrderImport
+   * - `cHAusfuhr` Automate-gemappt (Prod 463379 OK)
+   * - `cHEinfuhr` (= CFBOOLEAN6) separat vom Mercurio-Payload senden, damit ein
+   *   Mapping-Problem nicht Bezugsschein/MRN mit verwirft
    *
    * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
    * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
@@ -206,9 +208,9 @@ export class EzollSoloplanService {
    * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
    * - Match: ordernumber + itemNumber
    * - Listen-Flags (Soloplan Zoll-Felddefinition):
-   *   CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
-   *               – kein cHEinfuhr (Automate lehnt unbekanntes Feld ab → Update tot)
-   *   CH Ausfuhr: cHAusfuhr (top-level, Automate-gemappt) + CFBOOLEAN7 via OrderImport
+   *   CH Einfuhr (CFBOOLEAN6): separates OrderEzoll `cHEinfuhr` + OrderImport customBool6;
+   *               Doc-Flags bezugsschein/einfuhrliste/definitiv im Mercurio-Payload
+   *   CH Ausfuhr (CFBOOLEAN7): cHAusfuhr im Mercurio-Payload + OrderImport customBool7
    * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
    * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
    * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
@@ -226,8 +228,7 @@ export class EzollSoloplanService {
     };
     this.applyMatch(consignment, match, 'MERCURIO');
 
-    // CH Einfuhr: Doc-Flags in OrderEzoll (Automate-gemappt) + CFBOOLEAN6 via OrderImport.
-    // Kein cHEinfuhr – unbekanntes Named Field → Automate verwirft das ganze Update.
+    // CH Einfuhr Doc-Flags (Mercurio-Panel). CFBOOLEAN6 „CH-Einfuhr“ separat (s.u.).
     const chEinfuhrDocs = new Set([
       'BEZUGSSCHEIN',
       'EINFUHRLISTE',
@@ -236,17 +237,14 @@ export class EzollSoloplanService {
       'BORDEREAU',
     ]);
     let orderImportBools: Record<string, boolean> | null = null;
+    let writeChEinfuhrFlag = false;
     if (chEinfuhrDocs.has(fields.docType)) {
       if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
       consignment.einfuhrliste = true;
       if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
         consignment.bezugsschein = true;
       }
-      // customFields in OrderEzoll oft wirkungslos – CFBOOLEAN6 kommt über OrderImport
-      consignment.customFields = {
-        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
-        customBool6: true,
-      };
+      writeChEinfuhrFlag = true;
       orderImportBools = { customBool6: true };
     }
     if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
@@ -312,12 +310,34 @@ export class EzollSoloplanService {
                     : 'mercurio';
     const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
 
+    // CFBOOLEAN6 „CH-Einfuhr“: eigenes OrderEzoll (nur cHEinfuhr) analog cHAusfuhr,
+    // getrennt vom Mercurio-Payload – plus OrderImport customBool6.
+    if (writeChEinfuhrFlag) {
+      this.writeChEinfuhrFlagUpdate(match, sourceFileName);
+    }
+
     // CFBOOLEAN6/7 zuverlässig über OrderImportPORTAL (nur mit Mercurio-Doc)
     if (orderImportBools) {
       const kind = orderImportBools.customBool7 ? 'chau-cf7' : 'chei-cf6';
       this.writeOrderImportCustomBools(match, sourceFileName, orderImportBools, kind);
     }
     return path;
+  }
+
+  /**
+   * Soloplan Listen-Checkbox „CH-Einfuhr“ = CFBOOLEAN6 (ACONSIGNMENTCUSTOMFIELDV).
+   * Eigenes OrderEzoll nur mit cHEinfuhr – gleiche Strategie wie cHAusfuhr (CFBOOLEAN7).
+   */
+  private writeChEinfuhrFlagUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+      cHEinfuhr: true,
+    };
+    this.applyMatch(consignment, match, 'CH-EINFUHR');
+    return this.writeConsignmentUpdate('chei-cf6', sourceFileName, consignment);
   }
 
   /**
@@ -352,7 +372,10 @@ export class EzollSoloplanService {
               {
                 actionAttribute: 'update',
                 itemNumber,
-                customFields: customBools,
+                customFields: {
+                  actionAttribute: 'update',
+                  ...customBools,
+                },
               },
             ],
           },

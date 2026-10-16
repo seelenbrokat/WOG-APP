@@ -27,6 +27,14 @@ function listOrderImportFiles(root: string): string[] {
     .map((f) => join(dir, f));
 }
 
+function listEzollFiles(root: string, kindPrefix: string): string[] {
+  const dir = join(root, 'consignment');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.startsWith(`orderezoll-${kindPrefix}-`) && f.endsWith('.json'))
+    .map((f) => join(dir, f));
+}
+
 function readJson(path: string) {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 }
@@ -186,9 +194,9 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.itemNumber, 1);
       assert.equal(row.einfuhrliste, true);
       assert.equal(row.definitiv, true);
-      // kein cHEinfuhr – Automate lehnt unbekannte Named Fields ab (Prod 463461)
+      // CFBOOLEAN6 nicht im Mercurio-Payload – separates OrderEzoll cHEinfuhr
       assert.equal(row.cHEinfuhr, undefined);
-      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 Backup
+      assert.equal(row.customFields, undefined);
       assert.equal(row.mRNAPI, '26CHEI004419042134');
       assert.equal(row.zollanmeldungsnummer, '26CHEI004419042134');
       assert.equal(row.zugangscode, 'xtqzX5+o45JDrMFN');
@@ -197,6 +205,15 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.kontoMWST, '140379');
       assert.equal(row.mWSTCH, undefined);
       assert.equal(row.tarifnummernCHAPI, 1);
+      // Separates OrderEzoll nur cHEinfuhr (= CFBOOLEAN6 CH-Einfuhr)
+      const flagFiles = listEzollFiles(root, 'chei-cf6');
+      assert.equal(flagFiles.length, 1);
+      const flagRow = (
+        (readJson(flagFiles[0]).order as Array<Record<string, unknown>>)[0]
+          .consignments as Array<Record<string, unknown>>
+      )[0];
+      assert.equal(flagRow.cHEinfuhr, true);
+      assert.equal(flagRow.einfuhrliste, undefined);
       // CFBOOLEAN6 dual via OrderImportPORTAL
       const oi = listOrderImportFiles(root);
       assert.equal(oi.length, 1);
@@ -204,7 +221,10 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       const oiOrder = (readJson(oi[0]).order as Array<Record<string, unknown>>)[0];
       assert.equal(oiOrder.number, 443153);
       const oiRow = (oiOrder.consignments as Array<Record<string, unknown>>)[0];
-      assert.deepEqual(oiRow.customFields, { customBool6: true });
+      assert.deepEqual(oiRow.customFields, {
+        actionAttribute: 'update',
+        customBool6: true,
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -335,7 +355,16 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(row.mWSTCH, 10);
       assert.equal(row.einfuhrliste, true); // CH-Einfuhr Doc-Flag bei eVV
       assert.equal(row.cHEinfuhr, undefined);
-      assert.deepEqual(row.customFields, { customBool6: true }); // CFBOOLEAN6 Backup
+      assert.equal(row.customFields, undefined);
+      const flagFiles = listEzollFiles(root, 'chei-cf6');
+      assert.equal(flagFiles.length, 1);
+      assert.equal(
+        (
+          (readJson(flagFiles[0]).order as Array<Record<string, unknown>>)[0]
+            .consignments as Array<Record<string, unknown>>
+        )[0].cHEinfuhr,
+        true,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -394,7 +423,10 @@ describe('OrderEzoll Write-Safety (vor Re-Enable)', () => {
       assert.equal(oiOrder.number, 424111);
       const oiRow = (oiOrder.consignments as Array<Record<string, unknown>>)[0];
       assert.equal(oiRow.itemNumber, 2);
-      assert.deepEqual(oiRow.customFields, { customBool7: true });
+      assert.deepEqual(oiRow.customFields, {
+        actionAttribute: 'update',
+        customBool7: true,
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
