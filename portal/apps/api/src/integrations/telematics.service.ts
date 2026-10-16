@@ -1218,14 +1218,31 @@ export class TelematicsService {
       customer?: { name: string; neutralDeliveryReceipt?: boolean } | null;
     } | null = null;
     if (toNumber) {
+      // TourConsignment: soloplanOrderNumber = TO, orderNumber = CarLo-Auftrag (Portal soloplanRef)
+      const orderRefs = new Set<string>([toNumber]);
+      if (consignment) {
+        const ord = String(
+          (consignment as { orderNumber?: string | null }).orderNumber || '',
+        ).trim();
+        if (ord) {
+          orderRefs.add(ord);
+          const idx = (consignment as { consignmentIndex?: number | null }).consignmentIndex;
+          if (idx != null && Number(idx) > 0) orderRefs.add(`${ord}.${idx}`);
+        }
+        const ext = consignment.externalConsignmentNumber?.trim();
+        if (ext) orderRefs.add(ext);
+      }
+      const refList = [...orderRefs];
       portalShipment = await this.prisma.shipment.findFirst({
         where: {
           organizationId: opts.organizationId,
           OR: [
-            { soloplanRef: toNumber },
-            { trackingNumber: toNumber },
-            { reference: toNumber },
-            { order: { externalNumber: toNumber } },
+            { soloplanRef: { in: refList } },
+            { trackingNumber: { in: refList } },
+            { reference: { in: refList } },
+            { deliveryCustomerRef: { in: refList } },
+            { order: { externalNumber: { in: refList } } },
+            { order: { soloplanRef: { in: refList } } },
           ],
         },
         include: {

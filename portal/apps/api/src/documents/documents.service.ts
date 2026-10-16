@@ -595,8 +595,11 @@ export class DocumentsService {
           ...(refs.transportOrderNumber
             ? {
                 OR: [
+                  // In TourConsignment ist soloplanOrderNumber = Soloplan-TO (z. B. 989353),
+                  // orderNumber = CarLo-Auftrag (z. B. 462291) → Portal soloplanRef.
                   { soloplanOrderNumber: refs.transportOrderNumber },
                   { externalConsignmentNumber: refs.transportOrderNumber },
+                  { orderNumber: refs.transportOrderNumber },
                 ],
               }
             : {}),
@@ -605,6 +608,16 @@ export class DocumentsService {
       });
       if (cons?.soloplanOrderNumber) candidates.add(cons.soloplanOrderNumber);
       if (cons?.externalConsignmentNumber) candidates.add(cons.externalConsignmentNumber);
+      // Entscheidend: Portal-Sendung hängt an CarLo-Auftragsnummer, nicht an TO
+      if (cons?.orderNumber) {
+        const ord = String(cons.orderNumber).trim();
+        if (ord) {
+          candidates.add(ord);
+          if (cons.consignmentIndex != null && Number(cons.consignmentIndex) > 0) {
+            candidates.add(`${ord}.${cons.consignmentIndex}`);
+          }
+        }
+      }
     }
 
     const list = [...candidates].filter(Boolean);
@@ -617,7 +630,9 @@ export class DocumentsService {
           { trackingNumber: { in: list } },
           { reference: { in: list } },
           { soloplanRef: { in: list } },
+          { deliveryCustomerRef: { in: list } },
           { order: { externalNumber: { in: list } } },
+          { order: { soloplanRef: { in: list } } },
         ],
       },
       include: {
