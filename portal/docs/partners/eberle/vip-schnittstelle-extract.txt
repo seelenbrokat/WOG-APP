@@ -1,0 +1,381 @@
+eLogistics
+
+                                                                            BDK Informatik AG
+                                                                                 Zelgstrasse 9
+                                                                             8280 Kreuzlingen
+
+                                                                                 071 686 91 11
+                                                                                  www.bdk.ch
+
+
+
+
+                      Schnittstellenbeschreibung VIP
+
+                              Version 10.5.0 / 16.11.2021
+Versionsübersicht
+Version    Datum      Beschreibung
+9.4        24.05.16   Schnittstelle mit der Information Gefahrenpunkte erweitert (Feld 135)
+9.6        13.07.17   Zusätzliche Reservefelder (Feld 87 und Feld 88)
+9.6        17.11.17   Zusätzliche Reservefelder (Feld 89 und Feld 90)
+10.1.0     25.09.18   Zusätzliches Reservefeld (Feld 136), (Feld 137), (Feld 138), (Feld 139)
+10.1.0     25.09.18   Produkt (Feld 111) neu CHAR 250
+10.2.0     13.03.19   Zusätzliches Reservefeld (Feld 91)
+10.2.0     15.10.19   Feld 33 geändert auf Reserve, 119 und 124 keine MUSS-Felder mehr
+10.2.0     07.01.20   Feld 34 geändert auf Reserve, 119 und 124 werden je nach Informationen
+                      über Masse übernommen oder neu berechnet
+10.2.0     13.01.20   Ändern der Felder 77-79 und 82-85 von Reserve auf Fahrzeugrestrektionen
+                      laden/abladen
+10.2.0     25.02.20   Zusätzliches Reservefeld (Feld 92)
+10.2.0     07.05.20   Zusätzliche Reservefelder (Feld 93 bis 96)
+10.2.0     07.05.20   Feld 97 = Tausch-Gitterboxen
+10.2.0     25.08.20   Zusätzliche Reservefelder (Feld 99 bis 103)
+10.2.0     28.08.20   Zusätzliches Reservefeld (Feld 140)
+10.2.0     01.09.20   Zusätzliches Reservefeld (Feld 141)
+10.2.0     10.11.20   Feld 3 AUFTNR auf 50 Zeichen erweitert
+10.3.0     12.12.20   I-Zeile ergänzt = Zusatzinformationen
+10.3.0     12.04.21   Feld 126: Barcode / NVE (bisher ZiffZeich und NVE)
+                      Neues Feld 142 GUTMARK für die Markierung
+10.5.0     04.05.21   Feld 103: NNWaehrung
+10.5.0     31.08.21   Feld 4 LSR neu 80 Stellen (vorher 30 Stellen)
+10.5.0     16.11.21   Feld 106-109: Reserve
+10.5.0     22.03.22   Feld 110-111: Reserve
+
+
+
+
+BDK Informatik AG                          www.bdk.ch                                   Seite: 1
+eLogistics
+
+Im Folgenden sind die genauen Strukturen und die Bedeutung der einzelnen Felder beschrieben:
+
+    -    Die einzelnen Felder müssen mit ';' getrennt werden und sind variabel.
+    -    Die nicht verwendeten Felder sind mit ';' anzugeben.
+    -    In den Textfeldern darf kein ';' sein.
+    -    Die fett gedruckten Felder sind Pflichtfelder!
+    -    Die einzelnen Zeilen sind mit CR/LF abzuschliessen.
+    -    Die Reihenfolge ist immer:
+          K;     K;    K;     K;
+          I;     I;    L;     L;
+          L;     L;           L;
+                 L;
+    -    Die Sätze K (Kopfdaten) und L (Ladegutzeilen) müssen immer angegeben werden.
+
+AUFTNR/             Pro Transportauftrag muss ein eindeutiges Kennzeichen (Laufnr)
+LAUFTNR:            sein, damit eine doppelte Verarbeitung abgesichert wird.
+
+LPOS:               Laufende Positionsnummer für die Detailzeilen.
+
+GUTEH:              Die Einheiten-Codes sind mit dem Transporteur abzusprechen, damit sie im
+                    tranCargo eingerichtet werden können.
+
+
+Mustersätze (im Original pro Satzart eine Zeile)
+
+K;5;3058975;LS-3058975;2020.01.07;071 686 91 11;Frau Meienberg;Bem1 BDK;Bem2
+BDK;2020.01.07;2020.01.0;0800;1130;BDK Informatik AG;Zelgstrasse 9;CH;8280;Kreuzlingen;Ablade
+Telefon;Ablade Name;Abladebemerkung 1;Abladebemerkung
+2;2020.01.08;2020.01.08;1600;1700;HAFKO GmbH;Poststrasse
+8;CH;8274;Tägerwilen;;;;0;;0.00;0.00;;;;;;;;;;;;;;;;;;;;;3;0;0;1;0;0;;3.00;;0;;;CH;;;;;12;0;0;0;0;0;0;1;0;0
+L;5;3058975;1;;3.00;EUR;;;;;0;120.00;80.00;110.00;Bücher;;1850.000;;;;;;;;;;;;;;;;;;;;;
+K;5;3058976;LS-3058976;2020.01.07;071 686 91 11;Frau Meienberg;Bem1 BDK;Bem2
+BDK;2020.01.07;2020.01.0;0800;1130;BDK Informatik AG;Zelgstrasse 9;CH;8280;Kreuzlingen;044 333
+55 55;Herr Schlaumann;Abladebemerkung 1;Abladebemerkung
+2;2020.01.08;2020.01.08;1600;1700;Kalterer GmbH;Geissbüchel
+4;CH;8595;Altnau;;;;0;;0.00;0.00;;;;;;;;;;;;;;;;;;;;;3;0;0;1;0;0;;3.00;;0;;;CH;;;;;12;0;0;0;0;0;0;1;0;0
+L;5;3058976;1;;2.00;Pal;;;;;0;120.00;80.00;;Zeitschriften;;960.000;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+BDK Informatik AG                               www.bdk.ch                                          Seite: 2
+eLogistics
+
+AUFTRAGSINFORMATIONEN
+
+      Feldname      Inhalt                   Feldtyp Länge       Dec Bemerkung
+                                                               (davon)
+   1 SATZ           Merkmal                  Char          1             K=Auftragskopf
+   2 ANR            Auftraggebernummer       Char         20             zugeteilte Nummer
+   3 AUFTNR         Verlader-Auftragsnr      Char         50             Auftragsnr vom Verlader
+                                                                         MUSS eindeutiger WERT sein!
+   4 LSR            Lieferscheinnummer       Char         80             Verlader-Referenz
+   5 ADAT           Auftragsdatum            Date         10             JJJJ.MM.TT
+                    JJJJ.MM.TT
+   6 LAVIS1         Avis Tel Ladestelle      Char         25             Telefon
+   7 LAVIS2         Avis Name Ladestelle     Char         30             Name
+   8 BEM1           Ladebemerkung 1          Char         50
+   9 BEM2           Ladebemerkung 2          Char         50
+  10 BDAT1          Ladedatum früh.          Date         10
+                    JJJJ.MM.TT
+  11 BDAT2          Ladedatum spät.          Date         10
+                    JJJJ.MM.TT
+  12 BTIM1          Ladezeit früh. HHMM      Char          4
+  13 BTIM2          Ladezeit spät. HHMM      Char          4
+  14 VNAME          Aufladname               Char         30
+  15 VSTR           Aufladstrasse            Char         30
+  16 VLAND          AufladLand               Char          4
+  17 VPLZ           Aufladplz                Char         10
+  18 VORT           Aufladort                Char         30
+  19 AAVIS1         Avis Tel Abladestelle    Char         25
+  20 AAVIS2         Avis Name Abladestelle   Char         30
+  21 BEM3           Abladebemerkung 1        Char         50
+  22 BEM4           Abladebemerkung 2        Char         50
+  23 TDAT1          Abladetermin früh.       Date         10
+                    JJJJ.MM.TT
+  24 TDAT2          Abladetermin spät.       Date         10
+                    JJJJ.MM.TT
+  25 TTIM1          Abladezeit früh. HHMM    Char          4
+  26 TTIM2          Abladezeit spät. HHMM    Char          4
+  27 EMPF           Abladname                Char         30
+  28 ESTR           Abladstrasse             Char         30
+  29 ELAND          AbladLand                Char          4
+  30 EPLZ           Abladplz                 Char         10
+  31 EORT           Abladort                 Char         30
+  32                                                                     Reserve
+  33                                                                     Reserve
+  34                                                                     Reserve
+  35 ADR            Gefahrengut              Char          1             0=kein Gefahrengut sonst 1
+  36 VCODE          Versicherungsart         Char          4             0/leer=Kundeneigene
+                                                                         1=Fahrerhaftpflicht
+
+
+BDK Informatik AG                            www.bdk.ch                                        Seite: 3
+eLogistics
+
+                                                                     2=Transportversicherung
+  37 VBET           Versicherungswert          Dec           9     2
+  38 NNBET          Nachnahmebetrag            Dec           8     2 Währung CHF
+  39                                                                 Reserve
+  40                                                                 Reserve
+  41                                                                 Reserve
+  42 EMPF2          zus. Adresszeile Empf.     Char         30
+  43 VNAME2         zus. Adresszeile Ladest.   Char         30
+  44                                                                 Reserve
+  45 LSBEM          Lieferschein-Vermerk 1     Char         80
+  46 LSIBEM1        Intern. Bemerkung 1        Char         80
+  47 LSIBEM2        Intern. Bemerkung 2        Char         80
+  48 LSIBEM3        Intern. Bemerkung 3        Char         80
+  49 LSIBEM4        Intern. Bemerkung 4        Char         80
+  50 LSIBEM5        Intern. Bemerkung 5        Char         80
+  51                                                                 Reserve
+  52                                                                 Reserve
+  53                                                                 Reserve
+  54 FZANF          Hebebühne abladen          Smallint      2       1000 = JA, leer = NEIN
+  55                                                                 Reserve
+  56                                                                 Reserve
+  57 LSBEM2         Lieferschein-Vermerk 2     Char         80
+  58                                                                 Reserve
+  59 PAL            Paletten                   Int
+  60 RAH            Rahmen                     Int
+  61 DEK            Deckel                     Int
+  62 PTAUSCH        Gebindetausch              Smallint      2       1 = JA, 0 = NEIN
+  63 ETAGE          Stockwerklieferung         Int                   1 = JA, 0 oder leer = NEIN
+                    abladen
+  64                                                                 Reserve
+  65 UZONE          Umschlagszone              Char          4
+  66 STELLPLATZ     Stellplätze auf LKW        Dec          10 2
+  67                                                                 Reserve
+  68 KRANZUG        Kranzug abladen            Smallint      2
+  69                                                                 Reserve
+  70                                                                 Reserve
+  71 AUFTART        AuftragsArt                Char          4
+  72 FRANKATUR      Frankaturschlüssel
+  73                                                                 Reserve
+  74                                                                 Reserve
+  75                                                                 Reserve
+  76                                                                 Reserve
+  77 KW             Kleinfahrzeug abladen      Smallint      2       1 = JA, 0 oder leer = NEIN
+  78 SOLO           Solofahrzeug abladen       Smallint      2       1 = JA, 0 oder leer = NEIN
+  79 ROLLVD         Rollverdeck abladen        Smallint      2       1 = JA, 0 oder leer = NEIN
+  80 FZANFL         Hebebühne laden            Int                   1000 = JA, leer = NEIN
+
+
+BDK Informatik AG                              www.bdk.ch                                     Seite: 4
+eLogistics
+
+  81 ETAGEL         Stockwerklieferung    Int              1 = JA, 0 oder leer = NEIN
+                    laden
+  82 KRANZUGL       Kranzug laden         Smallint     2   1 = JA, 0 oder leer = NEIN
+  83 KWL            Kleinfahrzeug laden   Smallint     2   1 = JA, 0 oder leer = NEIN
+  84 SOLOL          Solofahrzeug laden    Smallint     2   1 = JA, 0 oder leer = NEIN
+  85 ROLLVDL        Rollverdeck laden     Smallint     2   1 = JA, 0 oder leer = NEIN
+  86                                                       Reserve
+  87                                                       Reserve
+  88                                                       Reserve
+  89                                                       Reserve
+  90                                                       Reserve
+  91 eLog           VIP Anzahl Fixwert                     2=Konvert
+  92                                                       Reserve
+  93                                                       Reserve
+  94                                                       Reserve
+  95                                                       Reserve
+  96                                                       Reserve
+  97 GIBO           Gitterboxen           Int
+  98 ROLLW          Rollwagen             Int
+  99                                                       Reserve
+ 100                                                       Reserve
+ 101                                                       Reserve
+ 102                                                       Reserve
+ 103 NNWaehrung     Währung Nachnahme     Char         4
+ 104                                                       Reserve
+ 105                                                       Reserve
+ 106                                                       Reserve
+ 107                                                       Reserve
+ 108                                                       Reserve
+ 109                                                       Reserve
+ 110                                                       Reserve
+ 111                                                       Reserve
+
+
+
+
+BDK Informatik AG                         www.bdk.ch                               Seite: 5
+eLogistics
+
+ZUSATZINFOMATIONEN
+      Feldname      Inhalt                 Feldtyp     Länge     Dec Bemerkung
+                                                               (davon)
+201 ISATZ           Merkmal                Char           1              I=Zusatzinformationen
+202 IKNR            Auftraggebernummer     Char          20              siehe 2 ANR
+203 IAUFTNR         Verlader-Auftragsnr    Char          50              siehe 3 AUFTNR
+204                                                                      Reserve
+205 AONAME          Abgangsort-Name       Char           30
+206 AONAME2         Abgangsort-Name2
+207 AOSTR           Abgangsort-Strasse    Char           30
+208 AOLAND          Abgangsort-Land       Char            4
+209 AOPLZ           Abgangsort-Plz        Char           10
+210 AOORT           Abgangsort            Char           30
+211 EONAME          Empfangsort-Name      Char           30
+212 EOEMPF2         Empfangsort-Name2
+213 EOSTR           Empfangsort-Strasse   Char           30
+214 EOLAND          Empfangsort-Land      Char            4
+215 EOPLZ           Empfangsort-Plz       Char           10
+216 EOORT           Empfangsort           Char           30
+217                                                                      Reserve
+218                                                                      Reserve
+219                                                                      Reserve
+220                                                                      Reserve
+221                                                                      Reserve
+222                                                                      Reserve
+223                                                                      Reserve
+224                                                                      Reserve
+225                                                                      Reserve
+226                                                                      Reserve
+227                                                                      Reserve
+228                                                                      Reserve
+229                                                                      Reserve
+230                                                                      Reserve
+231                                                                      Reserve
+232                                                                      Reserve
+233                                                                      Reserve
+234                                                                      Reserve
+235                                                                      Reserve
+236                                                                      Reserve
+237                                                                      Reserve
+238                                                                      Reserve
+239                                                                      Reserve
+240                                                                      Reserve
+241                                                                      Reserve
+242                                                                      Reserve
+243                                                                      Reserve
+
+
+BDK Informatik AG                         www.bdk.ch                                             Seite: 6
+eLogistics
+
+ 244                                                                 Reserve
+ 245 WARENWERT Warenwert                       Dec          12   2
+ 246 WAEHRUNG Währung Warenwert                Char          4
+      WARENWERT
+247                                                                  Reserve
+248                                                                  Reserve
+249                                                                  Reserve
+250                                                                  Reserve
+251 ORIGINALLS      Lieferung mit              Smallint              1=Lieferung und Unterschrift
+                    Originallieferschein und                         auf Originallieferschein
+                    Unterschrift
+ 252 LNEUTRAL       Neutrale Abholung          Smallint              1 = Ladestelle neutral
+                                                                     0 = keine Neutralisierung
+ 253 ANEUTRAL       Neutrale Auslieferung      smallint              Siehe 252 LNEUTRAL
+ 254                                                               Reserve
+ 255                                                             2 Reserve
+ 256                                                               Reserve
+ 257                                                               Reserve
+ 258 KONAME    Kommerzielle Adresse            Char         30     Neutrale Adresse
+               Name
+ 259 KONAME2 Name2
+ 260 KOSTR     Strasse                         Char         30
+ 261 KOLAND    Land                            Char          4
+ 262 KOPLZ     Plz                             Char         10
+ 263 KOORT     Ort                             Char         30
+ 264 AGNEUTRAL Neutraler Auftraggeber          Smallint              Siehe 252 LNEUTRAL
+
+
+
+
+BDK Informatik AG                              www.bdk.ch                                        Seite: 7
+eLogistics
+
+LADEGUTZEILEN
+
+      Feldname       Inhalt                         Feldtyp     Länge     Dec Bemerkung
+                                                                        (davon)
+101   LSATZ          Merkmal                        Char           1              L=Ladegutzeile
+102   LANR           Auftraggebernummer             Char          20              siehe 2 ANR
+103   LAUFTNR        Verlader-Auftragsnr            Char          50              siehe 3 AUFTNR
+104   LPOS           Positionsnummer                Int                           Positionsnummer im Auftrag
+105   GUTART         Artikelnummer                  Char          30              Artikel-Nr., Auftraggeber
+106   GUTANZ         Anzahl                         Dec           11         2
+107   GUTEH          Einheit                        Char           4              Code gem. Absprache
+108   GUTADRK        ADR Klasse                     Char          25              1=...
+109   GUTZIFF        ADR Verpackungsgruppe          Char          25
+110   GUTUNNR        ADR UN-Nr.                     Char          25
+111   GUTPROD        ADR Produkt                    Char         250
+112   GUTFREI        Freigrenze von 1000 Punkten    Smallint       1           0 = Nein, 1 = Ja
+113   GUTL           Länge                          Dec            9         2 = cm
+114   GUTB           Breite                         Dec            9         2 = cm
+115   GUTH           Höhe                           Dec            9         2 = cm
+116   GUTINH         Text                           Char          30           Ladegutbeschreibung
+117                                                                            Reserve
+118   GUTKG          Zeilengewicht (eff.)           Dec            9         3 Zeilengewicht effektiv (DISPO)
+119   GUTVOL         Zeilenvolumen (m3)             Dec            9         3 Wenn GUTL, GUTB und GUTH
+                                                                               gefüllt sind, wird dieser Wert
+                                                                               neu berechnet
+120   GUTTEXT        Text                           Char          80
+121   GUTNR          Nummer                         Char          80
+122   GUTVER         Verpackung                     Char           4           Verpackungscode
+123   GUTSPEZ        Spezialcode                    Char           4           Spezialcode
+124   GUTQM          Quadratmeter (m2)              Dec            9         2 Wenn GUTL und GUTB gefüllt
+                                                                               sind, wird dieser Wert neu
+                                                                               berechnet
+125                                                                            Reserve
+126   GUTZIFFZEICH   Barcode / NVE                  Char         120
+127                                                                               Reserve
+128                                                                               Reserve
+129   Tunnelcode ADR Tunnelcode                     Char           8              Wert in Klammern z.b. (D/E)
+130                                                                               Reserve
+131                                                                               Reserve
+132                                                                               Reserve
+133                                                                               Reserve
+134                                                                               Reserve
+135   ADRPunkte Gefahrengut-Punkte                  Int
+136   Sonder-    ADR Sondervorschrift               Char         100              Lizenz tranADR
+      vorschrift                                                                  ; mit Punkt und Leerschlag
+                                                                                  ersetzen
+137 ADRShopID ADR ShopID                            Int                           Lizenz tranADR
+
+BDK Informatik AG                                  www.bdk.ch                                            Seite: 8
+eLogistics
+
+138   ADRMenge ADR Menge            Dec         12   3 Lizenz tranADR
+139   ADREH    ADR Einheit          Char         4     Lizenz tranADR
+140   Stapel   Einheit gestapelt    Smallint     1     0=Nein, 1=Ja
+141                                                    Reserve
+142   GUTMARK       Markierung      Char        80
+
+
+
+
+BDK Informatik AG                  www.bdk.ch                           Seite: 9
+

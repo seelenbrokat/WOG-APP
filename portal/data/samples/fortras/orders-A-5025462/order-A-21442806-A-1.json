@@ -1,0 +1,547 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "5b8aab78-dc09-494e-8a36-c88e61a1d6a8"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21442806-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21442806-A-1",
+          "sender": {
+            "name1": "Color Drack GmbH & CO KG",
+            "street": "Baderstrasse",
+            "houseNumber": "8",
+            "country": "AT",
+            "zipCode": "5620",
+            "city1": "Schwarzach"
+          },
+          "senderContactPerson": {
+            "lastName": "SANDRA STEINBERGER",
+            "telephone": "06415 7495 14"
+          },
+          "receiver": {
+            "name1": "Color Drack Schweiz Peter Riesen",
+            "street": "Untere Weidstrasse",
+            "houseNumber": "26",
+            "country": "CH",
+            "zipCode": "8820",
+            "city1": "Waedenswil"
+          },
+          "receiverContactPerson": {
+            "lastName": "PETER RIESEN",
+            "telephone": "0041(0)799543627"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060858"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060865"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 3,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060872"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 4,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060889"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 5,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060896"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 6,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060902"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 7,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060919"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 8,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060926"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 9,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060933"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 10,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060940"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 11,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060957"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 12,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060964"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 13,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060971"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 14,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060988"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 15,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060995"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 16,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066061008"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 17,
+              "quantity": 1,
+              "content1": "FOTOAUSARBEITUNG",
+              "weights": {
+                "effectiveWeightInKilogram": 12.779,
+                "carrierWeightInKilogram": 12.779
+              },
+              "mark": "A-21442806-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066061015"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 17,
+          "weights": {
+            "effectiveWeightInKilogram": 217.24,
+            "carrierWeightInKilogram": 217.24
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Color Drack Schweiz Peter Riesen",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "SANDRA STEINBERGER | 06415 7495 14",
+            "senderInfo2": "Color Drack Schweiz Peter Riesen-CH-8820-Waedenswil",
+            "receiverInfo1": "PETER RIESEN | Tel: 0041(0)799543627",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

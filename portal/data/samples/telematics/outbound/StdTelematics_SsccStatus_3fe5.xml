@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SsccStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.soloplan.de/StdTelematics">
+  <TransportOrderNumber>4244</TransportOrderNumber>
+  <ItemNumber>1853</ItemNumber>
+  <TourNumber>4183</TourNumber>
+  <Ssccs>
+    <Sscc>
+      <Code>string</Code>
+      <Status>3867</Status>
+      <StatusTimestamp>2016-07-28T11:41:17.64</StatusTimestamp>
+      <TransportStatus>-2426</TransportStatus>
+      <ScanPoint>HubUnloading</ScanPoint>
+      <CarloFieldValues />
+    </Sscc>
+    <Sscc>
+      <Code>string</Code>
+      <StatusTimestamp>1970-12-17T13:45:41.59</StatusTimestamp>
+      <ScanPoint>Undefined</ScanPoint>
+      <CarloFieldValues />
+      <Comment>string</Comment>
+      <Master>string</Master>
+      <SsccLinesUnloading />
+    </Sscc>
+    <Sscc>
+      <Code>string</Code>
+      <StatusTimestamp>1992-05-12T05:06:37.71</StatusTimestamp>
+      <ScanPoint>LongDistanceLoading</ScanPoint>
+      <CarloFieldValues />
+      <Comment>string</Comment>
+      <Master>string</Master>
+      <SsccLinesLoading />
+      <SsccLinesUnloading />
+    </Sscc>
+  </Ssccs>
+</SsccStatus>

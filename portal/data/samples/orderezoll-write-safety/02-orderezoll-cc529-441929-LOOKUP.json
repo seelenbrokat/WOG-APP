@@ -1,0 +1,18 @@
+{
+  "header": {
+    "sendDate": "2026-08-11T21:00:00",
+    "exportItemReference": "ezoll-cc529:441929_CC529CC-sample.pdf"
+  },
+  "consignment": [
+    {
+      "actionAttribute": "update",
+      "ordernumber": {
+        "number": 441929
+      },
+      "itemNumber": 1,
+      "cC529C": true,
+      "mRNATAPI": "26ATMRNTEST000001",
+      "eUR1_API": "X 613179"
+    }
+  ]
+}

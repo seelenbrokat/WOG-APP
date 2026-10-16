@@ -1,0 +1,127 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "94d5f648-d103-4c29-8529-a8dd6f07d06f"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21441853-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21441853-A-1",
+          "sender": {
+            "name1": "Knauf Ceiling Solutions Deckensysteme Gmbh",
+            "street": "Ferndorf Nr.",
+            "houseNumber": "29",
+            "country": "AT",
+            "zipCode": "9702",
+            "city1": "Ferndorf"
+          },
+          "senderContactPerson": {
+            "lastName": "ROBERT KAISER",
+            "telephone": "04245 2001438"
+          },
+          "receiver": {
+            "name1": "Knauf AG",
+            "street": "Kaegenstrasse",
+            "houseNumber": "17",
+            "country": "CH",
+            "zipCode": "4153",
+            "city1": "Reinach BL"
+          },
+          "receiverContactPerson": {
+            "lastName": "MARTIN EBERLIN"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "MUSTER",
+              "weights": {
+                "effectiveWeightInKilogram": 33,
+                "carrierWeightInKilogram": 33
+              },
+              "mark": "A-21441853-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066058084"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 33,
+            "carrierWeightInKilogram": 33
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Knauf AG",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "ROBERT KAISER | 04245 2001438",
+            "senderInfo2": "Knauf AG-CH-4153-Reinach BL",
+            "receiverInfo1": "MARTIN EBERLIN",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

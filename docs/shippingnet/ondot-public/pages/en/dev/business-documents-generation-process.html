@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Business Documents – Creation Process | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Business Documents – Creation Process | shippingNET ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="business-documents--creation-process">Business Documents – Creation Process</h1>
+
+<p>shippingNET comes with a variety of <strong>standard documents</strong>. You can activate these standard documents in System Configuration. See also <a href="../ui/ui-create-business-documents.html">Creating Business Documents</a>.</p>
+<h2 id="object-type">Object type</h2>
+<p>A business document always refers to an <strong>object type</strong>. For example, the shipping slip refers to the <strong>ShipmentOrLeg</strong> object, while the order confirmation refers to the <strong>Order</strong> object. In the document, all data originating from this object type is available.</p>
+<h2 id="generation-process">Generation Process</h2>
+<p>The <strong>business documents</strong> are generated with so-called <strong>liquid snippets</strong>. A liquid snippet is a template that renders the data of the underlying business document in <strong>FO syntax</strong>. The object type is the <strong>source object</strong> for data access within the Liquid snippets.</p>
+<p>Example of the output of the tracking number:</p>
+<p>'''
+{{ Shipment.Number }}
+'''</p>
+<p>When creating the standard documents, care was taken to divide the individual <strong>information blocks</strong> of the document into separate <strong>templates</strong>, so-called snippets.</p>
+<p><em>Example of forwarding delivery note</em>:</p>
+<p><img src="../media/dev/business-document-sample.png" alt="Business Document Example" title="Business Document Example"></p>
+<p><img src="../media/dev/business-document-snippets.png" alt="Business Document Example" title="Business Document Example"></p>
+<p>Example: CommonExternalPageHeader - Snippet***</p>
+<p>'''
+{%- snippet CommonExternalPageHeader %}
+&lt;fo:table border-width=&quot;0.1mm&quot; border-bottom-style=&quot;solid&quot; display-align=&quot;after&quot;&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(3)&quot; /&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(2)&quot; /&gt;
+&lt;fo:table-column column-width=&quot;proportional-column-width(4)&quot; /&gt;
+&lt;fo:table-body&gt;
+&lt;fo:table-row&gt;
+&lt;fo:table-cell&gt;
+&lt;fo:block&gt;
+&lt;fo:external-graphic max-width=&quot;240px&quot; max-height=&quot;40px&quot; src=&quot;{{ CustomerLogo.BusinessDocumentLogo.UriString | default: 'Images/Logo_Shipping_Pos.jpg' }}&quot; /&gt;
+&lt;/fo:block&gt;
+&lt;/fo:table-cell&gt;
+&lt;fo:table-cell /&gt;
+&lt;fo:table-cell&gt;
+&lt;fo:block&gt;
+{% render AddressBox, Address: CurrentOwner.Address %}
+&lt;/fo:block&gt;
+&lt;/fo:table-cell&gt;
+&lt;/fo:table-row&gt;
+&lt;/fo:table-body&gt;
+&lt;/fo:table&gt;
+{% end snippet -%}
+'''</p>
+<div class="TIP">
+<h5>Tip</h5>
+<p>The advantage of subdivision is that you don't have to change the entire document for small adjustments, but you can <strong>overwrite individual snippets</strong>.</p>
+</div>
+<h3 id="general-generation-process">General Generation Process</h3>
+<p>When requesting a business document, the following steps are carried out (e.g. forwarding delivery note):</p>
+<ol>
+<li><p>First, the <em><strong>GlobalSnippets.liquid</strong></em> will be loaded. It contains useful <strong>standard snippets</strong> for the page layout, headers or footers with page numbering, the display of addresses, signature boxes, weight scales or dangerous goods information blocks for shipments, etc.</p>
+</li>
+<li><p>If there is also a <em><strong>GlobalSnippets.liquid</strong></em> file in the tenant's <strong>integration project</strong>, these snippets will also be added or replace existing ones. This allows you to override individual snippets for the tenant.
+A typical use case is to create special headers or footers or to change the font size of the AddressBox for all documents.</p>
+</li>
+<li><p>Each document has a <strong>technical name</strong>. For example, the delivery note is called <strong>DeliveryNote</strong>. According to the following graphic, the system loads the Liquid files and replaces or adds missing snippets:</p>
+</li>
+</ol>
+<p><img src="../media/dev/business-document-template-loading.png" alt="Load Liquid Template" title="Load Liquid Template"></p>
+<p><em>Notes on the graphic</em>:</p>
+<ul>
+<li>The technical name in this example is <strong>DeliveryNote</strong></li>
+<li><strong>Orange</strong> Liquid files, come from the <strong>integration project</strong>.</li>
+<li><strong>Dark blue</strong> Liquid files, come from the <strong>product standard</strong>.</li>
+</ul>
+<div class="WARNING">
+<h5>Warning</h5>
+<p>changes in the <em><strong>GlobalSnippets.liquid</strong></em> file in the integration project affect all documents of the tenant!</p>
+</div>
+<div class="TIP">
+<h5>Tip</h5>
+<p>If the layout requirement is <strong>significantly different from the product standard</strong>, overwrite the <strong>entire file</strong> and place it in the integration project. In the example above: <em><strong>DeliveryNote.liquid</strong></em> in the tenant's integration project.</p>
+</div>
+<h3 id="special-documents-for-freight-payers-shippers-or-consignees">Special documents for freight payers, shippers or consignees</h3>
+<p>In the <strong>Organization Editor</strong> for the <strong>Shipment Party</strong> on the <strong>Characteristics</strong> card in the <strong>Customer</strong> area in the field <strong>Business Document Suffix</strong>, enter a descriptive file addition, e.g.: <em><strong>CUSTDemo</strong></em>.</p>
+<p>In the example above: <em><strong>DeliveryNoteCUSTDemo.liquid</strong></em> in the tenant's integration project</p>
+<div class="NOTE">
+<h5>Note</h5>
+<p>If a suffix is stored for a multi-party shipment, the first file found will be used exclusively in the following <strong>order</strong>:</p>
+<p>1st Freight Payer
+2nd sender
+3rd recipient</p>
+</div>
+<h3 id="special-delivery-note-for-pick-up-or-delivery-carriers">Special delivery note for pick-up or delivery carriers</h3>
+<p>For each business document, it is possible to define in the <strong>System Configuration</strong> whether a carrier-specific delivery note is to be printed.</p>
+<ol>
+<li>In the System Configuration, navigate to the <strong>General</strong> section to the <strong>Business Documents</strong>.</li>
+<li>Select the desired business document, e.g. the forwarding delivery note.</li>
+<li>Click the <strong>Edit</strong> action <span class="glyphicons glyphicons-pencil shippingnet-list-icons">.</span></li>
+<li>On the <strong>Business Documents</strong> card, add a new entry for the desired <strong>Carrier</strong> and specify in the <strong>Use Carrier Doc</strong> field in which cases you want to print a special Carrier Document.</li>
+</ol>
+<p>See also:</p>
+<ul>
+<li><a href="liquid-examples.html">Liquid examples</a></li>
+<li><a href="https://shopify.github.io/liquid/">Liquid</a></li>
+<li><a href="https://www.data2type.de/xml-xslt-xslfo/xsl-fo">XSL-FO</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

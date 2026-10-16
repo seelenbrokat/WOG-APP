@@ -1,0 +1,124 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "fd56f6cc-15f7-470b-825e-4eca9d64e135"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21442600-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21442600-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Industriepark",
+            "houseNumber": "4",
+            "country": "AT",
+            "zipCode": "8350",
+            "city1": "Fehring"
+          },
+          "senderContactPerson": {
+            "lastName": "HILDEGARD SCHUSTER",
+            "telephone": "+43 3155 500 5274"
+          },
+          "receiver": {
+            "name1": "Schurter AG -",
+            "street": "Werkhofstrasse 8",
+            "houseNumber": "12",
+            "country": "CH",
+            "zipCode": "6002",
+            "city1": "Luzern"
+          },
+          "receiverContactPerson": {},
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 3.4,
+                "carrierWeightInKilogram": 3.4
+              },
+              "mark": "A-21442600-A-1",
+              "packaging": "KRT",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066059975"
+                }
+              ],
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 1,
+          "weights": {
+            "effectiveWeightInKilogram": 3.4,
+            "carrierWeightInKilogram": 3.4
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "Schurter AG -",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "HILDEGARD SCHUSTER | +43 3155 500 5274",
+            "senderInfo2": "Schurter AG --CH-6002-Luzern",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

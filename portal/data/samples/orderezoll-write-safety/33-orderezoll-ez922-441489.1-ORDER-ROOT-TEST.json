@@ -1,0 +1,25 @@
+{
+  "header": {
+    "sendDate": "2026-08-12T15:35:21",
+    "exportItemReference": "SAFE-SAMPLE:ezoll-ez922:441489.1-order-root-test"
+  },
+  "order": [
+    {
+      "actionAttribute": "update",
+      "number": 441489,
+      "consignments": [
+        {
+          "actionAttribute": "update",
+          "itemNumber": 1,
+          "eZ922": true,
+          "mRNATAPI": "26ATTESTEZ92200001",
+          "aufschubkonto": "AT123456789",
+          "mWSTAT": 120.5,
+          "zollabgabenAT": 40.25,
+          "tarifnummerATAPI": 2,
+          "eUR1_API": "T0795166"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,378 @@
+/**
+ * Builder für Soloplan StdTelematics-Rückmeldungen (Outbound).
+ * Namespace und Felder entsprechen den Soloplan-Beispielen (TourStatus,
+ * TourStopStatus, TransportOrderStatus, Document, SsccStatus, …).
+ *
+ * Telematikkonfiguration der Zustell-App: „VLBPortal“ (Soloplan-Partner/Interface).
+ * VehicleId in den XMLs bleibt die echte Soloplan-Fahrzeug-ID (z. B. 103).
+ */
+
+import { formatZurichStatusDate } from '../common/zurich-date';
+
+export const TELEMATTICS_NS = 'http://www.soloplan.de/StdTelematics';
+
+/** Name der Soloplan-Telematikkonfiguration (kein Fahrzeug) */
+export const VLB_PORTAL_TELEMATICS_CONFIG = 'VLBPortal';
+
+function esc(v: string | number | null | undefined): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** SendDate: UTC mit Z (Soloplan-Upload-Zeit). */
+function isoUtc(d: Date = new Date()): string {
+  return d.toISOString();
+}
+
+/**
+ * StatusDate / LocationDate: lokale Europe/Zurich-Zeit ohne Z.
+ * UTC-Z auf StatusDate erscheint in Soloplan oft zwei Stunden zu spät (MESZ).
+ */
+function isoStatus(d: Date = new Date()): string {
+  return formatZurichStatusDate(d);
+}
+
+function requireVehicleId(vehicleId: string | undefined | null): string {
+  const id = String(vehicleId || '').trim();
+  if (!id) {
+    throw new Error('VehicleId fehlt – jedes Fahrzeug behält seine Soloplan-ID');
+  }
+  if (id === VLB_PORTAL_TELEMATICS_CONFIG) {
+    throw new Error(
+      'VLBPortal ist die Telematikkonfiguration, keine Fahrzeug-ID – bitte echte VehicleId setzen',
+    );
+  }
+  return id;
+}
+
+function geoXml(loc?: { latitude: number; longitude: number; information?: string; at?: Date }) {
+  if (!loc) return '';
+  return `
+  <VehicleLocation>
+    <LocationDate>${esc(isoStatus(loc.at || new Date()))}</LocationDate>
+    <GeoCoordinate>
+      <Longitude>${esc(loc.longitude)}</Longitude>
+      <Latitude>${esc(loc.latitude)}</Latitude>
+    </GeoCoordinate>
+    <TimeZone>Europe/Zurich</TimeZone>
+    ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
+  </VehicleLocation>`;
+}
+
+export type OutTourStatus = {
+  /** Echte Soloplan-Fahrzeug-ID (z. B. 103) – nicht VLBPortal */
+  vehicleId: string;
+  driverId?: string | null;
+  tourNumber: string;
+  status: 'Started' | 'Finished' | 'TourBreak' | 'TourBreakEnd' | string;
+  statusText?: string;
+  statusDate?: Date;
+  sendDate?: Date;
+  location?: { latitude: number; longitude: number; information?: string; at?: Date };
+};
+
+/** TourStatus – z. B. Tour starten/beenden */
+export function buildTourStatusXml(input: OutTourStatus): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const statusDate = input.statusDate || new Date();
+  const sendDate = input.sendDate || new Date();
+  const driver =
+    input.driverId == null
+      ? '  <DriverId xsi:nil="true" />'
+      : `  <DriverId>${esc(input.driverId)}</DriverId>`;
+  return `<?xml version="1.0" encoding="utf-8"?>
+<TourStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+${driver}
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
+  <TourNumber>${esc(input.tourNumber)}</TourNumber>
+  <Status>${esc(input.status)}</Status>
+  ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
+${geoXml(input.location)}
+</TourStatus>
+`;
+}
+
+export type OutLoadingUnitExchange = {
+  matchcode: string;
+  given: number;
+  taken: number;
+};
+
+export type OutTourStopStatus = {
+  vehicleId: string;
+  driverId?: string | null;
+  tourStopId: string;
+  tourNumber: string;
+  status: 'Arrival' | 'Departure' | 'Other' | string;
+  statusText?: string;
+  statusDate?: Date;
+  sendDate?: Date;
+  location?: { latitude: number; longitude: number; information?: string; at?: Date };
+  /** Lademittel-Tausch für Soloplan (Given/Taken) */
+  loadingUnitExchanges?: OutLoadingUnitExchange[];
+  fileSignature?: string;
+};
+
+function loadingUnitExchangesXml(exchanges?: OutLoadingUnitExchange[]): string {
+  const list = (exchanges || []).filter((e) => e?.matchcode?.trim());
+  if (!list.length) return '';
+  const rows = list
+    .map(
+      (e) => `    <LoadingUnitExchange>
+      <LoadingUnitMatchcode>${esc(e.matchcode.trim())}</LoadingUnitMatchcode>
+      <Given>${esc(Math.max(0, Math.trunc(Number(e.given) || 0)))}</Given>
+      <Taken>${esc(Math.max(0, Math.trunc(Number(e.taken) || 0)))}</Taken>
+    </LoadingUnitExchange>`,
+    )
+    .join('\n');
+  return `  <LoadingUnitExchanges>
+${rows}
+  </LoadingUnitExchanges>`;
+}
+
+/** TourStopStatus – Ankunft / Abfahrt an Station (+ optional Lademittel) */
+export function buildTourStopStatusXml(input: OutTourStopStatus): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const statusDate = input.statusDate || new Date();
+  const sendDate = input.sendDate || new Date();
+  const driver =
+    input.driverId == null
+      ? '  <DriverId xsi:nil="true" />'
+      : `  <DriverId>${esc(input.driverId)}</DriverId>`;
+  const luXml = loadingUnitExchangesXml(input.loadingUnitExchanges);
+  return `<?xml version="1.0" encoding="utf-8"?>
+<TourStopStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <TourStopId>${esc(input.tourStopId)}</TourStopId>
+  <TourNumber>${esc(input.tourNumber)}</TourNumber>
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+${driver}
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
+  <Status>${esc(input.status)}</Status>
+  ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
+${luXml}
+${geoXml(input.location)}
+  ${input.fileSignature ? `<FileSignature>${esc(input.fileSignature)}</FileSignature>` : ''}
+</TourStopStatus>
+`;
+}
+
+export type OutInformationField = {
+  /** Soloplan-Informationsnummer (z. B. 5 = Sendungsinformation) */
+  number: number;
+  value: string;
+};
+
+export type OutTransportOrderStatus = {
+  vehicleId: string;
+  driverId?: string | null;
+  transportOrderNumber: string;
+  status:
+    | 'LoadingPlaceArrived'
+    | 'LoadingStart'
+    | 'LoadingFinished'
+    | 'LoadingPlaceLeft'
+    | 'UnloadingPlaceArrived'
+    | 'UnloadingStart'
+    | 'UnloadingFinished'
+    | 'UnloadingPlaceLeft'
+    | 'Other'
+    | string;
+  statusText?: string;
+  statusDate?: Date;
+  sendDate?: Date;
+  location?: { latitude: number; longitude: number; information?: string; at?: Date };
+  /** Nummerierte Infofelder am Transportauftrag (z. B. Feld 5 Sendungsinformation) */
+  informations?: OutInformationField[];
+};
+
+function informationsXml(fields?: OutInformationField[]): string {
+  const list = (fields || []).filter(
+    (f) => Number.isFinite(f.number) && String(f.value ?? '').trim() !== '',
+  );
+  if (!list.length) return '';
+  const rows = list
+    .map(
+      (f) => `    <Information>
+      <Number>${esc(Math.trunc(f.number))}</Number>
+      <Value>${esc(String(f.value).trim().slice(0, 2000))}</Value>
+    </Information>`,
+    )
+    .join('\n');
+  return `  <Informations>
+${rows}
+  </Informations>`;
+}
+
+/** TransportOrderStatus – Belade-/Entlade-Status je Auftrag */
+export function buildTransportOrderStatusXml(input: OutTransportOrderStatus): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const statusDate = input.statusDate || new Date();
+  const sendDate = input.sendDate || new Date();
+  const driver =
+    input.driverId == null
+      ? '  <DriverId xsi:nil="true" />'
+      : `  <DriverId>${esc(input.driverId)}</DriverId>`;
+  const infoXml = informationsXml(input.informations);
+  return `<?xml version="1.0" encoding="utf-8"?>
+<TransportOrderStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+${driver}
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <StatusDate>${esc(isoStatus(statusDate))}</StatusDate>
+  <TransportOrderNumber>${esc(input.transportOrderNumber)}</TransportOrderNumber>
+  <Status>${esc(input.status)}</Status>
+  ${input.statusText ? `<StatusText>${esc(input.statusText)}</StatusText>` : ''}
+${geoXml(input.location)}
+${infoXml}
+</TransportOrderStatus>
+`;
+}
+
+export type OutDocument = {
+  vehicleId: string;
+  tourNumber?: string;
+  transportOrderNumber?: string;
+  tourStopId?: string;
+  fileName: string;
+  /** Base64-Inhalt (JPG/PDF) */
+  contentBase64: string;
+  fileSignature?: string;
+};
+
+/** Document – POD / Foto / Unterschrift zurück an Soloplan */
+export function buildDocumentXml(input: OutDocument): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
+  ${
+    input.transportOrderNumber
+      ? `<TransportOrderNumber>${esc(input.transportOrderNumber)}</TransportOrderNumber>`
+      : ''
+  }
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+  <Filename>${esc(input.fileName)}</Filename>
+  <Content>${input.contentBase64}</Content>
+  ${input.tourStopId ? `<TourStopId>${esc(input.tourStopId)}</TourStopId>` : ''}
+  ${input.fileSignature ? `<FileSignature>${esc(input.fileSignature)}</FileSignature>` : ''}
+</Document>
+`;
+}
+
+export type OutSsccStatus = {
+  transportOrderNumber: string;
+  itemNumber?: string;
+  tourNumber?: string;
+  ssccs: Array<{
+    code: string;
+    status?: string | number;
+    statusTimestamp?: Date;
+    transportStatus?: string | number;
+    scanPoint?: string;
+    comment?: string;
+  }>;
+};
+
+/** SsccStatus – Scan-Ergebnisse je Packstück */
+export function buildSsccStatusXml(input: OutSsccStatus): string {
+  const lines = input.ssccs
+    .map((s) => {
+      const ts = s.statusTimestamp || new Date();
+      return `    <Sscc>
+      <Code>${esc(s.code)}</Code>
+      ${s.status != null ? `<Status>${esc(s.status)}</Status>` : ''}
+      <StatusTimestamp>${esc(isoStatus(ts))}</StatusTimestamp>
+      ${s.transportStatus != null ? `<TransportStatus>${esc(s.transportStatus)}</TransportStatus>` : ''}
+      ${s.scanPoint ? `<ScanPoint>${esc(s.scanPoint)}</ScanPoint>` : ''}
+      ${s.comment ? `<Comment>${esc(s.comment)}</Comment>` : ''}
+      <CarloFieldValues />
+    </Sscc>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<SsccStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <TransportOrderNumber>${esc(input.transportOrderNumber)}</TransportOrderNumber>
+  ${input.itemNumber != null ? `<ItemNumber>${esc(input.itemNumber)}</ItemNumber>` : ''}
+  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
+  <Ssccs>
+${lines}
+  </Ssccs>
+</SsccStatus>
+`;
+}
+
+/** Appended builders for Zustell-App: VehicleLocations + Message (Chat) */
+
+export type OutVehicleLocations = {
+  vehicleId: string;
+  driverId?: string | null;
+  tourNumber?: string;
+  locations: Array<{
+    latitude: number;
+    longitude: number;
+    information?: string;
+    at?: Date;
+  }>;
+};
+
+export function buildVehicleLocationsXml(input: OutVehicleLocations): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  // Soloplan-XSD / Sample: VehicleId, Locations/Location…
+  // Kein SendDate am Root (Fehler_Telematikeingang). Kein TimeZone in Location (Sample ohne).
+  const locs = input.locations
+    .map((loc) => {
+      const at = loc.at || new Date();
+      return `    <Location>
+      <LocationDate>${esc(isoStatus(at))}</LocationDate>
+      <GeoCoordinate>
+        <Longitude>${esc(loc.longitude)}</Longitude>
+        <Latitude>${esc(loc.latitude)}</Latitude>
+      </GeoCoordinate>
+      ${loc.information ? `<Information>${esc(loc.information)}</Information>` : ''}
+    </Location>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<VehicleLocations xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+  <Locations>
+${locs}
+  </Locations>
+</VehicleLocations>
+`;
+}
+
+/**
+ * Freitext-Chat Fahrer ↔ Disposition.
+ * Achtung: Soloplan CarLo Automate (StandardTelematicsJob) kennt kein Root-Element
+ * „Message“ im XSD → Dateien werden mit „element is not declared“ abgelehnt.
+ * Chat bleibt lokal im Portal; Soloplan-Upload nur wenn Mapping freigeschaltet.
+ */
+export type OutMessage = {
+  vehicleId: string;
+  driverId?: string | null;
+  tourNumber?: string;
+  text: string;
+  sendDate?: Date;
+};
+
+export function buildMessageXml(input: OutMessage): string {
+  const vehicleId = requireVehicleId(input.vehicleId);
+  const sendDate = input.sendDate || new Date();
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Message xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="${TELEMATTICS_NS}">
+  <VehicleId>${esc(vehicleId)}</VehicleId>
+  ${input.driverId ? `<DriverId>${esc(input.driverId)}</DriverId>` : ''}
+  ${input.tourNumber ? `<TourNumber>${esc(input.tourNumber)}</TourNumber>` : ''}
+  <SendDate>${esc(isoUtc(sendDate))}</SendDate>
+  <Text>${esc(input.text)}</Text>
+</Message>
+`;
+}
+
