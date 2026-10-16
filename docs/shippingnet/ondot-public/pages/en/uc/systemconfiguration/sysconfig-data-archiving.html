@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Archive data | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Archive data | shippingNET ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="archive-data">Archive data</h1>
+
+<p>Over time, the amount of data stored in any software solution grows continuously – whether through daily business processes, system logs or user activities. This growing amount of data can have a negative impact on the performance and stability of the system.</p>
+<p>To ensure <strong>consistently high system performance</strong> and efficient data management, it is recommended to set up data archiving in shippingNET. Older data from the active database is moved to a <strong>separate archive</strong>. In this way, the system remains performant, the database size is reduced and at the same time historical information remains available, for example for evaluations or legal obligations to provide evidence.</p>
+<p>Data archiving is therefore a central component of sustainable system maintenance and makes a significant contribution to optimizing the overall performance and maintainability of the application.</p>
+<div class="NOTE">
+<h5>Note</h5>
+<p>This feature is available in version 26.1 or later.</p>
+</div>
+<h2 id="how-it-works">How it works</h2>
+<p>The data is archived by a database job in the maintenance window. This job must call the stored procedure <strong>spMaintenanceArchiveMain</strong>.</p>
+<p>This stored procedure is the main procedure that calls the respective specific procedures depending on the topic (ordering, shipping, etc.).
+There are intentionally <strong>no</strong> transactions, the transactions are exclusively in the sub-procedures.</p>
+<ul>
+<li>The <strong>transaction data</strong> that is older than the <strong>cutoffDate</strong> is archived. The cutoffDate is calculated using the <strong>monthToKeep</strong> parameter. It is advisable not to get closer than 6 months to the current date, otherwise relevant transaction data could be deleted.</li>
+<li>The maximum number of records to be deleted is set in the <strong>batchSize</strong> parameter. The batchSize must not be too large, otherwise the transaction will run too long. The batchSize only defines the number of records of the main entity (shipments or orders). Dependent entities are automatically archived as well.</li>
+<li>Set the maximum runtime with the <strong>maxDurationSeconds</strong> parameter. The process calls the subprocedures in a loop until the maximum runtime has elapsed.</li>
+<li>To delete the data, set the <strong>mode</strong> parameter to &quot;delete&quot;. By default, the data is moved to the archive (mode=archive).</li>
+<li>The name of the archive DB must be specified in the system variables.</li>
+</ul>
+<p>The process will be aborted if:</p>
+<ul>
+<li>no data could be deleted, or</li>
+<li>the maxDurationSeconds have elapsed (for the entire process), or</li>
+<li>too many deadlocks (maxRetries)</li>
+</ul>
+<div class="WARNING">
+<h5>Warning</h5>
+<p>The archive database must be located on the <strong>same</strong> database server as the production database.</p>
+</div>
+<h2 id="access-to-the-archive">Access to the archive</h2>
+<h3 id="web-app">Web App</h3>
+<p>To access the data in the archive, you need to switch the web app to archive mode:</p>
+<ol>
+<li>In the navigation bar, click the gear icon <span class="glyphicons glyphicons-cogwheel"></span>.</li>
+<li>In the <strong>General</strong> section, you can <strong>enable</strong> or <strong>deactivate</strong> archive mode.</li>
+</ol>
+<div class="NOTE">
+<h5>Note</h5>
+<p><strong>Physically</strong> a data record is <strong>either</strong> in the archive <strong>or</strong> in the production database!
+However, archive mode displays the <strong>combined data</strong> from the production and archive databases. Data is provided via database views that combine both data sources.</p>
+<p><strong>Saving</strong> data is <strong>not possible</strong> in archive mode!</p>
+</div>
+<h3 id="power-bi-reporting">Power BI Reporting</h3>
+<p>The archive tables are provided separately for Power BI reporting. Since the data in the archive can no longer be changed, you can use the <strong>ArchiveDate</strong> field for <strong>synchronization</strong> with the <strong>Microsoft Power BI service</strong> and thus only load the <strong>last day</strong> at a time.
+This significantly reduces the volume of data transferred.</p>
+<div class="TIP">
+<h5>Tip</h5>
+<p>For setup and further assistance with data archiving, please contact your project manager.</p>
+</div>
+<h2 id="see-also">See also</h2>
+<ul>
+<li><a href="index.html">System Configuration</a></li>
+<li><a href="../index.html">Business functions</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

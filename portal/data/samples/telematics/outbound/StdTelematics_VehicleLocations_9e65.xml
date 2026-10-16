@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VehicleLocations xmlns="http://www.soloplan.de/StdTelematics">
+	<VehicleId>VehicleId</VehicleId>
+	<Locations>
+		<Location>
+			<LocationDate>2014-12-10T12:35:01+02:00</LocationDate>
+			<GeoCoordinate>
+				<Longitude>10.3138900</Longitude>
+				<Latitude>47.7267400</Latitude>
+			</GeoCoordinate>
+			<Information>Kempten</Information>
+			<MileageInKilometers>32500</MileageInKilometers>	
+		</Location>
+		<Location>
+			<LocationDate>2014-12-10T12:36:01+02:00</LocationDate>
+			<GeoCoordinate>
+				<Longitude>11.5583452</Longitude>
+				<Latitude>48.129871</Latitude>
+			</GeoCoordinate>
+			<Information>Munich</Information>
+		</Location>
+	</Locations>
+</VehicleLocations>

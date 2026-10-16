@@ -1,0 +1,529 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { chmodSync, chownSync, existsSync, mkdirSync, statSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import {
+  joinEzollMrns,
+  type EzollCc529Fields,
+  type EzollCc599Fields,
+  type EzollEz92xFields,
+  type EzollSoloplanMatch,
+  type MercurioEdecFields,
+} from '@wog/shared';
+
+export type EzollCc029WriteFields = {
+  /** Akkumulierte MRNs (7-Tage-Tour-Cache) → mRNATAPI. */
+  mrns: string[];
+  /** Akkumulierte LRNs → lRN. */
+  lrns: string[];
+  totalItems: number | null;
+};
+
+/**
+ * Schreibt OrderEzoll-Updates für Soloplan/CarLo (File-Pickup).
+ *
+ * Zollflags gehen NUR mit den Zoll-Dokumenten/XMLs zurück (OrderEzoll),
+ * nicht über Portal-Erfassung / OrderImportPORTAL.
+ *
+ * Ausgabeordner für Automate:
+ * - Auftrag/Sendung: …/ezoll/consignment/  (JSON-Root abhängig von SOLOPLAN_EZOLL_ROOT)
+ * - Tour (18…/CC029): …/ezoll/tour/      → header + tour[]
+ *
+ * Default JSON-Root = order (nested): order.number → consignments.itemNumber
+ * nur innerhalb des Auftrags. Pickup-Pfad bleibt consignment/ (Automate unverändert).
+ */
+@Injectable()
+export class EzollSoloplanService {
+  private readonly log = new Logger(EzollSoloplanService.name);
+  private readonly consignmentOutDir: string;
+  private readonly tourOutDir: string;
+  /**
+   * OrderImportPORTAL pickup – CH CFBOOLEAN6/7 (customBool6/7), weil OrderEzoll
+   * customFields still verwirft. Nur zusammen mit Mercurio-Docs, nie aus Erfassung.
+   */
+  private readonly orderImportOutDir: string;
+  /**
+   * order = nested Order-Schema (Default): Automate Order zuerst, dann itemNumber.
+   * consignment = flach (Legacy): ordernumber={number}+itemNumber.
+   */
+  private readonly rootMode: 'order' | 'consignment';
+
+  constructor(private config: ConfigService) {
+    const sftpOutbound =
+      this.config.get('SFTP_OUTBOUND_DIR') ||
+      join(process.cwd(), '../../data/sftp/outbound');
+    const base =
+      this.config.get('SOLOPLAN_EZOLL_OUT_DIR') ||
+      join(sftpOutbound, 'soloplan', 'ezoll');
+
+    this.consignmentOutDir =
+      this.config.get('SOLOPLAN_EZOLL_CONSIGNMENT_OUT_DIR') ||
+      join(base, 'consignment');
+    this.tourOutDir =
+      this.config.get('SOLOPLAN_EZOLL_TOUR_OUT_DIR') || join(base, 'tour');
+    this.orderImportOutDir =
+      this.config.get('SOLOPLAN_ORDERS_OUT_DIR') ||
+      join(sftpOutbound, 'soloplan', 'orders');
+
+    // Default: nested Order-Root (Order zuerst, dann Sendung innerhalb Auftrag).
+    const mode = String(this.config.get('SOLOPLAN_EZOLL_ROOT') || 'order')
+      .trim()
+      .toLowerCase();
+    this.rootMode = mode === 'consignment' ? 'consignment' : 'order';
+    this.log.log(`OrderEzoll root mode: ${this.rootMode}`);
+
+    this.ensureDir(this.consignmentOutDir);
+    this.ensureDir(this.tourOutDir);
+    this.ensureDir(this.orderImportOutDir);
+  }
+
+  /**
+   * Soloplan Zoll-Listenflags – nur im OrderEzoll-Update mit Doc/XML,
+   * immer auf **Sendungs**-Ebene (Consignment):
+   * - AT Ausfuhr: ausfuhrverzollungATEU (kein CFBOOLEAN)
+   * - AT Einfuhr: aTEinfuhr (+ customBool8)  [Sendung]
+   * - CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   * - CH Ausfuhr: cHAusfuhr (+ customBool7 / OrderImport CFBOOLEAN7) [Sendung]
+   *
+   * Wichtig:
+   * - OrderEzoll verwirft customFields oft still → CH-CFBOOLEAN dual via OrderImport
+   * - `cHAusfuhr` ist in Automate gemappt (Prod-OK, z. B. 463379)
+   * - `cHEinfuhr` ist NICHT gemappt und lässt Automate das gesamte OrderEzoll
+   *   ablehnen (Prod-Regression 463461: Mercurio-Felder blieben leer) → nicht senden
+   *
+   * Hinweis: Order-CFBOOLEAN8 = „Verzollungsauftrag“ (ANORMALORDERCUSTOMFIELDV)
+   * ist eine andere Spalte auf Auftragsebene – siehe soloplan-order.mapper.
+   *
+   * CC529CC (ABD) →
+   * - Match: ordernumber + itemNumber
+   * - cC529C + ausfuhrverzollungATEU (Listen-Checkbox „AT Ausfuhr“)
+   * - mRNATAPI, lRN, tarifnummerATAPI, eUR1_API
+   */
+  writeCc529FlagUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollCc529Fields = {
+      mrn: null,
+      lrn: null,
+      totalItems: null,
+      eur1Number: null,
+    },
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+      cC529C: true,
+      // Soloplan-Listenfeld „AT Ausfuhr“ (nicht identisch mit cC529C allein)
+      ausfuhrverzollungATEU: true,
+    };
+    this.applyMatch(consignment, match, 'CC529');
+
+    if (fields.mrn) consignment.mRNATAPI = fields.mrn;
+    if (fields.lrn) consignment.lRN = fields.lrn;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummerATAPI = fields.totalItems;
+    }
+    if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+
+    return this.writeConsignmentUpdate('cc529', sourceFileName, consignment);
+  }
+
+  /**
+   * EZ922 / EZ923 →
+   * - Match: ordernumber + itemNumber (Dateiname)
+   * - eZ922 / eZ923 = true
+   * - aTEinfuhr + CFBOOLEAN8 (customBool8) = Listen-Checkbox „AT Einfuhr“
+   * - CRN → mRNATAPI
+   * - DefPayRef (Abgabenkonto) → aufschubkonto
+   * - DutyCalc EUSt → mWSTAT
+   * - DutyCalc Zoll → zollabgabenAT
+   * - TotItem → tarifnummerATAPI
+   * - DocCerts N954 (EUR.1) → eUR1_API (wie Ausfuhr)
+   */
+  writeEz92xUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollEz92xFields,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+      // Soloplan „AT Einfuhr“: named field + CFBOOLEAN8
+      aTEinfuhr: true,
+      customFields: { customBool8: true },
+    };
+    if (fields.msgTyp === 'EZ922') consignment.eZ922 = true;
+    else consignment.eZ923 = true;
+
+    this.applyMatch(consignment, match, fields.msgTyp);
+
+    if (fields.crn) consignment.mRNATAPI = fields.crn;
+    if (fields.abgabenkonto) consignment.aufschubkonto = fields.abgabenkonto;
+    if (fields.mwstAt != null) consignment.mWSTAT = fields.mwstAt;
+    if (fields.zollabgabenAt != null) consignment.zollabgabenAT = fields.zollabgabenAt;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummerATAPI = fields.totalItems;
+    }
+    if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+
+    const prefix = fields.msgTyp === 'EZ922' ? 'ez922' : 'ez923';
+    return this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+  }
+
+  /**
+   * CC599C (Austrittsbestätigung / IE599) →
+   * - immer cC599C: true
+   * - MRN/LRN/Tarif/EUR.1 nur wenn keine Ausfuhr (CC529) vorlag (includeValues)
+   */
+  writeCc599FlagUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: EzollCc599Fields = {
+      mrn: null,
+      lrn: null,
+      totalItems: null,
+      eur1Number: null,
+    },
+    includeValues = false,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+      cC599C: true,
+    };
+    this.applyMatch(consignment, match, 'CC599');
+
+    if (includeValues) {
+      if (fields.mrn) consignment.mRNATAPI = fields.mrn;
+      if (fields.lrn) consignment.lRN = fields.lrn;
+      if (fields.totalItems != null && fields.totalItems > 0) {
+        consignment.tarifnummerATAPI = fields.totalItems;
+      }
+      if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+    }
+
+    return this.writeConsignmentUpdate('cc599', sourceFileName, consignment);
+  }
+
+  /**
+   * Mercurio CH e-dec / Passar (Bezugsschein / Einfuhrliste / eVV / Ausfuhr VV) →
+   * - Match: ordernumber + itemNumber
+   * - Listen-Flags (Soloplan Zoll-Felddefinition):
+   *   CH Einfuhr: bezugsschein / einfuhrliste / definitiv (+ CFBOOLEAN6 via OrderImport)
+   *               – kein cHEinfuhr (Automate lehnt unbekanntes Feld ab → Update tot)
+   *   CH Ausfuhr: cHAusfuhr (top-level, Automate-gemappt) + CFBOOLEAN7 via OrderImport
+   * - mRNAPI, zollanmeldungsnummer, zugangscode, refNr
+   * - bordereaunummer (Integer), kontoZoll / kontoMWST / zAZKonto
+   * - Beträge mWSTCH / zollabgabenCH / bearbeitungsgebührCH nur aus eVV Einfuhr
+   * - Passar Ausfuhr VV: GDRN → mRNAPI, tarifnummernCHAPI, eUR1_API, definitiv, cHAusfuhr
+   * - Ausfuhr WA wird inbound verworfen (kein Soloplan-Write)
+   * - veranlagungsverfügungMWST / veranlagungsverfügungZoll / tarifnummernCHAPI
+   */
+  writeMercurioEdecUpdate(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    fields: MercurioEdecFields,
+  ): string {
+    const consignment: Record<string, unknown> = {
+      actionAttribute: 'update',
+    };
+    this.applyMatch(consignment, match, 'MERCURIO');
+
+    // CH Einfuhr: Doc-Flags in OrderEzoll (Automate-gemappt) + CFBOOLEAN6 via OrderImport.
+    // Kein cHEinfuhr – unbekanntes Named Field → Automate verwirft das ganze Update.
+    const chEinfuhrDocs = new Set([
+      'BEZUGSSCHEIN',
+      'EINFUHRLISTE',
+      'EVV_MWST',
+      'EVV_ZOLL',
+      'BORDEREAU',
+    ]);
+    let orderImportBools: Record<string, boolean> | null = null;
+    if (chEinfuhrDocs.has(fields.docType)) {
+      if (fields.docType === 'BEZUGSSCHEIN') consignment.bezugsschein = true;
+      consignment.einfuhrliste = true;
+      if (fields.docType === 'BEZUGSSCHEIN' || fields.definitiv) {
+        consignment.bezugsschein = true;
+      }
+      // customFields in OrderEzoll oft wirkungslos – CFBOOLEAN6 kommt über OrderImport
+      consignment.customFields = {
+        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
+        customBool6: true,
+      };
+      orderImportBools = { customBool6: true };
+    }
+    if (fields.definitiv || fields.docType === 'AUSFUHR_VV') {
+      consignment.definitiv = true;
+    }
+
+    if (fields.chDeclarationNumber) {
+      consignment.mRNAPI = fields.chDeclarationNumber;
+      consignment.zollanmeldungsnummer = fields.chDeclarationNumber;
+    }
+    if (fields.accessCode) consignment.zugangscode = fields.accessCode;
+    if (fields.refNumber) consignment.refNr = fields.refNumber;
+    if (fields.kontoZoll) consignment.kontoZoll = fields.kontoZoll;
+    // kontoMWST ohne Bindestrich (6898-0 / 68980 → 68980)
+    if (fields.kontoMwst) {
+      consignment.kontoMWST = String(fields.kontoMwst).replace(/-/g, '');
+    }
+    if (fields.zazKonto) consignment.zAZKonto = fields.zazKonto;
+    // Soloplan: bordereaunummer ist Integer (Read-API: 0), kein String
+    if (fields.bordereauNumber) {
+      const bn = Number(String(fields.bordereauNumber).replace(/\D/g, ''));
+      if (Number.isFinite(bn) && bn > 0) consignment.bordereaunummer = bn;
+    }
+
+    // Beträge + Veranlagungsflags (eVV; Bordereau setzt nur Nr./Flags)
+    if (fields.veranlagungMwst) consignment.veranlagungsverfügungMWST = true;
+    if (fields.veranlagungZoll) consignment.veranlagungsverfügungZoll = true;
+    if (fields.mwstCh != null) consignment.mWSTCH = fields.mwstCh;
+    if (fields.zollabgabenCh != null) consignment.zollabgabenCH = fields.zollabgabenCh;
+    if (fields.bearbeitungsgebuehrCh != null) {
+      consignment.bearbeitungsgebührCH = fields.bearbeitungsgebuehrCh;
+    }
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      consignment.tarifnummernCHAPI = fields.totalItems;
+    }
+    if (fields.eur1Number) consignment.eUR1_API = fields.eur1Number;
+
+    // Listen-Checkbox „CH-Ausfuhr“: Named Field; CFBOOLEAN7 via OrderImport
+    if (fields.docType === 'AUSFUHR_VV') {
+      consignment.cHAusfuhr = true;
+      consignment.customFields = {
+        ...((consignment.customFields as Record<string, unknown> | undefined) || {}),
+        customBool7: true,
+      };
+      orderImportBools = { customBool7: true };
+    }
+
+    const prefix =
+      fields.docType === 'BEZUGSSCHEIN'
+        ? 'mercurio-bs'
+        : fields.docType === 'EINFUHRLISTE'
+          ? 'mercurio-el'
+          : fields.docType === 'EVV_MWST'
+            ? 'mercurio-evvvat'
+            : fields.docType === 'EVV_ZOLL'
+              ? 'mercurio-evvdut'
+              : fields.docType === 'AUSFUHR_WA'
+                ? 'mercurio-ausfuhr-wa'
+                : fields.docType === 'AUSFUHR_VV'
+                  ? 'mercurio-ausfuhr-vv'
+                  : fields.docType === 'BORDEREAU'
+                    ? 'mercurio-bordereau'
+                    : 'mercurio';
+    const path = this.writeConsignmentUpdate(prefix, sourceFileName, consignment);
+
+    // CFBOOLEAN6/7 zuverlässig über OrderImportPORTAL (nur mit Mercurio-Doc)
+    if (orderImportBools) {
+      const kind = orderImportBools.customBool7 ? 'chau-cf7' : 'chei-cf6';
+      this.writeOrderImportCustomBools(match, sourceFileName, orderImportBools, kind);
+    }
+    return path;
+  }
+
+  /**
+   * CH-CFBOOLEANs zusätzlich über OrderImportPORTAL.
+   * OrderEzoll verwirft customFields oft; OrderImport mappt sie (wie CFBOOLEAN am Auftrag).
+   * Nur aus Mercurio-Doc-Updates aufrufen – nie aus Portal-Erfassung.
+   */
+  private writeOrderImportCustomBools(
+    match: EzollSoloplanMatch,
+    sourceFileName: string,
+    customBools: Record<string, boolean>,
+    kind: string,
+  ): string | null {
+    const orderNumber =
+      match.kind === 'orderConsignment' || match.kind === 'order'
+        ? match.orderNumber
+        : null;
+    if (orderNumber == null || orderNumber <= 0) return null;
+    const itemNumber =
+      match.kind === 'orderConsignment' ? match.consignmentIndex : 1;
+    return this.writeJsonFile(
+      this.orderImportOutDir,
+      kind,
+      sourceFileName,
+      {
+        header: this.header(`orderimport-${kind}:${sourceFileName}`),
+        order: [
+          {
+            actionAttribute: 'update',
+            number: orderNumber,
+            consignments: [
+              {
+                actionAttribute: 'update',
+                itemNumber,
+                customFields: customBools,
+              },
+            ],
+          },
+        ],
+      },
+      'orderimport',
+    );
+  }
+
+  /**
+   * CC029C (NCTS) → Tour-Ebene (nicht Consignment):
+   * - Match: tourNumber
+   * - cC029C: true
+   * - mRNATAPI: akkumulierte MRNs (`; `)
+   * - lRN: akkumulierte LRNs (`; `)
+   * - tarifnummerATAPI: max. Positionsanzahl
+   */
+  writeCc029TourUpdate(
+    tourNumber: number,
+    sourceFileName: string,
+    fields: EzollCc029WriteFields,
+  ): string {
+    const mrnJoined = joinEzollMrns(fields.mrns);
+    const lrnJoined = joinEzollMrns(fields.lrns);
+    const tour: Record<string, unknown> = {
+      actionAttribute: 'update',
+      tourNumber,
+      cC029C: true,
+    };
+    if (mrnJoined) tour.mRNATAPI = mrnJoined;
+    if (lrnJoined) tour.lRN = lrnJoined;
+    if (fields.totalItems != null && fields.totalItems > 0) {
+      tour.tarifnummerATAPI = fields.totalItems;
+    }
+    return this.writeJsonFile(
+      this.tourOutDir,
+      'cc029',
+      sourceFileName,
+      {
+        header: this.header(`ezoll-cc029:${sourceFileName}`),
+        tour: [tour],
+      },
+    );
+  }
+
+  private applyMatch(
+    consignment: Record<string, unknown>,
+    match: EzollSoloplanMatch,
+    label: string,
+  ) {
+    if (match.kind === 'orderConsignment') {
+      // Für flat root: Interface-Lookup; für order-Root wird ordernumber später entfernt.
+      consignment.ordernumber = { number: match.orderNumber };
+      consignment.itemNumber = match.consignmentIndex;
+    } else if (match.kind === 'order') {
+      consignment.ordernumber = { number: match.orderNumber };
+      consignment.itemNumber = 1;
+    } else {
+      throw new Error(`${label}-Update braucht Auftrag/Sendung, nicht nur Tour`);
+    }
+  }
+
+  /** ordernumber als Lookup-Objekt `{ number }` oder Legacy-Integer. */
+  private resolveOrderNumber(ordernumber: unknown): number | null {
+    if (ordernumber != null && typeof ordernumber === 'object') {
+      const n = Number((ordernumber as { number?: unknown }).number);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    const n = Number(ordernumber);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  private writeConsignmentUpdate(
+    kind: string,
+    sourceFileName: string,
+    consignment: Record<string, unknown>,
+  ): string {
+    const header = this.header(`ezoll-${kind}:${sourceFileName}`);
+    const orderNumber = this.resolveOrderNumber(consignment.ordernumber);
+
+    if (this.rootMode === 'consignment') {
+      // Legacy flat: Lookup über ordernumber.number + itemNumber (Automate Full-Scan Risiko)
+      if (orderNumber == null || consignment.itemNumber == null) {
+        throw new Error(`${kind}: flat consignment braucht ordernumber.number+itemNumber`);
+      }
+      // Sicherstellen: immer Interface-Lookup-Form, nie bare Integer
+      consignment.ordernumber = { number: orderNumber };
+      return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
+        header,
+        consignment: [consignment],
+      });
+    }
+
+    // Nested Order-Root: Automate bindet Order per number, dann Sendung per itemNumber
+    if (orderNumber == null) {
+      throw new Error(`${kind}: ordernumber fehlt für OrderEzoll-Order-Root`);
+    }
+
+    const { ordernumber: _drop, ...consignmentUnderOrder } = consignment;
+    // Gleicher Pickup-Ordner wie bisher (consignment/) – nur JSON-Root ist nested order.
+    return this.writeJsonFile(this.consignmentOutDir, kind, sourceFileName, {
+      header,
+      order: [
+        {
+          actionAttribute: 'update',
+          number: orderNumber,
+          consignments: [consignmentUnderOrder],
+        },
+      ],
+    });
+  }
+
+  private header(exportItemReference: string) {
+    // Soloplan-Samples nutzen lokale Zeit ohne Millisekunden/Z
+    const sendDate = new Date().toISOString().replace(/\.\d{3}Z$/, '').replace(/Z$/, '');
+    return {
+      sendDate,
+      exportItemReference: exportItemReference.slice(0, 120),
+    };
+  }
+
+  private writeJsonFile(
+    outDir: string,
+    kind: string,
+    sourceFileName: string,
+    payload: Record<string, unknown>,
+    filePrefix = 'orderezoll',
+  ): string {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const safe = sourceFileName.replace(/[^\w.\-]+/g, '_').slice(0, 80);
+    const fileName = `${filePrefix}-${kind}-${stamp}-${safe}.json`;
+    const path = join(outDir, fileName);
+    this.ensureDir(outDir);
+    writeFileSync(path, JSON.stringify(payload, null, 2));
+    this.applySoloplanPickupPerms(outDir, path);
+    this.log.log(
+      `${filePrefix === 'orderimport' ? 'OrderImport' : 'OrderEzoll'} ${kind.toUpperCase()} → ${path}`,
+    );
+    return path;
+  }
+
+  private ensureDir(dir: string) {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  }
+
+  /**
+   * Soloplan-SFTP-User braucht Gruppenrechte (soloplan), sonst bleibt die Datei
+   * nach dem Lesen ggf. stecken bzw. Automate kann nicht löschen/verschieben.
+   */
+  private applySoloplanPickupPerms(outDir: string, filePath: string) {
+    try {
+      chmodSync(outDir, 0o2775);
+      chmodSync(filePath, 0o664);
+      const gid = this.pickupGid(outDir);
+      if (gid != null) {
+        chownSync(outDir, -1, gid);
+        chownSync(filePath, -1, gid);
+      }
+    } catch {
+      /* ignore – Host ohne soloplan-Gruppe / Container ohne Caps */
+    }
+  }
+
+  private pickupGid(outDir: string): number | null {
+    try {
+      // Parent (…/ezoll) ist typisch root:soloplan mit setgid
+      const parent = join(outDir, '..');
+      const st = existsSync(parent) ? statSync(parent) : statSync(outDir);
+      return typeof st.gid === 'number' && st.gid > 0 ? st.gid : null;
+    } catch {
+      return null;
+    }
+  }
+}

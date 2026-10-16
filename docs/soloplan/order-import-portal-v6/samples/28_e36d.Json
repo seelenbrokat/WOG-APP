@@ -1,0 +1,50 @@
+{
+  "header": {
+    "sendDate": "2026-07-20T19:36:01",
+    "exportItemReference": "decadf3e-62ec-4568-8e1b-31f3b1942d68"
+  },
+  "masterDataBusinessPartner": [
+    {
+      "number": 28,
+      "matchcode": "UNITELOCHA",
+      "name1": "Unitec Energietechnik GmbH",
+      "contactPersons": [
+        {
+          "itemNumber": 2,
+          "address": "Frau",
+          "firstName": "Marion",
+          "lastName": "Beer",
+          "phoneNumber": "+43(5574)83630-16",
+          "emailAddress": "M.Beer@unitec-gmbh.at",
+          "faxNumber": "+43(5574)83630-99",
+          "isMainContactPerson": false
+        },
+        {
+          "itemNumber": 3,
+          "address": "Frau",
+          "firstName": "Sarah",
+          "lastName": "Boschi",
+          "phoneNumber": "+43(5574)83630-16",
+          "emailAddress": "S.Boschi@unitec-gmbh.at",
+          "faxNumber": "+43(5574)83630-99",
+          "isMainContactPerson": false
+        }
+      ],
+      "isCustomer": true,
+      "isSenderReceiver": true,
+      "id": 33602,
+      "mainAddress": {
+        "location1": "Lochau",
+        "zipCode": "6911",
+        "street": "Lindauer Straße",
+        "houseNumber": "29",
+        "country": {
+          "isoTwoCharacterCountryCode": "AT",
+          "isoThreeCharacterCountryCode": "AUT",
+          "isoNumericCountryCode": "40",
+          "countryId": "A"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TourStopStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.soloplan.de/StdTelematics">
+  <TourStopId>166244650</TourStopId>
+  <TourNumber>183944</TourNumber>
+  <VehicleId>2201</VehicleId>
+  <DriverId xsi:nil="true" />
+  <SendDate>2026-07-20T09:37:43.4387884Z</SendDate>
+  <StatusDate>2026-07-20T11:37:40.517637</StatusDate>
+  <Status>Other</Status>
+  <StatusText xsi:nil="true" />
+  <FloatFields xsi:nil="true" />
+  <CarloFieldValues xsi:nil="true" />
+  <Complaints xsi:nil="true" />
+  <LoadingUnitExchanges>
+    <LoadingUnitExchange>
+      <LoadingUnitMatchcode>EUP</LoadingUnitMatchcode>
+      <Given>5</Given>
+      <Taken>5</Taken>
+    </LoadingUnitExchange>
+  </LoadingUnitExchanges>
+  <VehicleLocation>
+    <LocationDate>2026-07-20T09:37:40.517637Z</LocationDate>
+    <GeoCoordinate>
+      <Longitude>8.44152782285394</Longitude>
+      <Latitude>47.4451019660756</Latitude>
+    </GeoCoordinate>
+    <Information xsi:nil="true" />
+    <Address xsi:nil="true" />
+    <TimeZone>Europe/Zurich</TimeZone>
+  </VehicleLocation>
+  <FileSignature>Ym29X51VlFiQ2p6WU4Xh8UoYJspStL%2fE4cGCF%2fdlbaYt9DbNMOJ1d%2fjVpM1KwtysOFcRQNq0gZnJ3u7JkJN4HiHaFYUPIzXzkqugAkPPV3wuW3NHOYFOWyXvuSce0EJ7giH5ZzIIxI%2fyQPWut8lKFw%3d%3d</FileSignature>
+</TourStopStatus>

@@ -1,0 +1,288 @@
+{
+  "Shipment": {
+    "ID": 1094715,
+    "Number": "435958.1",
+    "TrackingNumber": "b59f076d-fb00-41a3-98cc-dd14f88806c9",
+    "DeliveryCarrierID": 40990,
+    "DeliveryCarrier": "WOG",
+    "DeliveryServiceID": 4072,
+    "DeliveryService": "Standard",
+    "DeliveryServiceThirdPartyID": "STD",
+    "PickupCarrierID": 1182,
+    "PickupCarrier": "Kunden",
+    "DeliveryDateTimeFrom": "2026-07-14T22:00:00.000Z",
+    "DeliveryDateTimeTo": "2026-07-15T16:00:00.000Z",
+    "DurationInDays": 2,
+    "CustomerDispatchType": null,
+    "StartDepot": "WOG DIE",
+    "EndDepot": "WOG DIE",
+    "Shipper": {
+      "Name": "WOG Logistics AG",
+      "BusinessPartnerNumber": "2",
+      "Address": {
+        "Name1": "WOG Logistics AG",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Wildenaustraße",
+        "HouseNumber": "22",
+        "AddressLine2": null,
+        "PostalCode": "9444",
+        "City": "Diepoldsau",
+        "GLN": null,
+        "CountryID": "CH",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": null,
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "Recipient": {
+      "Name": "Häberlin Gebäudetechnik GmbH",
+      "BusinessPartnerNumber": null,
+      "Address": {
+        "Name1": "Häberlin Gebäudetechnik GmbH",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Hintere Gillstrasse 1",
+        "HouseNumber": "1",
+        "AddressLine2": null,
+        "PostalCode": "8560",
+        "City": "Märstetten",
+        "GLN": null,
+        "CountryID": "CH",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": "Hardegger",
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "LoadingPoint": {
+      "Name": "Unitec Energietechnik GmbH",
+      "BusinessPartnerNumber": "28",
+      "Address": {
+        "Name1": "Unitec Energietechnik GmbH",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Lindauer Straße",
+        "HouseNumber": "29",
+        "AddressLine2": null,
+        "PostalCode": "6911",
+        "City": "Lochau",
+        "GLN": null,
+        "CountryID": "AT",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": null,
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "UnloadingPoint": {
+      "Name": "Häberlin Gebäudetechnik GmbH",
+      "BusinessPartnerNumber": null,
+      "Address": {
+        "Name1": "Häberlin Gebäudetechnik GmbH",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Hintere Gillstrasse 1",
+        "HouseNumber": "1",
+        "AddressLine2": null,
+        "PostalCode": "8560",
+        "City": "Märstetten",
+        "GLN": null,
+        "CountryID": "CH",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": "Hardegger",
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "FreightPayer": {
+      "Name": "Unitec Energietechnik GmbH",
+      "BusinessPartnerNumber": "28",
+      "Address": {
+        "Name1": "Unitec Energietechnik GmbH",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Lindauer Straße",
+        "HouseNumber": "29",
+        "AddressLine2": null,
+        "PostalCode": "6911",
+        "City": "Lochau",
+        "GLN": null,
+        "CountryID": "AT",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": null,
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "CustomsDutyPayer": {
+      "Name": "Unitec Energietechnik GmbH",
+      "BusinessPartnerNumber": "28",
+      "Address": {
+        "Name1": "Unitec Energietechnik GmbH",
+        "Name2": null,
+        "Name3": null,
+        "Name4": null,
+        "AddressLine1": "Lindauer Straße",
+        "HouseNumber": "29",
+        "AddressLine2": null,
+        "PostalCode": "6911",
+        "City": "Lochau",
+        "GLN": null,
+        "CountryID": "AT",
+        "Tel1": null,
+        "Tel2": null,
+        "Email": null,
+        "ProvinceCode": null,
+        "AddressCategoryID": null
+      }
+    },
+    "StatusList": [
+      {
+        "StatusID": "CAS",
+        "Description": "Collo: 091201014196171901",
+        "StatusDate": "2026-07-13T08:46:15.470Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "DAC",
+        "Description": " -> Unitec Energietechnik GmbH (28)",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "DDC",
+        "Description": "2026-07-16 00:00:00 - 2026-07-16 18:00:00 -> 2026-07-15 00:00:00 - 2026-07-15 18:00:00",
+        "StatusDate": "2026-07-13T08:46:16.127Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "IMP",
+        "Description": null,
+        "StatusDate": "2026-07-13T08:46:15.470Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "LAC",
+        "Description": "WOG Logistics AG, Wildenaustraße 22, CH-9444 Diepoldsau -> Unitec Energietechnik GmbH, Lindauer Straße 29, AT-6911 Lochau",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "NDC",
+        "Description": "00091201014196171901",
+        "StatusDate": "2026-07-13T08:46:16.000Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "RUN",
+        "Description": null,
+        "StatusDate": "2026-07-14T11:10:11.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "SAT",
+        "Description": "183606",
+        "StatusDate": "2026-07-14T11:10:15.810Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      },
+      {
+        "StatusID": "VAC",
+        "Description": " ->  Aviso für Lieferadresse, mind. 2 h vor Zustellung! \nZustelltermin fix: 16.07.2026   \n",
+        "StatusDate": "2026-07-14T11:10:15.543Z",
+        "StatusFileUrl": null,
+        "SubStatusThirdPartyID": null,
+        "SubStatusName": null,
+        "StatusData": null
+      }
+    ],
+    "CodeList": []
+  },
+  "ColloList": [
+    {
+      "ID": 3488420,
+      "Number": "091201014196171901",
+      "TrackingNumber": "091201014196171901",
+      "CarrierID": null,
+      "Reference1": null,
+      "Reference2": null,
+      "TrackingLink": null,
+      "StatusList": [
+        {
+          "StatusID": "CAS",
+          "Description": "Shipment:435958.1",
+          "StatusDate": "2026-07-13T08:46:15.470Z",
+          "StatusFileUrl": null,
+          "SubStatusThirdPartyID": null,
+          "SubStatusName": null,
+          "StatusData": null
+        },
+        {
+          "StatusID": "IMP",
+          "Description": null,
+          "StatusDate": "2026-07-13T08:46:15.470Z",
+          "StatusFileUrl": null,
+          "SubStatusThirdPartyID": null,
+          "SubStatusName": null,
+          "StatusData": null
+        },
+        {
+          "StatusID": "NDC",
+          "Description": "00091201014196171901",
+          "StatusDate": "2026-07-13T08:46:16.000Z",
+          "StatusFileUrl": null,
+          "SubStatusThirdPartyID": null,
+          "SubStatusName": null,
+          "StatusData": null
+        }
+      ],
+      "CodeList": [
+        {
+          "Code": "00091201014196171901",
+          "NumberTypeName": "SSCC-20",
+          "NumberTypeID": 100
+        },
+        {
+          "Code": "091201014196171901",
+          "NumberTypeName": "SSCC-20",
+          "NumberTypeID": 100
+        }
+      ]
+    }
+  ]
+}

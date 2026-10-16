@@ -1,0 +1,157 @@
+{
+  "header": {
+    "sendDate": "2026-08-09T08:00:00",
+    "exportItemReference": "bee75746-522c-4409-881d-1cfc77e69a4a"
+  },
+  "order": [
+    {
+      "date": "2026-06-10",
+      "objectOwner": {
+        "id": 2
+      },
+      "externalNumber": "A-21442647-A-1",
+      "orderContext": 0,
+      "orderDate": "2026-06-10",
+      "customer": {
+        "matchcode": "QUEHENBERGER",
+        "name1": "Quehenberger Logistics",
+        "senderReceiver": true,
+        "freightBusinessPartner": true
+      },
+      "consignments": [
+        {
+          "itemNumber": 1,
+          "externalNumber": "A-21442647-A-1",
+          "sender": {
+            "name1": "AT & S Austria Technologie & Systemtechnik AG",
+            "street": "Industriepark",
+            "houseNumber": "4",
+            "country": "AT",
+            "zipCode": "8350",
+            "city1": "Fehring"
+          },
+          "senderContactPerson": {
+            "lastName": "CARMEN NEUBAUER",
+            "telephone": "+43 3155 500 5331"
+          },
+          "receiver": {
+            "name1": "HOFSTETTER PCB Plating CHE-106.268.139 MWST",
+            "street": "FAENNRING",
+            "houseNumber": "10",
+            "country": "CH",
+            "zipCode": "6403",
+            "city1": "Kuessnacht am Rigi"
+          },
+          "receiverContactPerson": {
+            "lastName": "HOFSTETTER PCB AG",
+            "telephone": "0041418505050"
+          },
+          "differentLoadingPoint": {},
+          "differentDeliveryPoint": {},
+          "consignmentItems": [
+            {
+              "itemNumber": 1,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 102.5,
+                "carrierWeightInKilogram": 102.5
+              },
+              "mark": "A-21442647-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060162"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            },
+            {
+              "itemNumber": 2,
+              "quantity": 1,
+              "content1": "GEDRUCKTE SCHALTUNGEN",
+              "weights": {
+                "effectiveWeightInKilogram": 102.5,
+                "carrierWeightInKilogram": 102.5
+              },
+              "mark": "A-21442647-A-1",
+              "packaging": "EWP",
+              "articleQuantity": 1,
+              "ssccCurrents": [
+                {
+                  "code": "00390094480066060179"
+                }
+              ],
+              "dimensions": {
+                "cubicMeter": 0
+              },
+              "dangerousGoods": {
+                "areDangerToEnvironment": false,
+                "limitedAmount": false
+              },
+              "hazardousMaterial": 0,
+              "waterHazardClass": 0
+            }
+          ],
+          "times": {
+            "loadingDateStart": "2026-06-10T08:00:00",
+            "loadingDateEnd": "2026-06-10T08:00:00",
+            "deliveryDateStart": "2026-06-10T08:00:00",
+            "deliveryDateEnd": "2026-06-10T08:00:00"
+          },
+          "flatRateCustomer": {},
+          "flatRateReceiver": {},
+          "incoterms": 0,
+          "deliveryTerms": 0,
+          "pickup": false,
+          "consignmentRestriction": {},
+          "loadingDateType": 0,
+          "deliveryDateType": 0,
+          "paymentType": 0,
+          "paymentStatus": 0,
+          "namedLocation": {},
+          "quantity": 2,
+          "weights": {
+            "effectiveWeightInKilogram": 205,
+            "carrierWeightInKilogram": 205
+          },
+          "dimensions": {
+            "meter": 0,
+            "cubicMeter": 0
+          },
+          "flatRateCarrier": {},
+          "maximumSize": {},
+          "containsDangerousGoods": false,
+          "customFields": {
+            "consignmentReference2": "HOFSTETTER PCB Plating CHE-106.268.139 MWST",
+            "customBool10": true
+          },
+          "isHeavyDutyTransport": false,
+          "information": {
+            "senderInfo1": "CARMEN NEUBAUER | +43 3155 500 5331",
+            "senderInfo2": "HOFSTETTER PCB Plating CHE-106.268.139 MWST-CH-6403-Kuessnacht am Rigi",
+            "receiverInfo1": "HOFSTETTER PCB AG | Tel: 0041418505050",
+            "info14": "FORTRAS BORD512 A-5025462"
+          },
+          "airAndSea": {
+            "isShipperSecure": false,
+            "transportWay": 0,
+            "freightType": 0,
+            "regulatedEntityCategory": 0
+          },
+          "additionalTimes": {},
+          "loadType": 0
+        }
+      ]
+    }
+  ]
+}

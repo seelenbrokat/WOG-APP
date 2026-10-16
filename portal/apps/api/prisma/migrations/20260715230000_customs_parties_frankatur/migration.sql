@@ -1,0 +1,18 @@
+-- AlterTable CustomsOrder: Absender, Empfänger, Frankatur, Frachtzahler
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frankatur" TEXT NOT NULL DEFAULT 'Unfrei';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "abweichenderFrachtzahler" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frachtzahlerFirma" TEXT;
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frachtzahlerStreet" TEXT;
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frachtzahlerZip" TEXT;
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frachtzahlerCity" TEXT;
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "frachtzahlerCountry" TEXT DEFAULT 'AT';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "absenderFirma" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "absenderStreet" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "absenderZip" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "absenderCity" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "absenderCountry" TEXT NOT NULL DEFAULT 'AT';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "empfaengerFirma" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "empfaengerStreet" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "empfaengerZip" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "empfaengerCity" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CustomsOrder" ADD COLUMN IF NOT EXISTS "empfaengerCountry" TEXT NOT NULL DEFAULT 'CH';

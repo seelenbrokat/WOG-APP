@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Receipt xmlns="http://www.soloplan.de/StdTelematics">
+	<VehicleId>VehicleId</VehicleId>
+	<SendDate>2014-12-04T15:40:18Z</SendDate>
+	<ReceiptType>Arrived</ReceiptType>
+	<Reference>
+		<Type>Tour</Type>
+		<Id>254625760</Id>
+	</Reference>
+</Receipt>

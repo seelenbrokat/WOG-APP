@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>DHL Parcel CCC | shippingNET </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="DHL Parcel CCC | shippingNET ">
+      
+      
+      <link rel="icon" href="../../../favicon.ico">
+      <link rel="stylesheet" href="../../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../../public/main.css">
+      <meta name="docfx:navrel" content="../../../toc.html">
+      <meta name="docfx:tocrel" content="../../toc.html">
+      
+      <meta name="docfx:rel" content="../../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../../index.html">
+            <img id="logo" class="svg" src="../../../media/logosmall.png" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+        </div>
+
+        <article data-uid="">
+<h1 id="dhl-parcel-ccc">DHL Parcel CCC</h1>
+
+<h2 id="configuration">Configuration</h2>
+<h3 id="shipment-transfer">Shipment Transfer</h3>
+<ol>
+<li>Activate the carrier in the <a href="../sysconfig-carrier.html#freighter-in-department">Department Setting</a> for the desired department.</li>
+<li>Store the API access data (ClientID, Clientsecret, Account Number) transmitted by the carrier in the <a href="../sysconfig-external-api.html#fr%C3%A4chteranbindung-einrichten">Interface Cockpit</a> in the entry <strong>DHL Paket CCC</strong>.</li>
+<li>Also enter the 2-digit country code (e.g. &quot;CZ&quot; for Czech Republic) of the country from which the shipments are sent.</li>
+<li>If the customs documents are to be created electronically by the DHL web service, select &quot;Yes&quot; in <strong>Generate customs document</strong>.</li>
+</ol>
+<h3 id="status-download">Status download</h3>
+<p>The status download is done automatically for all departments in which the carrier is activated and configured.</p>
+<h2 id="data-transfer">Data transfer</h2>
+<p>Data transfer happens automatically when a label is printed.</p>
+<h2 id="update-of-access-data">Update of access data</h2>
+<p>Once a year, the access data for the DHL Parcel CCC API must be updated.
+For this purpose, new access data will be sent to the stored e-mail address of the customer account - you will receive an e-mail with ClientID and PDF decryption password and one with an encrypted PDF file containing the new client secret.
+You can decrypt and open the transmitted PDF file with the client secret with the password from the first mail.</p>
+<p>The old access data in the interface cockpit must be exchanged for the new ones (this applies to ClientID and Clientsecret - the account number remains unchanged). The entry to be changed can be identified either by the name of the client/department or by the stored account number.</p>
+<p>After receiving the first mail, a change period of 30 days starts in which both the old and the new access data can be used to create a shipment - 7 days before the end of the period, another reminder will also be sent out by DHL.</p>
+<p>After the end of the switching period, the shipment creation with the old access data no longer works.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <img src="../../../media/logo.svg" width="150"> die Plattform für Logistik von <a href="https://www.ondot.at">ondot solutions</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
