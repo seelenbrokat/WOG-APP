@@ -269,7 +269,7 @@ export class CustomsLoadingService {
       this.config.get<string>('CUSTOMS_ARRIVAL_AVISO_EMAIL') || 'zoll@worldofgreen.at';
     const when = zeit.toLocaleString('de-AT');
     const lines = [
-      'Ankunftsaviso Verzollung (Selbstfahrer-Beladung)',
+      'Ankunftsaviso Verzollung (Sammelfahrzeug-Beladung)',
       '',
       `Kunde: ${refreshed[0]?.customer.name || ''} (${refreshed[0]?.customer.customerNumber || ''})`,
       `Kennzeichen: ${kennzeichen} (${zulassungsland})`,
@@ -419,7 +419,7 @@ export class CustomsLoadingService {
         info: {
           Title: `Ladeliste Verzollung ${data.kennzeichen}`,
           Author: 'WOG Logistics',
-          Subject: 'Beladung Zoll / Selbstfahrer',
+          Subject: 'Beladung Sammelfahrzeug',
         },
       });
       const stream = createWriteStream(storagePath);

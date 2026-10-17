@@ -392,7 +392,7 @@ export default function CustomsPage() {
       await api('/customs', { method: 'POST', body: fd });
       setMessage(
         deferVehicle
-          ? 'Verzollungsauftrag übermittelt (LKW später unter Beladung Zoll).'
+          ? 'Verzollungsauftrag übermittelt (Kennzeichen unter Beladung Sammelfahrzeug).'
           : 'Verzollungsauftrag übermittelt.',
       );
       setDeferVehicle(false);
@@ -457,13 +457,7 @@ export default function CustomsPage() {
   return (
     <AppShell title="Verzollungsauftrag">
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Verzollungsauftrag Vorarlberg–Schweiz inkl. Absender, Empfänger und Pflicht-Rechnung.
-        Kennzeichen nach den Eingaberichtlinien von Smart Border Austria.
-        Selbstfahrer (ERVO): Option „LKW/Grenze später“ – Beladung unter{' '}
-        <a href="/customs/beladung">Beladung Zoll</a> (keine Dispo durch WOG).
-        {isCustomer
-          ? ` Auftraggeber: ${customerName || 'angemeldeter Kunde'}.`
-          : ' Admin/Disposition kann Aufträge für Kunden erfassen und bearbeiten.'}
+        Verzollungsauftrag (Abholung/Zustellung nicht durch ein WOG Fahrzeug)
       </p>
 
       <form className="panel stack" style={{ marginBottom: '1.25rem', maxWidth: 920 }} onSubmit={onSubmit}>
@@ -493,7 +487,7 @@ export default function CustomsPage() {
             checked={deferVehicle}
             onChange={(e) => setDeferVehicle(e.target.checked)}
           />
-          Selbstfahrer: LKW und Grenze später bei Beladung setzen (keine Dispo durch WOG)
+          Sammelfahrzeug
         </label>
 
         {!deferVehicle ? (
@@ -535,8 +529,8 @@ export default function CustomsPage() {
         </div>
         ) : (
           <p className="muted" style={{ fontSize: '0.9rem' }}>
-            Auftrag geht sofort nach Soloplan. Kennzeichen und Grenze werden unter „Beladung Zoll“
-            gesetzt, sobald klar ist, welche Sendungen mitfahren.
+            Auftrag geht sofort nach Soloplan. Kennzeichen und Grenze werden unter „Beladung
+            Sammelfahrzeug“ gesetzt, sobald klar ist, welche Sendungen mitfahren.
           </p>
         )}
 
@@ -975,7 +969,7 @@ export default function CustomsPage() {
                     <td className="col-vehicle">
                       <strong className="mono">
                         {o.vehicleDeferred || o.kennzeichen === 'OFFEN'
-                          ? 'LKW später'
+                          ? 'Sammelfahrzeug'
                           : o.kennzeichen}
                       </strong>
                       <span className="meta">{o.zulassungsland || '–'}</span>

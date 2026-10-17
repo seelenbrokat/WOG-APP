@@ -455,14 +455,14 @@ export class CustomsService {
     await this.notifications.sendRaw(
       adminEmail,
       vehicleDeferred
-        ? `Verzollungsauftrag ${order.externalNumber || order.id.slice(-6)} (LKW später)`
+        ? `Verzollungsauftrag ${order.externalNumber || order.id.slice(-6)} (Sammelfahrzeug)`
         : `Verzollungsauftrag ${order.kennzeichen}`,
       [
         'Neuer Verzollungsauftrag:',
         `Auftrag: ${order.externalNumber}`,
         `Kunde: ${full.customer.name}`,
         vehicleDeferred
-          ? 'Selbstfahrer: Kennzeichen/Grenze folgen bei Beladungs-Freigabe (keine Dispo durch WOG)'
+          ? 'Sammelfahrzeug: Kennzeichen/Grenze folgen bei Beladungs-Freigabe'
           : `Kennzeichen: ${order.kennzeichen} (${order.zulassungsland})`,
         !vehicleDeferred && order.kennzeichenAnhaenger
           ? `Kennzeichen Anhänger: ${order.kennzeichenAnhaenger} (${order.zulassungslandAnhaenger || '–'})`
