@@ -254,7 +254,6 @@ export class MercurioInboundService {
     }
 
     let linked = false;
-    let docs = 0;
     let soloplanWritten = false;
 
     for (const line of bordereau.lines) {
@@ -316,29 +315,20 @@ export class MercurioInboundService {
       );
       if (shipment) {
         linked = true;
-        const attached = await this.attachPdfToShipment({
-          organizationId,
-          shipmentId: shipment.id,
-          customerId: shipment.customerId,
-          trackingNumber: shipment.trackingNumber,
-          filePath,
-          fileName,
-          docType: 'BORDEREAU',
-          chNumber: bordereau.bordereauNumber,
-        });
-        if (attached) docs += 1;
+        // CH-Bordereau niemals an Kundensendungen hängen (Abgaben über mehrere Kunden).
+        // Soloplan-Update oben reicht; PDF bleibt nur im Mercurio-Archiv.
       }
     }
 
     this.log.log(
       `Mercurio BORDEREAU ${bordereau.bordereauNumber || '-'} Zeilen=${bordereau.lines.length}` +
         (soloplanWritten ? ' → Soloplan' : '') +
-        ` ← ${fileName}`,
+        ` ← ${fileName} (kein Kunden-PDF)`,
     );
 
     return {
       linked,
-      docAttached: docs > 0,
+      docAttached: false,
       soloplanWritten,
       docType: 'BORDEREAU',
     };

@@ -21,6 +21,7 @@ import { TourEtaService } from '../integrations/tour-eta.service';
 import { LabelsService } from '../labels/labels.service';
 import { normalizeScanCode, parseSsccFromScan, ssccMatchCandidates } from '../labels/sscc';
 import { CUSTOMS_REF_SOURCE_LABELS } from '../customs/shipment-customs-ref.service';
+import { isForbiddenForCustomerDocument } from '../documents/customer-forbidden-docs';
 import { allocateVlbExternalNumber } from './order-number';
 
 function trackingNumber() {
@@ -359,7 +360,11 @@ export class ShipmentsService {
       ...r,
       sourceLabel: CUSTOMS_REF_SOURCE_LABELS[r.source] || r.source,
     }));
-    const documents = (shipment.documents || []).map((d) => ({
+    const documents = (shipment.documents || [])
+      .filter((d) =>
+        user.role === UserRole.CUSTOMER_USER ? !isForbiddenForCustomerDocument(d) : true,
+      )
+      .map((d) => ({
       ...d,
       downloaded: (d.downloads || []).length > 0,
       downloadedAt: d.downloads?.[0]?.downloadedAt || null,
