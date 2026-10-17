@@ -12,6 +12,7 @@ import {
   allCustomerDocCategories,
   CUSTOMER_DOC_CATEGORY_LABELS,
 } from './customer-doc-categories';
+import { isForbiddenForCustomerDocument } from './customer-forbidden-docs';
 
 @Injectable()
 export class CustomerDocumentsService {
@@ -173,6 +174,7 @@ export class CustomerDocumentsService {
     });
 
     return docs
+      .filter((d) => !isForbiddenForCustomerDocument(d))
       .filter((d) => !allowed || (d.categoryCode && allowed.has(d.categoryCode)))
       .map((d) => ({
         id: d.id,
@@ -201,6 +203,7 @@ export class CustomerDocumentsService {
     });
     if (!doc) throw new NotFoundException('Dokument nicht gefunden');
     if (user.role === UserRole.CUSTOMER_USER) {
+      if (isForbiddenForCustomerDocument(doc)) throw new ForbiddenException();
       await this.assertModuleEnabled(user);
     }
     const customerId = doc.customerId || user.customerId;
