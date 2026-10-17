@@ -1408,6 +1408,9 @@ export class SoloplanService implements TransportIntegration {
       order: {
         externalNumber,
         soloplanRef: customsSoloplanNumber,
+        // CarLo mappt Frachtzahler auf order.freightPayer (nicht nur customer).
+        // Ohne abweichenden Frachtzahler-BP = Auftraggeber.
+        freightPayer: await this.resolveCustomsSoloplanCustomer(order),
       },
       positions: [
         {

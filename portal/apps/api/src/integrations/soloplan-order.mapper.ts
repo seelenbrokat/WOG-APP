@@ -259,6 +259,16 @@ function countryCode(country?: string | null): string {
   return c.slice(0, 2) || 'AT';
 }
 
+/** UI-Platzhalter (Select „Bitte wählen Sie:“) nie an Soloplan senden. */
+function sanitizeCity(city?: string | null): string {
+  const raw = String(city || '').trim();
+  if (!raw) return '';
+  if (/^bitte\s*wählen/i.test(raw)) return '';
+  if (/^please\s*select/i.test(raw)) return '';
+  if (/^-+\s*select/i.test(raw)) return '';
+  return raw;
+}
+
 function toMasterDataBp(bp: BusinessPartnerLike) {
   const numberRaw = bp.number;
   const number =
@@ -311,7 +321,7 @@ function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
     ...(houseNumber ? { houseNumber } : {}),
     country: countryCode(addr.country),
     zipCode: addr.zip || '',
-    city1: addr.city || '',
+    city1: sanitizeCity(addr.city) || '',
   };
   if (bp && (bp.number || bp.matchcode || bp.name)) {
     party.masterDataBusinessPartner = toMasterDataBp({
@@ -905,12 +915,16 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    // Verzollung: Soloplan-Kunde kommt aus shipment.customer
-    // (exportCustomsOrder: Absender Heron → BP 891, sonst Auftraggeber z. B. Herzog 845).
-    // Sonst: optional abweichender Frachtzahler als order.customer.
+    // Verzollung: Soloplan-Kunde (order.customer) = Auftraggeber
+    // (exportCustomsOrder: Absender Heron → BP 891, sonst AG z. B. Herzog 845 / ERVO 5600).
+    // Transport: historisch Frachtzahler in order.customer.
+    // CarLo OrderImport mappt Frachtzahler auf order.freightPayer – ohne dieses Feld:
+    // „Frachtzahler: nicht in der Importdatei“ / ArrayItemNotValid #/order[0].
     const orderCustomer = anyVerzollung
       ? shipment.customer
       : shipment.order?.freightPayer || shipment.customer;
+    const freightPayerCustomer =
+      shipment.order?.freightPayer || orderCustomer;
     const externalNumber = orderExternalNumber(shipment);
     // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
     // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
@@ -943,6 +957,7 @@ export function buildSoloplanFilePayload(
           // (CarLo: NoAdditionalPropertiesAllowed #/order[0].customFields).
           verzollungsauftrag: anyVerzollung,
           customer: toMasterDataBp(customerToBp(orderCustomer)),
+          freightPayer: toMasterDataBp(customerToBp(freightPayerCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },
