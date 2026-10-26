@@ -37,6 +37,7 @@ export default function LagerArtikelPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [filterCustomerId, setFilterCustomerId] = useState('');
   const [form, setForm] = useState(empty);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,14 +55,17 @@ export default function LagerArtikelPage() {
     setCustomers(c);
     setArticles(a);
     setMeta(m);
-    setForm((f) => ({
-      ...f,
-      customerId: f.customerId || filterCustomerId || c[0]?.id || '',
-      palletType: f.palletType || m.palletTypes[0]?.code || 'EURO',
-      slotUnits:
-        f.slotUnits ||
-        String(m.palletTypes.find((p) => p.code === (f.palletType || 'EURO'))?.defaultSlotUnits ?? 1),
-    }));
+    setForm((f) => {
+      if (editingId) return f;
+      return {
+        ...f,
+        customerId: f.customerId || filterCustomerId || c[0]?.id || '',
+        palletType: f.palletType || m.palletTypes[0]?.code || 'EURO',
+        slotUnits:
+          f.slotUnits ||
+          String(m.palletTypes.find((p) => p.code === (f.palletType || 'EURO'))?.defaultSlotUnits ?? 1),
+      };
+    });
   }
 
   useEffect(() => {
@@ -80,30 +84,80 @@ export default function LagerArtikelPage() {
     setForm((f) => ({
       ...f,
       palletType: code,
-      // Individuell/EWP: Stellplätze manuell lassen; sonst Default übernehmen
       slotUnits: code === 'CUSTOM' ? f.slotUnits : String(def),
     }));
   }
 
-  async function onCreate(e: FormEvent) {
+  function startEdit(a: Article) {
+    setEditingId(a.id);
+    setError('');
+    setMessage('');
+    setForm({
+      customerId: a.customer.id,
+      name: a.name,
+      articleNumber: a.articleNumber || '',
+      palletType: a.palletType || 'EURO',
+      slotUnits: String(a.slotUnits ?? 1),
+      notes: a.notes || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm((f) => ({
+      ...empty,
+      customerId: filterCustomerId || f.customerId || customers[0]?.id || '',
+      palletType: meta?.palletTypes[0]?.code || 'EURO',
+      slotUnits: String(meta?.palletTypes[0]?.defaultSlotUnits ?? 1),
+    }));
+  }
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      await api('/warehouse/articles', {
-        method: 'POST',
-        body: JSON.stringify({
-          customerId: form.customerId,
-          name: form.name,
-          articleNumber: form.articleNumber || undefined,
-          palletType: form.palletType,
-          slotUnits: Number(form.slotUnits) || 1,
-          notes: form.notes || undefined,
-        }),
-      });
-      setMessage('Artikel angelegt');
-      setForm((f) => ({ ...empty, customerId: f.customerId, palletType: f.palletType, slotUnits: f.slotUnits }));
+      if (editingId) {
+        await api(`/warehouse/articles/${editingId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: form.name,
+            articleNumber: form.articleNumber || null,
+            palletType: form.palletType,
+            slotUnits: Number(form.slotUnits) || 1,
+            notes: form.notes || null,
+          }),
+        });
+        setMessage('Artikel aktualisiert');
+        setEditingId(null);
+        setForm((f) => ({
+          ...empty,
+          customerId: f.customerId,
+          palletType: f.palletType,
+          slotUnits: f.slotUnits,
+        }));
+      } else {
+        await api('/warehouse/articles', {
+          method: 'POST',
+          body: JSON.stringify({
+            customerId: form.customerId,
+            name: form.name,
+            articleNumber: form.articleNumber || undefined,
+            palletType: form.palletType,
+            slotUnits: Number(form.slotUnits) || 1,
+            notes: form.notes || undefined,
+          }),
+        });
+        setMessage('Artikel angelegt');
+        setForm((f) => ({
+          ...empty,
+          customerId: f.customerId,
+          palletType: f.palletType,
+          slotUnits: f.slotUnits,
+        }));
+      }
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -120,6 +174,10 @@ export default function LagerArtikelPage() {
         method: 'PATCH',
         body: JSON.stringify({ active: !a.active }),
       });
+      if (editingId === a.id && a.active) {
+        // deaktiviert während Bearbeitung – Formular zurücksetzen
+        cancelEdit();
+      }
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -172,12 +230,13 @@ export default function LagerArtikelPage() {
       {error ? <p className="error">{error}</p> : null}
       {message ? <p className="ok">{message}</p> : null}
 
-      <form className="panel stack" onSubmit={onCreate} style={{ marginBottom: '1rem', maxWidth: 720 }}>
-        <strong>Artikel anlegen</strong>
+      <form className="panel stack" onSubmit={onSubmit} style={{ marginBottom: '1rem', maxWidth: 720 }}>
+        <strong>{editingId ? 'Artikel bearbeiten' : 'Artikel anlegen'}</strong>
         <div className="field">
           <label>Lagerkunde</label>
           <select
             required
+            disabled={!!editingId}
             value={form.customerId}
             onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
           >
@@ -188,6 +247,11 @@ export default function LagerArtikelPage() {
               </option>
             ))}
           </select>
+          {editingId ? (
+            <span className="muted" style={{ fontSize: '0.85rem' }}>
+              Kunde kann beim Bearbeiten nicht gewechselt werden.
+            </span>
+          ) : null}
         </div>
         <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
           <div className="field" style={{ flex: 1, minWidth: 160 }}>
@@ -239,9 +303,16 @@ export default function LagerArtikelPage() {
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           />
         </div>
-        <button className="btn btn-primary" type="submit" disabled={busy || !form.customerId}>
-          {busy ? 'Speichern…' : 'Artikel speichern'}
-        </button>
+        <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" type="submit" disabled={busy || !form.customerId}>
+            {busy ? 'Speichern…' : editingId ? 'Änderungen speichern' : 'Artikel speichern'}
+          </button>
+          {editingId ? (
+            <button className="btn btn-ghost" type="button" disabled={busy} onClick={cancelEdit}>
+              Abbrechen
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <div className="row" style={{ gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
@@ -283,7 +354,13 @@ export default function LagerArtikelPage() {
           </thead>
           <tbody>
             {articles.map((a) => (
-              <tr key={a.id} style={{ opacity: a.active ? 1 : 0.55 }}>
+              <tr
+                key={a.id}
+                style={{
+                  opacity: a.active ? 1 : 0.55,
+                  outline: editingId === a.id ? '2px solid var(--accent, #1a6b3c)' : undefined,
+                }}
+              >
                 <td>{a.customer.name}</td>
                 <td className="muted">{a.articleNumber || '–'}</td>
                 <td>
@@ -318,14 +395,24 @@ export default function LagerArtikelPage() {
                   </div>
                 </td>
                 <td>
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => toggleActive(a)}
-                  >
-                    {a.active ? 'Deaktivieren' : 'Aktivieren'}
-                  </button>
+                  <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => startEdit(a)}
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => toggleActive(a)}
+                    >
+                      {a.active ? 'Deaktivieren' : 'Aktivieren'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
