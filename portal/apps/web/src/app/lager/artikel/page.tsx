@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 type Customer = { id: string; name: string; customerNumber: string };
 type Meta = {
@@ -126,11 +128,33 @@ export default function LagerArtikelPage() {
     }
   }
 
+  async function printLabel(a: Article, format: 'a6' | 'a4') {
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_URL}/warehouse/articles/${a.id}/label?format=${format}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(err.message || `Fehler ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setMessage(`Etikett ${format.toUpperCase()} geöffnet – bitte im Dialog drucken.`);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err: any) {
+      setError(err.message || 'Labeldruck fehlgeschlagen');
+    }
+  }
+
   return (
     <AppShell title="Lagerartikel" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
         Artikel je Lagerkunde mit vordefinierter Palettengröße. Für EWP/Sondermaß Typ{' '}
-        <strong>Individuell / EWP</strong> und eigene Stellplätze setzen.
+        <strong>Individuell / EWP</strong> und eigene Stellplätze setzen. Labeldruck:{' '}
+        <strong>A6</strong> (Etikettendrucker) oder <strong>A4</strong> (Blatt).
       </p>
 
       <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -253,6 +277,7 @@ export default function LagerArtikelPage() {
               <th>Palette</th>
               <th>Stellplätze</th>
               <th>Status</th>
+              <th>Label</th>
               <th></th>
             </tr>
           </thead>
@@ -273,6 +298,26 @@ export default function LagerArtikelPage() {
                 <td>{a.slotUnits}</td>
                 <td>{a.active ? 'aktiv' : 'inaktiv'}</td>
                 <td>
+                  <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      title="Etikett A6 (105×148 mm)"
+                      onClick={() => printLabel(a, 'a6')}
+                    >
+                      A6
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      type="button"
+                      title="Etikett auf A4-Blatt"
+                      onClick={() => printLabel(a, 'a4')}
+                    >
+                      A4
+                    </button>
+                  </div>
+                </td>
+                <td>
                   <button
                     className="btn btn-ghost"
                     type="button"
@@ -286,7 +331,7 @@ export default function LagerArtikelPage() {
             ))}
             {!articles.length ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Noch keine Artikel – oben anlegen.
                 </td>
               </tr>

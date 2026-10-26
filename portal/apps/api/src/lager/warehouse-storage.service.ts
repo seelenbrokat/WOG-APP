@@ -14,6 +14,7 @@ import {
 import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { articleLabelFileName, buildArticleLabelPdf } from './article-label-pdf';
 
 const DEFAULT_SLOT_UNITS: Record<WarehousePalletType, number> = {
   EURO: 1,
@@ -544,6 +545,46 @@ export class WarehouseStorageService {
       }
       throw e;
     }
+  }
+
+  async getArticleLabelPdf(
+    user: AuthUser,
+    id: string,
+    format: 'a6' | 'a4' = 'a6',
+  ): Promise<{ buffer: Buffer; fileName: string }> {
+    this.assertOrg(user);
+    if (user.role === UserRole.CUSTOMER_USER) {
+      if (!user.customerId) throw new ForbiddenException();
+    } else {
+      this.assertStaff(user);
+    }
+    const article = await this.prisma.warehouseArticle.findFirst({
+      where: {
+        id,
+        organizationId: user.organizationId,
+        ...(user.role === UserRole.CUSTOMER_USER && user.customerId
+          ? { customerId: user.customerId }
+          : {}),
+      },
+      include: {
+        customer: { select: { id: true, name: true, customerNumber: true } },
+      },
+    });
+    if (!article) throw new NotFoundException('Artikel nicht gefunden');
+
+    const payload = {
+      name: article.name,
+      articleNumber: article.articleNumber,
+      customerName: article.customer.name,
+      customerNumber: article.customer.customerNumber,
+      date: new Date(),
+    };
+    const fmt = format === 'a4' ? 'a4' as const : 'a6' as const;
+    const buffer = await buildArticleLabelPdf(payload, fmt);
+    return {
+      buffer,
+      fileName: articleLabelFileName(payload, fmt),
+    };
   }
 
   async updateArticle(
