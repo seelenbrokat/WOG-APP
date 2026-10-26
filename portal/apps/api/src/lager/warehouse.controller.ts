@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,10 +7,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole, WarehouseLocationKind, WarehousePalletType } from '@prisma/client';
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Response } from 'express';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { WarehouseStorageService } from './warehouse-storage.service';
@@ -378,6 +381,25 @@ export class WarehouseController {
   @Roles(...STAFF)
   createArticle(@CurrentUser() user: AuthUser, @Body() dto: ArticleDto) {
     return this.warehouse.createArticle(user, dto);
+  }
+
+  @Get('articles/:id/label')
+  @Roles(...STAFF, UserRole.CUSTOMER_USER)
+  async articleLabel(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    const fmt = (format || 'a6').toLowerCase();
+    if (fmt !== 'a6' && fmt !== 'a4') {
+      throw new BadRequestException('format muss a6 oder a4 sein');
+    }
+    const { buffer, fileName } = await this.warehouse.getArticleLabelPdf(user, id, fmt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.send(buffer);
   }
 
   @Patch('articles/:id')
