@@ -2,7 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildSoloplanFilePayload,
+  fitSoloplanStreet,
   resolveCustomsFileApiFields,
+  SOLOPLAN_STREET_MAX_LEN,
   type PortalShipmentForSoloplan,
 } from '../src/integrations/soloplan-order.mapper';
 
@@ -179,5 +181,52 @@ describe('Soloplan FileAPI SmartBorder-Felder', () => {
     const customer = payload.order[0].customer || {};
     assert.equal(String(customer.number), '845');
     assert.equal(customer.name1, 'Herzog Transportmanagement e.U.');
+  });
+
+  it('fitSoloplanStreet: Name-Präfix vor Schaanerstrasse → Overflow, Straße ≤60', () => {
+    const glued =
+      'Zentrale Werkstätte TN Lager Zentrale Werkstätte TN Lager Schaanerstrasse 79';
+    assert.ok(glued.length > SOLOPLAN_STREET_MAX_LEN);
+    const fitted = fitSoloplanStreet(glued);
+    assert.ok(fitted.street.length <= SOLOPLAN_STREET_MAX_LEN);
+    assert.equal(fitted.street, 'Schaanerstrasse');
+    assert.equal(fitted.houseNumber, '79');
+    assert.ok((fitted.nameOverflow || '').includes('Werkstätte'));
+  });
+
+  it('kürzt Empfänger-Straße auf max. 60 Zeichen (CarLo-Limit LAK12296296)', () => {
+    const glued =
+      'Herbert Ospelt Anstalt Zentrale Werkstätte TN Lager Zentrale Werkstätte TN Lager Schaanerstrasse 79';
+    assert.ok(glued.length > 60);
+    const payload = buildSoloplanFilePayload(
+      baseShipment({
+        deliveryCompany: 'Herbert Ospelt Anstalt Zentrale',
+        deliveryStreet: glued,
+        deliveryZip: '9487',
+        deliveryCity: 'Bendern',
+        deliveryCountry: 'LI',
+      }),
+      { format: 'order' },
+    ) as {
+      order: Array<{ consignments: Array<Record<string, unknown>> }>;
+    };
+    const receiver = payload.order[0].consignments[0].receiver as {
+      name1?: string;
+      name2?: string;
+      name3?: string;
+      name4?: string;
+      street?: string;
+      houseNumber?: string;
+    };
+    assert.ok((receiver.street || '').length <= SOLOPLAN_STREET_MAX_LEN);
+    assert.equal(receiver.street, 'Schaanerstrasse');
+    assert.equal(receiver.houseNumber, '79');
+    assert.ok((receiver.name1 || '').length <= 35);
+    // Präfix aus der Straße landet in weiteren Namenszeilen
+    const names = [receiver.name1, receiver.name2, receiver.name3, receiver.name4]
+      .filter(Boolean)
+      .join(' ');
+    assert.ok(names.includes('Herbert Ospelt'));
+    assert.ok(names.includes('Werkstätte') || names.includes('Zentrale'));
   });
 });

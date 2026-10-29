@@ -11,7 +11,7 @@ import {
   normalizeSscc,
   parseBord512,
 } from './bord512.parser';
-import { splitStreet } from '../soloplan-order.mapper';
+import { fitSoloplanStreet, splitSoloplanNames } from '../soloplan-order.mapper';
 
 export type SoloplanFreightPayer = {
   number?: string | number | null;
@@ -89,12 +89,16 @@ function partyFromAddress(addr?: Bord512Address) {
       city1: '',
     };
   }
-  const fullName = addressCompany(addr);
-  const { street, houseNumber } = splitStreet(addr.street);
+  const fitted = fitSoloplanStreet(addr.street);
+  const fullName = [addressCompany(addr), fitted.nameOverflow]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(' ');
+  const names = splitSoloplanNames(fullName || addr.name1 || '');
   return {
-    name1: fullName || addr.name1 || '',
-    street: street || addr.street || '',
-    ...(houseNumber ? { houseNumber } : {}),
+    ...names,
+    street: fitted.street || addr.street || '',
+    ...(fitted.houseNumber ? { houseNumber: fitted.houseNumber } : {}),
     country: countryIso(addr.country),
     zipCode: addr.zip || '',
     city1: addr.city || '',
