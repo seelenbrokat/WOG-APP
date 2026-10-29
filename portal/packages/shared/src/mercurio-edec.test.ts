@@ -282,6 +282,29 @@ Zollanmeldungsnummer: 26CHEI004427317513
     assert.equal(fields.kontoZoll, '68980');
   });
 
+  it('eVV Zoll: Gesamtbetrag wenn Zollabgaben 0 (Automobilsteuer/Gebühren)', () => {
+    const text = `
+VERANLAGUNGSVERFÜGUNG ZOLL Import Definitiv
+Bordereaunummer: 1995332
+Konto Zoll:      68980-WOG Logistics Diepoldsau
+Einnahmeart                 Betrag [CHF]
+Zollabgaben                                         0.00
+Automobilsteuer                                  2573.65
+Andere Gebühren                                     7.00
+Gesamtbetrag:                                    2580.65
+Ref-Nr.: 104/460043.1/Diep/0/1
+Zollanmeldungsnummer: 26CHEI004524070522
+`;
+    const fields = extractMercurioEdecFieldsFromPdfText(
+      text,
+      'edece_evvdut-edeceinfuhr-104-460043.1+Diep-0-2.pdf',
+    );
+    assert.equal(fields.docType, 'EVV_ZOLL');
+    assert.equal(fields.zollabgabenCh, 2580.65);
+    assert.equal(fields.veranlagungZoll, true);
+    assert.equal(fields.bordereauNumber, '1995332');
+  });
+
   it('Bordereau: Nr. aus Dateiname + VVZ/VVM-Zeilen', () => {
     assert.equal(
       parseMercurioBordereauNumberFromFilename(
