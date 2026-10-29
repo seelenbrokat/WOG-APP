@@ -202,6 +202,8 @@ function formatSoloplanDate(value?: Date | string | null): string | undefined {
 }
 
 export const SOLOPLAN_NAME_MAX_LEN = 35;
+/** CarLo-Limit für Adresse.Straße (ApiConfigurationXmlImport). */
+export const SOLOPLAN_STREET_MAX_LEN = 60;
 
 /**
  * Teilt einen langen Firmennamen auf name1…name4 (je max. 35 Zeichen),
@@ -252,11 +254,74 @@ export function splitStreet(street?: string | null): { street: string; houseNumb
   return { street: raw };
 }
 
+/** Erkennt typische Straßennamen (…strasse / Weg / Gasse …) im Text. */
+const STREET_TOKEN_RE =
+  /\b([\wÄÖÜäöüß.'\-]*(?:straße|strasse|str\.?|weg|gasse|platz|allee|ring|damm)\b.*)$/i;
+
+/**
+ * CarLo: Straße max. 60 Zeichen. Bei Überlänge:
+ * 1) Präfix vor dem eigentlichen Straßennamen → nameOverflow (Name-Zeilen)
+ * 2) sonst hart an Wortgrenze kürzen.
+ */
+export function fitSoloplanStreet(rawStreet?: string | null): {
+  street: string;
+  houseNumber?: string;
+  nameOverflow?: string;
+} {
+  const { street: splitName, houseNumber } = splitStreet(rawStreet);
+  let street = (splitName || String(rawStreet || '').trim()).replace(/\s+/g, ' ').trim();
+  let nameOverflow: string | undefined;
+
+  if (street.length > SOLOPLAN_STREET_MAX_LEN) {
+    const m = street.match(STREET_TOKEN_RE);
+    if (m && m[1] && m[1].trim().length <= SOLOPLAN_STREET_MAX_LEN) {
+      const streetPart = m[1].trim();
+      const prefix = street.slice(0, street.length - streetPart.length).trim();
+      if (prefix && streetPart.length > 0) {
+        nameOverflow = prefix;
+        street = streetPart;
+      }
+    }
+  }
+
+  if (street.length > SOLOPLAN_STREET_MAX_LEN) {
+    let cut = street.lastIndexOf(' ', SOLOPLAN_STREET_MAX_LEN);
+    if (cut <= 0) cut = SOLOPLAN_STREET_MAX_LEN;
+    const kept = street.slice(0, cut).trim();
+    const rest = street.slice(cut).trim();
+    if (rest) {
+      nameOverflow = [nameOverflow, rest].filter(Boolean).join(' ').trim() || nameOverflow;
+    }
+    street = kept;
+  }
+
+  // Nach Präfix-Abspaltung ggf. erneut Hausnummer trennen
+  const again = splitStreet(street);
+  street = again.street || street;
+  const hn = again.houseNumber || houseNumber;
+
+  return {
+    street,
+    ...(hn ? { houseNumber: hn } : {}),
+    ...(nameOverflow ? { nameOverflow } : {}),
+  };
+}
+
 function countryCode(country?: string | null): string {
   const c = String(country || 'AT').trim().toUpperCase();
   if (c === 'A') return 'AT';
   if (c === 'D') return 'DE';
   return c.slice(0, 2) || 'AT';
+}
+
+/** UI-Platzhalter (Select „Bitte wählen Sie:“) nie an Soloplan senden. */
+function sanitizeCity(city?: string | null): string {
+  const raw = String(city || '').trim();
+  if (!raw) return '';
+  if (/^bitte\s*wählen/i.test(raw)) return '';
+  if (/^please\s*select/i.test(raw)) return '';
+  if (/^-+\s*select/i.test(raw)) return '';
+  return raw;
 }
 
 function toMasterDataBp(bp: BusinessPartnerLike) {
@@ -303,20 +368,24 @@ function toMasterDataBp(bp: BusinessPartnerLike) {
 }
 
 function toAddressParty(addr: AddressLike, bp?: BusinessPartnerLike | null) {
-  const { street, houseNumber } = splitStreet(addr.street);
-  const names = splitSoloplanNames(addr.company);
+  const fitted = fitSoloplanStreet(addr.street);
+  const company = [addr.company, fitted.nameOverflow]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(' ');
+  const names = splitSoloplanNames(company);
   const party: Record<string, unknown> = {
     ...names,
-    street: street || addr.street || '',
-    ...(houseNumber ? { houseNumber } : {}),
+    street: fitted.street || '',
+    ...(fitted.houseNumber ? { houseNumber: fitted.houseNumber } : {}),
     country: countryCode(addr.country),
     zipCode: addr.zip || '',
-    city1: addr.city || '',
+    city1: sanitizeCity(addr.city) || '',
   };
   if (bp && (bp.number || bp.matchcode || bp.name)) {
     party.masterDataBusinessPartner = toMasterDataBp({
       ...bp,
-      name: bp.name || addr.company || '',
+      name: bp.name || company || addr.company || '',
     });
   }
   return party;
@@ -905,12 +974,15 @@ export function buildSoloplanFilePayload(
   });
 
   if (format === 'order') {
-    // Verzollung: Soloplan-Kunde kommt aus shipment.customer
-    // (exportCustomsOrder: Absender Heron → BP 891, sonst Auftraggeber z. B. Herzog 845).
-    // Sonst: optional abweichender Frachtzahler als order.customer.
+    // Verzollung: Soloplan-Kunde (order.customer) = Auftraggeber
+    // (exportCustomsOrder: Absender Heron → BP 891, sonst AG z. B. Herzog 845 / ERVO 5600).
+    // Transport: historisch Frachtzahler in order.customer.
+    // CarLo OrderImport mappt Frachtzahler auf order.freightPayer – ohne dieses Feld:
+    // „Frachtzahler: nicht in der Importdatei“ / ArrayItemNotValid #/order[0].
     const orderCustomer = anyVerzollung
       ? shipment.customer
       : shipment.order?.freightPayer || shipment.customer;
+    const freightPayerCustomer = shipment.order?.freightPayer || orderCustomer;
     const externalNumber = orderExternalNumber(shipment);
     // Auftragsweite Dokumente auf Create (z. B. Ablieferbeleg).
     // Verzollung: Create ohne Docs – die gehen separat als Update (siehe exportCustomsOrder).
@@ -943,6 +1015,7 @@ export function buildSoloplanFilePayload(
           // (CarLo: NoAdditionalPropertiesAllowed #/order[0].customFields).
           verzollungsauftrag: anyVerzollung,
           customer: toMasterDataBp(customerToBp(orderCustomer)),
+          freightPayer: toMasterDataBp(customerToBp(freightPayerCustomer)),
           consignments,
           ...(orderDocuments.length ? { documentData: orderDocuments } : {}),
         },

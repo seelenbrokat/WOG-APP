@@ -17,8 +17,12 @@ export type SchmidtsLadelisteCollo = {
 export type SchmidtsLadelisteLine = {
   lak: string;
   recipientName?: string;
+  /** Weitere Namenszeilen (Abt./Lager), für Soloplan name2–name4 */
+  recipientNameExtra?: string[];
+  recipientStreet?: string;
   recipientZip?: string;
   recipientCity?: string;
+  recipientCountry?: string;
   recipientRef?: string;
   freightPayerRef?: string;
   colliCount?: number;
@@ -62,10 +66,16 @@ function extractSsccs(block: string): string[] {
   return out;
 }
 
+const STREET_LINE_RE =
+  /^([\wÄÖÜäöüß.'\- ]*(?:straße|strasse|str\.?|weg|gasse|platz|allee|ring|damm)\s*\d*[a-zA-Z\-\/]*)$/i;
+
 function extractRecipient(block: string): {
   name?: string;
+  nameExtra?: string[];
+  street?: string;
   zip?: string;
   city?: string;
+  country?: string;
 } {
   const empf = block.match(
     /Empfänger:\s*([^\n]+?)(?:\n|Absender-Ref|Empfänger-Ref|Frachtzahler|Zustellservice|Collonummer|LAK\d+)/i,
@@ -79,20 +89,53 @@ function extractRecipient(block: string): {
     const lines = empfBlock
       .split('\n')
       .map((l) => l.replace(/\s{2,}.*/, '').trim()) // rechte Tabellenspalte abschneiden
-      .filter(Boolean);
-    if (lines[0]) name = lines[0];
+      .filter(Boolean)
+      .filter((l) => !/^Tel\b/i.test(l));
+
+    let zip: string | undefined;
+    let city: string | undefined;
+    let country: string | undefined;
     const loc = empfBlock.match(/\b([A-Z]{2})-(\d{4})\s+([^\n,]+)/);
     if (loc) {
-      return {
-        name,
-        zip: loc[2],
-        city: loc[3].replace(/\s{2,}.*/, '').trim(),
-      };
+      country = loc[1];
+      zip = loc[2];
+      city = loc[3].replace(/\s{2,}.*/, '').trim();
+    } else {
+      const ch = empfBlock.match(/\bCH-(\d{4})\s+([^\n,]+)/);
+      if (ch) {
+        country = 'CH';
+        zip = ch[1];
+        city = ch[2].replace(/\s{2,}.*/, '').trim();
+      }
     }
-    const ch = empfBlock.match(/\bCH-(\d{4})\s+([^\n,]+)/);
-    if (ch) {
-      return { name, zip: ch[1], city: ch[2].replace(/\s{2,}.*/, '').trim() };
+
+    // Namenszeilen / Straße: alles vor PLZ-Zeile; Straße = letzte Zeile mit Straßen-Muster
+    const beforeLoc = lines.filter((l) => {
+      if (zip && new RegExp(`\\b(?:[A-Z]{2}-)?${zip}\\b`).test(l)) return false;
+      if (/^[A-Z]{2}-\d{4}\b/.test(l)) return false;
+      return true;
+    });
+
+    let street: string | undefined;
+    if (beforeLoc.length) {
+      const last = beforeLoc[beforeLoc.length - 1];
+      if (STREET_LINE_RE.test(last) || /\s\d+[a-zA-Z\-\/]*$/.test(last)) {
+        street = last;
+        beforeLoc.pop();
+      }
     }
+
+    if (beforeLoc[0]) name = beforeLoc[0];
+    const nameExtra = beforeLoc.slice(1).filter(Boolean);
+
+    return {
+      name,
+      ...(nameExtra.length ? { nameExtra } : {}),
+      ...(street ? { street } : {}),
+      ...(zip ? { zip } : {}),
+      ...(city ? { city } : {}),
+      ...(country ? { country } : {}),
+    };
   }
   return { name };
 }
@@ -169,8 +212,11 @@ export function parseSchmidtsLadelisteText(text: string): ParsedSchmidtsLadelist
     lines.push({
       lak,
       recipientName: recipient.name,
+      recipientNameExtra: recipient.nameExtra,
+      recipientStreet: recipient.street,
       recipientZip: recipient.zip,
       recipientCity: recipient.city,
+      recipientCountry: recipient.country,
       recipientRef: recipientRef || undefined,
       freightPayerRef: freightPayerRef || undefined,
       colliCount: gesamtColli,

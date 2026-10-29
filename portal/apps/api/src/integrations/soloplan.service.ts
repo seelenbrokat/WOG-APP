@@ -1361,6 +1361,8 @@ export class SoloplanService implements TransportIntegration {
       /^[1-9]\d*$/.test(order.soloplanRef.trim())
         ? order.soloplanRef.trim()
         : null;
+    // Auftraggeber (= Soloplan-Kunde); CarLo mappt Frachtzahler auf order.freightPayer.
+    const customsCustomer = await this.resolveCustomsSoloplanCustomer(order);
     const shipmentBase: PortalShipmentForSoloplan = {
       id: order.id,
       trackingNumber: externalNumber,
@@ -1404,10 +1406,11 @@ export class SoloplanService implements TransportIntegration {
       telefonSmartborder: order.driverPhone,
       mailSmartborder: order.smartborderNotifyEmail,
       smsSmartBorder: order.smartborderSendSms,
-      customer: await this.resolveCustomsSoloplanCustomer(order),
+      customer: customsCustomer,
       order: {
         externalNumber,
         soloplanRef: customsSoloplanNumber,
+        freightPayer: customsCustomer,
       },
       positions: [
         {
