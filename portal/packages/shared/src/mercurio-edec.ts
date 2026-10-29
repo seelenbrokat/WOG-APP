@@ -438,10 +438,18 @@ export function extractMercurioEdecFieldsFromPdfText(
     }
   } else if (docType === 'EVV_ZOLL') {
     veranlagungZoll = true;
-    zollabgabenCh = firstLabeledAmount(raw, [
-      /Zollabgaben\s+([0-9.'\s]+)/i,
+    // Soloplan zollabgabenCH = Abgaben laut eVV Zoll (Gesamtbetrag).
+    // Die Zeile „Zollabgaben“ kann 0 sein, während Automobilsteuer/Gebühren
+    // im Gesamtbetrag stehen (Bordereau: „Zoll- und andere Abgaben“).
+    const zollLine = firstLabeledAmount(raw, [/Zollabgaben\s+([0-9.'\s]+)/i]);
+    const gesamt = firstLabeledAmount(raw, [
       /Gesamtbetrag\s*:\s*([0-9.'\s]+)/i,
     ]);
+    if (gesamt != null && (zollLine == null || gesamt > zollLine)) {
+      zollabgabenCh = gesamt;
+    } else {
+      zollabgabenCh = zollLine ?? gesamt;
+    }
   }
 
   const posRaw =
