@@ -440,7 +440,8 @@ export function bord512ConsignmentToSoloplanOrder(
         externalNumber,
         orderContext: 0,
         orderDate,
-        ...(customer ? { customer } : {}),
+        // CarLo OrderImport: Frachtzahler = order.freightPayer (nicht nur customer)
+        ...(customer ? { customer, freightPayer: customer } : {}),
         consignments: [buildConsignmentJson(consignment, 1, bordero)],
       },
     ],
