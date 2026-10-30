@@ -1317,7 +1317,13 @@ export class WarehouseStorageService {
     };
 
     const buffer = await buildWarehouseBillingPdf(pdfInput);
-    const fileName = `Lagerabrechnung-${year}-${String(month).padStart(2, '0')}.pdf`;
+    const custSlug =
+      billing.customers.length === 1
+        ? String(billing.customers[0].customer.customerNumber || billing.customers[0].customer.id)
+            .replace(/[^\w.-]+/g, '_')
+            .slice(0, 40)
+        : 'alle';
+    const fileName = `Lagerabrechnung-${year}-${String(month).padStart(2, '0')}-${custSlug}.pdf`;
     return { fileName, buffer };
   }
 

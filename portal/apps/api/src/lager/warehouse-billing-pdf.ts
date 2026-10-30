@@ -135,9 +135,13 @@ export async function buildWarehouseBillingPdf(
   doc.on('data', (c) => chunks.push(c));
 
   const period = `${String(input.month).padStart(2, '0')}/${input.year}`;
+  const customerSubtitle =
+    input.customers.length === 1
+      ? `${input.customers[0].customerName} (${input.customers[0].customerNumber}) · ${period}`
+      : `Monat ${period}`;
   drawA4BrandHeader(doc, {
     title: 'Lager-Abrechnung',
-    subtitle: `Monat ${period}`,
+    subtitle: customerSubtitle,
   });
 
   doc
