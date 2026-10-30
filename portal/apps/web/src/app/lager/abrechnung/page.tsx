@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api, getUser } from '@/lib/api';
+import { api, getToken, getUser } from '@/lib/api';
+import { downloadAuthenticated } from '@/lib/download';
 
 type Billing = {
   year: number;
@@ -32,11 +33,37 @@ export default function LagerAbrechnungPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Billing | null>(null);
   const [error, setError] = useState('');
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   async function load(y = year, m = month) {
     setError('');
     const res = await api<Billing>(`/warehouse/billing/monthly?year=${y}&month=${m}`);
     setData(res);
+  }
+
+  /** PDF je Kunde (customerId Pflicht für Staff; Kunden sehen nur sich selbst). */
+  async function downloadPdfForCustomer(customer: {
+    id: string;
+    name: string;
+    customerNumber: string;
+  }) {
+    setError('');
+    setPdfBusyId(customer.id);
+    try {
+      if (!getToken()) throw new Error('Nicht angemeldet');
+      const safeNr = String(customer.customerNumber || customer.id).replace(/[^\w.-]+/g, '_');
+      const fileName = `Lagerabrechnung-${year}-${String(month).padStart(2, '0')}-${safeNr}.pdf`;
+      const q = new URLSearchParams({
+        year: String(year),
+        month: String(month),
+        ...(isCustomer ? {} : { customerId: customer.id }),
+      });
+      await downloadAuthenticated(`/warehouse/billing/monthly/pdf?${q.toString()}`, fileName);
+    } catch (e: any) {
+      setError(e?.message || 'PDF-Download fehlgeschlagen');
+    } finally {
+      setPdfBusyId(null);
+    }
   }
 
   useEffect(() => {
@@ -47,7 +74,8 @@ export default function LagerAbrechnungPage() {
   return (
     <AppShell title="Lager-Abrechnung" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
-        Monatshöchststand (Stellplätze je Palettentyp) + Ein-/Auslagergebühren.
+        Monatshöchststand (Stellplätze je Palettentyp) + Ein-/Auslagergebühren. Pro Kunde ein
+        PDF-Beleg mit Bewegungen, Bestand und Preisen.
       </p>
 
       <div className="row" style={{ gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -90,17 +118,40 @@ export default function LagerAbrechnungPage() {
 
           {data.customers.map((row) => (
             <div key={row.customer.id} className="panel" style={{ marginBottom: '0.75rem' }}>
-              {!isCustomer && (
-                <strong>
-                  {row.customer.name} ({row.customer.customerNumber})
-                </strong>
-              )}
-              {isCustomer && <strong>Ihre Lagerkosten</strong>}
-              <p className="muted" style={{ margin: '0.35rem 0' }}>
-                Ein: {row.inbound.count} / {row.inbound.amount.toFixed(2)} € · Aus:{' '}
-                {row.outbound.count} / {row.outbound.amount.toFixed(2)} € · Lager:{' '}
-                {row.storage.amount.toFixed(2)} € · <strong>{row.total.toFixed(2)} €</strong>
-              </p>
+              <div
+                className="row"
+                style={{
+                  gap: '0.75rem',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap',
+                  marginBottom: '0.35rem',
+                }}
+              >
+                <div>
+                  {!isCustomer && (
+                    <strong>
+                      {row.customer.name} ({row.customer.customerNumber})
+                    </strong>
+                  )}
+                  {isCustomer && <strong>Ihre Lagerkosten</strong>}
+                  <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                    Ein: {row.inbound.count} / {row.inbound.amount.toFixed(2)} € · Aus:{' '}
+                    {row.outbound.count} / {row.outbound.amount.toFixed(2)} € · Lager:{' '}
+                    {row.storage.amount.toFixed(2)} € ·{' '}
+                    <strong>{row.total.toFixed(2)} €</strong>
+                  </p>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={pdfBusyId === row.customer.id}
+                  onClick={() => downloadPdfForCustomer(row.customer)}
+                  style={{ flexShrink: 0 }}
+                >
+                  {pdfBusyId === row.customer.id ? 'PDF wird erstellt…' : 'PDF Abrechnung'}
+                </button>
+              </div>
               <table className="table">
                 <thead>
                   <tr>
