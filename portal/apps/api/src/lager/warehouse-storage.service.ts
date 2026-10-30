@@ -15,6 +15,10 @@ import { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DIEPOLDSAU_HOCHREGAL } from './diepoldsau-layout';
+import {
+  buildWarehouseBillingPdf,
+  type WarehouseBillingPdfInput,
+} from './warehouse-billing-pdf';
 
 const DEFAULT_SLOT_UNITS: Record<WarehousePalletType, number> = {
   EURO: 1,
@@ -1195,6 +1199,126 @@ export class WarehouseStorageService {
         grand: reports.reduce((s, r) => s + r.total, 0),
       },
     };
+  }
+
+  /**
+   * Monatsabrechnung als PDF (Bewegungen, Bestand Monatsende, Preise, Summen).
+   * Nutzt die bestehende monthlyBilling-Logik unverändert und ergänzt Detailzeilen.
+   */
+  async monthlyBillingPdf(
+    user: AuthUser,
+    year: number,
+    month: number,
+    customerId?: string,
+  ): Promise<{ fileName: string; buffer: Buffer }> {
+    const billing = await this.monthlyBilling(user, year, month, customerId);
+
+    const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const to = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const effectiveCustomerId =
+      user.role === UserRole.CUSTOMER_USER ? user.customerId || undefined : customerId;
+
+    const [movements, stockUnits, rates] = await Promise.all([
+      this.prisma.warehouseMovement.findMany({
+        where: {
+          organizationId: user.organizationId!,
+          occurredAt: { gte: from, lt: to },
+          ...(effectiveCustomerId ? { customerId: effectiveCustomerId } : {}),
+        },
+        include: {
+          customer: { select: { name: true, customerNumber: true } },
+          location: { select: { code: true } },
+        },
+        orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }],
+      }),
+      this.prisma.warehouseStorageUnit.findMany({
+        where: {
+          organizationId: user.organizationId!,
+          ...(effectiveCustomerId ? { customerId: effectiveCustomerId } : {}),
+          storedAt: { lte: monthEnd },
+          OR: [{ releasedAt: null }, { releasedAt: { gt: monthEnd } }],
+        },
+        include: {
+          customer: { select: { name: true, customerNumber: true } },
+          location: { select: { code: true } },
+        },
+        orderBy: [{ customer: { name: 'asc' } }, { storedAt: 'asc' }],
+      }),
+      this.prisma.warehousePriceRate.findMany({
+        where: {
+          organizationId: user.organizationId!,
+          active: true,
+          ...(effectiveCustomerId ? { customerId: effectiveCustomerId } : {}),
+        },
+        include: {
+          customer: { select: { name: true, customerNumber: true } },
+        },
+        orderBy: [{ customer: { name: 'asc' } }, { palletType: 'asc' }],
+      }),
+    ]);
+
+    const pdfInput: WarehouseBillingPdfInput = {
+      year: billing.year,
+      month: billing.month,
+      currency: billing.currency,
+      totals: billing.totals,
+      customers: billing.customers.map((r) => ({
+        customerName: r.customer.name,
+        customerNumber: r.customer.customerNumber,
+        inboundCount: r.inbound.count,
+        inboundAmount: r.inbound.amount,
+        outboundCount: r.outbound.count,
+        outboundAmount: r.outbound.amount,
+        storageAmount: r.storage.amount,
+        total: r.total,
+        storageByType: Object.entries(r.storage.byPalletType).map(([t, v]) => ({
+          palletLabel: PALLET_LABEL[t as WarehousePalletType] || t,
+          peakSlots: v.peakSlots,
+          peakDay: v.peakDay,
+          fee: v.fee,
+          amount: v.amount,
+        })),
+      })),
+      movements: movements.map((m) => ({
+        occurredAt: m.occurredAt,
+        type: m.type === WarehouseMovementType.IN ? 'IN' : 'OUT',
+        customerName: m.customer.name,
+        customerNumber: m.customer.customerNumber,
+        articleName: m.articleName,
+        serialNumber: m.serialNumber,
+        palletLabel: PALLET_LABEL[m.palletType] || m.palletType,
+        slotUnits: m.slotUnits,
+        locationCode: m.location?.code,
+        unitPrice: m.unitPrice,
+        amount: m.amount,
+        note: m.note,
+      })),
+      stockAtMonthEnd: stockUnits.map((u) => ({
+        customerName: u.customer.name,
+        customerNumber: u.customer.customerNumber,
+        articleName: u.articleName,
+        serialNumber: u.serialNumber,
+        palletLabel: PALLET_LABEL[u.palletType] || u.palletType,
+        slotUnits: u.slotUnits,
+        locationCode: u.location?.code,
+        storedAt: u.storedAt,
+        status: u.status,
+      })),
+      rates: rates.map((r) => ({
+        customerName: r.customer.name,
+        customerNumber: r.customer.customerNumber,
+        palletLabel: PALLET_LABEL[r.palletType] || r.palletType,
+        inboundFee: r.inboundFee,
+        outboundFee: r.outboundFee,
+        storageFeePerSlot: r.storageFeePerSlot,
+      })),
+    };
+
+    const buffer = await buildWarehouseBillingPdf(pdfInput);
+    const fileName = `Lagerabrechnung-${year}-${String(month).padStart(2, '0')}.pdf`;
+    return { fileName, buffer };
   }
 
   meta() {

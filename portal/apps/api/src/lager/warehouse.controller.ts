@@ -6,10 +6,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole, WarehouseLocationKind, WarehousePalletType } from '@prisma/client';
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Response } from 'express';
 import { CurrentUser, AuthUser, Roles } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { WarehouseStorageService } from './warehouse-storage.service';
@@ -374,6 +376,30 @@ export class WarehouseController {
       Number(month) || now.getUTCMonth() + 1,
       customerId,
     );
+  }
+
+  /** PDF-Beleg zur Monatsabrechnung (Bewegungen, Bestand, Preise) – ergänzend zur JSON-Abrechnung. */
+  @Get('billing/monthly/pdf')
+  @Roles(...STAFF, UserRole.CUSTOMER_USER)
+  async billingPdf(
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('customerId') customerId?: string,
+  ) {
+    const now = new Date();
+    const y = Number(year) || now.getUTCFullYear();
+    const m = Number(month) || now.getUTCMonth() + 1;
+    const { fileName, buffer } = await this.warehouse.monthlyBillingPdf(
+      user,
+      y,
+      m,
+      customerId,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.send(buffer);
   }
 
   @Get('overview')

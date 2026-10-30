@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { api, getUser } from '@/lib/api';
+import { api, getToken, getUser } from '@/lib/api';
+import { downloadAuthenticated } from '@/lib/download';
 
 type Billing = {
   year: number;
@@ -32,11 +33,29 @@ export default function LagerAbrechnungPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Billing | null>(null);
   const [error, setError] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   async function load(y = year, m = month) {
     setError('');
     const res = await api<Billing>(`/warehouse/billing/monthly?year=${y}&month=${m}`);
     setData(res);
+  }
+
+  async function downloadPdf() {
+    setError('');
+    setPdfBusy(true);
+    try {
+      if (!getToken()) throw new Error('Nicht angemeldet');
+      const fileName = `Lagerabrechnung-${year}-${String(month).padStart(2, '0')}.pdf`;
+      await downloadAuthenticated(
+        `/warehouse/billing/monthly/pdf?year=${year}&month=${month}`,
+        fileName,
+      );
+    } catch (e: any) {
+      setError(e?.message || 'PDF-Download fehlgeschlagen');
+    } finally {
+      setPdfBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -47,7 +66,8 @@ export default function LagerAbrechnungPage() {
   return (
     <AppShell title="Lager-Abrechnung" eyebrow="Lagerverwaltung">
       <p className="muted" style={{ marginTop: 0 }}>
-        Monatshöchststand (Stellplätze je Palettentyp) + Ein-/Auslagergebühren.
+        Monatshöchststand (Stellplätze je Palettentyp) + Ein-/Auslagergebühren. PDF mit
+        Bewegungen, Bestand und Preisen als Abrechnungsbeleg.
       </p>
 
       <div className="row" style={{ gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -70,6 +90,14 @@ export default function LagerAbrechnungPage() {
           onClick={() => load().catch((e) => setError(e.message))}
         >
           Laden
+        </button>
+        <button
+          className="btn btn-ghost"
+          type="button"
+          disabled={pdfBusy}
+          onClick={() => downloadPdf()}
+        >
+          {pdfBusy ? 'PDF…' : 'PDF Abrechnung'}
         </button>
       </div>
 
