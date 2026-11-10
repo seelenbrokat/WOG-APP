@@ -789,9 +789,9 @@ function NewShipmentInner() {
         });
       }
 
-      // Wie Verzollung: bei angehängten Papieren Auftragsbestätigung inkl. Anhänge per Mail
+      // Immer Ladeliste + Dispo-Mail (admin/info) – Anhänge werden mitgeschickt, falls vorhanden
       const orderId = created.orderId || created.order?.id;
-      if (uploads.length > 0 && orderId) {
+      if (orderId) {
         try {
           await api(`/orders/${orderId}/loading-list`, { method: 'POST' });
         } catch {

@@ -284,19 +284,56 @@ export class OrdersService {
     return papers;
   }
 
+  /** Empfänger für Portal-Auftrags-/Ladelisten-Mails (kein reiner Zollauftrag). */
+  private loadingListNotifyRecipients(): string[] {
+    const raw =
+      this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') ||
+      'admin@worldofgreen.ch,info@worldofgreen.ch';
+    return raw
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  /** Detailzeilen je Sendung für die Dispo-Mail. */
+  private shipmentNotifyLines(shipment: any): string[] {
+    const extras = shipmentExtrasLabels((shipment.extras || {}) as ShipmentExtras);
+    const pickupWhen = this.formatScheduleDateTime(shipment.pickupDate);
+    const deliveryWhen = this.formatScheduleDateTime(shipment.deliveryDate);
+    const deliveryEnd = this.formatScheduleDateTime(shipment.deliveryDateEnd);
+    const deliveryWindow =
+      deliveryWhen && deliveryEnd && deliveryEnd !== deliveryWhen
+        ? `${deliveryWhen} – ${deliveryEnd}`
+        : deliveryWhen;
+    return [
+      `Sendung: ${shipment.trackingNumber || shipment.id}`,
+      shipment.reference ? `Kundenreferenz: ${shipment.reference}` : null,
+      shipment.deliveryCustomerRef
+        ? `Empfänger-Ref.: ${shipment.deliveryCustomerRef}`
+        : null,
+      `Abholung: ${[shipment.pickupCompany, shipment.pickupStreet, [shipment.pickupZip, shipment.pickupCity].filter(Boolean).join(' '), shipment.pickupCountry].filter(Boolean).join(', ')}`,
+      pickupWhen ? `Abholtermin: ${pickupWhen}` : null,
+      `Zustellung: ${[shipment.deliveryCompany, shipment.deliveryStreet, [shipment.deliveryZip, shipment.deliveryCity].filter(Boolean).join(' '), shipment.deliveryCountry].filter(Boolean).join(', ')}`,
+      deliveryWindow ? `Zustelltermin: ${deliveryWindow}` : null,
+      shipment.deliveryAvisPhone
+        ? `Zustell-Avis: ${shipment.deliveryAvisPhone}`
+        : null,
+      shipment.packageCount != null ? `Colli: ${shipment.packageCount}` : null,
+      shipment.weightKg != null ? `Gewicht: ${shipment.weightKg} kg` : null,
+      shipment.volumeM3 != null ? `Volumen: ${shipment.volumeM3} m³` : null,
+      shipment.goodsDescription ? `Ware: ${shipment.goodsDescription}` : null,
+      extras.length ? `Zusatz: ${extras.join(', ')}` : null,
+      shipment.notes ? `Hinweis: ${shipment.notes}` : null,
+    ].filter((line): line is string => Boolean(line));
+  }
+
   /** Benachrichtigung an Dispo, wenn eine Ladeliste erzeugt wurde. */
   private async notifyLoadingListCreated(
     user: AuthUser,
     orders: any[],
     doc: { id: string; fileName: string; storagePath: string },
   ) {
-    const raw =
-      this.config.get<string>('LOADING_LIST_NOTIFY_EMAIL') ||
-      'info@worldofgreen.ch';
-    const recipients = raw
-      .split(/[,;]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const recipients = this.loadingListNotifyRecipients();
     if (!recipients.length) return;
 
     const paperDocs = await this.collectCustomerPaperDocs(orders);
@@ -320,18 +357,29 @@ export class OrdersService {
       orders.length === 1
         ? `WOG Portal – Ladeliste ${orders[0].externalNumber}`
         : `WOG Portal – Sammelladeliste (${orders.length} Aufträge)`;
+
+    const detailLines: string[] = [];
+    for (const order of orders) {
+      detailLines.push('', `--- Auftrag ${order.externalNumber} ---`);
+      if (order.mandant?.name) detailLines.push(`Mandant: ${order.mandant.name}`);
+      for (const shipment of order.shipments || []) {
+        detailLines.push(...this.shipmentNotifyLines(shipment));
+        detailLines.push('');
+      }
+    }
+
     const body = [
-      'Es wurde eine Ladeliste / Auftragsbestätigung erzeugt.',
+      'Neuer Portal-Auftrag – Ladeliste / Auftragsbestätigung.',
       '',
       `Auftrag(e): ${numbers}`,
       freightPayers ? `Frachtzahler: ${freightPayers}` : null,
       `Sendungen: ${shipmentCount}`,
       `Datei: ${doc.fileName}`,
       `Erstellt von: ${user.email || user.id}`,
-      '',
+      ...detailLines,
       paperDocs.length
-        ? `Anhänge: ${paperDocs.length + 1} Datei(en) (inkl. Auftragsbestätigung)`
-        : null,
+        ? `Anhänge: ${paperDocs.length + 1} Datei(en) (inkl. Auftragsbestätigung / Ladeliste)`
+        : `Anhang: ${doc.fileName}`,
       ...paperDocs.map((d) => `- ${d.fileName}`),
       paperDocs.length ? `- ${doc.fileName}` : null,
       '',

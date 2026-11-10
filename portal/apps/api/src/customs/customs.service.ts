@@ -617,8 +617,13 @@ export class CustomsService {
       },
     });
 
-    const notifyTo =
-      this.config.get<string>('CUSTOMS_NOTIFY_EMAIL') || 'info@worldofgreen.ch';
+    // Reiner Zollauftrag: nur Zoll (nicht Dispo admin/info).
+    const notifyRaw =
+      this.config.get<string>('CUSTOMS_NOTIFY_EMAIL') || 'zoll@worldofgreen.at';
+    const recipients = notifyRaw
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     const subject = `${grenzeWhen} · ${full.customer.name}`;
     const body = [
       'Neuer Verzollungsauftrag im WOG Portal.',
@@ -658,7 +663,7 @@ export class CustomsService {
       .filter((line) => line != null)
       .join('\n');
 
-    await this.notifications.sendRaw(notifyTo.trim(), subject, body, undefined, [
+    const attachments = [
       {
         filename: pdfFileName,
         path: pdfPath,
@@ -669,17 +674,20 @@ export class CustomsService {
         path: d.storagePath,
         contentType: d.mimeType || 'application/octet-stream',
       })),
-    ]);
+    ];
+    for (const to of recipients) {
+      await this.notifications.sendRaw(to, subject, body, undefined, attachments);
+    }
 
     await this.audit.log(full.createdById, 'customs.submit.notify', 'CustomsOrder', full.id, {
-      email: notifyTo,
+      email: recipients.join(', '),
       pdfDocumentId: pdfDoc.id,
       attachments: paperDocs.length + 1,
     });
 
     return {
       ok: true,
-      email: notifyTo,
+      email: recipients.join(', '),
       subject,
       pdfDocumentId: pdfDoc.id,
       fileName: pdfFileName,
