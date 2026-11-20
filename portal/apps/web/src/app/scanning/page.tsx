@@ -405,7 +405,7 @@ export default function ScanningPage() {
           SSCC scannen (Kamera) oder tippen. Vibration + Ton bei Treffer.
           Nur Aufträge von Organisation/Mandant 2 (WOG Logistics AG).{' '}
           <Link href="/scanning/we-tc57" style={{ fontWeight: 600 }}>
-            WE TC57 (Barcodescanner, ohne Kamera)
+            WE Scan (TC27/TC57, Barcodescanner ohne Kamera)
           </Link>
         </p>
 

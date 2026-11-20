@@ -1,9 +1,18 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'WOG – World of Green Logistics',
   description: 'Kunden- und Partnerportal der WOG Logistics',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#123a22',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

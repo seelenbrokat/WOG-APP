@@ -67,7 +67,7 @@ const NAV: NavItem[] = [
     ],
   },
   { href: '/scanning', label: 'Scanning', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
-  { href: '/scanning/we-tc57', label: 'WE TC57', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
+  { href: '/scanning/we-tc57', label: 'WE Scan', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/scanning/entladeberichte', label: 'Entladeberichte', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/tours/map', label: 'Kartenmonitor', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER'] },
   { href: '/customs', label: 'Verzollungsauftrag', roles: ['ORG_ADMIN', 'MANDANT_DISPATCHER', 'CUSTOMER_USER'] },
@@ -125,10 +125,13 @@ export function AppShell({
   title,
   eyebrow = 'WOG Portal',
   children,
+  /** Kompakt für Handheld-Scanner (z. B. Zebra TC27) – ohne volle Nav. */
+  variant = 'default',
 }: {
   title: string;
   eyebrow?: string;
   children: ReactNode;
+  variant?: 'default' | 'handheld';
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -232,6 +235,34 @@ export function AppShell({
   const showCustomerSwitcher = canUseCustomerView(user);
   const viewName =
     user.impersonatingCustomerName || user.customerName || 'Kunde';
+  const handheld = variant === 'handheld';
+
+  if (handheld) {
+    return (
+      <div className="app-shell app-shell--handheld">
+        <header className="handheld-bar">
+          <Link href="/lager" className="handheld-bar__back" aria-label="Zum Lager">
+            ← Lager
+          </Link>
+          <div className="handheld-bar__title">
+            <span className="eyebrow">{eyebrow}</span>
+            <strong>{title}</strong>
+          </div>
+          <button
+            className="btn btn-ghost handheld-bar__logout"
+            type="button"
+            onClick={() => {
+              clearSession();
+              router.push('/');
+            }}
+          >
+            Abmelden
+          </button>
+        </header>
+        <main className="main main--handheld">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

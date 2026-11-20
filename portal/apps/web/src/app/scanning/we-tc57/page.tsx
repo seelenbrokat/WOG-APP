@@ -178,7 +178,7 @@ export default function WeTc57Page() {
   const [flash, setFlash] = useState<FlashKind>(null);
   const [headline, setHeadline] = useState('Lieferung wählen');
   const [detail, setDetail] = useState(
-    'Danach Barcode mit dem TC57 scannen – bei vollständiger SSCC wird automatisch bestätigt.',
+    'Danach Barcode scannen – bei vollständiger SSCC wird automatisch bestätigt.',
   );
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const [showDims, setShowDims] = useState(false);
@@ -945,21 +945,20 @@ export default function WeTc57Page() {
           : '#1a2420';
 
   return (
-    <AppShell title="WE TC57">
+    <AppShell title="WE Scan" eyebrow="Zebra TC27" variant="handheld">
       <div
-        className="stack"
+        className="stack we-handheld"
         style={{
           maxWidth: 480,
           margin: '0 auto',
           width: '100%',
-          gap: '0.65rem',
-          paddingBottom: '1.25rem',
+          gap: '0.5rem',
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
         }}
         onPointerDown={() => void unlockAudio()}
       >
-        <p className="muted" style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.35 }}>
-          Wareneingangskontrolle für Zebra TC57 – Hardware-Scanner, ohne Kamera. Vollständige SSCC
-          wird automatisch bestätigt (kein Enter nötig).
+        <p className="muted we-handheld__hint" style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.3 }}>
+          Hardware-Scanner (TC27/TC57) – vollständige SSCC wird automatisch bestätigt.
         </p>
 
         {!session ? (
@@ -1052,12 +1051,13 @@ export default function WeTc57Page() {
               onChange={(e) => void onPhotoSelected(e.target.files?.[0] || null)}
             />
             <div
+              className="we-handheld__flash"
               style={{
                 background: flashBg,
                 color: '#fff',
                 borderRadius: 12,
-                padding: '0.85rem 1rem',
-                minHeight: 96,
+                padding: '0.75rem 0.85rem',
+                minHeight: 84,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
@@ -1067,8 +1067,8 @@ export default function WeTc57Page() {
                 if (!editingRef.current) focusScanner();
               }}
             >
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, lineHeight: 1.2 }}>{headline}</div>
-              <div style={{ fontSize: '0.95rem', opacity: 0.95, wordBreak: 'break-word' }}>{detail}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, lineHeight: 1.15 }}>{headline}</div>
+              <div style={{ fontSize: '0.9rem', opacity: 0.95, wordBreak: 'break-word' }}>{detail}</div>
               {loading ? (
                 <div style={{ fontSize: '0.85rem', opacity: 0.85, marginTop: 4 }}>Verarbeite…</div>
               ) : null}
@@ -1077,17 +1077,18 @@ export default function WeTc57Page() {
             {session.status === 'OPEN' ? (
               <div
                 role="tablist"
-                aria-label="WE TC57 Register"
+                aria-label="WE Scan Register"
+                className="we-handheld__tabs"
                 style={{
                   position: 'sticky',
                   top: 0,
                   zIndex: 20,
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
-                  gap: 8,
-                  margin: '0.35rem 0 0.75rem',
-                  padding: 6,
-                  borderRadius: 14,
+                  gap: 6,
+                  margin: '0.25rem 0 0.55rem',
+                  padding: 5,
+                  borderRadius: 12,
                   background: 'var(--bg-panel, #fff)',
                   border: '2px solid var(--wog-green, #1f6b3a)',
                   boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
@@ -1174,20 +1175,21 @@ export default function WeTc57Page() {
                 autoCapitalize="off"
                 spellCheck={false}
                 enterKeyHint="done"
-                placeholder="Scanner bereit – hier tippt der TC57…"
+                placeholder="Scanner bereit – hier tippt der TC27…"
                 readOnly={false}
+                className="we-handheld__scan-input"
                 style={{
-                  minHeight: 56,
-                  fontSize: '1.15rem',
+                  minHeight: 52,
+                  fontSize: '1.2rem',
                   letterSpacing: '0.02em',
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                   background: loading ? '#f3f6f4' : undefined,
                 }}
               />
-              <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              <p className="muted we-handheld__hint" style={{ margin: 0, fontSize: '0.75rem' }}>
                 {workTab === 'abweichung'
-                  ? 'SSCC scannen oder unten aus der Liste wählen – dann Maße, Foto, Freitext, Beschädigt.'
-                  : 'Weiter scannen – Nachbearbeitung ist optional und unterbricht nicht. Ausführliche Abweichung im Register „Abweichung“.'}
+                  ? 'SSCC scannen oder unten wählen – dann Maße, Foto, Freitext.'
+                  : 'Weiter scannen. Abweichung optional im Register „Abweichung“.'}
               </p>
               {workTab === 'scan' ? (
                 <button
@@ -1207,13 +1209,13 @@ export default function WeTc57Page() {
 
             {workTab === 'scan' ? (
               <div
-                className="panel"
+                className="panel we-handheld__stats"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(5, 1fr)',
-                  gap: '0.35rem',
+                  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                  gap: '0.3rem',
                   textAlign: 'center',
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                 }}
               >
                 <div>
@@ -1601,7 +1603,7 @@ export default function WeTc57Page() {
                   bufferRef.current = '';
                   setHeadline('Lieferung wählen');
                   setDetail(
-                    'Danach Barcode mit dem TC57 scannen – bei vollständiger SSCC wird automatisch bestätigt.',
+                    'Danach Barcode scannen – bei vollständiger SSCC wird automatisch bestätigt.',
                   );
                   void loadGroups();
                 }}

@@ -43,7 +43,7 @@ export default function LagerLoginQrPage() {
   const [ttlDays, setTtlDays] = useState(90);
   const [singleUse, setSingleUse] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/scanning/we-tc57');
-  const [label, setLabel] = useState('Lager WE TC57');
+  const [label, setLabel] = useState('Lager WE Scan TC27');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +161,7 @@ export default function LagerLoginQrPage() {
       <div style={{ display: 'grid', gap: 24, maxWidth: 920 }}>
         <p className="muted" style={{ margin: 0, maxWidth: 720 }}>
           Erzeugt einen QR-Code zum Anmelden am Lager-Tablet (ohne Passwort tippen). Nach dem Scan
-          öffnet sich direkt die gewünschte Seite – Standard: WE TC57. Der Code ist als
+          öffnet sich direkt die gewünschte Seite – Standard: WE Scan. Der Code ist als
           Station-Badge mehrfach nutzbar, bis er abläuft oder neu erzeugt wird.
         </p>
 
@@ -218,7 +218,7 @@ export default function LagerLoginQrPage() {
               onChange={(e) => setRedirectPath(e.target.value)}
               style={{ minWidth: 220, padding: '8px 10px' }}
             >
-              <option value="/scanning/we-tc57">WE TC57</option>
+              <option value="/scanning/we-tc57">WE Scan (TC27/TC57)</option>
               <option value="/scanning">Scanning</option>
               <option value="/lager/lademittelscheine">Lademittelscheine</option>
               <option value="/dashboard">Dashboard</option>
